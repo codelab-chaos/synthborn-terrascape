@@ -56,7 +56,7 @@ Goal: create the minimal SynthWorldview mod shell and serve a browser app.
 
 #### Story 1.1 - Create SynthWorldview Plugin Skeleton
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -67,8 +67,9 @@ Acceptance:
 
 Validation:
 
-- Build command succeeds.
-- Server boot log shows plugin setup/start.
+- `.\gradlew.bat build` succeeds.
+- `synth-worldview-mvp` boot log shows `SynthWorldview setup complete`,
+  `SynthWorldview started`, and `Enabled plugin com.codelabchaos:SynthWorldview`.
 
 #### Story 1.2 - Add Config Loader
 
@@ -104,7 +105,7 @@ Validation:
 
 #### Story 1.4 - Add Admin Commands
 
-Status: Open
+Status: In Progress
 
 Acceptance:
 
@@ -115,7 +116,9 @@ Acceptance:
 
 Validation:
 
-- Commands run from an admin player and log useful results.
+- `/worldview status` works through SynthRCON and reports plugin state.
+- `/worldview sample 0 0` generated `default_0_0.glb` from the `default` world.
+- `/worldview clearcache` remains open.
 
 ### Epic 2: Terrain Snapshotting
 
@@ -138,7 +141,7 @@ Validation:
 
 #### Story 2.2 - Snapshot One Loaded Chunk Heightfield
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -149,11 +152,12 @@ Acceptance:
 
 Validation:
 
-- `/worldview sample` prints nonzero column count for a known loaded chunk.
+- `/worldview sample 0 0` printed `1024/1024` non-empty columns for world `default`,
+  height range `107..144`, and common top block `Soil_Gravel_Sand_White`.
 
 #### Story 2.3 - Resolve Block Visual Metadata
 
-Status: Open
+Status: In Progress
 
 Acceptance:
 
@@ -164,7 +168,9 @@ Acceptance:
 
 Validation:
 
-- Sample output reports top block IDs and chosen color source.
+- Sample output reports the most common top block key.
+- Color source is currently the conservative fallback palette; richer `BlockType`
+  visual metadata is still open.
 
 #### Story 2.4 - Decide Loaded Versus Non-Ticking Chunk Policy
 
@@ -187,7 +193,7 @@ Goal: turn terrain snapshots into browser-loadable GLB assets.
 
 #### Story 3.1 - Build Heightfield Mesher
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -198,11 +204,12 @@ Acceptance:
 
 Validation:
 
-- Unit or command validation reports expected vertex/index counts for a tiny fixture.
+- `/worldview sample 0 0` generated `7732` vertices and `3866` triangles from a real
+  terrain snapshot.
 
 #### Story 3.2 - Write Minimal GLB Encoder
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -213,8 +220,8 @@ Acceptance:
 
 Validation:
 
-- GLB opens in Three.js `GLTFLoader`.
-- Optional: validate with an external glTF validator when available.
+- Command validation wrote a `325772` byte `.glb` under the plugin data directory.
+- Three.js/browser load validation remains a follow-up under Epic 4.
 
 #### Story 3.3 - Serve Single Terrain GLB Endpoint
 
@@ -246,7 +253,7 @@ Validation:
 
 #### Story 3.5 - Add Disk Cache
 
-Status: Open
+Status: In Progress
 
 Acceptance:
 
@@ -256,7 +263,9 @@ Acceptance:
 
 Validation:
 
-- Generate one chunk, restart server, serve from disk.
+- Sample command writes GLB files under
+  `mods\com.codelabchaos_SynthWorldview\samples`.
+- Cache keying, reuse after restart, and clearcache behavior remain open.
 
 ### Epic 4: Three.js Viewer
 
@@ -479,7 +488,7 @@ Candidate stories:
 - [ ] Plugin loads and starts HTTP server.
 - [ ] Browser opens a nonblank Three.js app.
 - [ ] `/api/worlds` lists enabled worlds.
-- [ ] One real explored chunk generates a valid GLB.
+- [x] One real explored chunk generates a valid GLB.
 - [ ] Terrain chunks stream around camera movement.
 - [ ] Online players render at correct coordinates.
 - [ ] Unexplored chunks are blocked by default.

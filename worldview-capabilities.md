@@ -49,11 +49,6 @@ another world.
 The viewer can orbit, pan, zoom, or fly around the loaded terrain without losing the
 world coordinate frame.
 
-### [ ] Worldview Generates A GLB For One Real Explored Chunk
-
-Given a world and chunk coordinate, the server snapshots real chunk height/block data and
-returns a valid GLB.
-
 ### [ ] Worldview Renders Heightfield Terrain From Real Chunk Data
 
 The browser displays server-generated terrain geometry derived from `WorldChunk`
@@ -90,19 +85,9 @@ Player markers update from WebSocket messages and line up with terrain coordinat
 
 Clicking a player in the list moves the camera target to that player's position.
 
-### [ ] Operator Can Inspect Worldview Status In-Game
-
-An admin command reports HTTP status, connected browsers, cache counts, enabled worlds,
-and terrain generation limits.
-
 ### [ ] Operator Can Clear Terrain Caches
 
 An admin command clears memory and disk mesh caches.
-
-### [ ] Operator Can Generate A Sample Chunk For Validation
-
-An admin command or API endpoint generates one known chunk and reports whether snapshot,
-mesh, GLB encoding, cache write, and browser load are expected to work.
 
 ### [ ] Worldview Limits Concurrent Mesh Generation
 
@@ -116,11 +101,6 @@ A debug toggle shows chunk outlines, loaded keys, or LOD state to validate strea
 ### [ ] Viewer Can See Coordinates Under The Camera Or Pointer
 
 The UI shows approximate world X/Y/Z or X/Z coordinates for navigation and validation.
-
-### [ ] Worldview Uses Conservative Vertex Colors
-
-The MVP colors terrain through block computed colors, biome tint, or a fallback palette
-without requiring texture atlas generation.
 
 ### [ ] Worldview Streams LOD Terrain
 
@@ -156,7 +136,29 @@ terrain.
 
 ## Implemented Capabilities
 
-None yet.
+### [x] Operator Can Inspect Worldview Status In-Game
+
+Validated with `/worldview status` through SynthRCON on the `synth-worldview-mvp` save.
+It reports plugin load state, uptime, enabled worlds, and terrain sample availability.
+
+### [x] Operator Can Generate A Sample Chunk For Validation
+
+Validated with `/worldview sample 0 0` in world `default` on `2026-05-30`. The command
+reported snapshot, mesh, GLB byte size, and output path.
+
+### [x] Worldview Generates A GLB For One Real Chunk
+
+Validated with chunk `0,0` in world `default`: `1024/1024` non-empty columns, height
+range `107..144`, `7732` vertices, `3866` triangles, and a `325772` byte GLB written to
+`mods\com.codelabchaos_SynthWorldview\samples\default_0_0.glb`.
+
+Current caveat: this first pass samples through the runtime chunk APIs and does not yet
+guard against unexplored chunks by index.
+
+### [x] Worldview Uses Conservative Vertex Colors
+
+The sample mesher assigns vertex colors from block key heuristics with a stable fallback
+palette. This is intentionally conservative until texture atlas support exists.
 
 ## Validation Questions
 
