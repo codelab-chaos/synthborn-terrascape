@@ -254,7 +254,7 @@ Validation:
 
 #### Story 3.4 - Add Memory Cache And Pending Future Coalescing
 
-Status: In Progress
+Status: Closed
 
 Acceptance:
 
@@ -272,11 +272,19 @@ Validation:
 - A fast local overlap test with four concurrent one-chunk batch requests completed
   cleanly but did not observe coalescing because generation finished before requests
   overlapped.
-- Memory cache remains open.
+- Memory cache is implemented as a bounded access-order cache: `128` entries or
+  `128 MiB`, whichever limit is reached first.
+- Cache key includes format version, world, lod, chunk coordinates, and experimental
+  detail mode.
+- `X-Worldview-Cache` reports `generated`, `memory`, or `disk` for single GLB requests.
+- Live validation after `/worldview clearcache`: first request to
+  `/api/terrain/default/0/-7/3.glb` returned `X-Worldview-Cache: generated`; the second
+  returned `X-Worldview-Cache: memory`.
+- `/worldview status` reported `memory 1/128 entries, 293.6 KiB/128.0 MiB`.
 
 #### Story 3.5 - Add Disk Cache
 
-Status: In Progress
+Status: Closed
 
 Acceptance:
 
@@ -293,7 +301,15 @@ Validation:
 - Scale-test baseline after radius `1`, `2`, `3`, and `5` runs: `218` cached GLBs,
   `67,233,924` bytes total.
 - `/worldview clearcache` deletes current disk artifacts for `terrain` and `samples`.
-- Cache keying and reuse after restart remain open.
+- Disk cache writes GLBs plus a metadata sidecar containing columns, vertices,
+  triangles, and detail proxy count.
+- Disk cache is versioned under `terrain/v2/...` so incompatible mesh formats do not
+  reuse stale GLBs.
+- Cache keying includes world, lod, chunk coordinates, and experimental detail mode.
+- Live validation after restart: `/api/terrain/default/0/-7/3.glb` reused the persisted
+  GLB and returned `X-Worldview-Cache: disk`, then the next request returned
+  `X-Worldview-Cache: memory`.
+- `/worldview status` reported `disk: 1 GLBs, 293.6 KiB, hits 1`.
 
 ### Epic 4: Three.js Viewer
 
@@ -605,6 +621,57 @@ Validation:
 - Playwright validation clicked the live player button when a player was present and
   confirmed the coordinate readout changed after focus.
 
+#### Story 5.4 - Add Player And Mob Visibility Toggles
+
+Status: Open
+
+Acceptance:
+
+- Viewer exposes separate toggles for player markers and mob markers.
+- Disabling players hides existing player markers and player HUD buttons without
+  stopping the player feed.
+- Disabling mobs hides existing mob markers and labels without stopping the mob feed.
+- Toggle state is included in saved viewer state if it proves useful during testing.
+
+Validation:
+
+- Playwright toggles players and mobs off/on and confirms marker visibility changes.
+
+#### Story 5.5 - Add Mob Position Feed
+
+Status: Open
+
+Acceptance:
+
+- Server exposes conservative mob/entity snapshots by world at a polling-friendly
+  endpoint.
+- Snapshot includes stable id, mob type or short name, position, and a color/category
+  hint if available.
+- Transform/entity reads happen on safe world execution paths.
+- Feed is bounded so it cannot dump unbounded entity lists into the browser.
+
+Validation:
+
+- `GET /api/mobs/{world}` returns `ok=true` and a bounded mob array.
+- A known nearby mob appears in the payload with plausible world coordinates.
+
+#### Story 5.6 - Render Color-Coded Mob Spheres And Labels
+
+Status: Open
+
+Acceptance:
+
+- Mobs render as small colored spheres at `x, y, z`.
+- Mob colors are stable by mob type/category.
+- Labels are small, color-coded, and identify mob type or short name.
+- Labels can be hidden with the mob toggle or a follow-up label toggle if the view gets
+  too noisy.
+
+Validation:
+
+- Browser shows mob spheres and compact labels without disrupting terrain navigation.
+- Playwright validates marker creation with a fixture or live mob feed when available.
+
 ### Epic 6: MVP Hardening
 
 Goal: make the prototype safe enough to keep iterating.
@@ -643,11 +710,15 @@ Validation:
 - `/worldview status` reports active generation count, maximum generation count,
   pending request count, generated chunk count, coalesced request count, failed
   generation count, single terrain request count, and batch terrain request count.
+- `/worldview status` now also reports bounded memory cache entries/bytes/hits and
+  disk cache GLB count/bytes/hits.
 - Live validation after a two-chunk batch request reported `generated 2`, `failed 0`,
   and `batch 1`; after four more batch requests it reported `generated 6` and
   `batch 5`.
-- Memory cache, disk cache size, cache hits, and connected viewers remain follow-ups
-  after those subsystems exist.
+- Live cache validation reported `cache: memory 1/128 entries, 293.6 KiB/128.0 MiB,
+  hits 3` and `disk: 1 GLBs, 293.6 KiB, hits 1`.
+- Connected viewer count remains a follow-up if we introduce WebSocket or session
+  tracking.
 
 #### Story 6.3 - Add Basic Browser Resource Disposal Audit
 
@@ -794,6 +865,28 @@ Validation:
 - Compare proxy output versus bounded scan output on the same forest chunk.
 - Record GLB bytes, vertices, triangles, generation time, and browser FPS impression.
 
+#### Story 7.3a - Experiment With First Canopy Hit Tree Sampling
+
+Status: Parked / Experimental
+
+Acceptance:
+
+- Experimental sampler treats leaves similarly to the existing water pass: record the
+  first leaf/canopy block encountered in a column, but continue scanning downward.
+- Terrain heightfield uses the first stable ground block found below canopy, not the
+  leaf height.
+- Trunk/branch-like blocks can be recorded as support detail if encountered before
+  ground.
+- Output keeps canopy as a separate detail primitive/material so it can be disabled or
+  tuned independently.
+- Experimental mode remains server-gated and off by default.
+
+Validation:
+
+- Compare current tree-proxy output against first-canopy-hit output on chunk `-7,3`.
+- Record proxy count, vertices, triangles, GLB bytes, and visual impression.
+- Confirm default non-experimental terrain output remains unchanged.
+
 #### Story 7.4 - Render Water As Solid Or Transparent
 
 Status: Closed
@@ -853,6 +946,6 @@ Candidate stories:
 - [x] Terrain chunks stream around camera movement.
 - [x] Online players render at correct coordinates.
 - [ ] Unexplored chunks are blocked by default.
-- [ ] Memory cache, disk cache, and pending-future coalescing are validated.
+- [x] Memory cache, disk cache, and pending-future coalescing are validated.
 - [ ] Mesh generation concurrency is bounded.
 - [ ] Basic docs explain setup, commands, and known limits.

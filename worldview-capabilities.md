@@ -35,15 +35,6 @@ in `/api/worlds` and cannot serve terrain.
 Requests for chunks outside the explored/on-disk index return empty or unexplored
 responses without forcing terrain generation.
 
-### [ ] Worldview Caches Generated Terrain In Memory
-
-Recent GLB terrain chunks are served from a bounded memory cache.
-
-### [ ] Worldview Caches Generated Terrain On Disk
-
-Generated GLB terrain chunks persist under the plugin data directory and can be reused
-after restart.
-
 ### [ ] Worldview Enforces Disk Cache Limits
 
 Generated terrain cache files are bounded by count, bytes, age, or explicit operator
@@ -85,10 +76,35 @@ above-ground structures while keeping the conservative heightfield mesh as the d
 safe mode. The enhanced mode should be bounded by scan depth, block classification, and
 mesh budget settings.
 
+### [ ] Experimental Tree Detail Can Preserve First Canopy Hit While Finding Ground
+
+Experimental tree generation can treat leaves similarly to water: when a column sees a
+leaf block, it records the first leaf/canopy hit for detail rendering, then keeps
+scanning downward until it finds ground or a trunk/branch support. The terrain mesh stays
+ground-based while the first meaningful canopy hit can still be represented as a small
+detail mesh.
+
 ### [ ] Worldview Can Invalidate Dirty Chunks
 
 The server can detect chunk/block updates and tell connected browsers to reload affected
 terrain.
+
+### [ ] Viewer Can Toggle Player And Mob Markers Independently
+
+The 3D view exposes independent toggles for player markers and mob markers so the
+operator can declutter the map without disabling the underlying live entity feeds.
+
+### [ ] Viewer Can Show Mobs As Color-Coded Spheres
+
+The server exposes conservative mob snapshots by world, and the viewer renders each mob
+as a small colored sphere at its world position. The first pass should use stable colors
+by mob type or role instead of custom icon art.
+
+### [ ] Viewer Can Show Small Color-Coded Mob Labels
+
+The viewer can show compact mob labels that match the marker color and identify the mob
+type or useful short name. Labels should be small enough to avoid covering terrain and
+should be toggleable if they become noisy.
 
 ## Implemented Capabilities
 
@@ -159,6 +175,22 @@ Validated live with the `Auto` toggle enabled and a radius `3` grid reaching
 The browser requests missing terrain chunks through capped `POST /api/terrain/batch`
 calls instead of one HTTP request per chunk. Each batch returns per-chunk success or
 failure data so failed chunks do not poison the whole batch.
+
+### [x] Worldview Caches Generated Terrain In Memory
+
+Recent GLB terrain chunks are served from a bounded access-order memory cache. The cache
+is capped at `128` entries or `128 MiB`, and `/worldview status` reports entries,
+bytes, and memory-hit count. Validated on `synth-worldview-mvp`: after clearcache, the
+first request to chunk `-7,3` returned `X-Worldview-Cache: generated`, and the second
+returned `X-Worldview-Cache: memory`.
+
+### [x] Worldview Caches Generated Terrain On Disk
+
+Generated GLB terrain chunks persist under the plugin data directory with metadata
+sidecars for response headers. Disk cache paths include terrain format version, world,
+lod, chunk coordinates, and experimental detail mode. Validated across restart: chunk
+`-7,3` returned `X-Worldview-Cache: disk`, then subsequent requests returned
+`X-Worldview-Cache: memory`.
 
 ### [x] Worldview Coalesces Duplicate Terrain Requests
 

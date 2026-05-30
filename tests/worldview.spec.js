@@ -27,10 +27,12 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   const normalDetailResponse = await page.request.get('/api/terrain/default/0/-7/3.glb');
   expect(normalDetailResponse.ok()).toBeTruthy();
   expect(Number(normalDetailResponse.headers()['x-worldview-details'] ?? 0)).toBe(0);
+  expect(['generated', 'disk', 'memory']).toContain(normalDetailResponse.headers()['x-worldview-cache']);
 
   const detailResponse = await page.request.get('/api/terrain/default/0/-7/3.glb?details=1');
   expect(detailResponse.ok()).toBeTruthy();
   expect(Number(detailResponse.headers()['x-worldview-details'] ?? 0)).toBe(0);
+  expect(detailResponse.headers()['x-worldview-cache']).toBe('memory');
 
   await page.locator('#water-mode').selectOption('solid');
   await expect(page.locator('#water-mode')).toHaveValue('solid');

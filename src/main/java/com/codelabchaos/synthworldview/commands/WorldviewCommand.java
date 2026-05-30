@@ -77,6 +77,14 @@ public class WorldviewCommand extends AbstractWorldCommand {
             context.sendMessage(Message.raw("  chunks  : generated " + metrics.generatedChunks()
                     + ", coalesced " + metrics.coalescedRequests()
                     + ", failed " + metrics.failedGenerations()).color(Color.WHITE));
+            context.sendMessage(Message.raw("  cache   : memory " + metrics.memoryCacheEntries()
+                    + "/" + metrics.maxMemoryCacheEntries()
+                    + " entries, " + formatBytes(metrics.memoryCacheBytes())
+                    + "/" + formatBytes(metrics.maxMemoryCacheBytes())
+                    + ", hits " + metrics.memoryCacheHits()).color(Color.WHITE));
+            context.sendMessage(Message.raw("  disk    : " + metrics.diskCacheFiles()
+                    + " GLBs, " + formatBytes(metrics.diskCacheBytes())
+                    + ", hits " + metrics.diskCacheHits()).color(Color.WHITE));
             context.sendMessage(Message.raw("  http    : single " + metrics.singleRequests()
                     + ", batch " + metrics.batchRequests()).color(Color.WHITE));
         }
@@ -132,6 +140,9 @@ public class WorldviewCommand extends AbstractWorldCommand {
 
     private void handleClearCache(@Nonnull CommandContext context) {
         try {
+            WorldviewWebServer.MemoryCacheStats memory = plugin.webServer() == null
+                    ? new WorldviewWebServer.MemoryCacheStats(0, 0)
+                    : plugin.webServer().clearMemoryCache();
             CacheDeleteStats terrain = deleteCacheDirectory("terrain");
             CacheDeleteStats samples = deleteCacheDirectory("samples");
             CacheDeleteStats total = terrain.plus(samples);
@@ -142,6 +153,8 @@ public class WorldviewCommand extends AbstractWorldCommand {
             context.sendMessage(Message.raw("  bytes   : " + total.bytes()).color(Color.WHITE));
             context.sendMessage(Message.raw("  terrain : " + terrain.files() + " files").color(Color.WHITE));
             context.sendMessage(Message.raw("  samples : " + samples.files() + " files").color(Color.WHITE));
+            context.sendMessage(Message.raw("  memory  : " + memory.entries()
+                    + " entries, " + formatBytes(memory.bytes())).color(Color.WHITE));
             context.sendMessage(Message.raw("  cleared : " + plugin.worldviewDir()).color(Color.GREEN));
         } catch (Exception e) {
             plugin.getLogger().at(Level.WARNING).withCause(e).log("Worldview clearcache failed.");
@@ -191,6 +204,21 @@ public class WorldviewCommand extends AbstractWorldCommand {
             return minutes + "m " + (seconds % 60) + "s";
         }
         return seconds + "s";
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        }
+        double kib = bytes / 1024.0;
+        if (kib < 1024) {
+            return String.format(java.util.Locale.ROOT, "%.1f KiB", kib);
+        }
+        double mib = kib / 1024.0;
+        if (mib < 1024) {
+            return String.format(java.util.Locale.ROOT, "%.1f MiB", mib);
+        }
+        return String.format(java.util.Locale.ROOT, "%.1f GiB", mib / 1024.0);
     }
 
     private record CacheDeleteStats(long files, long directories, long bytes) {

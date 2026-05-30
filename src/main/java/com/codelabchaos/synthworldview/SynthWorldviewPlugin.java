@@ -45,6 +45,10 @@ public class SynthWorldviewPlugin extends JavaPlugin {
         return webServer == null ? null : webServer.metrics();
     }
 
+    public WorldviewWebServer webServer() {
+        return webServer;
+    }
+
     public boolean experimentalDetailsEnabled() {
         return experimentalDetailsEnabled;
     }
