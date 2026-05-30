@@ -56,7 +56,7 @@ Goal: create the minimal SynthWorldview mod shell and serve a browser app.
 
 #### Story 1.1 - Create SynthWorldview Plugin Skeleton
 
-Status: Closed
+Status: In Progress
 
 Acceptance:
 
@@ -87,9 +87,9 @@ Validation:
 - Delete config, boot server, confirm default file.
 - Change port/world allowlist and confirm behavior.
 
-#### Story 1.3 - Start Netty HTTP Server
+#### Story 1.3 - Start HTTP Server
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -100,8 +100,14 @@ Acceptance:
 
 Validation:
 
-- Browser opens app.
-- Server restart releases port.
+- Server boot log shows `SynthWorldview listening on http://127.0.0.1:5960`.
+- `GET /` serves `index.html`.
+- `GET /api/worlds` returns `{"ok":true,"worlds":[{"name":"default"}]}`.
+- Server restart releases and reacquires port `5960`.
+
+Note: MVP uses the JDK HTTP server already proven by SynthRCON. Netty remains a
+future implementation choice if traffic or lifecycle needs justify it. The batch
+terrain route remains open under Story 4.5.
 
 #### Story 1.4 - Add Admin Commands
 
@@ -225,7 +231,7 @@ Validation:
 
 #### Story 3.3 - Serve Single Terrain GLB Endpoint
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -235,7 +241,9 @@ Acceptance:
 
 Validation:
 
-- Browser and curl can download a sample chunk.
+- `GET /api/terrain/default/0/0/0.glb` returned `200`, `model/gltf-binary`, and
+  `325772` bytes.
+- Response headers reported `1024` columns, `7732` vertices, and `3866` triangles.
 
 #### Story 3.4 - Add Memory Cache And Pending Future Coalescing
 
@@ -273,7 +281,7 @@ Goal: provide the first usable 3D map experience.
 
 #### Story 4.1 - Build Full-Screen Three.js App
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -283,11 +291,13 @@ Acceptance:
 
 Validation:
 
-- Browser shows nonblank interactive canvas.
+- Headless Chrome screenshots at `1440x900` and `390x844` showed a nonblank
+  Three.js canvas.
+- Pixel sampling found varied rendered content in both screenshots.
 
 #### Story 4.2 - Load One GLB Chunk
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -297,7 +307,9 @@ Acceptance:
 
 Validation:
 
-- Known sample chunk appears at expected coordinates.
+- The browser loaded `/api/terrain/default/0/0/0.glb` and displayed chunk `0,0` in
+  the scene.
+- The loaded object is placed at `chunkX * 32, 0, chunkZ * 32`.
 
 #### Story 4.3 - Stream Camera-Centered Chunk Grid
 
@@ -486,8 +498,8 @@ Candidate stories:
 ## MVP Closure Checklist
 
 - [ ] Plugin loads and starts HTTP server.
-- [ ] Browser opens a nonblank Three.js app.
-- [ ] `/api/worlds` lists enabled worlds.
+- [x] Browser opens a nonblank Three.js app.
+- [x] `/api/worlds` lists enabled worlds.
 - [x] One real explored chunk generates a valid GLB.
 - [ ] Terrain chunks stream around camera movement.
 - [ ] Online players render at correct coordinates.

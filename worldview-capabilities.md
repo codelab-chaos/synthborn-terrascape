@@ -25,34 +25,10 @@ for explored chunks" over "Worldview renders the world."
 
 ## Needed Capabilities
 
-### [ ] Operator Can Start A Local Worldview Web Server
-
-The mod starts an HTTP server on a configured port and serves the browser app plus API
-routes.
-
 ### [ ] Operator Can Restrict Which Worlds Are Visible
 
 The config can allow all worlds or whitelist specific worlds. Hidden worlds do not appear
 in `/api/worlds` and cannot serve terrain.
-
-### [ ] Viewer Can Open A Full-Screen Three.js World View
-
-The first browser screen is the navigable 3D map with controls, not a marketing page.
-
-### [ ] Viewer Can Select A Hytale World
-
-The browser lists enabled worlds and swaps terrain/player streams when the viewer picks
-another world.
-
-### [ ] Viewer Can Navigate The Terrain In 3D
-
-The viewer can orbit, pan, zoom, or fly around the loaded terrain without losing the
-world coordinate frame.
-
-### [ ] Worldview Renders Heightfield Terrain From Real Chunk Data
-
-The browser displays server-generated terrain geometry derived from `WorldChunk`
-height/block data.
 
 ### [ ] Worldview Blocks Unexplored Chunks By Default
 
@@ -135,6 +111,32 @@ The server can detect chunk/block updates and tell connected browsers to reload 
 terrain.
 
 ## Implemented Capabilities
+
+### [x] Operator Can Start A Local Worldview Web Server
+
+Validated on `synth-worldview-mvp`: SynthWorldview starts a local HTTP server at
+`http://127.0.0.1:5960`, serves the browser app, and exposes `/api/worlds` plus
+`/api/terrain/{world}/{lod}/{chunkX}/{chunkZ}.glb`.
+
+### [x] Viewer Can Open A Full-Screen Three.js World View
+
+Validated with headless Chrome screenshots at `1440x900` and `390x844`. Both renders
+show the full-screen Three.js canvas and the loaded real terrain chunk.
+
+### [x] Viewer Can Select A Hytale World
+
+Validated through `/api/worlds`, which returned `default`; the browser populates the
+world selector from that API.
+
+### [x] Viewer Can Navigate The Terrain In 3D
+
+The first viewer includes Three.js `OrbitControls` around the loaded chunk with resize
+handling and camera retargeting after terrain load.
+
+### [x] Worldview Renders Heightfield Terrain From Real Chunk Data
+
+Validated by loading `GET /api/terrain/default/0/0/0.glb` in the Three.js viewer. The
+rendered scene shows the same terrain generated from `WorldChunk` height/block data.
 
 ### [x] Operator Can Inspect Worldview Status In-Game
 
