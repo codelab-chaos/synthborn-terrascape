@@ -1,0 +1,15 @@
+{
+  "Group": "com.codelabchaos",
+  "Name": "SynthWorldview",
+  "Version": "0.1.0",
+  "Description": "3D browser worldview prototype for Hytale server terrain",
+  "Authors": [
+    {
+      "Name": "ccnef"
+    }
+  ],
+  "Main": "com.codelabchaos.synthworldview.SynthWorldviewPlugin",
+  "IncludesAssetPack": false,
+  "ServerVersion": ">=0.5.0 <0.6.0",
+  "DisabledByDefault": false
+}
