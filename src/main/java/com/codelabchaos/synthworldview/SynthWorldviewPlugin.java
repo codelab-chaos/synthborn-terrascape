@@ -5,6 +5,7 @@ import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 
 import javax.annotation.Nonnull;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.logging.Level;
 
@@ -23,6 +24,10 @@ public class SynthWorldviewPlugin extends JavaPlugin {
 
     public Instant startedAt() {
         return startedAt;
+    }
+
+    public Path worldviewDir() {
+        return getDataDirectory();
     }
 
     @Override

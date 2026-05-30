@@ -1,6 +1,11 @@
 package com.codelabchaos.synthworldview.commands;
 
 import com.codelabchaos.synthworldview.SynthWorldviewPlugin;
+import com.codelabchaos.synthworldview.terrain.GltfWriter;
+import com.codelabchaos.synthworldview.terrain.TerrainMesh;
+import com.codelabchaos.synthworldview.terrain.TerrainMesher;
+import com.codelabchaos.synthworldview.terrain.TerrainSampler;
+import com.codelabchaos.synthworldview.terrain.TerrainSnapshot;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
@@ -11,8 +16,11 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import javax.annotation.Nonnull;
 import java.awt.Color;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 public class WorldviewCommand extends AbstractWorldCommand {
@@ -32,6 +40,7 @@ public class WorldviewCommand extends AbstractWorldCommand {
 
         switch (subcommand) {
             case "status" -> sendStatus(context);
+            case "sample" -> handleSample(args, context, world);
             default -> sendUsage(context);
         }
     }
@@ -53,11 +62,64 @@ public class WorldviewCommand extends AbstractWorldCommand {
         context.sendMessage(Message.raw("  plugin  : loaded").color(Color.WHITE));
         context.sendMessage(Message.raw("  uptime  : " + uptime).color(Color.WHITE));
         context.sendMessage(Message.raw("  worlds  : " + worlds).color(Color.WHITE));
-        context.sendMessage(Message.raw("  terrain : not implemented yet (MVP scaffold)").color(Color.YELLOW));
+        context.sendMessage(Message.raw("  terrain : sample GLB command available").color(Color.GREEN));
+    }
+
+    private void handleSample(@Nonnull String[] args, @Nonnull CommandContext context, @Nonnull World world) {
+        if (args.length < 4) {
+            context.sendMessage(Message.raw("Usage: /worldview sample <chunkX> <chunkZ>").color(Color.YELLOW));
+            return;
+        }
+
+        Integer chunkX = parseInt(args[2]);
+        Integer chunkZ = parseInt(args[3]);
+        if (chunkX == null || chunkZ == null) {
+            context.sendMessage(Message.raw("Chunk coordinates must be integers.").color(Color.RED));
+            return;
+        }
+
+        try {
+            TerrainSnapshot snapshot = TerrainSampler.sample(world, chunkX, chunkZ);
+            TerrainMesh mesh = TerrainMesher.mesh(snapshot);
+            byte[] glb = GltfWriter.writeGlb(mesh);
+            Path output = sampleOutputPath(world.getName(), chunkX, chunkZ);
+            Files.createDirectories(output.getParent());
+            Files.write(output, glb);
+
+            context.sendMessage(Message.raw("=== SynthWorldview sample ===").color(Color.CYAN));
+            context.sendMessage(Message.raw("  world     : " + world.getName()).color(Color.WHITE));
+            context.sendMessage(Message.raw("  chunk     : " + chunkX + ", " + chunkZ).color(Color.WHITE));
+            context.sendMessage(Message.raw("  columns   : " + snapshot.nonEmptyColumns()
+                    + "/1024 non-empty, y " + snapshot.minY() + ".." + snapshot.maxY()).color(Color.WHITE));
+            context.sendMessage(Message.raw("  common    : " + snapshot.mostCommonBlockKey()).color(Color.WHITE));
+            context.sendMessage(Message.raw("  mesh      : " + mesh.vertexCount() + " vertices, "
+                    + mesh.triangleCount() + " triangles").color(Color.WHITE));
+            context.sendMessage(Message.raw("  glb       : " + glb.length + " bytes").color(Color.WHITE));
+            context.sendMessage(Message.raw("  wrote     : " + output).color(Color.GREEN));
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.WARNING).log(
+                    "Worldview sample failed for chunk " + chunkX + "," + chunkZ + ": " + e.getMessage());
+            context.sendMessage(Message.raw("Sample failed: " + e.getMessage()).color(Color.RED));
+        }
+    }
+
+    private Path sampleOutputPath(@Nonnull String worldName, int chunkX, int chunkZ) {
+        String safeWorld = worldName.replaceAll("[^A-Za-z0-9_.-]", "_");
+        return plugin.worldviewDir()
+                .resolve("samples")
+                .resolve(safeWorld + "_" + chunkX + "_" + chunkZ + ".glb");
     }
 
     private static void sendUsage(@Nonnull CommandContext context) {
-        context.sendMessage(Message.raw("Usage: /worldview status").color(Color.YELLOW));
+        context.sendMessage(Message.raw("Usage: /worldview status | /worldview sample <chunkX> <chunkZ>").color(Color.YELLOW));
+    }
+
+    private static Integer parseInt(@Nonnull String value) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private static String formatDuration(@Nonnull Duration duration) {
