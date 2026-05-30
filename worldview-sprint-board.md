@@ -494,6 +494,25 @@ Validation:
 - `app.js` updates the readout every animation frame from `controls.target`,
   `targetChunk()`, and `camera.position`.
 
+#### Story 4.11 - Restore Camera Position After Page Reload
+
+Status: Open
+
+Acceptance:
+
+- Viewer saves camera position and `OrbitControls.target` during navigation.
+- Viewer restores the saved pose on page reload before the first grid focus resets the
+  camera.
+- Saved state includes selected world, visible radius, auto-stream setting, bounds
+  toggle, and water mode.
+- URL parameters can still override saved state for explicit test/debug links.
+
+Validation:
+
+- Move the camera, reload the page, and confirm the same world area and viewing angle
+  return.
+- Playwright reload validation confirms target/camera coordinates survive a reload.
+
 #### Story 4.5 - Add Batch Terrain Fetch
 
 Status: Closed
@@ -523,23 +542,30 @@ Validation:
 
 Goal: reuse the proven EasyWebMap player stream in 3D.
 
-#### Story 5.1 - Add Player WebSocket Feed
+#### Story 5.1 - Add Player Position Feed
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
-- Server broadcasts player positions by world at configured interval.
+- Server exposes player positions by world at a configured or conservative interval.
 - Transform reads happen on safe world execution paths.
-- Disconnected sockets are removed.
+- Disconnected players are removed from subsequent updates.
 
 Validation:
 
-- Browser receives `players` messages while a player moves.
+- MVP transport is a one-second browser poll against `GET /api/players/{world}` because
+  the current JDK HTTP server does not provide WebSocket support.
+- `GET /api/players/default` on `synth-worldview-mvp` returned `ok=true` with online
+  player `Gigantomancer` at approximately `-168, 123, 109`.
+- Player transform snapshotting runs through `world.execute(...)` and returns UUID,
+  username, position, and yaw.
+- Playwright validation asserts the player API returns an array and the viewer player
+  panel is visible.
 
 #### Story 5.2 - Render 3D Player Markers
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -549,20 +575,28 @@ Acceptance:
 
 Validation:
 
-- Marker lines up with known player coordinates.
+- The viewer creates one marker group per player UUID with a vertical capsule, ground
+  ring, and directional heading cone.
+- The player list updates from the same payload and removes stale UUIDs when players
+  disappear.
+- Live endpoint validation returned player coordinates from the dedicated world, and
+  Playwright observed an online player button when a player was present.
 
 #### Story 5.3 - Focus Camera On Player
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
 - Clicking player in sidebar moves camera target to the player.
-- Selection survives normal WebSocket updates.
+- Selection survives normal position-feed updates.
 
 Validation:
 
-- Focus one online player and confirm terrain/player alignment.
+- Clicking a player button moves `OrbitControls.target` to the player's position and
+  offsets the camera into an inspection view.
+- Playwright validation clicked the live player button when a player was present and
+  confirmed the coordinate readout changed after focus.
 
 ### Epic 6: MVP Hardening
 
@@ -645,7 +679,13 @@ Validation:
 
 ### Epic 7: Better Terrain Fidelity
 
-Status: Parked
+Status: Experimental
+
+Note: the first tree-canopy proxy pass is useful and validated, but it is intentionally
+experimental. Keep it available for visual exploration, but do not spend MVP time tuning
+canopy shapes, density, or exact block classification unless it becomes product-critical.
+The feature is off by default and only runs when the viewer `Trees` toggle or
+`?details=1` terrain request flag is enabled.
 
 Candidate stories:
 
@@ -664,7 +704,7 @@ Candidate stories:
 
 #### Story 7.1 - Classify Overland Detail Blocks
 
-Status: Parked
+Status: Closed / Experimental
 
 Acceptance:
 
@@ -675,8 +715,11 @@ Acceptance:
 
 Validation:
 
-- Sample forest chunks report plausible foliage/trunk counts.
-- Unknown block count is visible so bad classifications are easy to spot.
+- `TerrainSampler` classifies foliage-like block keys (`leaf`, `leaves`, `foliage`,
+  `bush`) and trunk-like block keys (`trunk`, `log`, `wood`) as overland detail.
+- When overland detail is the top block, the sampler scans down up to `18` blocks to
+  recover a ground terrain surface instead of turning the canopy into a terrain column.
+- Unknown block count remains a follow-up when a broader block-role report exists.
 
 #### Story 7.1a - Add Enhanced Structure Mesh Feature Flag
 
@@ -698,7 +741,7 @@ Validation:
 
 #### Story 7.2 - Add Cheap Tree Proxies
 
-Status: Parked
+Status: Closed / Experimental
 
 Acceptance:
 
@@ -709,9 +752,20 @@ Acceptance:
 
 Validation:
 
-- Forest chunk screenshots show recognizable tree silhouettes.
-- Radius `3` grid remains smooth in the browser.
-- Vertex/triangle delta is recorded against the heightfield-only baseline.
+- Foliage detail emits sparse canopy boxes and trunk detail emits slim trunk boxes into
+  a separate GLB primitive/material named `worldview-detail`.
+- The feature is opt-in. Default terrain requests omit detail geometry and cache under
+  normal `lod-0`; experimental detail requests cache separately under `lod-0-details`.
+- `GET /api/terrain/default/0/-7/3.glb` on `synth-worldview-mvp` returned
+  `X-Worldview-Details: 0` and `300628` bytes after the feature was defaulted off.
+- `GET /api/terrain/default/0/-7/3.glb?details=1` returned `X-Worldview-Details:
+  226`, `12548` vertices, `6274` triangles, and `529108` bytes.
+- Nearby live-player probe also found detail proxies in chunks `-6,3`, `-6,4`,
+  `-5,3`, `-7,4`, `-6,2`, and `-7,2`.
+- Playwright validation requests chunk `-7,3` and asserts the detail count is greater
+  than zero while the normal viewer smoke test remains green.
+- Screenshot-level tree silhouette tuning is intentionally deferred; this feature is a
+  kept experiment, not a current polish track.
 
 #### Story 7.3 - Evaluate Bounded Exposed-Face Scan For Vegetation
 
@@ -730,7 +784,7 @@ Validation:
 
 #### Story 7.4 - Render Water As Solid Or Transparent
 
-Status: Parked
+Status: Closed
 
 Acceptance:
 
@@ -743,9 +797,17 @@ Acceptance:
 
 Validation:
 
-- Known water chunks show visible water in both modes.
-- GLB material or node structure keeps water independently controllable.
-- Radius `3` grid remains smooth with water enabled.
+- `TerrainSampler` records `WorldChunk.getFluidId(...)` and classifies water-like block
+  keys separately from opaque terrain.
+- `TerrainMesher` emits fluid columns through a separate mesh part, and `GltfWriter`
+  writes a named `worldview-water` material so the browser can independently control
+  water display.
+- Viewer exposes `Water` modes: `Transparent`, `Solid`, and `Hidden`; URL bootstrapping
+  supports `?water=transparent|solid|hidden`.
+- Playwright validation passed with the water control present and mode changes applied
+  while a radius `1` grid stayed bounded at `9 chunks`.
+- Nearby grid probe over chunks `-5..5` did not find a real water primitive, so visual
+  validation on a known shoreline remains a follow-up.
 
 ### Epic 8: Live Dirty Chunk Updates
 
@@ -777,7 +839,7 @@ Candidate stories:
 - [x] `/api/worlds` lists enabled worlds.
 - [x] One real explored chunk generates a valid GLB.
 - [x] Terrain chunks stream around camera movement.
-- [ ] Online players render at correct coordinates.
+- [x] Online players render at correct coordinates.
 - [ ] Unexplored chunks are blocked by default.
 - [ ] Memory cache, disk cache, and pending-future coalescing are validated.
 - [ ] Mesh generation concurrency is bounded.

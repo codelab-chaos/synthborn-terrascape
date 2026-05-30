@@ -9,18 +9,52 @@ public final class TerrainMesher {
     }
 
     public static TerrainMesh mesh(@Nonnull TerrainSnapshot snapshot) {
-        MeshBuilder builder = new MeshBuilder();
+        return mesh(snapshot, true);
+    }
+
+    public static TerrainMesh mesh(@Nonnull TerrainSnapshot snapshot, boolean includeDetail) {
+        MeshBuilder opaque = new MeshBuilder("opaque");
+        MeshBuilder water = new MeshBuilder("water");
+        MeshBuilder detail = new MeshBuilder("detail");
         for (TerrainColumn column : snapshot.columns()) {
             if (column == null || column.empty()) {
                 continue;
             }
+            MeshBuilder builder = column.fluid() ? water : opaque;
             addTop(builder, column);
             addSideIfLower(builder, snapshot, column, 0, -1);
             addSideIfLower(builder, snapshot, column, 0, 1);
             addSideIfLower(builder, snapshot, column, -1, 0);
             addSideIfLower(builder, snapshot, column, 1, 0);
         }
-        return builder.toMesh();
+        if (includeDetail) {
+            for (TerrainDetail overland : snapshot.details()) {
+                addDetail(detail, overland);
+            }
+        }
+        return new TerrainMesh(opaque.toPart(), water.toPart(), detail.toPart());
+    }
+
+    private static void addDetail(MeshBuilder builder, TerrainDetail detail) {
+        if (detail.kind() == TerrainDetail.Kind.TRUNK) {
+            float x = detail.localX() + 0.5f;
+            float z = detail.localZ() + 0.5f;
+            addBox(builder, x - 0.18f, detail.y(), z - 0.18f, x + 0.18f, detail.y() + 3.2f, z + 0.18f, detail.rgb());
+            return;
+        }
+
+        float x = detail.localX() + 0.5f;
+        float z = detail.localZ() + 0.5f;
+        addBox(builder, x - 1.7f, detail.y() - 0.4f, z - 1.7f, x + 1.7f, detail.y() + 2.4f, z + 1.7f, detail.rgb());
+    }
+
+    private static void addBox(MeshBuilder builder, float x0, float y0, float z0, float x1, float y1, float z1, int rgb) {
+        builder.addQuad(x0, y1, z0, x0, y1, z1, x1, y1, z1, x1, y1, z0, 0, 1, 0, rgb);
+        builder.addQuad(x0, y0, z1, x0, y0, z0, x1, y0, z0, x1, y0, z1, 0, -1, 0, darken(rgb));
+        builder.addQuad(x1, y0, z1, x1, y1, z1, x1, y1, z0, x1, y0, z0, 1, 0, 0, darken(rgb));
+        builder.addQuad(x0, y0, z0, x0, y1, z0, x0, y1, z1, x0, y0, z1, -1, 0, 0, darken(rgb));
+        builder.addQuad(x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1, 0, 0, 1, darken(rgb));
+        builder.addQuad(x1, y0, z0, x0, y0, z0, x0, y1, z0, x1, y1, z0, 0, 0, -1, darken(rgb));
     }
 
     private static void addTop(MeshBuilder builder, TerrainColumn column) {
@@ -71,11 +105,16 @@ public final class TerrainMesher {
     }
 
     private static final class MeshBuilder {
+        private final String name;
         private final List<Float> positions = new ArrayList<>();
         private final List<Float> normals = new ArrayList<>();
         private final List<Float> colors = new ArrayList<>();
         private final List<Integer> indices = new ArrayList<>();
         private int vertexCount;
+
+        MeshBuilder(String name) {
+            this.name = name;
+        }
 
         void addQuad(
                 float ax, float ay, float az,
@@ -111,8 +150,9 @@ public final class TerrainMesher {
             vertexCount++;
         }
 
-        TerrainMesh toMesh() {
-            return new TerrainMesh(
+        TerrainMesh.TerrainPart toPart() {
+            return new TerrainMesh.TerrainPart(
+                    name,
                     toFloatArray(positions),
                     toFloatArray(normals),
                     toFloatArray(colors),

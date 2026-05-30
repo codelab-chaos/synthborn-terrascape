@@ -5,10 +5,12 @@ public record TerrainColumn(
         int localZ,
         int y,
         int blockId,
+        int fluidId,
         String blockKey,
-        int rgb
+        int rgb,
+        boolean fluid
 ) {
     public boolean empty() {
-        return blockId == 0 || y < 0;
+        return !fluid && (blockId == 0 || y < 0);
     }
 }

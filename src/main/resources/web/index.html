@@ -42,10 +42,23 @@
       <input id="debug-bounds" type="checkbox">
       <span>Bounds</span>
     </label>
+    <label class="toggle">
+      <input id="experimental-details" type="checkbox">
+      <span>Trees</span>
+    </label>
+    <label>
+      <span>Water</span>
+      <select id="water-mode">
+        <option value="solid" selected>Solid</option>
+        <option value="transparent">Transparent</option>
+        <option value="hidden">Hidden</option>
+      </select>
+    </label>
     <button id="load" type="button">Load Grid</button>
     <div id="status" class="status">Starting</div>
     <div id="metrics" class="metrics">0 chunks loaded</div>
     <div id="coordinates" class="coords">Target pending</div>
+    <div id="players" class="players">No players</div>
   </div>
   <script type="module" src="/app.js"></script>
 </body>

@@ -9,10 +9,13 @@ const chunkZInput = document.querySelector('#chunk-z');
 const radiusInput = document.querySelector('#radius');
 const autoStreamInput = document.querySelector('#auto-stream');
 const debugBoundsInput = document.querySelector('#debug-bounds');
+const experimentalDetailsInput = document.querySelector('#experimental-details');
+const waterModeInput = document.querySelector('#water-mode');
 const loadButton = document.querySelector('#load');
 const statusEl = document.querySelector('#status');
 const metricsEl = document.querySelector('#metrics');
 const coordinatesEl = document.querySelector('#coordinates');
+const playersEl = document.querySelector('#players');
 
 const SKY_COLOR = 0x173454;
 const GRID_AXIS_COLOR = 0x58616a;
@@ -59,6 +62,7 @@ scene.add(grid);
 
 const loader = new GLTFLoader();
 const loadedChunks = new Map();
+const playerMarkers = new Map();
 const disposalStats = {
   chunks: 0,
   geometries: 0,
@@ -71,6 +75,7 @@ let activeCenterId = null;
 let requestedCenterId = null;
 let scheduledCenterId = null;
 let streamTimer = null;
+let playerPollTimer = null;
 const pressedKeys = new Set();
 const clock = new THREE.Clock();
 const initialParams = new URLSearchParams(window.location.search);
@@ -109,10 +114,12 @@ async function loadWorlds() {
 function applyInitialParams() {
   applyNumberParam('chunkX', chunkXInput);
   applyNumberParam('chunkZ', chunkZInput);
-  applyNumberParam('radius', radiusInput);
-  applyBooleanParam('auto', autoStreamInput);
-  applyBooleanParam('bounds', debugBoundsInput);
-}
+    applyNumberParam('radius', radiusInput);
+    applyBooleanParam('auto', autoStreamInput);
+    applyBooleanParam('bounds', debugBoundsInput);
+    applyBooleanParam('details', experimentalDetailsInput);
+    applySelectParam('water', waterModeInput);
+  }
 
 function applyInitialWorldParam() {
   const world = initialParams.get('world');
@@ -136,6 +143,17 @@ function applyBooleanParam(name, input) {
   const value = initialParams.get(name);
   if (value === null) return;
   input.checked = ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+}
+
+function applySelectParam(name, input) {
+  const value = initialParams.get(name);
+  if (value === null) return;
+  for (const option of input.options) {
+    if (option.value === value) {
+      input.value = value;
+      return;
+    }
+  }
 }
 
 async function loadGrid(options = {}) {
@@ -202,7 +220,8 @@ async function loadGrid(options = {}) {
 }
 
 async function loadChunk(world, chunkX, chunkZ, generation) {
-  const url = `/api/terrain/${encodeURIComponent(world)}/0/${chunkX}/${chunkZ}.glb`;
+  const detailQuery = experimentalDetailsInput.checked ? '?details=1' : '';
+  const url = `/api/terrain/${encodeURIComponent(world)}/0/${chunkX}/${chunkZ}.glb${detailQuery}`;
   const gltf = await loadGltfWithRetry(url);
   if (generation !== loadGeneration) return false;
   addChunkObject(world, chunkX, chunkZ, gltf.scene);
@@ -215,11 +234,12 @@ async function loadChunkBatch(world, keys, generation) {
     const response = await fetch('/api/terrain/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        world,
-        lod: 0,
-        chunks: keys.map((key) => ({ chunkX: key.chunkX, chunkZ: key.chunkZ })),
-      }),
+        body: JSON.stringify({
+          world,
+          lod: 0,
+          details: experimentalDetailsInput.checked,
+          chunks: keys.map((key) => ({ chunkX: key.chunkX, chunkZ: key.chunkZ })),
+        }),
     });
     if (!response.ok) {
       throw new Error(`Batch terrain request failed: ${response.status}`);
@@ -259,6 +279,8 @@ async function loadChunkBatch(world, keys, generation) {
 
 function addChunkObject(world, chunkX, chunkZ, object) {
   object.position.set(chunkX * 32, 0, chunkZ * 32);
+  prepareWaterMaterials(object);
+  applyWaterModeToObject(object);
   const debug = createChunkDebug(chunkX, chunkZ, object);
   debug.visible = debugBoundsInput.checked;
   object.add(debug);
@@ -387,6 +409,165 @@ function collectResourceStats() {
     textures: textures.size,
     triangles,
   };
+}
+
+function prepareWaterMaterials(root) {
+  root.traverse((object) => {
+    if (!object.material) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      if (!isWaterMaterial(material)) continue;
+      material.name = 'worldview-water';
+      material.userData.worldviewWater = true;
+      material.transparent = true;
+      material.opacity = 0.72;
+      material.depthWrite = false;
+    }
+  });
+}
+
+function applyWaterMode() {
+  for (const entry of loadedChunks.values()) {
+    applyWaterModeToObject(entry.object);
+  }
+}
+
+function applyWaterModeToObject(root) {
+  const mode = waterModeInput.value;
+  root.traverse((object) => {
+    if (!object.material) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    let hasWaterMaterial = false;
+    for (const material of materials) {
+      if (!isWaterMaterial(material)) continue;
+      hasWaterMaterial = true;
+      material.visible = mode !== 'hidden';
+      material.transparent = mode === 'transparent';
+      material.opacity = mode === 'transparent' ? 0.48 : 1.0;
+      material.depthWrite = mode !== 'transparent';
+      material.needsUpdate = true;
+    }
+    if (object.isMesh && hasWaterMaterial) {
+      object.renderOrder = mode === 'transparent' ? 5 : 0;
+    }
+  });
+}
+
+function isWaterMaterial(material) {
+  return material?.userData?.worldviewWater === true || material?.name === 'worldview-water';
+}
+
+async function refreshPlayers() {
+  if (!worldSelect.value) {
+    return;
+  }
+  try {
+    const response = await fetch(`/api/players/${encodeURIComponent(worldSelect.value)}`);
+    if (!response.ok) {
+      throw new Error(`Player request failed: ${response.status}`);
+    }
+    const data = await response.json();
+    updatePlayers(data.players ?? []);
+  } catch (error) {
+    console.warn('Player refresh failed', error);
+  }
+}
+
+function updatePlayers(players) {
+  const seen = new Set();
+  playersEl.replaceChildren();
+
+  if (players.length === 0) {
+    playersEl.textContent = 'No players';
+  }
+
+  for (const player of players) {
+    seen.add(player.uuid);
+    const marker = playerMarkers.get(player.uuid) ?? createPlayerMarker(player);
+    marker.position.set(player.x, player.y + 1.8, player.z);
+    marker.rotation.y = -(player.yaw ?? 0);
+    marker.userData.player = player;
+    playerMarkers.set(player.uuid, marker);
+    if (!marker.parent) {
+      scene.add(marker);
+    }
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'player-button';
+    button.textContent = `${player.name} ${Math.round(player.x)},${Math.round(player.y)},${Math.round(player.z)}`;
+    button.addEventListener('click', () => focusPlayer(player));
+    playersEl.append(button);
+  }
+
+  for (const [uuid, marker] of playerMarkers) {
+    if (!seen.has(uuid)) {
+      scene.remove(marker);
+      disposeObject(marker);
+      playerMarkers.delete(uuid);
+    }
+  }
+}
+
+function createPlayerMarker(player) {
+  const group = new THREE.Group();
+  group.name = `player:${player.uuid}`;
+
+  const ring = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.75, 0.75, 0.08, 24),
+    new THREE.MeshStandardMaterial({
+      color: 0x5ef1b5,
+      emissive: 0x174234,
+      roughness: 0.45,
+    }),
+  );
+  ring.position.y = -1.75;
+  group.add(ring);
+
+  const body = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.38, 1.15, 4, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0xfff1a8,
+      emissive: 0x4c3714,
+      roughness: 0.65,
+    }),
+  );
+  body.position.y = -0.75;
+  group.add(body);
+
+  const heading = new THREE.Mesh(
+    new THREE.ConeGeometry(0.28, 0.72, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0x72c7ff,
+      emissive: 0x153a5a,
+      roughness: 0.5,
+    }),
+  );
+  heading.position.set(0, -0.7, -0.82);
+  heading.rotation.x = Math.PI * 0.5;
+  group.add(heading);
+
+  return group;
+}
+
+function focusPlayer(player) {
+  const target = new THREE.Vector3(player.x, player.y + 1.5, player.z);
+  const offset = new THREE.Vector3(34, 28, 34);
+  controls.target.copy(target);
+  camera.position.copy(target).add(offset);
+  controls.update();
+}
+
+function disposeObject(root) {
+  root.traverse((object) => {
+    if (object.geometry) object.geometry.dispose();
+    if (object.material) {
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        material.dispose();
+      }
+    }
+  });
 }
 
 function createChunkDebug(chunkX, chunkZ, chunkObject) {
@@ -583,6 +764,14 @@ window.addEventListener('keyup', (event) => {
   pressedKeys.delete(event.code);
 });
 debugBoundsInput.addEventListener('change', updateDebugBounds);
+experimentalDetailsInput.addEventListener('change', () => {
+  loadGrid({ focus: false }).catch((error) => setStatus(error.message));
+});
+waterModeInput.addEventListener('change', applyWaterMode);
+worldSelect.addEventListener('change', () => {
+  updatePlayers([]);
+  refreshPlayers();
+});
 loadButton.addEventListener('click', () => {
   loadGrid().catch((error) => setStatus(error.message));
 });
@@ -593,4 +782,6 @@ animate();
 await loadWorlds();
 if (worldSelect.value) {
   await loadGrid({ focus: true }).catch((error) => setStatus(error.message));
+  await refreshPlayers();
+  playerPollTimer = setInterval(refreshPlayers, 1000);
 }

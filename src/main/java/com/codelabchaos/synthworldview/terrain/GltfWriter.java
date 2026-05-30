@@ -5,6 +5,8 @@ import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public final class GltfWriter {
@@ -18,14 +20,14 @@ public final class GltfWriter {
 
     public static byte[] writeGlb(@Nonnull TerrainMesh mesh) {
         Binary binary = new Binary();
-        int positionOffset = binary.writeFloats(mesh.positions());
-        int normalOffset = binary.writeFloats(mesh.normals());
-        int colorOffset = binary.writeFloats(mesh.colors());
-        int indexOffset = binary.writeInts(mesh.indices());
+        List<PartLayout> layouts = new ArrayList<>();
+        addPart(binary, layouts, mesh.opaque(), 0);
+        addPart(binary, layouts, mesh.water(), 1);
+        addPart(binary, layouts, mesh.detail(), 2);
         byte[] bin = binary.toByteArray();
 
-        Bounds bounds = Bounds.fromPositions(mesh.positions());
-        String json = gltfJson(mesh, bin.length, positionOffset, normalOffset, colorOffset, indexOffset, bounds);
+        Bounds bounds = Bounds.fromLayouts(layouts);
+        String json = gltfJson(bin.length, layouts, bounds);
         byte[] jsonBytes = pad(json.getBytes(StandardCharsets.UTF_8), (byte) 0x20);
         byte[] binBytes = pad(bin, (byte) 0x00);
 
@@ -43,33 +45,106 @@ public final class GltfWriter {
         return out.array();
     }
 
-    private static String gltfJson(
-            TerrainMesh mesh,
-            int binLength,
-            int positionOffset,
-            int normalOffset,
-            int colorOffset,
-            int indexOffset,
-            Bounds bounds
-    ) {
-        int positionsLength = mesh.positions().length * Float.BYTES;
-        int normalsLength = mesh.normals().length * Float.BYTES;
-        int colorsLength = mesh.colors().length * Float.BYTES;
-        int indicesLength = mesh.indices().length * Integer.BYTES;
+    private static void addPart(Binary binary, List<PartLayout> layouts, TerrainMesh.TerrainPart part, int materialIndex) {
+        if (part.empty()) {
+            return;
+        }
+        int positionOffset = binary.writeFloats(part.positions());
+        int normalOffset = binary.writeFloats(part.normals());
+        int colorOffset = binary.writeFloats(part.colors());
+        int indexOffset = binary.writeInts(part.indices());
+        layouts.add(new PartLayout(part, materialIndex, positionOffset, normalOffset, colorOffset, indexOffset));
+    }
+
+    private static String gltfJson(int binLength, List<PartLayout> layouts, Bounds bounds) {
+        StringBuilder bufferViews = new StringBuilder();
+        StringBuilder accessors = new StringBuilder();
+        StringBuilder primitives = new StringBuilder();
+        int bufferView = 0;
+        int accessor = 0;
+
+        for (PartLayout layout : layouts) {
+            int positionView = bufferView++;
+            int normalView = bufferView++;
+            int colorView = bufferView++;
+            int indexView = bufferView++;
+            appendBufferView(bufferViews, positionView, layout.positionOffset(), layout.part().positions().length * Float.BYTES, 34962);
+            appendBufferView(bufferViews, normalView, layout.normalOffset(), layout.part().normals().length * Float.BYTES, 34962);
+            appendBufferView(bufferViews, colorView, layout.colorOffset(), layout.part().colors().length * Float.BYTES, 34962);
+            appendBufferView(bufferViews, indexView, layout.indexOffset(), layout.part().indices().length * Integer.BYTES, 34963);
+
+            Bounds partBounds = Bounds.fromPositions(layout.part().positions());
+            int positionAccessor = accessor++;
+            int normalAccessor = accessor++;
+            int colorAccessor = accessor++;
+            int indexAccessor = accessor++;
+            appendPositionAccessor(accessors, positionAccessor, positionView, layout.part().vertexCount(), partBounds);
+            appendVec3Accessor(accessors, normalAccessor, normalView, layout.part().vertexCount());
+            appendVec3Accessor(accessors, colorAccessor, colorView, layout.part().vertexCount());
+            appendIndexAccessor(accessors, indexAccessor, indexView, layout.part().indices().length);
+
+            if (!primitives.isEmpty()) {
+                primitives.append(',');
+            }
+            primitives.append("{\"attributes\":{\"POSITION\":")
+                    .append(positionAccessor)
+                    .append(",\"NORMAL\":")
+                    .append(normalAccessor)
+                    .append(",\"COLOR_0\":")
+                    .append(colorAccessor)
+                    .append("},\"indices\":")
+                    .append(indexAccessor)
+                    .append(",\"material\":")
+                    .append(layout.materialIndex())
+                    .append("}");
+        }
+
         return """
-                {"asset":{"version":"2.0","generator":"SynthWorldview"},"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"mesh":0}],"meshes":[{"primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"COLOR_0":2},"indices":3,"material":0}]}],"materials":[{"doubleSided":true,"pbrMetallicRoughness":{"baseColorFactor":[1,1,1,1],"metallicFactor":0,"roughnessFactor":1}}],"buffers":[{"byteLength":%d}],"bufferViews":[{"buffer":0,"byteOffset":%d,"byteLength":%d,"target":34962},{"buffer":0,"byteOffset":%d,"byteLength":%d,"target":34962},{"buffer":0,"byteOffset":%d,"byteLength":%d,"target":34962},{"buffer":0,"byteOffset":%d,"byteLength":%d,"target":34963}],"accessors":[{"bufferView":0,"componentType":5126,"count":%d,"type":"VEC3","min":[%s,%s,%s],"max":[%s,%s,%s]},{"bufferView":1,"componentType":5126,"count":%d,"type":"VEC3"},{"bufferView":2,"componentType":5126,"count":%d,"type":"VEC3"},{"bufferView":3,"componentType":5125,"count":%d,"type":"SCALAR"}]}
+                {"asset":{"version":"2.0","generator":"SynthWorldview"},"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"name":"worldview-terrain","mesh":0}],"meshes":[{"name":"worldview-terrain","primitives":[%s]}],"materials":[{"name":"worldview-opaque","doubleSided":true,"pbrMetallicRoughness":{"baseColorFactor":[1,1,1,1],"metallicFactor":0,"roughnessFactor":1}},{"name":"worldview-water","doubleSided":true,"alphaMode":"BLEND","pbrMetallicRoughness":{"baseColorFactor":[0.62,0.86,1,0.72],"metallicFactor":0,"roughnessFactor":0.48}},{"name":"worldview-detail","doubleSided":true,"pbrMetallicRoughness":{"baseColorFactor":[1,1,1,1],"metallicFactor":0,"roughnessFactor":0.95}}],"buffers":[{"byteLength":%d}],"bufferViews":[%s],"accessors":[%s]}
                 """.formatted(
+                primitives,
                 binLength,
-                positionOffset, positionsLength,
-                normalOffset, normalsLength,
-                colorOffset, colorsLength,
-                indexOffset, indicesLength,
-                mesh.vertexCount(),
-                f(bounds.minX), f(bounds.minY), f(bounds.minZ),
-                f(bounds.maxX), f(bounds.maxY), f(bounds.maxZ),
-                mesh.vertexCount(),
-                mesh.vertexCount(),
-                mesh.indices().length).trim();
+                bufferViews,
+                accessors).trim();
+    }
+
+    private static void appendBufferView(StringBuilder json, int index, int offset, int length, int target) {
+        appendComma(json, index);
+        json.append("{\"buffer\":0,\"byteOffset\":").append(offset)
+                .append(",\"byteLength\":").append(length)
+                .append(",\"target\":").append(target)
+                .append("}");
+    }
+
+    private static void appendPositionAccessor(StringBuilder json, int index, int bufferView, int count, Bounds bounds) {
+        appendComma(json, index);
+        json.append("{\"bufferView\":").append(bufferView)
+                .append(",\"componentType\":5126,\"count\":").append(count)
+                .append(",\"type\":\"VEC3\",\"min\":[")
+                .append(f(bounds.minX)).append(',').append(f(bounds.minY)).append(',').append(f(bounds.minZ))
+                .append("],\"max\":[")
+                .append(f(bounds.maxX)).append(',').append(f(bounds.maxY)).append(',').append(f(bounds.maxZ))
+                .append("]}");
+    }
+
+    private static void appendVec3Accessor(StringBuilder json, int index, int bufferView, int count) {
+        appendComma(json, index);
+        json.append("{\"bufferView\":").append(bufferView)
+                .append(",\"componentType\":5126,\"count\":").append(count)
+                .append(",\"type\":\"VEC3\"}");
+    }
+
+    private static void appendIndexAccessor(StringBuilder json, int index, int bufferView, int count) {
+        appendComma(json, index);
+        json.append("{\"bufferView\":").append(bufferView)
+                .append(",\"componentType\":5125,\"count\":").append(count)
+                .append(",\"type\":\"SCALAR\"}");
+    }
+
+    private static void appendComma(StringBuilder json, int index) {
+        if (index > 0) {
+            json.append(',');
+        }
     }
 
     private static String f(float value) {
@@ -88,6 +163,16 @@ public final class GltfWriter {
 
     private static int align4(int value) {
         return (value + 3) & ~3;
+    }
+
+    private record PartLayout(
+            TerrainMesh.TerrainPart part,
+            int materialIndex,
+            int positionOffset,
+            int normalOffset,
+            int colorOffset,
+            int indexOffset
+    ) {
     }
 
     private static final class Binary {
@@ -128,6 +213,17 @@ public final class GltfWriter {
     }
 
     private record Bounds(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+        static Bounds fromLayouts(List<PartLayout> layouts) {
+            if (layouts.isEmpty()) {
+                return new Bounds(0, 0, 0, 0, 0, 0);
+            }
+            Bounds out = null;
+            for (PartLayout layout : layouts) {
+                out = merge(out, fromPositions(layout.part().positions()));
+            }
+            return out;
+        }
+
         static Bounds fromPositions(float[] positions) {
             if (positions.length == 0) {
                 return new Bounds(0, 0, 0, 0, 0, 0);
@@ -150,6 +246,19 @@ public final class GltfWriter {
                 maxZ = Math.max(maxZ, z);
             }
             return new Bounds(minX, minY, minZ, maxX, maxY, maxZ);
+        }
+
+        private static Bounds merge(Bounds a, Bounds b) {
+            if (a == null) {
+                return b;
+            }
+            return new Bounds(
+                    Math.min(a.minX, b.minX),
+                    Math.min(a.minY, b.minY),
+                    Math.min(a.minZ, b.minZ),
+                    Math.max(a.maxX, b.maxX),
+                    Math.max(a.maxY, b.maxY),
+                    Math.max(a.maxZ, b.maxZ));
         }
     }
 }
