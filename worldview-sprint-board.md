@@ -111,7 +111,7 @@ terrain route remains open under Story 4.5.
 
 #### Story 1.4 - Add Admin Commands
 
-Status: In Progress
+Status: Closed
 
 Acceptance:
 
@@ -124,7 +124,8 @@ Validation:
 
 - `/worldview status` works through SynthRCON and reports plugin state.
 - `/worldview sample 0 0` generated `default_0_0.glb` from the `default` world.
-- `/worldview clearcache` remains open.
+- `/worldview clearcache` clears known generated mesh folders under the plugin data
+  directory and reports deleted files, directories, and bytes.
 
 ### Epic 2: Terrain Snapshotting
 
@@ -163,7 +164,7 @@ Validation:
 
 #### Story 2.3 - Resolve Block Visual Metadata
 
-Status: In Progress
+Status: Closed
 
 Acceptance:
 
@@ -175,8 +176,14 @@ Acceptance:
 Validation:
 
 - Sample output reports the most common top block key.
-- Color source is currently the conservative fallback palette; richer `BlockType`
-  visual metadata is still open.
+- `TerrainSampler` now prefers `BlockType.getTextureComputedColor()`, then top tint
+  and particle color metadata, before falling back to the conservative block-key
+  palette.
+- Build validated with `.\gradlew.bat build`.
+- Runtime validation after restart: `/worldview sample 0 0` still generated
+  `1024/1024` columns, `7732` vertices, `3866` triangles, and a `325772` byte GLB.
+- HTTP validation after restart: `GET /api/terrain/default/0/0/0.glb` returned
+  `200`, `model/gltf-binary`, `1024` columns, `7732` vertices, and `3866` triangles.
 
 #### Story 2.4 - Decide Loaded Versus Non-Ticking Chunk Policy
 
@@ -273,7 +280,12 @@ Validation:
 
 - Sample command writes GLB files under
   `mods\com.codelabchaos_SynthWorldview\samples`.
-- Cache keying, reuse after restart, and clearcache behavior remain open.
+- HTTP terrain requests write GLBs under
+  `mods\com.codelabchaos_SynthWorldview\terrain\<world>\lod-<lod>`.
+- Scale-test baseline after radius `1`, `2`, `3`, and `5` runs: `218` cached GLBs,
+  `67,233,924` bytes total.
+- `/worldview clearcache` deletes current disk artifacts for `terrain` and `samples`.
+- Cache keying and reuse after restart remain open.
 
 ### Epic 4: Three.js Viewer
 
@@ -313,7 +325,7 @@ Validation:
 
 #### Story 4.3 - Stream Camera-Centered Chunk Grid
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -324,7 +336,53 @@ Acceptance:
 
 Validation:
 
-- Moving camera loads adjacent chunks and unloads distant chunks.
+- First pass validated with a manual center/radius loader: radius `1` around chunk
+  `0,0` loaded `9` GLB chunks and rendered as one grid in desktop and mobile Chrome
+  screenshots.
+- Disk artifacts were written for `-1..1, -1..1` under
+  `terrain\default\lod-0`.
+- Scale-test helper `tools/generate-grid.js` validated larger manual grids:
+  radius `2` / `25` chunks at concurrency `4`, radius `3` / `49` chunks at
+  concurrency `8`, and radius `5` / `121` chunks at concurrency `12`.
+- Largest test, centered at `16,16`, returned `121/0` ok/failed, `38,601,176`
+  GLB bytes, `916,112` vertices, `458,056` triangles, and `361ms` wall-clock from
+  the HTTP client perspective.
+- Added automatic streaming from the `OrbitControls` target: the client computes the
+  target chunk, debounces chunk-boundary changes, updates the center fields, retains
+  the new grid, and disposes chunks outside the retain set.
+- Live screenshot validation showed the `Auto` toggle enabled and a radius `3` grid at
+  `49 chunks loaded · center 0, 0`.
+- Remaining scaling work moves to batch fetch, memory cache/pending-future coalescing,
+  and server-side generation limits.
+
+#### Story 4.3a - Allow Uncapped UI Radius For Stress Testing
+
+Status: Closed
+
+Acceptance:
+
+- Radius input has no client-side maximum.
+- Negative or invalid values are clamped to `0`.
+- Operators can enter large values intentionally to stress request volume, browser
+  rendering, disk cache growth, and server behavior.
+
+Validation:
+
+- Live HTML no longer includes a `max` attribute on the radius input.
+- Live JavaScript clamps the radius only to a minimum of `0`.
+
+#### Story 4.3b - Default Visible Radius To 10
+
+Status: Closed
+
+Acceptance:
+
+- The initial visible radius input defaults to `10`.
+- Operators can still change the value freely because the input remains uncapped.
+
+Validation:
+
+- `index.html` sets the radius input value to `10`.
 
 #### Story 4.4 - Add Debug Chunk Bounds
 
@@ -338,6 +396,58 @@ Acceptance:
 Validation:
 
 - Boundaries align to 32-block chunk grid.
+
+#### Story 4.6 - Add First-Person-Style Keyboard Navigation
+
+Status: Closed
+
+Acceptance:
+
+- `W/A/S/D` move the camera/target through the terrain in a predictable
+  first-person-style mode.
+- `Q/E` provide lateral strafe or vertical/lateral movement according to the selected
+  navigation model.
+- Keyboard movement updates the same target position used by auto-streaming.
+- Controls do not fight with text input focus in the HUD.
+
+Validation:
+
+- Live `app.js` serves `handleKeyboardNavigation`.
+- `W/S` move forward/back relative to the camera heading.
+- `A/D` and `Q/E` strafe left/right.
+- Keyboard movement shifts both camera position and `OrbitControls.target`, so
+  auto-streaming reads the moved target and mesh loads do not refocus the view.
+
+#### Story 4.7 - Make Middle Mouse Pan The Default
+
+Status: Closed
+
+Acceptance:
+
+- Middle mouse drag pans the viewport by default.
+- Pan behavior preserves the current camera distance and does not accidentally orbit.
+- Behavior works with auto-streaming because the controls target changes predictably.
+
+Validation:
+
+- Live `app.js` serves `controls.mouseButtons` with middle mouse mapped to pan.
+- Orbit zoom distance is bounded with `minDistance` and `maxDistance`.
+
+#### Story 4.8 - Improve Default Camera Framing
+
+Status: Closed
+
+Acceptance:
+
+- Initial focus is close enough to inspect terrain color and shape.
+- Camera distance does not scale outward just because visible radius is large.
+- Initial pose is isometric, angled toward the terrain surface.
+
+Validation:
+
+- `focusGrid` now sets the camera to a fixed close offset from the target:
+  `center.x + 78`, `center.y + 58`, `center.z + 78`.
+- Live `app.js` serves the new closer camera settings after restart.
 
 #### Story 4.5 - Add Batch Terrain Fetch
 
@@ -353,6 +463,12 @@ Acceptance:
 Validation:
 
 - Camera grid loads with fewer HTTP requests than one-per-chunk.
+
+Scale baseline:
+
+- One-request-per-chunk survived `121` chunks at concurrency `12` without failures.
+- Batching is still needed before this becomes a camera-driven default because request
+  count, cache policy, and server-side generation limits are not yet bounded.
 
 ### Epic 5: Player Tracking
 
@@ -467,10 +583,82 @@ Candidate stories:
 
 - Greedy merge same-height/material top quads.
 - Scan bounded exposed faces below heightmap.
+- Add a config feature flag for enhanced structure mesh generation.
+- Classify block roles for ground, foliage, trunk, water, structure, and unknown blocks.
+- Capture overland vegetation as cheap tree proxies: trunk cylinders/boxes plus
+  simplified canopy volumes or billboards.
+- Validate whether a bounded scan around heightmap tops can capture trees acceptably
+  without exploding triangle counts.
 - Add transparent water primitive.
-- Use `BlockType.getTextureComputedColor()` plus biome tint consistently.
+- Evaluate per-face tint/material rules beyond top-surface metadata colors.
 - Build texture atlas from `BlockType.getTextures()`.
 - Represent custom model blocks with simplified proxies.
+
+#### Story 7.1 - Classify Overland Detail Blocks
+
+Status: Parked
+
+Acceptance:
+
+- Block keys are categorized into at least `ground`, `foliage`, `trunk`, `water`,
+  `structure`, and `unknown`.
+- Classification is reported in `/worldview sample` or scale-test output.
+- Meshing policy can choose different geometry budgets per category.
+
+Validation:
+
+- Sample forest chunks report plausible foliage/trunk counts.
+- Unknown block count is visible so bad classifications are easy to spot.
+
+#### Story 7.1a - Add Enhanced Structure Mesh Feature Flag
+
+Status: Parked
+
+Acceptance:
+
+- Config exposes a disabled-by-default feature flag for enhanced structure meshing.
+- Enhanced mode can include trees, buildings, and other above-ground structures.
+- Config bounds include scan depth, category allowlist, max emitted faces, and max
+  generation time per chunk.
+- Conservative heightfield generation remains the default behavior.
+
+Validation:
+
+- With the flag disabled, generated terrain matches the current heightfield-only mesh.
+- With the flag enabled on selected test chunks, tree/building silhouettes improve and
+  vertex/triangle/byte deltas are reported.
+
+#### Story 7.2 - Add Cheap Tree Proxies
+
+Status: Parked
+
+Acceptance:
+
+- Tree-like overland detail can render without full leaf-block voxel meshing.
+- First pass may use trunk boxes and simplified canopy boxes or crossed billboards.
+- Proxies are emitted as a separate primitive/material or separate GLB node so they can
+  be toggled or replaced later.
+
+Validation:
+
+- Forest chunk screenshots show recognizable tree silhouettes.
+- Radius `3` grid remains smooth in the browser.
+- Vertex/triangle delta is recorded against the heightfield-only baseline.
+
+#### Story 7.3 - Evaluate Bounded Exposed-Face Scan For Vegetation
+
+Status: Parked
+
+Acceptance:
+
+- Scanner reads a bounded vertical range around the heightmap top, not full chunks.
+- Faces are emitted only where neighboring cells are air/transparent.
+- Config controls scan depth and category inclusion.
+
+Validation:
+
+- Compare proxy output versus bounded scan output on the same forest chunk.
+- Record GLB bytes, vertices, triangles, generation time, and browser FPS impression.
 
 ### Epic 8: Live Dirty Chunk Updates
 
@@ -501,7 +689,7 @@ Candidate stories:
 - [x] Browser opens a nonblank Three.js app.
 - [x] `/api/worlds` lists enabled worlds.
 - [x] One real explored chunk generates a valid GLB.
-- [ ] Terrain chunks stream around camera movement.
+- [x] Terrain chunks stream around camera movement.
 - [ ] Online players render at correct coordinates.
 - [ ] Unexplored chunks are blocked by default.
 - [ ] Memory cache, disk cache, and pending-future coalescing are validated.

@@ -30,8 +30,17 @@
       <span>Chunk Z</span>
       <input id="chunk-z" type="number" value="0" step="1">
     </label>
-    <button id="load" type="button">Load</button>
+    <label>
+      <span>Radius</span>
+      <input id="radius" type="number" value="10" min="0" step="1">
+    </label>
+    <label class="toggle">
+      <input id="auto-stream" type="checkbox" checked>
+      <span>Auto</span>
+    </label>
+    <button id="load" type="button">Load Grid</button>
     <div id="status" class="status">Starting</div>
+    <div id="metrics" class="metrics">0 chunks loaded</div>
   </div>
   <script type="module" src="/app.js"></script>
 </body>

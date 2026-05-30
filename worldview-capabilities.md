@@ -61,14 +61,15 @@ Player markers update from WebSocket messages and line up with terrain coordinat
 
 Clicking a player in the list moves the camera target to that player's position.
 
-### [ ] Operator Can Clear Terrain Caches
-
-An admin command clears memory and disk mesh caches.
-
 ### [ ] Worldview Limits Concurrent Mesh Generation
 
 Terrain generation uses a semaphore or equivalent limit so web viewers cannot saturate
 server CPU.
+
+### [ ] Worldview Enforces Disk Cache Limits
+
+Generated terrain cache files are bounded by count, bytes, age, or explicit operator
+policy so scale tests and browser sessions cannot grow disk usage indefinitely.
 
 ### [ ] Viewer Can See Chunk Debug Bounds
 
@@ -77,6 +78,12 @@ A debug toggle shows chunk outlines, loaded keys, or LOD state to validate strea
 ### [ ] Viewer Can See Coordinates Under The Camera Or Pointer
 
 The UI shows approximate world X/Y/Z or X/Z coordinates for navigation and validation.
+
+### [ ] Operator Can Set An Uncapped Visible Radius In The UI
+
+The visible-radius field does not impose a client-side maximum while the project is in
+stress-test mode. Operators can intentionally enter large values to test loading,
+rendering, cache growth, and failure behavior.
 
 ### [ ] Worldview Streams LOD Terrain
 
@@ -104,6 +111,24 @@ materials.
 
 The terrain mesh can include cliffs, holes, and built structures by scanning a bounded
 depth below the top surface.
+
+### [ ] Worldview Can Show Overland Vegetation Detail
+
+The terrain view can represent trees and other overland vegetation with either
+simplified proxies or bounded exposed-face scans, without turning every leaf block into
+expensive full voxel geometry.
+
+### [ ] Operator Can Toggle Enhanced Structure Mesh Generation
+
+A config feature flag can enable richer mesh generation for trees, buildings, and other
+above-ground structures while keeping the conservative heightfield mesh as the default
+safe mode. The enhanced mode should be bounded by scan depth, block classification, and
+mesh budget settings.
+
+### [ ] Worldview Can Classify Terrain Versus Overland Detail Blocks
+
+Block visual policy can distinguish ground, foliage, trunk, water, structure, and
+unknown blocks so terrain meshing and detail meshing can use different budgets.
 
 ### [ ] Worldview Can Invalidate Dirty Chunks
 
@@ -133,10 +158,53 @@ world selector from that API.
 The first viewer includes Three.js `OrbitControls` around the loaded chunk with resize
 handling and camera retargeting after terrain load.
 
+### [x] Viewer Starts In A Close Isometric Terrain View
+
+The initial camera focus no longer scales distance from the visible radius. It starts
+near the selected terrain center with a closer isometric angle, then streams chunks
+without snapping the camera back outward.
+
+### [x] Viewer Can Navigate With Keyboard Controls
+
+The 3D map supports keyboard movement where `W/S` move forward/back relative to the
+camera view and `A/D` or `Q/E` strafe across the terrain. Keyboard movement shifts the
+camera and controls target together so auto-streaming follows the moved viewpoint.
+
+### [x] Viewer Can Pan With Middle Mouse By Default
+
+Middle mouse drag pans the map without requiring a mode toggle, matching common
+3D/editor viewport expectations.
+
 ### [x] Worldview Renders Heightfield Terrain From Real Chunk Data
 
 Validated by loading `GET /api/terrain/default/0/0/0.glb` in the Three.js viewer. The
 rendered scene shows the same terrain generated from `WorldChunk` height/block data.
+
+### [x] Viewer Can Load A Retained Terrain Grid
+
+Validated with the browser viewer loading a radius `1` grid around chunk `0,0`: `9`
+GLB chunks were requested, retained, placed on `chunkX * 32, chunkZ * 32`, and rendered
+in both desktop and mobile Chrome screenshots.
+
+### [x] Viewer Defaults To Visible Radius 10
+
+The visible-radius input starts at `10` while remaining uncapped for stress testing.
+This loads a broader first view without changing the operator's ability to enter larger
+or smaller values manually.
+
+### [x] Viewer Can Stream Terrain Around Camera Movement
+
+The browser watches the Three.js `OrbitControls` target, converts target `x/z` to chunk
+coordinates, and auto-loads the retained grid when the target crosses into a new chunk.
+Validated live with the `Auto` toggle enabled and a radius `3` grid reaching
+`49 chunks loaded`.
+
+### [x] Operator Can Run Terrain Grid Scale Tests
+
+Validated with `tools/generate-grid.js`. The largest run requested radius `5`
+around chunk `16,16`: `121` chunks, `0` failures, `38,601,176` GLB bytes,
+`916,112` vertices, and `458,056` triangles. The current disk cache reached `218`
+GLBs totaling `67,233,924` bytes.
 
 ### [x] Operator Can Inspect Worldview Status In-Game
 
@@ -148,6 +216,13 @@ It reports plugin load state, uptime, enabled worlds, and terrain sample availab
 Validated with `/worldview sample 0 0` in world `default` on `2026-05-30`. The command
 reported snapshot, mesh, GLB byte size, and output path.
 
+### [x] Operator Can Clear Generated Mesh Caches
+
+The `/worldview clearcache` admin command clears generated terrain GLBs and sample GLBs
+from the plugin data directory, then reports deleted file count, directory count, and
+bytes. The command only deletes known SynthWorldview cache folders under the plugin data
+directory.
+
 ### [x] Worldview Generates A GLB For One Real Chunk
 
 Validated with chunk `0,0` in world `default`: `1024/1024` non-empty columns, height
@@ -157,10 +232,12 @@ range `107..144`, `7732` vertices, `3866` triangles, and a `325772` byte GLB wri
 Current caveat: this first pass samples through the runtime chunk APIs and does not yet
 guard against unexplored chunks by index.
 
-### [x] Worldview Uses Conservative Vertex Colors
+### [x] Worldview Uses Block Metadata Vertex Colors
 
-The sample mesher assigns vertex colors from block key heuristics with a stable fallback
-palette. This is intentionally conservative until texture atlas support exists.
+The sample mesher assigns vertex colors from `BlockType.getTextureComputedColor()`,
+falls back through block tint/particle metadata where available, and keeps a stable
+block-key fallback palette for unknown assets. Top-surface biome tint is applied for
+blocks that advertise top biome tint support.
 
 ## Validation Questions
 
