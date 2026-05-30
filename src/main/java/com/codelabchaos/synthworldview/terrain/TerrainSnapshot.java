@@ -8,6 +8,7 @@ public record TerrainSnapshot(
         int chunkX,
         int chunkZ,
         TerrainColumn[] columns,
+        TerrainDetail[] details,
         int nonEmptyColumns,
         int minY,
         int maxY

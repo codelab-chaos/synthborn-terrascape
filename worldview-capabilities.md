@@ -44,14 +44,6 @@ Recent GLB terrain chunks are served from a bounded memory cache.
 Generated GLB terrain chunks persist under the plugin data directory and can be reused
 after restart.
 
-### [ ] Viewer Sees Online Players In The 3D Scene
-
-Player markers update from WebSocket messages and line up with terrain coordinates.
-
-### [ ] Viewer Can Focus The Camera On A Player
-
-Clicking a player in the list moves the camera target to that player's position.
-
 ### [ ] Worldview Enforces Disk Cache Limits
 
 Generated terrain cache files are bounded by count, bytes, age, or explicit operator
@@ -76,12 +68,6 @@ The client disposes geometry/material resources for chunks outside the retain ra
 Stale cached terrain is regenerated only when a player is near enough that the terrain
 could plausibly have changed.
 
-### [ ] Viewer Can Render Water As Solid Or Transparent
-
-Water-like fluid terrain renders separately from opaque terrain and can be displayed
-as either solid colored water or transparent water. The viewer/operator can choose the
-mode so water is legible during debugging and less visually heavy during exploration.
-
 ### [ ] Worldview Can Add Texture Atlas Rendering
 
 Terrain can graduate from vertex colors to real block texture UVs and atlas-backed
@@ -92,12 +78,6 @@ materials.
 The terrain mesh can include cliffs, holes, and built structures by scanning a bounded
 depth below the top surface.
 
-### [ ] Worldview Can Show Overland Vegetation Detail
-
-The terrain view can represent trees and other overland vegetation with either
-simplified proxies or bounded exposed-face scans, without turning every leaf block into
-expensive full voxel geometry.
-
 ### [ ] Operator Can Toggle Enhanced Structure Mesh Generation
 
 A config feature flag can enable richer mesh generation for trees, buildings, and other
@@ -105,15 +85,16 @@ above-ground structures while keeping the conservative heightfield mesh as the d
 safe mode. The enhanced mode should be bounded by scan depth, block classification, and
 mesh budget settings.
 
-### [ ] Worldview Can Classify Terrain Versus Overland Detail Blocks
-
-Block visual policy can distinguish ground, foliage, trunk, water, structure, and
-unknown blocks so terrain meshing and detail meshing can use different budgets.
-
 ### [ ] Worldview Can Invalidate Dirty Chunks
 
 The server can detect chunk/block updates and tell connected browsers to reload affected
 terrain.
+
+### [ ] Viewer Restores Camera Position After Page Reload
+
+The browser saves the current camera position, controls target, selected world, visible
+radius, auto-stream setting, bounds toggle, and water mode locally, then restores that
+view when the web page is reloaded.
 
 ## Implemented Capabilities
 
@@ -217,6 +198,49 @@ The HUD reports loaded chunks, mesh count, geometry/material/texture counts, Thr
 renderer memory counters, and cumulative disposed resources. Playwright validation
 confirmed a radius `1` grid returns to `9 chunks` after moving center and reports
 nonzero disposed chunks.
+
+### [x] Viewer Can Render Water As Solid, Transparent, Or Hidden
+
+Snapshotting records `WorldChunk.getFluidId(...)` and water-like block keys. The mesher
+routes fluid columns into a separate GLB primitive/material named `worldview-water`, and
+the viewer exposes a `Water` selector with `Transparent`, `Solid`, and `Hidden` modes.
+Nearby validation did not find water in the `-5..5` chunk grid, so visual validation
+against a known shoreline remains a follow-up.
+
+### [x] Worldview Can Show Experimental Overland Vegetation Detail
+
+The sampler separates foliage/trunk-like top blocks from the terrain heightfield, scans
+down to recover nearby ground, and emits cheap tree proxies as a separate
+`worldview-detail` GLB material. Validated on `synth-worldview-mvp` with chunk `-7,3`,
+which returned `226` detail proxies through `X-Worldview-Details`.
+
+Current caveat: this is explicitly experimental. The canopy/trunk proxy approach is
+useful enough to keep, but it is not a polished vegetation renderer and should not block
+MVP progress on visual tuning. It is off by default and only enabled through the
+experimental `Trees` viewer toggle or `?details=1` terrain requests.
+
+### [x] Worldview Can Classify Terrain Versus Overland Detail Blocks
+
+The first block-role policy distinguishes ground-like terrain from foliage and trunk
+detail using conservative block-key matching. Water remains separately classified and
+meshed through the existing water path. Broader categories such as structure and unknown
+reporting remain backlog work.
+
+### [x] Viewer Sees Online Players In The 3D Scene
+
+The server exposes `GET /api/players/{world}` with player UUID, name, position, and yaw.
+The viewer polls that route, renders one 3D marker per UUID, and removes stale markers.
+Validated on `synth-worldview-mvp` with online player `Gigantomancer` returned from
+`/api/players/default`.
+
+Current caveat: this MVP uses HTTP polling instead of a WebSocket feed because the
+current server uses the JDK HTTP server.
+
+### [x] Viewer Can Focus The Camera On A Player
+
+Clicking a player in the HUD moves the camera target to that player's position and
+places the camera in a nearby inspection view. Playwright validation clicked an online
+player button when present and confirmed the coordinate readout changed after focus.
 
 ### [x] Viewer Uses A Readable Sky And Reference Grid Palette
 

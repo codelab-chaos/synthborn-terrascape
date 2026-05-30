@@ -58,7 +58,8 @@ label {
 label span,
 .status,
 .metrics,
-.coords {
+.coords,
+.players {
   color: #aeb9b5;
   font-size: 12px;
 }
@@ -114,6 +115,24 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+.players {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.player-button {
+  height: 26px;
+  min-width: 0;
+  padding: 0 9px;
+  border-color: rgb(146 225 191 / 35%);
+  background: #1d3b39;
+  color: #dff7ed;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 @media (max-width: 640px) {
   .hud {
     right: 14px;
@@ -124,6 +143,7 @@ button {
   .status,
   .metrics,
   .coords,
+  .players,
   label:first-of-type,
   button {
     grid-column: 1 / -1;

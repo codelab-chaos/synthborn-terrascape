@@ -7,9 +7,14 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public final class TerrainSampler {
+    private static final int SURFACE_FLUID_SCAN_ABOVE_HEIGHTMAP = 24;
+    private static final int OVERLAND_SCAN_BELOW_HEIGHTMAP = 18;
+
     private TerrainSampler() {
     }
 
@@ -24,6 +29,7 @@ public final class TerrainSampler {
         }
 
         TerrainColumn[] columns = new TerrainColumn[TerrainSnapshot.CHUNK_SIZE * TerrainSnapshot.CHUNK_SIZE];
+        List<TerrainDetail> details = new ArrayList<>();
         int nonEmpty = 0;
         int minY = Integer.MAX_VALUE;
         int maxY = Integer.MIN_VALUE;
@@ -31,8 +37,10 @@ public final class TerrainSampler {
         for (int z = 0; z < TerrainSnapshot.CHUNK_SIZE; z++) {
             for (int x = 0; x < TerrainSnapshot.CHUNK_SIZE; x++) {
                 short height = chunk.getHeight(x, z);
-                TerrainColumn column = sampleColumn(chunk, x, z, height);
+                SampledColumn sampled = sampleColumn(chunk, x, z, height);
+                TerrainColumn column = sampled.column();
                 columns[z * TerrainSnapshot.CHUNK_SIZE + x] = column;
+                details.addAll(sampled.details());
                 if (!column.empty()) {
                     nonEmpty++;
                     minY = Math.min(minY, column.y());
@@ -46,23 +54,113 @@ public final class TerrainSampler {
             maxY = 0;
         }
 
-        return new TerrainSnapshot(world.getName(), chunkX, chunkZ, columns, nonEmpty, minY, maxY);
+        return new TerrainSnapshot(world.getName(), chunkX, chunkZ, columns, details.toArray(TerrainDetail[]::new), nonEmpty, minY, maxY);
     }
 
-    private static TerrainColumn sampleColumn(@Nonnull WorldChunk chunk, int localX, int localZ, short height) {
+    private static SampledColumn sampleColumn(@Nonnull WorldChunk chunk, int localX, int localZ, short height) {
         if (height < 0) {
-            return new TerrainColumn(localX, localZ, -1, 0, "EMPTY", 0x000000);
+            return new SampledColumn(new TerrainColumn(localX, localZ, -1, 0, 0, "EMPTY", 0x000000, false), List.of());
         }
 
-        int blockId = chunk.getBlock(localX, height, localZ);
+        SurfaceFluid surfaceFluid = surfaceFluid(chunk, localX, localZ, height);
+        if (surfaceFluid.present()) {
+            return new SampledColumn(new TerrainColumn(
+                    localX,
+                    localZ,
+                    surfaceFluid.y(),
+                    0,
+                    surfaceFluid.fluidId(),
+                    "FLUID_" + surfaceFluid.fluidId(),
+                    waterColor("water"),
+                    true), List.of());
+        }
+
+        int blockId = safeBlockId(chunk, localX, height, localZ);
+        int fluidId = safeFluidId(chunk, localX, height, localZ);
         BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
         if (blockType == null || blockId == BlockType.EMPTY_ID) {
-            return new TerrainColumn(localX, localZ, height, blockId, "EMPTY", 0x000000);
+            return new SampledColumn(new TerrainColumn(localX, localZ, height, blockId, fluidId, "EMPTY", 0x000000, false), List.of());
         }
 
         String blockKey = blockType.getId();
-        int color = colorFor(blockType, blockKey, chunk.getTint(localX, localZ));
-        return new TerrainColumn(localX, localZ, height, blockId, blockKey, color);
+        boolean fluid = fluidId != 0 || isFluidBlock(blockKey);
+        int color = fluid ? waterColor(blockKey) : colorFor(blockType, blockKey, chunk.getTint(localX, localZ));
+        if (!fluid && isOverlandDetail(blockKey)) {
+            return sampleOverlandColumn(chunk, localX, localZ, height, blockType, blockKey, color);
+        }
+        return new SampledColumn(new TerrainColumn(localX, localZ, height, blockId, fluidId, blockKey, color, fluid), List.of());
+    }
+
+    private static SampledColumn sampleOverlandColumn(
+            @Nonnull WorldChunk chunk,
+            int localX,
+            int localZ,
+            int height,
+            BlockType topBlockType,
+            String topBlockKey,
+            int topColor
+    ) {
+        List<TerrainDetail> details = new ArrayList<>();
+        if (isFoliageBlock(topBlockKey) && shouldPlaceCanopyProxy(localX, localZ)) {
+            details.add(new TerrainDetail(localX, localZ, height, TerrainDetail.Kind.FOLIAGE, topColor));
+        }
+
+        TerrainColumn ground = null;
+        for (int y = height; y >= Math.max(0, height - OVERLAND_SCAN_BELOW_HEIGHTMAP); y--) {
+            int blockId = safeBlockId(chunk, localX, y, localZ);
+            BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+            if (blockType == null || blockId == BlockType.EMPTY_ID) {
+                continue;
+            }
+            String blockKey = blockType.getId();
+            if (isTrunkBlock(blockKey) && shouldPlaceTrunkProxy(localX, localZ)) {
+                details.add(new TerrainDetail(localX, localZ, y, TerrainDetail.Kind.TRUNK,
+                        colorFor(blockType, blockKey, chunk.getTint(localX, localZ))));
+                continue;
+            }
+            if (!isOverlandDetail(blockKey) && !isFluidBlock(blockKey)) {
+                ground = new TerrainColumn(localX, localZ, y, blockId, safeFluidId(chunk, localX, y, localZ),
+                        blockKey, colorFor(blockType, blockKey, chunk.getTint(localX, localZ)), false);
+                break;
+            }
+        }
+
+        if (ground == null) {
+            ground = new TerrainColumn(localX, localZ, height, safeBlockId(chunk, localX, height, localZ),
+                    safeFluidId(chunk, localX, height, localZ), topBlockKey, topColor, false);
+        }
+        return new SampledColumn(ground, details);
+    }
+
+    private static SurfaceFluid surfaceFluid(@Nonnull WorldChunk chunk, int localX, int localZ, int height) {
+        int topFluidY = -1;
+        int topFluidId = 0;
+        for (int dy = 0; dy <= SURFACE_FLUID_SCAN_ABOVE_HEIGHTMAP; dy++) {
+            int y = height + dy;
+            int fluidId = safeFluidId(chunk, localX, y, localZ);
+            if (fluidId != 0) {
+                topFluidY = y;
+                topFluidId = fluidId;
+            }
+        }
+        return new SurfaceFluid(topFluidY, topFluidId);
+    }
+
+    @SuppressWarnings("removal")
+    private static int safeFluidId(@Nonnull WorldChunk chunk, int localX, int y, int localZ) {
+        try {
+            return chunk.getFluidId(localX, y, localZ);
+        } catch (RuntimeException e) {
+            return 0;
+        }
+    }
+
+    private static int safeBlockId(@Nonnull WorldChunk chunk, int localX, int y, int localZ) {
+        try {
+            return chunk.getBlock(localX, y, localZ);
+        } catch (RuntimeException e) {
+            return BlockType.EMPTY_ID;
+        }
     }
 
     private static int colorFor(BlockType blockType, String blockKey, int chunkTint) {
@@ -101,6 +199,48 @@ public final class TerrainSampler {
         return blockType.getBiomeTintUp() != 0;
     }
 
+    private static boolean isFluidBlock(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
+        return key.contains("water")
+                || key.contains("river")
+                || key.contains("ocean")
+                || key.contains("lake");
+    }
+
+    private static boolean isOverlandDetail(String blockKey) {
+        return isFoliageBlock(blockKey) || isTrunkBlock(blockKey);
+    }
+
+    private static boolean isFoliageBlock(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
+        return key.contains("leaf")
+                || key.contains("leaves")
+                || key.contains("foliage")
+                || key.contains("bush");
+    }
+
+    private static boolean isTrunkBlock(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
+        return key.contains("trunk")
+                || key.contains("log")
+                || key.contains("wood");
+    }
+
+    private static boolean shouldPlaceCanopyProxy(int localX, int localZ) {
+        return Math.floorMod(localX, 4) == 0 && Math.floorMod(localZ, 4) == 0;
+    }
+
+    private static boolean shouldPlaceTrunkProxy(int localX, int localZ) {
+        return Math.floorMod(localX, 2) == 0 && Math.floorMod(localZ, 2) == 0;
+    }
+
+    private static int waterColor(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
+        if (key.contains("lava")) return 0xd85d23;
+        if (key.contains("ice")) return 0x9fd7ed;
+        return 0x2f83bd;
+    }
+
     private static int toRgb(Color color) {
         return (Byte.toUnsignedInt(color.red) << 16)
                 | (Byte.toUnsignedInt(color.green) << 8)
@@ -135,5 +275,14 @@ public final class TerrainSampler {
         int g = 96 + ((hash >>> 8) & 0x5f);
         int b = 96 + (hash & 0x5f);
         return (r << 16) | (g << 8) | b;
+    }
+
+    private record SurfaceFluid(int y, int fluidId) {
+        boolean present() {
+            return y >= 0 && fluidId != 0;
+        }
+    }
+
+    private record SampledColumn(TerrainColumn column, List<TerrainDetail> details) {
     }
 }
