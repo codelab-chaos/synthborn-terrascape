@@ -40,6 +40,10 @@ public class SynthWorldviewPlugin extends JavaPlugin {
         return webServer == null ? "stopped" : webServer.address();
     }
 
+    public WorldviewWebServer.Metrics webMetrics() {
+        return webServer == null ? null : webServer.metrics();
+    }
+
     @Override
     protected void setup() {
         instance = this;

@@ -254,7 +254,7 @@ Validation:
 
 #### Story 3.4 - Add Memory Cache And Pending Future Coalescing
 
-Status: Open
+Status: In Progress
 
 Acceptance:
 
@@ -264,7 +264,15 @@ Acceptance:
 
 Validation:
 
-- Two simultaneous sample requests only generate once.
+- Pending future coalescing is implemented for `world/lod/chunkX/chunkZ`.
+- `/worldview status` reports pending terrain requests and coalesced request count.
+- Live validation on `synth-worldview-mvp` after restart showed `gen: active 0/2,
+  pending 0` and `chunks: generated 2, coalesced 0, failed 0` after a radius-free
+  batch API request.
+- A fast local overlap test with four concurrent one-chunk batch requests completed
+  cleanly but did not observe coalescing because generation finished before requests
+  overlapped.
+- Memory cache remains open.
 
 #### Story 3.5 - Add Disk Cache
 
@@ -506,6 +514,10 @@ Validation:
 - Client queues missing chunks, sends them in batches of `16`, parses returned GLBs,
   and falls back to single-chunk requests if a whole batch request fails.
 - Build validation: `.\gradlew.bat build`.
+- Live endpoint validation after deploy/restart: a two-chunk POST returned `ok=true`,
+  `2` chunk results, and a `325772` byte decoded GLB for chunk `0,0`.
+- Live JS validation after deploy/restart confirmed `loadChunkBatch`,
+  `TERRAIN_BATCH_SIZE = 16`, and `base64ToArrayBuffer`.
 
 ### Epic 5: Player Tracking
 
@@ -558,7 +570,7 @@ Goal: make the prototype safe enough to keep iterating.
 
 #### Story 6.1 - Add Generation Concurrency Limits
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -568,11 +580,17 @@ Acceptance:
 
 Validation:
 
-- Stress request grid and confirm server remains responsive.
+- Mesh generation is guarded by a semaphore with current maximum `2`.
+- Requests beyond the active generation limit wait for a permit instead of immediately
+  scheduling additional world execution work.
+- `/worldview status` reports active and maximum concurrent generations.
+- Live validation on `synth-worldview-mvp` reported `active 0/2, pending 0` after
+  generating real terrain through `POST /api/terrain/batch`.
+- Configurable limit remains a follow-up under config loader work.
 
 #### Story 6.2 - Add Metrics To Status
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -581,11 +599,18 @@ Acceptance:
 
 Validation:
 
-- Status changes after browser loads chunks.
+- `/worldview status` reports active generation count, maximum generation count,
+  pending request count, generated chunk count, coalesced request count, failed
+  generation count, single terrain request count, and batch terrain request count.
+- Live validation after a two-chunk batch request reported `generated 2`, `failed 0`,
+  and `batch 1`; after four more batch requests it reported `generated 6` and
+  `batch 5`.
+- Memory cache, disk cache size, cache hits, and connected viewers remain follow-ups
+  after those subsystems exist.
 
 #### Story 6.3 - Add Basic Browser Resource Disposal Audit
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -595,7 +620,13 @@ Acceptance:
 
 Validation:
 
-- Manual browser test records stable loaded chunk count.
+- HUD now reports loaded chunks, mesh count, geometry/material/texture counts,
+  Three.js renderer memory counters, and cumulative disposed chunks/resources.
+- Disposal deduplicates geometries, materials, and textures before calling
+  `dispose()` so shared resources are not double-disposed.
+- Playwright validation against `http://127.0.0.1:5960/?radius=1&chunkX=0&chunkZ=0`
+  loaded a 9-chunk grid, moved the center to `2,0`, returned to a bounded `9 chunks`,
+  and observed a nonzero disposed chunk count.
 
 #### Story 6.4 - Document MVP Setup And Validation
 

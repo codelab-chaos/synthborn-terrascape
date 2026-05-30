@@ -6,6 +6,7 @@ import com.codelabchaos.synthworldview.terrain.TerrainMesh;
 import com.codelabchaos.synthworldview.terrain.TerrainMesher;
 import com.codelabchaos.synthworldview.terrain.TerrainSampler;
 import com.codelabchaos.synthworldview.terrain.TerrainSnapshot;
+import com.codelabchaos.synthworldview.web.WorldviewWebServer;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
@@ -68,6 +69,17 @@ public class WorldviewCommand extends AbstractWorldCommand {
         context.sendMessage(Message.raw("  web     : " + plugin.webAddress()).color(Color.WHITE));
         context.sendMessage(Message.raw("  worlds  : " + worlds).color(Color.WHITE));
         context.sendMessage(Message.raw("  terrain : sample and clearcache commands available").color(Color.GREEN));
+        WorldviewWebServer.Metrics metrics = plugin.webMetrics();
+        if (metrics != null) {
+            context.sendMessage(Message.raw("  gen     : active " + metrics.activeGenerations()
+                    + "/" + metrics.maxConcurrentGenerations()
+                    + ", pending " + metrics.pendingRequests()).color(Color.WHITE));
+            context.sendMessage(Message.raw("  chunks  : generated " + metrics.generatedChunks()
+                    + ", coalesced " + metrics.coalescedRequests()
+                    + ", failed " + metrics.failedGenerations()).color(Color.WHITE));
+            context.sendMessage(Message.raw("  http    : single " + metrics.singleRequests()
+                    + ", batch " + metrics.batchRequests()).color(Color.WHITE));
+        }
     }
 
     private void handleSample(@Nonnull String[] args, @Nonnull CommandContext context, @Nonnull World world) {

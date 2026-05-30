@@ -35,10 +35,6 @@ in `/api/worlds` and cannot serve terrain.
 Requests for chunks outside the explored/on-disk index return empty or unexplored
 responses without forcing terrain generation.
 
-### [ ] Worldview Coalesces Duplicate Terrain Requests
-
-Multiple simultaneous requests for the same mesh key reuse one pending future.
-
 ### [ ] Worldview Caches Generated Terrain In Memory
 
 Recent GLB terrain chunks are served from a bounded memory cache.
@@ -55,11 +51,6 @@ Player markers update from WebSocket messages and line up with terrain coordinat
 ### [ ] Viewer Can Focus The Camera On A Player
 
 Clicking a player in the list moves the camera target to that player's position.
-
-### [ ] Worldview Limits Concurrent Mesh Generation
-
-Terrain generation uses a semaphore or equivalent limit so web viewers cannot saturate
-server CPU.
 
 ### [ ] Worldview Enforces Disk Cache Limits
 
@@ -194,6 +185,20 @@ The browser requests missing terrain chunks through capped `POST /api/terrain/ba
 calls instead of one HTTP request per chunk. Each batch returns per-chunk success or
 failure data so failed chunks do not poison the whole batch.
 
+### [x] Worldview Coalesces Duplicate Terrain Requests
+
+Multiple simultaneous requests for the same `world/lod/chunkX/chunkZ` terrain key reuse
+one pending generation future. `/worldview status` reports coalesced request count and
+pending request count. Live fast-path validation completed concurrent requests cleanly;
+observing a nonzero coalesced count still needs a slower stress case.
+
+### [x] Worldview Limits Concurrent Mesh Generation
+
+Terrain generation uses a semaphore so web viewers cannot saturate server CPU or flood
+the world execution path. `/worldview status` reports active and maximum concurrent
+generations. Live validation on `synth-worldview-mvp` reported `active 0/2, pending 0`
+after successful batch terrain generation.
+
 ### [x] Viewer Can See Chunk Debug Bounds
 
 A `Bounds` toggle shows per-loaded-chunk wireframe boxes and chunk coordinate labels.
@@ -205,6 +210,13 @@ disposal path as the terrain mesh.
 The HUD shows the current controls target X/Y/Z, target chunk X/Z, and camera X/Y/Z.
 The readout updates every frame and uses the same target chunk math as terrain
 streaming.
+
+### [x] Viewer Can Audit Loaded Browser Resources
+
+The HUD reports loaded chunks, mesh count, geometry/material/texture counts, Three.js
+renderer memory counters, and cumulative disposed resources. Playwright validation
+confirmed a radius `1` grid returns to `9 chunks` after moving center and reports
+nonzero disposed chunks.
 
 ### [x] Viewer Uses A Readable Sky And Reference Grid Palette
 
