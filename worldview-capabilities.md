@@ -90,12 +90,6 @@ mesh budget settings.
 The server can detect chunk/block updates and tell connected browsers to reload affected
 terrain.
 
-### [ ] Viewer Restores Camera Position After Page Reload
-
-The browser saves the current camera position, controls target, selected world, visible
-radius, auto-stream setting, bounds toggle, and water mode locally, then restores that
-view when the web page is reloaded.
-
 ## Implemented Capabilities
 
 ### [x] Operator Can Start A Local Worldview Web Server
@@ -192,6 +186,15 @@ The HUD shows the current controls target X/Y/Z, target chunk X/Z, and camera X/
 The readout updates every frame and uses the same target chunk math as terrain
 streaming.
 
+### [x] Viewer Restores Camera Position After Page Reload
+
+The browser saves the current camera position, controls target, selected world, visible
+radius, auto-stream setting, bounds toggle, and water mode in local storage. On reload,
+the viewer restores the saved pose before terrain loading can refocus the grid. URL
+parameters still override saved world, chunk, radius, and display settings for explicit
+test/debug links. Playwright validation seeds saved state, reloads the page, and confirms
+the saved target/camera coordinates return.
+
 ### [x] Viewer Can Audit Loaded Browser Resources
 
 The HUD reports loaded chunks, mesh count, geometry/material/texture counts, Three.js
@@ -216,8 +219,10 @@ which returned `226` detail proxies through `X-Worldview-Details`.
 
 Current caveat: this is explicitly experimental. The canopy/trunk proxy approach is
 useful enough to keep, but it is not a polished vegetation renderer and should not block
-MVP progress on visual tuning. It is off by default and only enabled through the
-experimental `Trees` viewer toggle or `?details=1` terrain requests.
+MVP progress on visual tuning. It is off by default and can only be enabled as a server
+setting because it changes mesh generation and cache identity:
+`synthworldview.experimental.details=true` or `SYNTH_WORLDVIEW_EXPERIMENTAL_DETAILS=true`.
+The viewer only displays whether the server has the experiment enabled.
 
 ### [x] Worldview Can Classify Terrain Versus Overland Detail Blocks
 

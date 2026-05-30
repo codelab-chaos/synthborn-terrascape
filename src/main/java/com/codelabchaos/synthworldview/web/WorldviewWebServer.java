@@ -48,7 +48,6 @@ public final class WorldviewWebServer {
     private static final int MAX_CONCURRENT_GENERATIONS = 2;
     private static final Pattern WORLD_PATTERN = Pattern.compile("\"world\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern LOD_PATTERN = Pattern.compile("\"lod\"\\s*:\\s*(-?\\d+)");
-    private static final Pattern DETAILS_PATTERN = Pattern.compile("\"details\"\\s*:\\s*(true|false)");
     private static final Pattern CHUNK_OBJECT_PATTERN = Pattern.compile("\\{[^{}]*}");
     private static final Pattern CHUNK_X_PATTERN = Pattern.compile("\"chunkX\"\\s*:\\s*(-?\\d+)");
     private static final Pattern CHUNK_Z_PATTERN = Pattern.compile("\"chunkZ\"\\s*:\\s*(-?\\d+)");
@@ -56,6 +55,7 @@ public final class WorldviewWebServer {
     private final SynthWorldviewPlugin plugin;
     private final String host;
     private final int port;
+    private final boolean experimentalDetailsEnabled;
     private final HttpServer server;
     private final Semaphore generationPermits = new Semaphore(MAX_CONCURRENT_GENERATIONS);
     private final ConcurrentHashMap<String, CompletableFuture<TerrainResult>> pendingTerrain = new ConcurrentHashMap<>();
@@ -66,10 +66,12 @@ public final class WorldviewWebServer {
     private final AtomicLong coalescedRequests = new AtomicLong();
     private final AtomicLong failedGenerations = new AtomicLong();
 
-    public WorldviewWebServer(@Nonnull SynthWorldviewPlugin plugin, @Nonnull String host, int port) throws IOException {
+    public WorldviewWebServer(@Nonnull SynthWorldviewPlugin plugin, @Nonnull String host, int port,
+                              boolean experimentalDetailsEnabled) throws IOException {
         this.plugin = plugin;
         this.host = host;
         this.port = port;
+        this.experimentalDetailsEnabled = experimentalDetailsEnabled;
         this.server = HttpServer.create(new InetSocketAddress(host, port), 0);
         this.server.createContext("/api/worlds", this::handleWorlds);
         this.server.createContext("/api/players", this::handlePlayers);
@@ -119,7 +121,8 @@ public final class WorldviewWebServer {
                 .sorted()
                 .map(name -> "{\"name\":\"" + escapeJson(name) + "\"}")
                 .collect(Collectors.joining(","));
-        writeJson(exchange, 200, "{\"ok\":true,\"worlds\":[" + worlds + "]}");
+        writeJson(exchange, 200, "{\"ok\":true,\"features\":{\"experimentalDetails\":" + experimentalDetailsEnabled
+                + "},\"worlds\":[" + worlds + "]}");
     }
 
     private void handlePlayers(@Nonnull HttpExchange exchange) throws IOException {
@@ -175,7 +178,7 @@ public final class WorldviewWebServer {
             return;
         }
 
-        TerrainRequest request = parseTerrainRequest(exchange.getRequestURI().getPath(), exchange.getRequestURI().getQuery());
+        TerrainRequest request = parseTerrainRequest(exchange.getRequestURI().getPath(), experimentalDetailsEnabled);
         if (request == null) {
             writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/terrain/{world}/{lod}/{chunkX}/{chunkZ}.glb\"}");
             return;
@@ -246,7 +249,7 @@ public final class WorldviewWebServer {
                         .append(",\"ok\":").append(result.error() == null);
                 if (result.error() == null && result.terrain() != null) {
                     TerrainResult terrain = result.terrain();
-                    TerrainRequest terrainRequest = new TerrainRequest(request.worldName(), request.lod(), result.chunkX(), result.chunkZ(), request.includeDetails());
+                    TerrainRequest terrainRequest = new TerrainRequest(request.worldName(), request.lod(), result.chunkX(), result.chunkZ(), experimentalDetailsEnabled);
                     Path output = terrainOutputPath(terrainRequest);
                     Files.createDirectories(output.getParent());
                     Files.write(output, terrain.glb());
@@ -324,7 +327,7 @@ public final class WorldviewWebServer {
                         request.lod(),
                         chunk.chunkX(),
                         chunk.chunkZ(),
-                        request.includeDetails());
+                        experimentalDetailsEnabled);
                 results.add(new BatchTerrainResult(
                         chunk.chunkX(),
                         chunk.chunkZ(),
@@ -348,7 +351,7 @@ public final class WorldviewWebServer {
             case "/", "/index.html" -> "/web/index.html";
             case "/app.js" -> "/web/app.js";
             case "/styles.css" -> "/web/styles.css";
-            default -> null;
+            default -> moduleResourcePath(requestPath);
         };
 
         if (resourcePath == null) {
@@ -375,7 +378,14 @@ public final class WorldviewWebServer {
                 .resolve(request.chunkX() + "_" + request.chunkZ() + ".glb");
     }
 
-    private static TerrainRequest parseTerrainRequest(@Nonnull String path, String query) {
+    private static String moduleResourcePath(@Nonnull String requestPath) {
+        if (!requestPath.matches("/[A-Za-z0-9_-]+\\.js")) {
+            return null;
+        }
+        return "/web" + requestPath;
+    }
+
+    private static TerrainRequest parseTerrainRequest(@Nonnull String path, boolean includeDetails) {
         String prefix = "/api/terrain/";
         if (!path.startsWith(prefix)) {
             return null;
@@ -390,13 +400,12 @@ public final class WorldviewWebServer {
         if (lod == null || chunkX == null || chunkZ == null) {
             return null;
         }
-        return new TerrainRequest(decode(parts[0]), lod, chunkX, chunkZ, queryBoolean(query, "details"));
+        return new TerrainRequest(decode(parts[0]), lod, chunkX, chunkZ, includeDetails);
     }
 
     private static BatchTerrainRequest parseBatchTerrainRequest(@Nonnull String body) {
         String worldName = findString(WORLD_PATTERN, body, "world");
         Integer lod = findInt(LOD_PATTERN, body, "lod");
-        boolean includeDetails = findBoolean(DETAILS_PATTERN, body, false);
         List<ChunkCoord> chunks = new ArrayList<>();
         Matcher matcher = CHUNK_OBJECT_PATTERN.matcher(body);
         while (matcher.find()) {
@@ -414,7 +423,7 @@ public final class WorldviewWebServer {
         if (chunks.isEmpty()) {
             throw new IllegalArgumentException("chunks_required");
         }
-        return new BatchTerrainRequest(worldName, lod, includeDetails, chunks);
+        return new BatchTerrainRequest(worldName, lod, chunks);
     }
 
     private static World findWorld(@Nonnull String worldName) {
@@ -474,27 +483,6 @@ public final class WorldviewWebServer {
             throw new IllegalArgumentException(fieldName + "_required");
         }
         return Integer.parseInt(matcher.group(1));
-    }
-
-    private static boolean findBoolean(@Nonnull Pattern pattern, @Nonnull String body, boolean defaultValue) {
-        Matcher matcher = pattern.matcher(body);
-        return matcher.find() ? Boolean.parseBoolean(matcher.group(1)) : defaultValue;
-    }
-
-    private static boolean queryBoolean(String query, @Nonnull String name) {
-        if (query == null || query.isBlank()) {
-            return false;
-        }
-        for (String part : query.split("&")) {
-            int equals = part.indexOf('=');
-            String key = decode(equals >= 0 ? part.substring(0, equals) : part);
-            if (!name.equals(key)) {
-                continue;
-            }
-            String value = equals >= 0 ? decode(part.substring(equals + 1)) : "true";
-            return "1".equals(value) || "true".equalsIgnoreCase(value) || "yes".equalsIgnoreCase(value) || "on".equalsIgnoreCase(value);
-        }
-        return false;
     }
 
     private static String decode(@Nonnull String value) {
@@ -560,7 +548,7 @@ public final class WorldviewWebServer {
         }
     }
 
-    private record BatchTerrainRequest(String worldName, int lod, boolean includeDetails, List<ChunkCoord> chunks) {
+    private record BatchTerrainRequest(String worldName, int lod, List<ChunkCoord> chunks) {
     }
 
     private record ChunkCoord(int chunkX, int chunkZ) {

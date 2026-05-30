@@ -1,0 +1,14 @@
+export const canvas = document.querySelector('#scene');
+export const worldSelect = document.querySelector('#world');
+export const chunkXInput = document.querySelector('#chunk-x');
+export const chunkZInput = document.querySelector('#chunk-z');
+export const radiusInput = document.querySelector('#radius');
+export const autoStreamInput = document.querySelector('#auto-stream');
+export const debugBoundsInput = document.querySelector('#debug-bounds');
+export const experimentalDetailsStateEl = document.querySelector('#experimental-details-state');
+export const waterModeInput = document.querySelector('#water-mode');
+export const loadButton = document.querySelector('#load');
+export const statusEl = document.querySelector('#status');
+export const metricsEl = document.querySelector('#metrics');
+export const coordinatesEl = document.querySelector('#coordinates');
+export const playersEl = document.querySelector('#players');

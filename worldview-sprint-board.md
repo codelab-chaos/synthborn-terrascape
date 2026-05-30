@@ -496,7 +496,7 @@ Validation:
 
 #### Story 4.11 - Restore Camera Position After Page Reload
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -509,9 +509,16 @@ Acceptance:
 
 Validation:
 
-- Move the camera, reload the page, and confirm the same world area and viewing angle
-  return.
-- Playwright reload validation confirms target/camera coordinates survive a reload.
+- Viewer state is saved to local storage under `synthworldview.viewState.v1`.
+- The saved state includes world, chunk center, radius, auto-stream, bounds, water mode,
+  camera position, and `OrbitControls.target`.
+- Reload boot applies saved UI state before terrain loading, restores camera/target,
+  and skips the first-load grid focus so the saved pose is not overwritten.
+- URL params still override saved world/chunk/radius/display state for explicit
+  test/debug links.
+- Playwright validation seeds saved state, reloads `/`, and confirms chunk `2,3`,
+  `hidden` water, disabled auto-stream, enabled bounds, `Target 80, 126, 112`, and
+  `camera 120, 150, 160`.
 
 #### Story 4.5 - Add Batch Terrain Fetch
 
@@ -684,8 +691,10 @@ Status: Experimental
 Note: the first tree-canopy proxy pass is useful and validated, but it is intentionally
 experimental. Keep it available for visual exploration, but do not spend MVP time tuning
 canopy shapes, density, or exact block classification unless it becomes product-critical.
-The feature is off by default and only runs when the viewer `Trees` toggle or
-`?details=1` terrain request flag is enabled.
+The feature is off by default and only runs when the server setting is enabled with
+`synthworldview.experimental.details=true` or
+`SYNTH_WORLDVIEW_EXPERIMENTAL_DETAILS=true`. The viewer only reports the server state;
+clients cannot enable this generation mode per request.
 
 Candidate stories:
 
@@ -754,12 +763,15 @@ Validation:
 
 - Foliage detail emits sparse canopy boxes and trunk detail emits slim trunk boxes into
   a separate GLB primitive/material named `worldview-detail`.
-- The feature is opt-in. Default terrain requests omit detail geometry and cache under
-  normal `lod-0`; experimental detail requests cache separately under `lod-0-details`.
+- The feature is opt-in at server startup. Default terrain requests omit detail geometry
+  and cache under normal `lod-0`; server-enabled experimental detail requests cache
+  separately under `lod-0-details`.
 - `GET /api/terrain/default/0/-7/3.glb` on `synth-worldview-mvp` returned
   `X-Worldview-Details: 0` and `300628` bytes after the feature was defaulted off.
-- `GET /api/terrain/default/0/-7/3.glb?details=1` returned `X-Worldview-Details:
-  226`, `12548` vertices, `6274` triangles, and `529108` bytes.
+- `GET /api/terrain/default/0/-7/3.glb?details=1` also returned
+  `X-Worldview-Details: 0`, proving clients cannot override the server setting.
+- Prior server-enabled validation returned `X-Worldview-Details: 226`, `12548`
+  vertices, `6274` triangles, and `529108` bytes.
 - Nearby live-player probe also found detail proxies in chunks `-6,3`, `-6,4`,
   `-5,3`, `-7,4`, `-6,2`, and `-7,2`.
 - Playwright validation requests chunk `-7,3` and asserts the detail count is greater

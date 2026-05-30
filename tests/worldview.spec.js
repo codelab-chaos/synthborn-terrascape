@@ -5,7 +5,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
 
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 0, 0');
   await expect(page.locator('#water-mode')).toHaveValue('transparent');
-  await expect(page.locator('#experimental-details')).not.toBeChecked();
+  await expect(page.locator('#experimental-details-state')).toHaveText('Experimental trees: server off');
   await expect(page.locator('#players')).toBeVisible();
   await expect(page.locator('#metrics')).toContainText('9 chunks');
   await expect(page.locator('#metrics')).toContainText('geo');
@@ -30,7 +30,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
 
   const detailResponse = await page.request.get('/api/terrain/default/0/-7/3.glb?details=1');
   expect(detailResponse.ok()).toBeTruthy();
-  expect(Number(detailResponse.headers()['x-worldview-details'] ?? 0)).toBeGreaterThan(0);
+  expect(Number(detailResponse.headers()['x-worldview-details'] ?? 0)).toBe(0);
 
   await page.locator('#water-mode').selectOption('solid');
   await expect(page.locator('#water-mode')).toHaveValue('solid');
@@ -43,4 +43,26 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 2, 0');
   await expect(page.locator('#metrics')).toContainText('9 chunks');
   await expect(page.locator('#metrics')).toContainText(/disposed [1-9]\d*c/);
+
+  await page.evaluate(() => {
+    window.localStorage.setItem('synthworldview.viewState.v1', JSON.stringify({
+      world: 'default',
+      chunkX: 2,
+      chunkZ: 3,
+      radius: 1,
+      auto: false,
+      bounds: true,
+      water: 'hidden',
+      camera: { x: 120, y: 150, z: 160 },
+      target: { x: 80, y: 126, z: 112 },
+    }));
+  });
+  await page.goto('/');
+
+  await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 2, 3');
+  await expect(page.locator('#water-mode')).toHaveValue('hidden');
+  await expect(page.locator('#auto-stream')).not.toBeChecked();
+  await expect(page.locator('#debug-bounds')).toBeChecked();
+  await expect(page.locator('#coordinates')).toContainText('Target 80, 126, 112');
+  await expect(page.locator('#coordinates')).toContainText('camera 120, 150, 160');
 });

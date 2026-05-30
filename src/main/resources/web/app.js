@@ -1,21 +1,27 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
-const canvas = document.querySelector('#scene');
-const worldSelect = document.querySelector('#world');
-const chunkXInput = document.querySelector('#chunk-x');
-const chunkZInput = document.querySelector('#chunk-z');
-const radiusInput = document.querySelector('#radius');
-const autoStreamInput = document.querySelector('#auto-stream');
-const debugBoundsInput = document.querySelector('#debug-bounds');
-const experimentalDetailsInput = document.querySelector('#experimental-details');
-const waterModeInput = document.querySelector('#water-mode');
-const loadButton = document.querySelector('#load');
-const statusEl = document.querySelector('#status');
-const metricsEl = document.querySelector('#metrics');
-const coordinatesEl = document.querySelector('#coordinates');
-const playersEl = document.querySelector('#players');
+import { createChunkDebug } from './chunk-debug.js';
+import {
+  autoStreamInput,
+  canvas,
+  chunkXInput,
+  chunkZInput,
+  coordinatesEl,
+  debugBoundsInput,
+  experimentalDetailsStateEl,
+  loadButton,
+  metricsEl,
+  playersEl,
+  radiusInput,
+  statusEl,
+  waterModeInput,
+  worldSelect,
+} from './dom.js';
+import { createPlayerMarker, disposeObject } from './players.js';
+import { base64ToArrayBuffer, centerId, chunkId, delay, formatCoord, numberOr } from './utils.js';
+import { isVectorState, loadStoredViewState, saveStoredViewState, vectorState } from './view-state.js';
+import { applyWaterModeToObject, prepareWaterMaterials } from './water.js';
 
 const SKY_COLOR = 0x173454;
 const GRID_AXIS_COLOR = 0x58616a;
@@ -79,6 +85,11 @@ let playerPollTimer = null;
 const pressedKeys = new Set();
 const clock = new THREE.Clock();
 const initialParams = new URLSearchParams(window.location.search);
+let experimentalDetailsEnabled = false;
+let storedViewState = loadStoredViewState();
+let hasRestoredCameraPose = false;
+let hasStarted = false;
+let lastViewStateSave = 0;
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -100,6 +111,11 @@ async function loadWorlds() {
   setStatus('Loading worlds');
   const response = await fetch('/api/worlds');
   const data = await response.json();
+  experimentalDetailsEnabled = data.features?.experimentalDetails === true;
+  experimentalDetailsStateEl.textContent = experimentalDetailsEnabled
+    ? 'Experimental trees: server on'
+    : 'Experimental trees: server off';
+  experimentalDetailsStateEl.classList.toggle('enabled', experimentalDetailsEnabled);
   worldSelect.replaceChildren();
   for (const world of data.worlds ?? []) {
     const option = document.createElement('option');
@@ -107,19 +123,37 @@ async function loadWorlds() {
     option.textContent = world.name;
     worldSelect.append(option);
   }
+  applyStoredWorld();
   applyInitialWorldParam();
   setStatus(worldSelect.value ? 'Ready' : 'No worlds found');
 }
 
 function applyInitialParams() {
+  applyStoredInputs();
   applyNumberParam('chunkX', chunkXInput);
   applyNumberParam('chunkZ', chunkZInput);
-    applyNumberParam('radius', radiusInput);
-    applyBooleanParam('auto', autoStreamInput);
-    applyBooleanParam('bounds', debugBoundsInput);
-    applyBooleanParam('details', experimentalDetailsInput);
-    applySelectParam('water', waterModeInput);
+  applyNumberParam('radius', radiusInput);
+  applyBooleanParam('auto', autoStreamInput);
+  applyBooleanParam('bounds', debugBoundsInput);
+  applySelectParam('water', waterModeInput);
+}
+
+function applyStoredInputs() {
+  if (!storedViewState) return;
+  setNumberInput(chunkXInput, storedViewState.chunkX);
+  setNumberInput(chunkZInput, storedViewState.chunkZ);
+  setNumberInput(radiusInput, storedViewState.radius);
+  if (typeof storedViewState.auto === 'boolean') autoStreamInput.checked = storedViewState.auto;
+  if (typeof storedViewState.bounds === 'boolean') debugBoundsInput.checked = storedViewState.bounds;
+  if (typeof storedViewState.water === 'string') {
+    applySelectValue(waterModeInput, storedViewState.water);
   }
+}
+
+function applyStoredWorld() {
+  if (!storedViewState?.world) return;
+  applySelectValue(worldSelect, storedViewState.world);
+}
 
 function applyInitialWorldParam() {
   const world = initialParams.get('world');
@@ -148,11 +182,21 @@ function applyBooleanParam(name, input) {
 function applySelectParam(name, input) {
   const value = initialParams.get(name);
   if (value === null) return;
+  applySelectValue(input, value);
+}
+
+function applySelectValue(input, value) {
   for (const option of input.options) {
     if (option.value === value) {
       input.value = value;
       return;
     }
+  }
+}
+
+function setNumberInput(input, value) {
+  if (Number.isFinite(value)) {
+    input.value = value;
   }
 }
 
@@ -220,8 +264,7 @@ async function loadGrid(options = {}) {
 }
 
 async function loadChunk(world, chunkX, chunkZ, generation) {
-  const detailQuery = experimentalDetailsInput.checked ? '?details=1' : '';
-  const url = `/api/terrain/${encodeURIComponent(world)}/0/${chunkX}/${chunkZ}.glb${detailQuery}`;
+  const url = `/api/terrain/${encodeURIComponent(world)}/0/${chunkX}/${chunkZ}.glb`;
   const gltf = await loadGltfWithRetry(url);
   if (generation !== loadGeneration) return false;
   addChunkObject(world, chunkX, chunkZ, gltf.scene);
@@ -237,7 +280,6 @@ async function loadChunkBatch(world, keys, generation) {
         body: JSON.stringify({
           world,
           lod: 0,
-          details: experimentalDetailsInput.checked,
           chunks: keys.map((key) => ({ chunkX: key.chunkX, chunkZ: key.chunkZ })),
         }),
     });
@@ -280,7 +322,7 @@ async function loadChunkBatch(world, keys, generation) {
 function addChunkObject(world, chunkX, chunkZ, object) {
   object.position.set(chunkX * 32, 0, chunkZ * 32);
   prepareWaterMaterials(object);
-  applyWaterModeToObject(object);
+  applyWaterModeToObject(object, waterModeInput.value);
   const debug = createChunkDebug(chunkX, chunkZ, object);
   debug.visible = debugBoundsInput.checked;
   object.add(debug);
@@ -290,15 +332,6 @@ function addChunkObject(world, chunkX, chunkZ, object) {
 
 async function parseGltfBytes(arrayBuffer) {
   return await loader.parseAsync(arrayBuffer, '');
-}
-
-function base64ToArrayBuffer(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes.buffer;
 }
 
 async function loadGltfWithRetry(url) {
@@ -312,10 +345,6 @@ async function loadGltfWithRetry(url) {
     }
   }
   throw lastError;
-}
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function chunkKeys(centerX, centerZ, radius) {
@@ -411,50 +440,10 @@ function collectResourceStats() {
   };
 }
 
-function prepareWaterMaterials(root) {
-  root.traverse((object) => {
-    if (!object.material) return;
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    for (const material of materials) {
-      if (!isWaterMaterial(material)) continue;
-      material.name = 'worldview-water';
-      material.userData.worldviewWater = true;
-      material.transparent = true;
-      material.opacity = 0.72;
-      material.depthWrite = false;
-    }
-  });
-}
-
 function applyWaterMode() {
   for (const entry of loadedChunks.values()) {
-    applyWaterModeToObject(entry.object);
+    applyWaterModeToObject(entry.object, waterModeInput.value);
   }
-}
-
-function applyWaterModeToObject(root) {
-  const mode = waterModeInput.value;
-  root.traverse((object) => {
-    if (!object.material) return;
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    let hasWaterMaterial = false;
-    for (const material of materials) {
-      if (!isWaterMaterial(material)) continue;
-      hasWaterMaterial = true;
-      material.visible = mode !== 'hidden';
-      material.transparent = mode === 'transparent';
-      material.opacity = mode === 'transparent' ? 0.48 : 1.0;
-      material.depthWrite = mode !== 'transparent';
-      material.needsUpdate = true;
-    }
-    if (object.isMesh && hasWaterMaterial) {
-      object.renderOrder = mode === 'transparent' ? 5 : 0;
-    }
-  });
-}
-
-function isWaterMaterial(material) {
-  return material?.userData?.worldviewWater === true || material?.name === 'worldview-water';
 }
 
 async function refreshPlayers() {
@@ -509,137 +498,13 @@ function updatePlayers(players) {
   }
 }
 
-function createPlayerMarker(player) {
-  const group = new THREE.Group();
-  group.name = `player:${player.uuid}`;
-
-  const ring = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.75, 0.75, 0.08, 24),
-    new THREE.MeshStandardMaterial({
-      color: 0x5ef1b5,
-      emissive: 0x174234,
-      roughness: 0.45,
-    }),
-  );
-  ring.position.y = -1.75;
-  group.add(ring);
-
-  const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.38, 1.15, 4, 12),
-    new THREE.MeshStandardMaterial({
-      color: 0xfff1a8,
-      emissive: 0x4c3714,
-      roughness: 0.65,
-    }),
-  );
-  body.position.y = -0.75;
-  group.add(body);
-
-  const heading = new THREE.Mesh(
-    new THREE.ConeGeometry(0.28, 0.72, 16),
-    new THREE.MeshStandardMaterial({
-      color: 0x72c7ff,
-      emissive: 0x153a5a,
-      roughness: 0.5,
-    }),
-  );
-  heading.position.set(0, -0.7, -0.82);
-  heading.rotation.x = Math.PI * 0.5;
-  group.add(heading);
-
-  return group;
-}
-
 function focusPlayer(player) {
   const target = new THREE.Vector3(player.x, player.y + 1.5, player.z);
   const offset = new THREE.Vector3(34, 28, 34);
   controls.target.copy(target);
   camera.position.copy(target).add(offset);
   controls.update();
-}
-
-function disposeObject(root) {
-  root.traverse((object) => {
-    if (object.geometry) object.geometry.dispose();
-    if (object.material) {
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      for (const material of materials) {
-        material.dispose();
-      }
-    }
-  });
-}
-
-function createChunkDebug(chunkX, chunkZ, chunkObject) {
-  const bounds = new THREE.Box3().setFromObject(chunkObject);
-  const minY = Number.isFinite(bounds.min.y) ? bounds.min.y : 100;
-  const maxY = Number.isFinite(bounds.max.y) ? bounds.max.y : 132;
-  const highY = maxY + 0.35;
-  const lowY = Math.min(minY, maxY - 1);
-
-  const corners = [
-    [0, lowY, 0], [32, lowY, 0], [32, lowY, 32], [0, lowY, 32],
-    [0, highY, 0], [32, highY, 0], [32, highY, 32], [0, highY, 32],
-  ];
-  const edgeIndices = [
-    0, 1, 1, 2, 2, 3, 3, 0,
-    4, 5, 5, 6, 6, 7, 7, 4,
-    0, 4, 1, 5, 2, 6, 3, 7,
-  ];
-  const positions = [];
-  for (const index of edgeIndices) {
-    positions.push(...corners[index]);
-  }
-
-  const group = new THREE.Group();
-  group.name = `debug:${chunkX}:${chunkZ}`;
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  const material = new THREE.LineBasicMaterial({
-    color: 0x84f5c3,
-    transparent: true,
-    opacity: 0.85,
-    depthTest: false,
-  });
-  const lines = new THREE.LineSegments(geometry, material);
-  lines.renderOrder = 20;
-  group.add(lines);
-
-  const label = makeChunkLabel(`${chunkX}, ${chunkZ}`);
-  label.position.set(16, highY + 4, 16);
-  group.add(label);
-
-  return group;
-}
-
-function makeChunkLabel(text) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 40;
-  const context = canvas.getContext('2d');
-  context.fillStyle = 'rgba(10, 16, 18, 0.78)';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.strokeStyle = 'rgba(132, 245, 195, 0.85)';
-  context.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
-  context.fillStyle = '#d9fff0';
-  context.font = '700 18px system-ui, sans-serif';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText(text, canvas.width / 2, canvas.height / 2 + 1);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  const material = new THREE.SpriteMaterial({
-    map: texture,
-    transparent: true,
-    depthTest: false,
-  });
-  const sprite = new THREE.Sprite(material);
-  sprite.scale.set(24, 7.5, 1);
-  sprite.renderOrder = 21;
-  return sprite;
+  saveViewState();
 }
 
 function updateDebugBounds() {
@@ -653,14 +518,56 @@ function focusGrid(centerX, centerZ, radius) {
   controls.target.copy(center);
   camera.position.set(center.x + 78, center.y + 58, center.z + 78);
   controls.update();
+  saveViewState();
 }
 
-function chunkId(world, chunkX, chunkZ) {
-  return `${world}:${chunkX}:${chunkZ}`;
+function restoreCameraPose() {
+  if (!storedViewState || hasExplicitViewParams()) {
+    return false;
+  }
+  const cameraState = storedViewState.camera;
+  const targetState = storedViewState.target;
+  if (!isVectorState(cameraState) || !isVectorState(targetState)) {
+    return false;
+  }
+
+  camera.position.set(cameraState.x, cameraState.y, cameraState.z);
+  controls.target.set(targetState.x, targetState.y, targetState.z);
+  controls.update();
+  hasFocusedInitialGrid = true;
+  hasRestoredCameraPose = true;
+  return true;
 }
 
-function centerId(world, chunkX, chunkZ) {
-  return `${world}:${chunkX}:${chunkZ}`;
+function hasExplicitViewParams() {
+  return ['world', 'chunkX', 'chunkZ', 'radius'].some((name) => initialParams.has(name));
+}
+
+function saveViewState() {
+  if (!hasStarted || !worldSelect.value) return;
+  const target = controls.target;
+  const chunk = targetChunk();
+  const state = {
+    world: worldSelect.value,
+    chunkX: Number.parseInt(chunkXInput.value, 10) || chunk.chunkX,
+    chunkZ: Number.parseInt(chunkZInput.value, 10) || chunk.chunkZ,
+    radius: Math.max(0, Number.parseInt(radiusInput.value, 10) || 0),
+    auto: autoStreamInput.checked,
+    bounds: debugBoundsInput.checked,
+    water: waterModeInput.value,
+    camera: vectorState(camera.position),
+    target: vectorState(target),
+  };
+  if (saveStoredViewState(state)) {
+    storedViewState = state;
+  }
+}
+
+function maybeSaveViewState() {
+  const now = performance.now();
+  if (now - lastViewStateSave < 500) return;
+  lastViewStateSave = now;
+  saveViewState();
 }
 
 function targetChunk() {
@@ -690,14 +597,6 @@ function maybeAutoStream() {
     scheduledCenterId = null;
     loadGrid({ centerX: target.chunkX, centerZ: target.chunkZ }).catch((error) => setStatus(error.message));
   }, 250);
-}
-
-function numberOr(value, fallback) {
-  return Number.isNaN(value) ? fallback : value;
-}
-
-function formatCoord(value) {
-  return Math.round(value).toString();
 }
 
 function resize() {
@@ -749,6 +648,7 @@ function animate() {
   updateCoordinates();
   renderer.render(scene, camera);
   updateMetrics();
+  maybeSaveViewState();
   requestAnimationFrame(animate);
 }
 
@@ -764,16 +664,19 @@ window.addEventListener('keyup', (event) => {
   pressedKeys.delete(event.code);
 });
 debugBoundsInput.addEventListener('change', updateDebugBounds);
-experimentalDetailsInput.addEventListener('change', () => {
-  loadGrid({ focus: false }).catch((error) => setStatus(error.message));
+debugBoundsInput.addEventListener('change', saveViewState);
+waterModeInput.addEventListener('change', () => {
+  applyWaterMode();
+  saveViewState();
 });
-waterModeInput.addEventListener('change', applyWaterMode);
 worldSelect.addEventListener('change', () => {
   updatePlayers([]);
   refreshPlayers();
+  saveViewState();
 });
 loadButton.addEventListener('click', () => {
   loadGrid().catch((error) => setStatus(error.message));
+  saveViewState();
 });
 
 applyInitialParams();
@@ -781,7 +684,10 @@ resize();
 animate();
 await loadWorlds();
 if (worldSelect.value) {
-  await loadGrid({ focus: true }).catch((error) => setStatus(error.message));
+  hasStarted = true;
+  const restoredCameraPose = restoreCameraPose();
+  await loadGrid({ focus: !restoredCameraPose }).catch((error) => setStatus(error.message));
   await refreshPlayers();
   playerPollTimer = setInterval(refreshPlayers, 1000);
+  saveViewState();
 }
