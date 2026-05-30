@@ -21,15 +21,27 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public final class WorldviewWebServer {
     private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
+    private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
+    private static final int MAX_BATCH_CHUNKS = 16;
+    private static final Pattern WORLD_PATTERN = Pattern.compile("\"world\"\\s*:\\s*\"([^\"]+)\"");
+    private static final Pattern LOD_PATTERN = Pattern.compile("\"lod\"\\s*:\\s*(-?\\d+)");
+    private static final Pattern CHUNK_OBJECT_PATTERN = Pattern.compile("\\{[^{}]*}");
+    private static final Pattern CHUNK_X_PATTERN = Pattern.compile("\"chunkX\"\\s*:\\s*(-?\\d+)");
+    private static final Pattern CHUNK_Z_PATTERN = Pattern.compile("\"chunkZ\"\\s*:\\s*(-?\\d+)");
 
     private final SynthWorldviewPlugin plugin;
     private final String host;
@@ -80,6 +92,11 @@ public final class WorldviewWebServer {
     }
 
     private void handleTerrain(@Nonnull HttpExchange exchange) throws IOException {
+        if ("/api/terrain/batch".equals(exchange.getRequestURI().getPath())) {
+            handleTerrainBatch(exchange);
+            return;
+        }
+
         if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
             writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
             return;
@@ -119,6 +136,64 @@ public final class WorldviewWebServer {
         }
     }
 
+    private void handleTerrainBatch(@Nonnull HttpExchange exchange) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+
+        BatchTerrainRequest request;
+        try {
+            request = parseBatchTerrainRequest(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+        } catch (IllegalArgumentException e) {
+            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+            return;
+        }
+
+        World world = findWorld(request.worldName());
+        if (world == null) {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"unknown_world\"}");
+            return;
+        }
+
+        try {
+            List<BatchTerrainResult> results = generateTerrainBatch(world, request);
+            StringBuilder json = new StringBuilder(256 + results.size() * 256);
+            json.append("{\"ok\":true,\"maxBatchChunks\":").append(MAX_BATCH_CHUNKS).append(",\"chunks\":[");
+            for (int i = 0; i < results.size(); i++) {
+                if (i > 0) {
+                    json.append(',');
+                }
+                BatchTerrainResult result = results.get(i);
+                json.append("{\"chunkX\":").append(result.chunkX())
+                        .append(",\"chunkZ\":").append(result.chunkZ())
+                        .append(",\"ok\":").append(result.error() == null);
+                if (result.error() == null && result.terrain() != null) {
+                    TerrainResult terrain = result.terrain();
+                    TerrainRequest terrainRequest = new TerrainRequest(request.worldName(), request.lod(), result.chunkX(), result.chunkZ());
+                    Path output = terrainOutputPath(terrainRequest);
+                    Files.createDirectories(output.getParent());
+                    Files.write(output, terrain.glb());
+
+                    json.append(",\"columns\":").append(terrain.snapshot().nonEmptyColumns())
+                            .append(",\"vertices\":").append(terrain.mesh().vertexCount())
+                            .append(",\"triangles\":").append(terrain.mesh().triangleCount())
+                            .append(",\"base64\":\"")
+                            .append(Base64.getEncoder().encodeToString(terrain.glb()))
+                            .append("\"");
+                } else {
+                    json.append(",\"error\":\"").append(escapeJson(result.error())).append("\"");
+                }
+                json.append('}');
+            }
+            json.append("]}");
+            writeJson(exchange, 200, json.toString());
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Batch terrain request failed.");
+            writeJson(exchange, 500, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+        }
+    }
+
     private TerrainResult generateTerrain(@Nonnull World world, @Nonnull TerrainRequest request) throws Exception {
         CompletableFuture<TerrainResult> future = new CompletableFuture<>();
         world.execute(() -> {
@@ -131,6 +206,28 @@ public final class WorldviewWebServer {
             }
         });
         return future.get(TERRAIN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    private List<BatchTerrainResult> generateTerrainBatch(@Nonnull World world, @Nonnull BatchTerrainRequest request) throws Exception {
+        CompletableFuture<List<BatchTerrainResult>> future = new CompletableFuture<>();
+        world.execute(() -> {
+            List<BatchTerrainResult> results = new ArrayList<>(request.chunks().size());
+            for (ChunkCoord chunk : request.chunks()) {
+                try {
+                    TerrainSnapshot snapshot = TerrainSampler.sample(world, chunk.chunkX(), chunk.chunkZ());
+                    TerrainMesh mesh = TerrainMesher.mesh(snapshot);
+                    results.add(new BatchTerrainResult(
+                            chunk.chunkX(),
+                            chunk.chunkZ(),
+                            new TerrainResult(snapshot, mesh, GltfWriter.writeGlb(mesh)),
+                            null));
+                } catch (Exception e) {
+                    results.add(new BatchTerrainResult(chunk.chunkX(), chunk.chunkZ(), null, e.getMessage()));
+                }
+            }
+            future.complete(results);
+        });
+        return future.get(BATCH_TERRAIN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private void handleStatic(@Nonnull HttpExchange exchange) throws IOException {
@@ -189,6 +286,29 @@ public final class WorldviewWebServer {
         return new TerrainRequest(decode(parts[0]), lod, chunkX, chunkZ);
     }
 
+    private static BatchTerrainRequest parseBatchTerrainRequest(@Nonnull String body) {
+        String worldName = findString(WORLD_PATTERN, body, "world");
+        Integer lod = findInt(LOD_PATTERN, body, "lod");
+        List<ChunkCoord> chunks = new ArrayList<>();
+        Matcher matcher = CHUNK_OBJECT_PATTERN.matcher(body);
+        while (matcher.find()) {
+            String object = matcher.group();
+            if (!CHUNK_X_PATTERN.matcher(object).find() || !CHUNK_Z_PATTERN.matcher(object).find()) {
+                continue;
+            }
+            if (chunks.size() >= MAX_BATCH_CHUNKS) {
+                throw new IllegalArgumentException("batch_too_large_max_" + MAX_BATCH_CHUNKS);
+            }
+            chunks.add(new ChunkCoord(
+                    findInt(CHUNK_X_PATTERN, object, "chunkX"),
+                    findInt(CHUNK_Z_PATTERN, object, "chunkZ")));
+        }
+        if (chunks.isEmpty()) {
+            throw new IllegalArgumentException("chunks_required");
+        }
+        return new BatchTerrainRequest(worldName, lod, chunks);
+    }
+
     private static World findWorld(@Nonnull String worldName) {
         Universe universe = Universe.get();
         if (universe == null) {
@@ -206,6 +326,22 @@ public final class WorldviewWebServer {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private static String findString(@Nonnull Pattern pattern, @Nonnull String body, @Nonnull String fieldName) {
+        Matcher matcher = pattern.matcher(body);
+        if (!matcher.find()) {
+            throw new IllegalArgumentException(fieldName + "_required");
+        }
+        return matcher.group(1);
+    }
+
+    private static Integer findInt(@Nonnull Pattern pattern, @Nonnull String body, @Nonnull String fieldName) {
+        Matcher matcher = pattern.matcher(body);
+        if (!matcher.find()) {
+            throw new IllegalArgumentException(fieldName + "_required");
+        }
+        return Integer.parseInt(matcher.group(1));
     }
 
     private static String decode(@Nonnull String value) {
@@ -257,6 +393,15 @@ public final class WorldviewWebServer {
     private record TerrainRequest(String worldName, int lod, int chunkX, int chunkZ) {
     }
 
+    private record BatchTerrainRequest(String worldName, int lod, List<ChunkCoord> chunks) {
+    }
+
+    private record ChunkCoord(int chunkX, int chunkZ) {
+    }
+
     private record TerrainResult(TerrainSnapshot snapshot, TerrainMesh mesh, byte[] glb) {
+    }
+
+    private record BatchTerrainResult(int chunkX, int chunkZ, TerrainResult terrain, String error) {
     }
 }
