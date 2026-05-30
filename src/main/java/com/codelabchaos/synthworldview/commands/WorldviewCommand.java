@@ -61,6 +61,7 @@ public class WorldviewCommand extends AbstractWorldCommand {
         context.sendMessage(Message.raw("=== SynthWorldview status ===").color(Color.CYAN));
         context.sendMessage(Message.raw("  plugin  : loaded").color(Color.WHITE));
         context.sendMessage(Message.raw("  uptime  : " + uptime).color(Color.WHITE));
+        context.sendMessage(Message.raw("  web     : " + plugin.webAddress()).color(Color.WHITE));
         context.sendMessage(Message.raw("  worlds  : " + worlds).color(Color.WHITE));
         context.sendMessage(Message.raw("  terrain : sample GLB command available").color(Color.GREEN));
     }
