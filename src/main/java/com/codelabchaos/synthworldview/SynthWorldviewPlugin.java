@@ -19,6 +19,7 @@ public class SynthWorldviewPlugin extends JavaPlugin {
 
     private Instant startedAt;
     private WorldviewWebServer webServer;
+    private boolean experimentalDetailsEnabled;
 
     public SynthWorldviewPlugin(@Nonnull JavaPluginInit init) {
         super(init);
@@ -44,6 +45,10 @@ public class SynthWorldviewPlugin extends JavaPlugin {
         return webServer == null ? null : webServer.metrics();
     }
 
+    public boolean experimentalDetailsEnabled() {
+        return experimentalDetailsEnabled;
+    }
+
     @Override
     protected void setup() {
         instance = this;
@@ -59,9 +64,13 @@ public class SynthWorldviewPlugin extends JavaPlugin {
                 "synthworldview.http.port",
                 "SYNTH_WORLDVIEW_PORT",
                 Integer.toString(DEFAULT_HTTP_PORT)), DEFAULT_HTTP_PORT);
+        experimentalDetailsEnabled = parseBoolean(setting(
+                "synthworldview.experimental.details",
+                "SYNTH_WORLDVIEW_EXPERIMENTAL_DETAILS",
+                "false"));
 
         try {
-            webServer = new WorldviewWebServer(this, host, port);
+            webServer = new WorldviewWebServer(this, host, port, experimentalDetailsEnabled);
             webServer.start();
         } catch (IOException e) {
             getLogger().at(Level.SEVERE).withCause(e).log("Failed to start SynthWorldview HTTP server.");
@@ -94,5 +103,12 @@ public class SynthWorldviewPlugin extends JavaPlugin {
         } catch (NumberFormatException e) {
             return fallback;
         }
+    }
+
+    private static boolean parseBoolean(@Nonnull String value) {
+        return "1".equals(value)
+                || "true".equalsIgnoreCase(value)
+                || "yes".equalsIgnoreCase(value)
+                || "on".equalsIgnoreCase(value);
     }
 }

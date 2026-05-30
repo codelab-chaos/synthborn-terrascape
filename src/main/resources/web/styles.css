@@ -122,6 +122,25 @@ button {
   gap: 6px;
 }
 
+.feature-tag {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 4px;
+  background: #182125;
+  color: #aeb9b5;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.feature-tag.enabled {
+  border-color: rgb(146 225 191 / 35%);
+  background: #1d3b39;
+  color: #dff7ed;
+}
+
 .player-button {
   height: 26px;
   min-width: 0;
@@ -144,6 +163,7 @@ button {
   .metrics,
   .coords,
   .players,
+  .feature-tag,
   label:first-of-type,
   button {
     grid-column: 1 / -1;
