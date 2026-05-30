@@ -59,6 +59,12 @@ scene.add(grid);
 
 const loader = new GLTFLoader();
 const loadedChunks = new Map();
+const disposalStats = {
+  chunks: 0,
+  geometries: 0,
+  materials: 0,
+  textures: 0,
+};
 let loadGeneration = 0;
 let hasFocusedInitialGrid = false;
 let activeCenterId = null;
@@ -67,6 +73,7 @@ let scheduledCenterId = null;
 let streamTimer = null;
 const pressedKeys = new Set();
 const clock = new THREE.Clock();
+const initialParams = new URLSearchParams(window.location.search);
 
 function setStatus(text) {
   statusEl.textContent = text;
@@ -75,7 +82,13 @@ function setStatus(text) {
 function updateMetrics() {
   const loaded = loadedChunks.size;
   const center = activeCenterId ? activeCenterId.split(':').slice(1).join(', ') : 'pending';
-  metricsEl.textContent = `${loaded} chunk${loaded === 1 ? '' : 's'} loaded | center ${center}`;
+  const resources = collectResourceStats();
+  const rendererMemory = renderer.info.memory;
+  metricsEl.textContent = `${loaded} chunk${loaded === 1 ? '' : 's'} | ${resources.meshes} meshes`
+    + ` | ${resources.geometries} geo/${resources.materials} mat/${resources.textures} tex`
+    + ` | gpu ${rendererMemory.geometries} geo/${rendererMemory.textures} tex`
+    + ` | disposed ${disposalStats.chunks}c ${disposalStats.geometries}g ${disposalStats.materials}m ${disposalStats.textures}t`
+    + ` | center ${center}`;
 }
 
 async function loadWorlds() {
@@ -89,7 +102,40 @@ async function loadWorlds() {
     option.textContent = world.name;
     worldSelect.append(option);
   }
+  applyInitialWorldParam();
   setStatus(worldSelect.value ? 'Ready' : 'No worlds found');
+}
+
+function applyInitialParams() {
+  applyNumberParam('chunkX', chunkXInput);
+  applyNumberParam('chunkZ', chunkZInput);
+  applyNumberParam('radius', radiusInput);
+  applyBooleanParam('auto', autoStreamInput);
+  applyBooleanParam('bounds', debugBoundsInput);
+}
+
+function applyInitialWorldParam() {
+  const world = initialParams.get('world');
+  if (!world) return;
+  for (const option of worldSelect.options) {
+    if (option.value === world) {
+      worldSelect.value = world;
+      return;
+    }
+  }
+}
+
+function applyNumberParam(name, input) {
+  const value = initialParams.get(name);
+  if (value === null || value.trim() === '') return;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isNaN(parsed)) input.value = parsed;
+}
+
+function applyBooleanParam(name, input) {
+  const value = initialParams.get(name);
+  if (value === null) return;
+  input.checked = ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
 }
 
 async function loadGrid(options = {}) {
@@ -135,7 +181,7 @@ async function loadGrid(options = {}) {
   for (let i = 0; i < missing.length; i += TERRAIN_BATCH_SIZE) {
     if (generation !== loadGeneration) return;
     const batch = missing.slice(i, i + TERRAIN_BATCH_SIZE);
-    const results = await loadChunkBatch(world, batch);
+    const results = await loadChunkBatch(world, batch, generation);
     for (const result of results) {
       if (generation !== loadGeneration) return;
       completed++;
@@ -155,13 +201,15 @@ async function loadGrid(options = {}) {
     : `Loaded ${needed.length - failed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
 }
 
-async function loadChunk(world, chunkX, chunkZ) {
+async function loadChunk(world, chunkX, chunkZ, generation) {
   const url = `/api/terrain/${encodeURIComponent(world)}/0/${chunkX}/${chunkZ}.glb`;
   const gltf = await loadGltfWithRetry(url);
+  if (generation !== loadGeneration) return false;
   addChunkObject(world, chunkX, chunkZ, gltf.scene);
+  return true;
 }
 
-async function loadChunkBatch(world, keys) {
+async function loadChunkBatch(world, keys, generation) {
   if (keys.length === 0) return [];
   try {
     const response = await fetch('/api/terrain/batch', {
@@ -180,8 +228,10 @@ async function loadChunkBatch(world, keys) {
     const data = await response.json();
     const results = [];
     for (const chunk of data.chunks ?? []) {
+      if (generation !== loadGeneration) return results;
       if (chunk.ok && chunk.base64) {
         const gltf = await parseGltfBytes(base64ToArrayBuffer(chunk.base64));
+        if (generation !== loadGeneration) return results;
         addChunkObject(world, chunk.chunkX, chunk.chunkZ, gltf.scene);
         results.push({ ok: true, chunkX: chunk.chunkX, chunkZ: chunk.chunkZ });
       } else {
@@ -194,8 +244,11 @@ async function loadChunkBatch(world, keys) {
     console.warn('Batch terrain request failed, falling back to single chunk requests', error);
     return await Promise.all(keys.map(async (key) => {
       try {
-        await loadChunk(world, key.chunkX, key.chunkZ);
-        return { ok: true, chunkX: key.chunkX, chunkZ: key.chunkZ };
+        return {
+          ok: await loadChunk(world, key.chunkX, key.chunkZ, generation),
+          chunkX: key.chunkX,
+          chunkZ: key.chunkZ,
+        };
       } catch (chunkError) {
         console.warn(`Failed to load chunk ${key.chunkX},${key.chunkZ}`, chunkError);
         return { ok: false, chunkX: key.chunkX, chunkZ: key.chunkZ };
@@ -271,17 +324,69 @@ function retainOnly(world, needed) {
 
 function disposeChunk(id, entry) {
   scene.remove(entry.object);
+  const geometries = new Set();
+  const materials = new Set();
+  const textures = new Set();
   entry.object.traverse((object) => {
-    if (object.geometry) object.geometry.dispose();
+    if (object.geometry) geometries.add(object.geometry);
     if (object.material) {
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      for (const material of materials) {
-        if (material.map) material.map.dispose();
-        material.dispose();
+      const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of objectMaterials) {
+        materials.add(material);
+        for (const value of Object.values(material)) {
+          if (value?.isTexture) textures.add(value);
+        }
       }
     }
   });
+  for (const texture of textures) texture.dispose();
+  for (const material of materials) material.dispose();
+  for (const geometry of geometries) geometry.dispose();
+  disposalStats.chunks++;
+  disposalStats.geometries += geometries.size;
+  disposalStats.materials += materials.size;
+  disposalStats.textures += textures.size;
   loadedChunks.delete(id);
+  updateMetrics();
+}
+
+function collectResourceStats() {
+  const geometries = new Set();
+  const materials = new Set();
+  const textures = new Set();
+  let meshes = 0;
+  let triangles = 0;
+
+  for (const entry of loadedChunks.values()) {
+    entry.object.traverse((object) => {
+      if (object.isMesh) meshes++;
+      if (object.geometry) {
+        geometries.add(object.geometry);
+        const position = object.geometry.getAttribute('position');
+        const triangleCount = object.geometry.index
+          ? object.geometry.index.count / 3
+          : (position?.count ?? 0) / 3;
+        triangles += Math.floor(triangleCount);
+      }
+      if (object.material) {
+        const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of objectMaterials) {
+          materials.add(material);
+          for (const value of Object.values(material)) {
+            if (value?.isTexture) textures.add(value);
+          }
+        }
+      }
+    });
+  }
+
+  return {
+    meshes,
+    geometries: geometries.size,
+    materials: materials.size,
+    textures: textures.size,
+    triangles,
+  };
 }
 
 function createChunkDebug(chunkX, chunkZ, chunkObject) {
@@ -462,6 +567,7 @@ function animate() {
   maybeAutoStream();
   updateCoordinates();
   renderer.render(scene, camera);
+  updateMetrics();
   requestAnimationFrame(animate);
 }
 
@@ -481,6 +587,7 @@ loadButton.addEventListener('click', () => {
   loadGrid().catch((error) => setStatus(error.message));
 });
 
+applyInitialParams();
 resize();
 animate();
 await loadWorlds();

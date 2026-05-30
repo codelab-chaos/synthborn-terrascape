@@ -26,8 +26,12 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,6 +41,7 @@ public final class WorldviewWebServer {
     private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
     private static final int MAX_BATCH_CHUNKS = 16;
+    private static final int MAX_CONCURRENT_GENERATIONS = 2;
     private static final Pattern WORLD_PATTERN = Pattern.compile("\"world\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern LOD_PATTERN = Pattern.compile("\"lod\"\\s*:\\s*(-?\\d+)");
     private static final Pattern CHUNK_OBJECT_PATTERN = Pattern.compile("\\{[^{}]*}");
@@ -47,6 +52,14 @@ public final class WorldviewWebServer {
     private final String host;
     private final int port;
     private final HttpServer server;
+    private final Semaphore generationPermits = new Semaphore(MAX_CONCURRENT_GENERATIONS);
+    private final ConcurrentHashMap<String, CompletableFuture<TerrainResult>> pendingTerrain = new ConcurrentHashMap<>();
+    private final AtomicInteger activeGenerations = new AtomicInteger();
+    private final AtomicLong singleRequests = new AtomicLong();
+    private final AtomicLong batchRequests = new AtomicLong();
+    private final AtomicLong generatedChunks = new AtomicLong();
+    private final AtomicLong coalescedRequests = new AtomicLong();
+    private final AtomicLong failedGenerations = new AtomicLong();
 
     public WorldviewWebServer(@Nonnull SynthWorldviewPlugin plugin, @Nonnull String host, int port) throws IOException {
         this.plugin = plugin;
@@ -74,6 +87,18 @@ public final class WorldviewWebServer {
 
     public String address() {
         return "http://" + host + ":" + port;
+    }
+
+    public Metrics metrics() {
+        return new Metrics(
+                singleRequests.get(),
+                batchRequests.get(),
+                generatedChunks.get(),
+                coalescedRequests.get(),
+                failedGenerations.get(),
+                activeGenerations.get(),
+                pendingTerrain.size(),
+                MAX_CONCURRENT_GENERATIONS);
     }
 
     private void handleWorlds(@Nonnull HttpExchange exchange) throws IOException {
@@ -115,6 +140,7 @@ public final class WorldviewWebServer {
         }
 
         try {
+            singleRequests.incrementAndGet();
             TerrainResult result = generateTerrain(world, request);
             Path output = terrainOutputPath(request);
             Files.createDirectories(output.getParent());
@@ -157,6 +183,7 @@ public final class WorldviewWebServer {
         }
 
         try {
+            batchRequests.incrementAndGet();
             List<BatchTerrainResult> results = generateTerrainBatch(world, request);
             StringBuilder json = new StringBuilder(256 + results.size() * 256);
             json.append("{\"ok\":true,\"maxBatchChunks\":").append(MAX_BATCH_CHUNKS).append(",\"chunks\":[");
@@ -195,39 +222,68 @@ public final class WorldviewWebServer {
     }
 
     private TerrainResult generateTerrain(@Nonnull World world, @Nonnull TerrainRequest request) throws Exception {
+        String key = request.key();
         CompletableFuture<TerrainResult> future = new CompletableFuture<>();
+        CompletableFuture<TerrainResult> existing = pendingTerrain.putIfAbsent(key, future);
+        if (existing != null) {
+            coalescedRequests.incrementAndGet();
+            return existing.get(TERRAIN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        }
+
+        try {
+            generationPermits.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            pendingTerrain.remove(key, future);
+            future.completeExceptionally(e);
+            throw e;
+        }
+
+        activeGenerations.incrementAndGet();
         world.execute(() -> {
             try {
                 TerrainSnapshot snapshot = TerrainSampler.sample(world, request.chunkX(), request.chunkZ());
                 TerrainMesh mesh = TerrainMesher.mesh(snapshot);
+                generatedChunks.incrementAndGet();
                 future.complete(new TerrainResult(snapshot, mesh, GltfWriter.writeGlb(mesh)));
             } catch (Exception e) {
+                failedGenerations.incrementAndGet();
                 future.completeExceptionally(e);
+            } finally {
+                activeGenerations.decrementAndGet();
+                pendingTerrain.remove(key, future);
+                generationPermits.release();
             }
         });
         return future.get(TERRAIN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private List<BatchTerrainResult> generateTerrainBatch(@Nonnull World world, @Nonnull BatchTerrainRequest request) throws Exception {
-        CompletableFuture<List<BatchTerrainResult>> future = new CompletableFuture<>();
-        world.execute(() -> {
-            List<BatchTerrainResult> results = new ArrayList<>(request.chunks().size());
-            for (ChunkCoord chunk : request.chunks()) {
-                try {
-                    TerrainSnapshot snapshot = TerrainSampler.sample(world, chunk.chunkX(), chunk.chunkZ());
-                    TerrainMesh mesh = TerrainMesher.mesh(snapshot);
-                    results.add(new BatchTerrainResult(
-                            chunk.chunkX(),
-                            chunk.chunkZ(),
-                            new TerrainResult(snapshot, mesh, GltfWriter.writeGlb(mesh)),
-                            null));
-                } catch (Exception e) {
-                    results.add(new BatchTerrainResult(chunk.chunkX(), chunk.chunkZ(), null, e.getMessage()));
-                }
+        List<BatchTerrainResult> results = new ArrayList<>(request.chunks().size());
+        long deadline = System.nanoTime() + BATCH_TERRAIN_TIMEOUT.toNanos();
+        for (ChunkCoord chunk : request.chunks()) {
+            long remainingMillis = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
+            if (remainingMillis <= 0) {
+                results.add(new BatchTerrainResult(chunk.chunkX(), chunk.chunkZ(), null, "batch_timeout"));
+                continue;
             }
-            future.complete(results);
-        });
-        return future.get(BATCH_TERRAIN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            try {
+                TerrainRequest terrainRequest = new TerrainRequest(
+                        request.worldName(),
+                        request.lod(),
+                        chunk.chunkX(),
+                        chunk.chunkZ());
+                results.add(new BatchTerrainResult(
+                        chunk.chunkX(),
+                        chunk.chunkZ(),
+                        generateTerrain(world, terrainRequest),
+                        null));
+            } catch (Exception e) {
+                results.add(new BatchTerrainResult(chunk.chunkX(), chunk.chunkZ(), null, e.getMessage()));
+            }
+        }
+        return results;
     }
 
     private void handleStatic(@Nonnull HttpExchange exchange) throws IOException {
@@ -390,7 +446,21 @@ public final class WorldviewWebServer {
                 .replace("\t", "\\t");
     }
 
+    public record Metrics(
+            long singleRequests,
+            long batchRequests,
+            long generatedChunks,
+            long coalescedRequests,
+            long failedGenerations,
+            int activeGenerations,
+            int pendingRequests,
+            int maxConcurrentGenerations) {
+    }
+
     private record TerrainRequest(String worldName, int lod, int chunkX, int chunkZ) {
+        String key() {
+            return worldName + ":" + lod + ":" + chunkX + ":" + chunkZ;
+        }
     }
 
     private record BatchTerrainRequest(String worldName, int lod, List<ChunkCoord> chunks) {

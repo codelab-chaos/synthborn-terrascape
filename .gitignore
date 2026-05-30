@@ -1,6 +1,9 @@
 .gradle/
 build/
 bin/
+node_modules/
+playwright-report/
+test-results/
 *.class
 *.log
 *.tmp
