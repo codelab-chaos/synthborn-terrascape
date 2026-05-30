@@ -1,11 +1,13 @@
 package com.codelabchaos.synthworldview.terrain;
 
 import com.hypixel.hytale.math.util.ChunkUtil;
+import com.hypixel.hytale.protocol.Color;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 
 import javax.annotation.Nonnull;
+import java.util.Locale;
 
 public final class TerrainSampler {
     private TerrainSampler() {
@@ -59,11 +61,66 @@ public final class TerrainSampler {
         }
 
         String blockKey = blockType.getId();
-        return new TerrainColumn(localX, localZ, height, blockId, blockKey, colorFor(blockKey));
+        int color = colorFor(blockType, blockKey, chunk.getTint(localX, localZ));
+        return new TerrainColumn(localX, localZ, height, blockId, blockKey, color);
     }
 
-    private static int colorFor(String blockKey) {
-        String key = blockKey == null ? "" : blockKey.toLowerCase(java.util.Locale.ROOT);
+    private static int colorFor(BlockType blockType, String blockKey, int chunkTint) {
+        int color = colorFromSdk(blockType);
+        if (color < 0) {
+            color = fallbackColor(blockKey);
+        }
+
+        if (usesBiomeTopTint(blockType)) {
+            color = multiplyRgb(color, normalizeRgb(chunkTint));
+        }
+
+        return color;
+    }
+
+    private static int colorFromSdk(BlockType blockType) {
+        Color computed = blockType.getTextureComputedColor();
+        if (computed != null) {
+            return toRgb(computed);
+        }
+
+        Color[] topTints = blockType.getTintUp();
+        if (topTints != null && topTints.length > 0 && topTints[0] != null) {
+            return toRgb(topTints[0]);
+        }
+
+        Color particle = blockType.getParticleColor();
+        if (particle != null) {
+            return toRgb(particle);
+        }
+
+        return -1;
+    }
+
+    private static boolean usesBiomeTopTint(BlockType blockType) {
+        return blockType.getBiomeTintUp() != 0;
+    }
+
+    private static int toRgb(Color color) {
+        return (Byte.toUnsignedInt(color.red) << 16)
+                | (Byte.toUnsignedInt(color.green) << 8)
+                | Byte.toUnsignedInt(color.blue);
+    }
+
+    private static int normalizeRgb(int rgb) {
+        int value = rgb & 0x00ffffff;
+        return value == 0 ? 0xffffff : value;
+    }
+
+    private static int multiplyRgb(int base, int tint) {
+        int r = ((base >>> 16) & 0xff) * ((tint >>> 16) & 0xff) / 255;
+        int g = ((base >>> 8) & 0xff) * ((tint >>> 8) & 0xff) / 255;
+        int b = (base & 0xff) * (tint & 0xff) / 255;
+        return (r << 16) | (g << 8) | b;
+    }
+
+    private static int fallbackColor(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
         if (key.contains("grass")) return 0x5f9f45;
         if (key.contains("leaf") || key.contains("leaves") || key.contains("foliage")) return 0x3f7f3f;
         if (key.contains("dirt") || key.contains("soil") || key.contains("mud")) return 0x7b5a36;

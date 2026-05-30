@@ -16,12 +16,15 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import javax.annotation.Nonnull;
 import java.awt.Color;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class WorldviewCommand extends AbstractWorldCommand {
     private final SynthWorldviewPlugin plugin;
@@ -41,6 +44,7 @@ public class WorldviewCommand extends AbstractWorldCommand {
         switch (subcommand) {
             case "status" -> sendStatus(context);
             case "sample" -> handleSample(args, context, world);
+            case "clearcache" -> handleClearCache(context);
             default -> sendUsage(context);
         }
     }
@@ -63,7 +67,7 @@ public class WorldviewCommand extends AbstractWorldCommand {
         context.sendMessage(Message.raw("  uptime  : " + uptime).color(Color.WHITE));
         context.sendMessage(Message.raw("  web     : " + plugin.webAddress()).color(Color.WHITE));
         context.sendMessage(Message.raw("  worlds  : " + worlds).color(Color.WHITE));
-        context.sendMessage(Message.raw("  terrain : sample GLB command available").color(Color.GREEN));
+        context.sendMessage(Message.raw("  terrain : sample and clearcache commands available").color(Color.GREEN));
     }
 
     private void handleSample(@Nonnull String[] args, @Nonnull CommandContext context, @Nonnull World world) {
@@ -111,8 +115,46 @@ public class WorldviewCommand extends AbstractWorldCommand {
                 .resolve(safeWorld + "_" + chunkX + "_" + chunkZ + ".glb");
     }
 
+    private void handleClearCache(@Nonnull CommandContext context) {
+        try {
+            CacheDeleteStats terrain = deleteCacheDirectory("terrain");
+            CacheDeleteStats samples = deleteCacheDirectory("samples");
+            CacheDeleteStats total = terrain.plus(samples);
+
+            context.sendMessage(Message.raw("=== SynthWorldview clearcache ===").color(Color.CYAN));
+            context.sendMessage(Message.raw("  files   : " + total.files()).color(Color.WHITE));
+            context.sendMessage(Message.raw("  dirs    : " + total.directories()).color(Color.WHITE));
+            context.sendMessage(Message.raw("  bytes   : " + total.bytes()).color(Color.WHITE));
+            context.sendMessage(Message.raw("  terrain : " + terrain.files() + " files").color(Color.WHITE));
+            context.sendMessage(Message.raw("  samples : " + samples.files() + " files").color(Color.WHITE));
+            context.sendMessage(Message.raw("  cleared : " + plugin.worldviewDir()).color(Color.GREEN));
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Worldview clearcache failed.");
+            context.sendMessage(Message.raw("Clearcache failed: " + e.getMessage()).color(Color.RED));
+        }
+    }
+
+    private CacheDeleteStats deleteCacheDirectory(@Nonnull String childName) throws IOException {
+        Path root = plugin.worldviewDir().toAbsolutePath().normalize();
+        Path target = root.resolve(childName).normalize();
+        if (!target.startsWith(root)) {
+            throw new IOException("Refusing to delete path outside plugin data directory: " + target);
+        }
+        if (!Files.exists(target)) {
+            return CacheDeleteStats.empty();
+        }
+
+        CacheDeleteStats stats = CacheDeleteStats.scan(target);
+        try (Stream<Path> paths = Files.walk(target)) {
+            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(path);
+            }
+        }
+        return stats;
+    }
+
     private static void sendUsage(@Nonnull CommandContext context) {
-        context.sendMessage(Message.raw("Usage: /worldview status | /worldview sample <chunkX> <chunkZ>").color(Color.YELLOW));
+        context.sendMessage(Message.raw("Usage: /worldview status | /worldview sample <chunkX> <chunkZ> | /worldview clearcache").color(Color.YELLOW));
     }
 
     private static Integer parseInt(@Nonnull String value) {
@@ -134,5 +176,37 @@ public class WorldviewCommand extends AbstractWorldCommand {
             return minutes + "m " + (seconds % 60) + "s";
         }
         return seconds + "s";
+    }
+
+    private record CacheDeleteStats(long files, long directories, long bytes) {
+        static CacheDeleteStats empty() {
+            return new CacheDeleteStats(0, 0, 0);
+        }
+
+        static CacheDeleteStats scan(@Nonnull Path target) throws IOException {
+            long files = 0;
+            long directories = 0;
+            long bytes = 0;
+
+            try (Stream<Path> paths = Files.walk(target)) {
+                for (Path path : paths.toList()) {
+                    if (Files.isDirectory(path)) {
+                        directories++;
+                    } else if (Files.isRegularFile(path)) {
+                        files++;
+                        bytes += Files.size(path);
+                    }
+                }
+            }
+
+            return new CacheDeleteStats(files, directories, bytes);
+        }
+
+        CacheDeleteStats plus(@Nonnull CacheDeleteStats other) {
+            return new CacheDeleteStats(
+                    files + other.files,
+                    directories + other.directories,
+                    bytes + other.bytes);
+        }
     }
 }

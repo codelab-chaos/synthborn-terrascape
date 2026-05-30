@@ -24,7 +24,7 @@ body {
   top: 14px;
   left: 14px;
   display: grid;
-  grid-template-columns: auto auto auto auto auto;
+  grid-template-columns: auto auto auto auto auto auto auto;
   gap: 8px;
   align-items: end;
   max-width: calc(100vw - 28px);
@@ -47,8 +47,17 @@ label {
   min-width: 84px;
 }
 
+.toggle {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: auto;
+  height: 32px;
+}
+
 label span,
-.status {
+.status,
+.metrics {
   color: #aeb9b5;
   font-size: 12px;
 }
@@ -69,6 +78,13 @@ input {
   padding: 0 8px;
 }
 
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  accent-color: #3ca47e;
+}
+
 select {
   min-width: 120px;
   padding: 0 8px;
@@ -83,7 +99,12 @@ button {
 }
 
 .status {
-  grid-column: 1 / -1;
+  grid-column: 1 / 4;
+}
+
+.metrics {
+  grid-column: 4 / -1;
+  justify-self: end;
 }
 
 @media (max-width: 640px) {
@@ -94,9 +115,14 @@ button {
 
   .brand,
   .status,
+  .metrics,
   label:first-of-type,
   button {
     grid-column: 1 / -1;
+  }
+
+  .metrics {
+    justify-self: start;
   }
 
   input,
