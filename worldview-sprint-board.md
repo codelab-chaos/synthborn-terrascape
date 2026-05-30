@@ -386,7 +386,7 @@ Validation:
 
 #### Story 4.4 - Add Debug Chunk Bounds
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -395,7 +395,11 @@ Acceptance:
 
 Validation:
 
-- Boundaries align to 32-block chunk grid.
+- `Bounds` HUD toggle is available next to `Auto`.
+- Each loaded chunk gets a local 32x32 wireframe debug box and chunk coordinate label.
+- Debug overlays are child objects of the terrain chunk and are disposed with the chunk.
+- Live JS validation confirms the served viewer includes `createChunkDebug` and
+  `debugBoundsInput`.
 
 #### Story 4.6 - Add First-Person-Style Keyboard Navigation
 
@@ -449,9 +453,42 @@ Validation:
   `center.x + 78`, `center.y + 58`, `center.z + 78`.
 - Live `app.js` serves the new closer camera settings after restart.
 
+#### Story 4.9 - Improve Empty Scene Palette
+
+Status: Closed
+
+Acceptance:
+
+- Empty sky/background reads as rich blue, not black.
+- Reference grid reads as dark gray, not black.
+- Palette remains quiet enough that terrain colors stay primary.
+
+Validation:
+
+- `app.js` defines `SKY_COLOR = 0x173454`.
+- `app.js` uses dark-gray grid colors `0x58616a` and `0x343b42`.
+- `styles.css` fallback page background matches the sky color.
+
+#### Story 4.10 - Add Navigation Coordinate Readout
+
+Status: Closed
+
+Acceptance:
+
+- HUD shows approximate target X/Y/Z coordinates.
+- HUD shows current target chunk X/Z.
+- HUD shows camera X/Y/Z for view debugging.
+- Readout updates during orbit, pan, and keyboard navigation.
+
+Validation:
+
+- `index.html` includes the `coordinates` HUD element.
+- `app.js` updates the readout every animation frame from `controls.target`,
+  `targetChunk()`, and `camera.position`.
+
 #### Story 4.5 - Add Batch Terrain Fetch
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
@@ -462,13 +499,13 @@ Acceptance:
 
 Validation:
 
-- Camera grid loads with fewer HTTP requests than one-per-chunk.
-
-Scale baseline:
-
-- One-request-per-chunk survived `121` chunks at concurrency `12` without failures.
-- Batching is still needed before this becomes a camera-driven default because request
-  count, cache policy, and server-side generation limits are not yet bounded.
+- Server accepts `POST /api/terrain/batch` with `world`, `lod`, and up to `16` chunk
+  coordinates.
+- Batch response contains one result per chunk with independent success or error data.
+- Successful chunks include base64 GLB bytes plus column/vertex/triangle metadata.
+- Client queues missing chunks, sends them in batches of `16`, parses returned GLBs,
+  and falls back to single-chunk requests if a whole batch request fails.
+- Build validation: `.\gradlew.bat build`.
 
 ### Epic 5: Player Tracking
 
@@ -589,7 +626,7 @@ Candidate stories:
   simplified canopy volumes or billboards.
 - Validate whether a bounded scan around heightmap tops can capture trees acceptably
   without exploding triangle counts.
-- Add transparent water primitive.
+- Add separate water primitives with solid and transparent display modes.
 - Evaluate per-face tint/material rules beyond top-surface metadata colors.
 - Build texture atlas from `BlockType.getTextures()`.
 - Represent custom model blocks with simplified proxies.
@@ -659,6 +696,25 @@ Validation:
 
 - Compare proxy output versus bounded scan output on the same forest chunk.
 - Record GLB bytes, vertices, triangles, generation time, and browser FPS impression.
+
+#### Story 7.4 - Render Water As Solid Or Transparent
+
+Status: Parked
+
+Acceptance:
+
+- Snapshotting records fluid IDs or water-like block categories separately from opaque
+  terrain.
+- Meshing emits water as a separate primitive, mesh, or node from opaque terrain.
+- Viewer exposes a water display mode with at least `solid` and `transparent`.
+- Transparent mode sorts/renders acceptably from normal map camera angles.
+- Solid mode remains available for debugging shoreline and water coverage.
+
+Validation:
+
+- Known water chunks show visible water in both modes.
+- GLB material or node structure keeps water independently controllable.
+- Radius `3` grid remains smooth with water enabled.
 
 ### Epic 8: Live Dirty Chunk Updates
 

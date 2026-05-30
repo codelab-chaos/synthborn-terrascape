@@ -8,16 +8,24 @@ const chunkXInput = document.querySelector('#chunk-x');
 const chunkZInput = document.querySelector('#chunk-z');
 const radiusInput = document.querySelector('#radius');
 const autoStreamInput = document.querySelector('#auto-stream');
+const debugBoundsInput = document.querySelector('#debug-bounds');
 const loadButton = document.querySelector('#load');
 const statusEl = document.querySelector('#status');
 const metricsEl = document.querySelector('#metrics');
+const coordinatesEl = document.querySelector('#coordinates');
+
+const SKY_COLOR = 0x173454;
+const GRID_AXIS_COLOR = 0x58616a;
+const GRID_LINE_COLOR = 0x343b42;
+const TERRAIN_BATCH_SIZE = 16;
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setClearColor(0x101416, 1);
+renderer.setClearColor(SKY_COLOR, 1);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x101416, 150, 520);
+scene.background = new THREE.Color(SKY_COLOR);
+scene.fog = new THREE.Fog(SKY_COLOR, 180, 620);
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 2000);
 camera.position.set(88, 188, 88);
@@ -45,7 +53,7 @@ const sun = new THREE.DirectionalLight(0xffffff, 2.8);
 sun.position.set(80, 180, 40);
 scene.add(sun);
 
-const grid = new THREE.GridHelper(1024, 128, 0x35524a, 0x223530);
+const grid = new THREE.GridHelper(1024, 128, GRID_AXIS_COLOR, GRID_LINE_COLOR);
 grid.position.y = 100;
 scene.add(grid);
 
@@ -67,7 +75,7 @@ function setStatus(text) {
 function updateMetrics() {
   const loaded = loadedChunks.size;
   const center = activeCenterId ? activeCenterId.split(':').slice(1).join(', ') : 'pending';
-  metricsEl.textContent = `${loaded} chunk${loaded === 1 ? '' : 's'} loaded · center ${center}`;
+  metricsEl.textContent = `${loaded} chunk${loaded === 1 ? '' : 's'} loaded | center ${center}`;
 }
 
 async function loadWorlds() {
@@ -112,21 +120,30 @@ async function loadGrid(options = {}) {
   updateMetrics();
 
   setStatus(`Loading ${needed.length} chunks around ${centerX}, ${centerZ}`);
-  let loaded = 0;
+  let completed = 0;
   let failed = 0;
+  const missing = [];
   for (const key of needed) {
     if (generation !== loadGeneration) return;
-    if (!loadedChunks.has(key.id)) {
-      try {
-        await loadChunk(world, key.chunkX, key.chunkZ);
-      } catch (error) {
-        failed++;
-        console.warn(`Failed to load chunk ${key.chunkX},${key.chunkZ}`, error);
-      }
-      if (generation !== loadGeneration) return;
+    if (loadedChunks.has(key.id)) {
+      completed++;
+    } else {
+      missing.push(key);
     }
-    loaded++;
-    setStatus(`Loaded ${loaded}/${needed.length} chunks around ${centerX}, ${centerZ}`);
+  }
+
+  for (let i = 0; i < missing.length; i += TERRAIN_BATCH_SIZE) {
+    if (generation !== loadGeneration) return;
+    const batch = missing.slice(i, i + TERRAIN_BATCH_SIZE);
+    const results = await loadChunkBatch(world, batch);
+    for (const result of results) {
+      if (generation !== loadGeneration) return;
+      completed++;
+      if (!result.ok) {
+        failed++;
+      }
+    }
+    setStatus(`Loaded ${completed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
     updateMetrics();
   }
 
@@ -141,10 +158,72 @@ async function loadGrid(options = {}) {
 async function loadChunk(world, chunkX, chunkZ) {
   const url = `/api/terrain/${encodeURIComponent(world)}/0/${chunkX}/${chunkZ}.glb`;
   const gltf = await loadGltfWithRetry(url);
-  const object = gltf.scene;
+  addChunkObject(world, chunkX, chunkZ, gltf.scene);
+}
+
+async function loadChunkBatch(world, keys) {
+  if (keys.length === 0) return [];
+  try {
+    const response = await fetch('/api/terrain/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        world,
+        lod: 0,
+        chunks: keys.map((key) => ({ chunkX: key.chunkX, chunkZ: key.chunkZ })),
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Batch terrain request failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const results = [];
+    for (const chunk of data.chunks ?? []) {
+      if (chunk.ok && chunk.base64) {
+        const gltf = await parseGltfBytes(base64ToArrayBuffer(chunk.base64));
+        addChunkObject(world, chunk.chunkX, chunk.chunkZ, gltf.scene);
+        results.push({ ok: true, chunkX: chunk.chunkX, chunkZ: chunk.chunkZ });
+      } else {
+        console.warn(`Failed to load chunk ${chunk.chunkX},${chunk.chunkZ}: ${chunk.error ?? 'unknown error'}`);
+        results.push({ ok: false, chunkX: chunk.chunkX, chunkZ: chunk.chunkZ });
+      }
+    }
+    return results;
+  } catch (error) {
+    console.warn('Batch terrain request failed, falling back to single chunk requests', error);
+    return await Promise.all(keys.map(async (key) => {
+      try {
+        await loadChunk(world, key.chunkX, key.chunkZ);
+        return { ok: true, chunkX: key.chunkX, chunkZ: key.chunkZ };
+      } catch (chunkError) {
+        console.warn(`Failed to load chunk ${key.chunkX},${key.chunkZ}`, chunkError);
+        return { ok: false, chunkX: key.chunkX, chunkZ: key.chunkZ };
+      }
+    }));
+  }
+}
+
+function addChunkObject(world, chunkX, chunkZ, object) {
   object.position.set(chunkX * 32, 0, chunkZ * 32);
+  const debug = createChunkDebug(chunkX, chunkZ, object);
+  debug.visible = debugBoundsInput.checked;
+  object.add(debug);
   scene.add(object);
-  loadedChunks.set(chunkId(world, chunkX, chunkZ), { world, chunkX, chunkZ, object });
+  loadedChunks.set(chunkId(world, chunkX, chunkZ), { world, chunkX, chunkZ, object, debug });
+}
+
+async function parseGltfBytes(arrayBuffer) {
+  return await loader.parseAsync(arrayBuffer, '');
+}
+
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
 }
 
 async function loadGltfWithRetry(url) {
@@ -196,10 +275,91 @@ function disposeChunk(id, entry) {
     if (object.geometry) object.geometry.dispose();
     if (object.material) {
       const materials = Array.isArray(object.material) ? object.material : [object.material];
-      for (const material of materials) material.dispose();
+      for (const material of materials) {
+        if (material.map) material.map.dispose();
+        material.dispose();
+      }
     }
   });
   loadedChunks.delete(id);
+}
+
+function createChunkDebug(chunkX, chunkZ, chunkObject) {
+  const bounds = new THREE.Box3().setFromObject(chunkObject);
+  const minY = Number.isFinite(bounds.min.y) ? bounds.min.y : 100;
+  const maxY = Number.isFinite(bounds.max.y) ? bounds.max.y : 132;
+  const highY = maxY + 0.35;
+  const lowY = Math.min(minY, maxY - 1);
+
+  const corners = [
+    [0, lowY, 0], [32, lowY, 0], [32, lowY, 32], [0, lowY, 32],
+    [0, highY, 0], [32, highY, 0], [32, highY, 32], [0, highY, 32],
+  ];
+  const edgeIndices = [
+    0, 1, 1, 2, 2, 3, 3, 0,
+    4, 5, 5, 6, 6, 7, 7, 4,
+    0, 4, 1, 5, 2, 6, 3, 7,
+  ];
+  const positions = [];
+  for (const index of edgeIndices) {
+    positions.push(...corners[index]);
+  }
+
+  const group = new THREE.Group();
+  group.name = `debug:${chunkX}:${chunkZ}`;
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const material = new THREE.LineBasicMaterial({
+    color: 0x84f5c3,
+    transparent: true,
+    opacity: 0.85,
+    depthTest: false,
+  });
+  const lines = new THREE.LineSegments(geometry, material);
+  lines.renderOrder = 20;
+  group.add(lines);
+
+  const label = makeChunkLabel(`${chunkX}, ${chunkZ}`);
+  label.position.set(16, highY + 4, 16);
+  group.add(label);
+
+  return group;
+}
+
+function makeChunkLabel(text) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 40;
+  const context = canvas.getContext('2d');
+  context.fillStyle = 'rgba(10, 16, 18, 0.78)';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.strokeStyle = 'rgba(132, 245, 195, 0.85)';
+  context.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
+  context.fillStyle = '#d9fff0';
+  context.font = '700 18px system-ui, sans-serif';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(text, canvas.width / 2, canvas.height / 2 + 1);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(24, 7.5, 1);
+  sprite.renderOrder = 21;
+  return sprite;
+}
+
+function updateDebugBounds() {
+  for (const entry of loadedChunks.values()) {
+    entry.debug.visible = debugBoundsInput.checked;
+  }
 }
 
 function focusGrid(centerX, centerZ, radius) {
@@ -224,6 +384,14 @@ function targetChunk() {
   };
 }
 
+function updateCoordinates() {
+  const target = controls.target;
+  const chunk = targetChunk();
+  coordinatesEl.textContent = `Target ${formatCoord(target.x)}, ${formatCoord(target.y)}, ${formatCoord(target.z)}`
+    + ` | chunk ${chunk.chunkX}, ${chunk.chunkZ}`
+    + ` | camera ${formatCoord(camera.position.x)}, ${formatCoord(camera.position.y)}, ${formatCoord(camera.position.z)}`;
+}
+
 function maybeAutoStream() {
   if (!autoStreamInput.checked || !hasFocusedInitialGrid || !worldSelect.value) return;
   const target = targetChunk();
@@ -240,6 +408,10 @@ function maybeAutoStream() {
 
 function numberOr(value, fallback) {
   return Number.isNaN(value) ? fallback : value;
+}
+
+function formatCoord(value) {
+  return Math.round(value).toString();
 }
 
 function resize() {
@@ -288,6 +460,7 @@ function animate() {
   handleKeyboardNavigation(deltaSeconds);
   controls.update();
   maybeAutoStream();
+  updateCoordinates();
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
@@ -303,6 +476,7 @@ window.addEventListener('keydown', (event) => {
 window.addEventListener('keyup', (event) => {
   pressedKeys.delete(event.code);
 });
+debugBoundsInput.addEventListener('change', updateDebugBounds);
 loadButton.addEventListener('click', () => {
   loadGrid().catch((error) => setStatus(error.message));
 });

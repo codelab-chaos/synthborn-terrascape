@@ -48,11 +48,6 @@ Recent GLB terrain chunks are served from a bounded memory cache.
 Generated GLB terrain chunks persist under the plugin data directory and can be reused
 after restart.
 
-### [ ] Worldview Batches Terrain Requests
-
-The browser can request multiple terrain chunks in one API call so camera movement does
-not create one HTTP request per chunk.
-
 ### [ ] Viewer Sees Online Players In The 3D Scene
 
 Player markers update from WebSocket messages and line up with terrain coordinates.
@@ -70,14 +65,6 @@ server CPU.
 
 Generated terrain cache files are bounded by count, bytes, age, or explicit operator
 policy so scale tests and browser sessions cannot grow disk usage indefinitely.
-
-### [ ] Viewer Can See Chunk Debug Bounds
-
-A debug toggle shows chunk outlines, loaded keys, or LOD state to validate streaming.
-
-### [ ] Viewer Can See Coordinates Under The Camera Or Pointer
-
-The UI shows approximate world X/Y/Z or X/Z coordinates for navigation and validation.
 
 ### [ ] Operator Can Set An Uncapped Visible Radius In The UI
 
@@ -98,9 +85,11 @@ The client disposes geometry/material resources for chunks outside the retain ra
 Stale cached terrain is regenerated only when a player is near enough that the terrain
 could plausibly have changed.
 
-### [ ] Worldview Can Show Water As A Separate Primitive
+### [ ] Viewer Can Render Water As Solid Or Transparent
 
-Water-like fluid or transparent terrain renders separately from opaque terrain.
+Water-like fluid terrain renders separately from opaque terrain and can be displayed
+as either solid colored water or transparent water. The viewer/operator can choose the
+mode so water is legible during debugging and less visually heavy during exploration.
 
 ### [ ] Worldview Can Add Texture Atlas Rendering
 
@@ -198,6 +187,30 @@ The browser watches the Three.js `OrbitControls` target, converts target `x/z` t
 coordinates, and auto-loads the retained grid when the target crosses into a new chunk.
 Validated live with the `Auto` toggle enabled and a radius `3` grid reaching
 `49 chunks loaded`.
+
+### [x] Worldview Batches Terrain Requests
+
+The browser requests missing terrain chunks through capped `POST /api/terrain/batch`
+calls instead of one HTTP request per chunk. Each batch returns per-chunk success or
+failure data so failed chunks do not poison the whole batch.
+
+### [x] Viewer Can See Chunk Debug Bounds
+
+A `Bounds` toggle shows per-loaded-chunk wireframe boxes and chunk coordinate labels.
+The overlays are attached to chunk objects so they follow the same placement and
+disposal path as the terrain mesh.
+
+### [x] Viewer Can See Coordinates While Navigating
+
+The HUD shows the current controls target X/Y/Z, target chunk X/Z, and camera X/Y/Z.
+The readout updates every frame and uses the same target chunk math as terrain
+streaming.
+
+### [x] Viewer Uses A Readable Sky And Reference Grid Palette
+
+The empty scene background and fog use a rich blue sky color instead of black. The
+reference grid uses dark-gray lines so unloaded space is visible without overpowering
+terrain colors.
 
 ### [x] Operator Can Run Terrain Grid Scale Tests
 
