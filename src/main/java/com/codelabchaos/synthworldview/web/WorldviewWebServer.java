@@ -28,7 +28,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -42,10 +44,13 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public final class WorldviewWebServer {
+    private static final String FORMAT_VERSION = "v2";
     private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
     private static final int MAX_BATCH_CHUNKS = 16;
     private static final int MAX_CONCURRENT_GENERATIONS = 2;
+    private static final int MAX_MEMORY_CACHE_ENTRIES = 128;
+    private static final long MAX_MEMORY_CACHE_BYTES = 128L * 1024L * 1024L;
     private static final Pattern WORLD_PATTERN = Pattern.compile("\"world\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern LOD_PATTERN = Pattern.compile("\"lod\"\\s*:\\s*(-?\\d+)");
     private static final Pattern CHUNK_OBJECT_PATTERN = Pattern.compile("\\{[^{}]*}");
@@ -59,10 +64,15 @@ public final class WorldviewWebServer {
     private final HttpServer server;
     private final Semaphore generationPermits = new Semaphore(MAX_CONCURRENT_GENERATIONS);
     private final ConcurrentHashMap<String, CompletableFuture<TerrainResult>> pendingTerrain = new ConcurrentHashMap<>();
+    private final Object memoryCacheLock = new Object();
+    private final LinkedHashMap<String, TerrainResult> memoryCache = new LinkedHashMap<>(32, 0.75f, true);
+    private long memoryCacheBytes;
     private final AtomicInteger activeGenerations = new AtomicInteger();
     private final AtomicLong singleRequests = new AtomicLong();
     private final AtomicLong batchRequests = new AtomicLong();
     private final AtomicLong generatedChunks = new AtomicLong();
+    private final AtomicLong memoryCacheHits = new AtomicLong();
+    private final AtomicLong diskCacheHits = new AtomicLong();
     private final AtomicLong coalescedRequests = new AtomicLong();
     private final AtomicLong failedGenerations = new AtomicLong();
 
@@ -98,15 +108,33 @@ public final class WorldviewWebServer {
     }
 
     public Metrics metrics() {
+        DiskStats diskStats = scanDiskCache();
         return new Metrics(
                 singleRequests.get(),
                 batchRequests.get(),
                 generatedChunks.get(),
+                memoryCacheHits.get(),
+                diskCacheHits.get(),
                 coalescedRequests.get(),
                 failedGenerations.get(),
                 activeGenerations.get(),
                 pendingTerrain.size(),
-                MAX_CONCURRENT_GENERATIONS);
+                MAX_CONCURRENT_GENERATIONS,
+                memoryCacheSize(),
+                memoryCacheBytes(),
+                MAX_MEMORY_CACHE_ENTRIES,
+                MAX_MEMORY_CACHE_BYTES,
+                diskStats.files(),
+                diskStats.bytes());
+    }
+
+    public MemoryCacheStats clearMemoryCache() {
+        synchronized (memoryCacheLock) {
+            MemoryCacheStats stats = new MemoryCacheStats(memoryCache.size(), memoryCacheBytes);
+            memoryCache.clear();
+            memoryCacheBytes = 0;
+            return stats;
+        }
     }
 
     private void handleWorlds(@Nonnull HttpExchange exchange) throws IOException {
@@ -193,17 +221,15 @@ public final class WorldviewWebServer {
         try {
             singleRequests.incrementAndGet();
             TerrainResult result = generateTerrain(world, request);
-            Path output = terrainOutputPath(request);
-            Files.createDirectories(output.getParent());
-            Files.write(output, result.glb());
 
             exchange.getResponseHeaders().set("Content-Type", "model/gltf-binary");
             exchange.getResponseHeaders().set("Cache-Control", "no-cache");
             addCors(exchange);
-            exchange.getResponseHeaders().set("X-Worldview-Columns", Integer.toString(result.snapshot().nonEmptyColumns()));
-            exchange.getResponseHeaders().set("X-Worldview-Vertices", Integer.toString(result.mesh().vertexCount()));
-            exchange.getResponseHeaders().set("X-Worldview-Triangles", Integer.toString(result.mesh().triangleCount()));
-            exchange.getResponseHeaders().set("X-Worldview-Details", Integer.toString(result.mesh().detail().vertexCount() == 0 ? 0 : result.snapshot().details().length));
+            exchange.getResponseHeaders().set("X-Worldview-Columns", Integer.toString(result.columns()));
+            exchange.getResponseHeaders().set("X-Worldview-Vertices", Integer.toString(result.vertices()));
+            exchange.getResponseHeaders().set("X-Worldview-Triangles", Integer.toString(result.triangles()));
+            exchange.getResponseHeaders().set("X-Worldview-Details", Integer.toString(result.details()));
+            exchange.getResponseHeaders().set("X-Worldview-Cache", result.source());
             exchange.sendResponseHeaders(200, result.glb().length);
             try (OutputStream outputStream = exchange.getResponseBody()) {
                 outputStream.write(result.glb());
@@ -249,15 +275,12 @@ public final class WorldviewWebServer {
                         .append(",\"ok\":").append(result.error() == null);
                 if (result.error() == null && result.terrain() != null) {
                     TerrainResult terrain = result.terrain();
-                    TerrainRequest terrainRequest = new TerrainRequest(request.worldName(), request.lod(), result.chunkX(), result.chunkZ(), experimentalDetailsEnabled);
-                    Path output = terrainOutputPath(terrainRequest);
-                    Files.createDirectories(output.getParent());
-                    Files.write(output, terrain.glb());
 
-                    json.append(",\"columns\":").append(terrain.snapshot().nonEmptyColumns())
-                            .append(",\"vertices\":").append(terrain.mesh().vertexCount())
-                            .append(",\"triangles\":").append(terrain.mesh().triangleCount())
-                            .append(",\"details\":").append(terrain.mesh().detail().vertexCount() == 0 ? 0 : terrain.snapshot().details().length)
+                    json.append(",\"columns\":").append(terrain.columns())
+                            .append(",\"vertices\":").append(terrain.vertices())
+                            .append(",\"triangles\":").append(terrain.triangles())
+                            .append(",\"details\":").append(terrain.details())
+                            .append(",\"cache\":\"").append(terrain.source()).append("\"")
                             .append(",\"base64\":\"")
                             .append(Base64.getEncoder().encodeToString(terrain.glb()))
                             .append("\"");
@@ -276,6 +299,19 @@ public final class WorldviewWebServer {
 
     private TerrainResult generateTerrain(@Nonnull World world, @Nonnull TerrainRequest request) throws Exception {
         String key = request.key();
+        TerrainResult memoryCached = readMemoryCache(key);
+        if (memoryCached != null) {
+            memoryCacheHits.incrementAndGet();
+            return memoryCached.withSource("memory");
+        }
+
+        TerrainResult diskCached = readDiskCache(request);
+        if (diskCached != null) {
+            diskCacheHits.incrementAndGet();
+            putMemoryCache(key, diskCached);
+            return diskCached.withSource("disk");
+        }
+
         CompletableFuture<TerrainResult> future = new CompletableFuture<>();
         CompletableFuture<TerrainResult> existing = pendingTerrain.putIfAbsent(key, future);
         if (existing != null) {
@@ -298,7 +334,7 @@ public final class WorldviewWebServer {
                 TerrainSnapshot snapshot = TerrainSampler.sample(world, request.chunkX(), request.chunkZ());
                 TerrainMesh mesh = TerrainMesher.mesh(snapshot, request.includeDetails());
                 generatedChunks.incrementAndGet();
-                future.complete(new TerrainResult(snapshot, mesh, GltfWriter.writeGlb(mesh)));
+                future.complete(TerrainResult.generated(snapshot, mesh, GltfWriter.writeGlb(mesh)));
             } catch (Exception e) {
                 failedGenerations.incrementAndGet();
                 future.completeExceptionally(e);
@@ -308,7 +344,10 @@ public final class WorldviewWebServer {
                 generationPermits.release();
             }
         });
-        return future.get(TERRAIN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        TerrainResult result = future.get(TERRAIN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        putMemoryCache(key, result);
+        writeDiskCache(request, result);
+        return result;
     }
 
     private List<BatchTerrainResult> generateTerrainBatch(@Nonnull World world, @Nonnull BatchTerrainRequest request) throws Exception {
@@ -373,9 +412,102 @@ public final class WorldviewWebServer {
         String safeWorld = safeName(request.worldName());
         return plugin.worldviewDir()
                 .resolve("terrain")
+                .resolve(FORMAT_VERSION)
                 .resolve(safeWorld)
                 .resolve("lod-" + request.lod() + (request.includeDetails() ? "-details" : ""))
                 .resolve(request.chunkX() + "_" + request.chunkZ() + ".glb");
+    }
+
+    private Path terrainMetadataPath(@Nonnull TerrainRequest request) {
+        return Path.of(terrainOutputPath(request).toString() + ".json");
+    }
+
+    private TerrainResult readMemoryCache(@Nonnull String key) {
+        synchronized (memoryCacheLock) {
+            return memoryCache.get(key);
+        }
+    }
+
+    private void putMemoryCache(@Nonnull String key, @Nonnull TerrainResult result) {
+        synchronized (memoryCacheLock) {
+            TerrainResult previous = memoryCache.put(key, result.withSource("memory"));
+            if (previous != null) {
+                memoryCacheBytes -= previous.glb().length;
+            }
+            memoryCacheBytes += result.glb().length;
+            evictMemoryCache();
+        }
+    }
+
+    private void evictMemoryCache() {
+        while ((memoryCache.size() > MAX_MEMORY_CACHE_ENTRIES || memoryCacheBytes > MAX_MEMORY_CACHE_BYTES)
+                && !memoryCache.isEmpty()) {
+            Map.Entry<String, TerrainResult> eldest = memoryCache.entrySet().iterator().next();
+            memoryCacheBytes -= eldest.getValue().glb().length;
+            memoryCache.remove(eldest.getKey());
+        }
+    }
+
+    private int memoryCacheSize() {
+        synchronized (memoryCacheLock) {
+            return memoryCache.size();
+        }
+    }
+
+    private long memoryCacheBytes() {
+        synchronized (memoryCacheLock) {
+            return memoryCacheBytes;
+        }
+    }
+
+    private TerrainResult readDiskCache(@Nonnull TerrainRequest request) {
+        Path glbPath = terrainOutputPath(request);
+        Path metadataPath = terrainMetadataPath(request);
+        if (!Files.isRegularFile(glbPath) || !Files.isRegularFile(metadataPath)) {
+            return null;
+        }
+
+        try {
+            byte[] glb = Files.readAllBytes(glbPath);
+            TerrainMetadata metadata = TerrainMetadata.parse(Files.readString(metadataPath));
+            return new TerrainResult(glb, metadata.columns(), metadata.vertices(), metadata.triangles(), metadata.details(), "disk");
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.FINE).log("Ignoring invalid terrain cache entry " + glbPath + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private void writeDiskCache(@Nonnull TerrainRequest request, @Nonnull TerrainResult result) {
+        Path glbPath = terrainOutputPath(request);
+        Path metadataPath = terrainMetadataPath(request);
+        try {
+            Files.createDirectories(glbPath.getParent());
+            Files.write(glbPath, result.glb());
+            Files.writeString(metadataPath, result.metadataJson());
+        } catch (IOException e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to write terrain cache entry " + glbPath);
+        }
+    }
+
+    private DiskStats scanDiskCache() {
+        Path root = plugin.worldviewDir().resolve("terrain").toAbsolutePath().normalize();
+        if (!Files.exists(root)) {
+            return DiskStats.empty();
+        }
+
+        long files = 0;
+        long bytes = 0;
+        try (var paths = Files.walk(root)) {
+            for (Path path : paths.toList()) {
+                if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".glb")) {
+                    files++;
+                    bytes += Files.size(path);
+                }
+            }
+        } catch (IOException e) {
+            plugin.getLogger().at(Level.FINE).log("Failed to scan terrain disk cache: " + e.getMessage());
+        }
+        return new DiskStats(files, bytes);
     }
 
     private static String moduleResourcePath(@Nonnull String requestPath) {
@@ -535,11 +667,22 @@ public final class WorldviewWebServer {
             long singleRequests,
             long batchRequests,
             long generatedChunks,
+            long memoryCacheHits,
+            long diskCacheHits,
             long coalescedRequests,
             long failedGenerations,
             int activeGenerations,
             int pendingRequests,
-            int maxConcurrentGenerations) {
+            int maxConcurrentGenerations,
+            int memoryCacheEntries,
+            long memoryCacheBytes,
+            int maxMemoryCacheEntries,
+            long maxMemoryCacheBytes,
+            long diskCacheFiles,
+            long diskCacheBytes) {
+    }
+
+    public record MemoryCacheStats(int entries, long bytes) {
     }
 
     private record TerrainRequest(String worldName, int lod, int chunkX, int chunkZ, boolean includeDetails) {
@@ -566,9 +709,53 @@ public final class WorldviewWebServer {
         }
     }
 
-    private record TerrainResult(TerrainSnapshot snapshot, TerrainMesh mesh, byte[] glb) {
+    private record TerrainResult(byte[] glb, int columns, int vertices, int triangles, int details, String source) {
+        static TerrainResult generated(TerrainSnapshot snapshot, TerrainMesh mesh, byte[] glb) {
+            int details = mesh.detail().vertexCount() == 0 ? 0 : snapshot.details().length;
+            return new TerrainResult(
+                    glb,
+                    snapshot.nonEmptyColumns(),
+                    mesh.vertexCount(),
+                    mesh.triangleCount(),
+                    details,
+                    "generated");
+        }
+
+        TerrainResult withSource(@Nonnull String source) {
+            return new TerrainResult(glb, columns, vertices, triangles, details, source);
+        }
+
+        String metadataJson() {
+            return "{\"format\":\"" + FORMAT_VERSION + "\""
+                    + ",\"columns\":" + columns
+                    + ",\"vertices\":" + vertices
+                    + ",\"triangles\":" + triangles
+                    + ",\"details\":" + details
+                    + "}";
+        }
     }
 
     private record BatchTerrainResult(int chunkX, int chunkZ, TerrainResult terrain, String error) {
+    }
+
+    private record TerrainMetadata(int columns, int vertices, int triangles, int details) {
+        private static final Pattern COLUMNS_PATTERN = Pattern.compile("\"columns\"\\s*:\\s*(-?\\d+)");
+        private static final Pattern VERTICES_PATTERN = Pattern.compile("\"vertices\"\\s*:\\s*(-?\\d+)");
+        private static final Pattern TRIANGLES_PATTERN = Pattern.compile("\"triangles\"\\s*:\\s*(-?\\d+)");
+        private static final Pattern DETAILS_META_PATTERN = Pattern.compile("\"details\"\\s*:\\s*(-?\\d+)");
+
+        static TerrainMetadata parse(@Nonnull String json) {
+            return new TerrainMetadata(
+                    findInt(COLUMNS_PATTERN, json, "columns"),
+                    findInt(VERTICES_PATTERN, json, "vertices"),
+                    findInt(TRIANGLES_PATTERN, json, "triangles"),
+                    findInt(DETAILS_META_PATTERN, json, "details"));
+        }
+    }
+
+    private record DiskStats(long files, long bytes) {
+        static DiskStats empty() {
+            return new DiskStats(0, 0);
+        }
     }
 }
