@@ -10,6 +10,7 @@ import com.hypixel.hytale.component.Archetype;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.ResourceType;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.math.vector.Rotation3f;
@@ -23,6 +24,8 @@ import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.PersistentModel;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.item.ItemComponent;
+import com.hypixel.hytale.server.core.modules.time.TimeModule;
+import com.hypixel.hytale.server.core.modules.time.WorldTimeResource;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -65,11 +68,12 @@ import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
 public final class WorldviewWebServer {
-    private static final String FORMAT_VERSION = "v8";
+    private static final String FORMAT_VERSION = "v10";
+    private static final boolean LOD_ENABLED = false;
     private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
-    private static final int MAX_BATCH_CHUNKS = 16;
-    private static final int MAX_CONCURRENT_GENERATIONS = 2;
+    private static final int MAX_BATCH_CHUNKS = 8;
+    private static final int MAX_CONCURRENT_GENERATIONS = 1;
     private static final int MAX_MEMORY_CACHE_ENTRIES = 128;
     private static final long MAX_MEMORY_CACHE_BYTES = 128L * 1024L * 1024L;
     private static final int MAX_MOB_SNAPSHOTS = 256;
@@ -110,6 +114,7 @@ public final class WorldviewWebServer {
         this.server = HttpServer.create(new InetSocketAddress(host, port), 0);
         this.server.createContext("/api/worlds", this::handleWorlds);
         this.server.createContext("/api/players", this::handlePlayers);
+        this.server.createContext("/api/time", this::handleTime);
         this.server.createContext("/api/mobs", this::handleMobs);
         this.server.createContext("/api/terrain", this::handleTerrain);
         this.server.createContext("/", this::handleStatic);
@@ -221,6 +226,64 @@ public final class WorldviewWebServer {
         }
     }
 
+    private void handleTime(@Nonnull HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+
+        String prefix = "/api/time/";
+        String path = exchange.getRequestURI().getPath();
+        if (!path.startsWith(prefix) || path.length() <= prefix.length()) {
+            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/time/{world}\"}");
+            return;
+        }
+
+        String worldName = decode(path.substring(prefix.length()));
+        World world = findWorld(worldName);
+        if (world == null) {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"unknown_world\"}");
+            return;
+        }
+
+        ResourceType<EntityStore, WorldTimeResource> resourceType;
+        try {
+            resourceType = TimeModule.get().getWorldTimeResourceType();
+        } catch (Throwable t) {
+            plugin.getLogger().at(Level.WARNING).withCause(t).log("Time module unavailable for world time request.");
+            writeJson(exchange, 503, "{\"ok\":false,\"error\":\"time_module_unavailable\"}");
+            return;
+        }
+        if (resourceType == null) {
+            writeJson(exchange, 503, "{\"ok\":false,\"error\":\"world_time_resource_type_missing\"}");
+            return;
+        }
+
+        CompletableFuture<WorldTimeSnapshot> future = new CompletableFuture<>();
+        world.execute(() -> {
+            try {
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                WorldTimeResource time = store.getResource(resourceType);
+                future.complete(time == null ? null : WorldTimeSnapshot.from(time));
+            } catch (Throwable t) {
+                future.completeExceptionally(t);
+            }
+        });
+        future.completeOnTimeout(null, 1, TimeUnit.SECONDS);
+
+        try {
+            WorldTimeSnapshot snapshot = future.get(1500, TimeUnit.MILLISECONDS);
+            if (snapshot == null) {
+                writeJson(exchange, 503, "{\"ok\":false,\"error\":\"world_time_resource_missing\"}");
+                return;
+            }
+            writeJson(exchange, 200, snapshot.toJson(world.getName()));
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("World time request failed: " + worldName);
+            writeJson(exchange, 500, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+        }
+    }
+
     private void handleMobs(@Nonnull HttpExchange exchange) throws IOException {
         writeJson(exchange, 410, "{\"ok\":false,\"error\":\"mob_feed_disabled\"}");
     }
@@ -239,6 +302,10 @@ public final class WorldviewWebServer {
         TerrainRequest request = parseTerrainRequest(exchange.getRequestURI().getPath(), experimentalDetailsEnabled);
         if (request == null) {
             writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/terrain/{world}/{lod}/{chunkX}/{chunkZ}.glb\"}");
+            return;
+        }
+        if (!LOD_ENABLED && request.lod() > 0) {
+            writeJson(exchange, 410, "{\"ok\":false,\"error\":\"lod_disabled\"}");
             return;
         }
 
@@ -281,6 +348,10 @@ public final class WorldviewWebServer {
             request = parseBatchTerrainRequest(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
         } catch (IllegalArgumentException e) {
             writeJson(exchange, 400, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+            return;
+        }
+        if (!LOD_ENABLED && request.lod() > 0) {
+            writeJson(exchange, 410, "{\"ok\":false,\"error\":\"lod_disabled\"}");
             return;
         }
 
@@ -362,13 +433,23 @@ public final class WorldviewWebServer {
         world.execute(() -> {
             try {
                 TerrainSnapshot snapshot = TerrainSampler.sample(world, request.chunkX(), request.chunkZ());
-                TerrainMesh mesh = TerrainMesher.mesh(snapshot, request.includeDetails());
-                generatedChunks.incrementAndGet();
-                future.complete(TerrainResult.generated(snapshot, mesh, GltfWriter.writeGlb(mesh)));
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        TerrainMesh mesh = TerrainMesher.mesh(snapshot, request.includeDetails(), request.lod());
+                        generatedChunks.incrementAndGet();
+                        future.complete(TerrainResult.generated(snapshot, mesh, GltfWriter.writeGlb(mesh)));
+                    } catch (Exception e) {
+                        failedGenerations.incrementAndGet();
+                        future.completeExceptionally(e);
+                    } finally {
+                        activeGenerations.decrementAndGet();
+                        pendingTerrain.remove(key, future);
+                        generationPermits.release();
+                    }
+                });
             } catch (Exception e) {
                 failedGenerations.incrementAndGet();
                 future.completeExceptionally(e);
-            } finally {
                 activeGenerations.decrementAndGet();
                 pendingTerrain.remove(key, future);
                 generationPermits.release();
@@ -1077,6 +1158,60 @@ public final class WorldviewWebServer {
                     + ",\"z\":" + z
                     + ",\"yaw\":" + yaw
                     + "}";
+        }
+    }
+
+    private record WorldTimeSnapshot(
+            int hour,
+            double dayProgress,
+            int moonPhase,
+            double sunlightFactor,
+            String dateTime,
+            double sunX,
+            double sunY,
+            double sunZ) {
+
+        static WorldTimeSnapshot from(@Nonnull WorldTimeResource time) {
+            Vector3d sunDirection = time.getSunDirection();
+            return new WorldTimeSnapshot(
+                    time.getCurrentHour(),
+                    time.getDayProgress(),
+                    time.getMoonPhase(),
+                    time.getSunlightFactor(),
+                    time.getGameDateTime() == null ? "" : time.getGameDateTime().toString(),
+                    sunDirection == null ? 0 : sunDirection.x,
+                    sunDirection == null ? 1 : sunDirection.y,
+                    sunDirection == null ? 0 : sunDirection.z);
+        }
+
+        String toJson(@Nonnull String worldName) {
+            return "{\"ok\":true"
+                    + ",\"world\":\"" + escapeJson(worldName) + "\""
+                    + ",\"hour\":" + hour
+                    + ",\"dayProgress\":" + round3(dayProgress)
+                    + ",\"phase\":\"" + dayPhase(dayProgress) + "\""
+                    + ",\"moonPhase\":" + moonPhase
+                    + ",\"sunlightFactor\":" + round3(sunlightFactor)
+                    + ",\"dateTime\":\"" + escapeJson(dateTime) + "\""
+                    + ",\"sunDirection\":{\"x\":" + round3(sunX)
+                    + ",\"y\":" + round3(sunY)
+                    + ",\"z\":" + round3(sunZ)
+                    + "}}";
+        }
+
+        private static String dayPhase(double progress) {
+            if (progress < 0.08 || progress >= 0.92) return "midnight";
+            if (progress < 0.20) return "night";
+            if (progress < 0.32) return "sunrise";
+            if (progress < 0.46) return "morning";
+            if (progress < 0.56) return "noon";
+            if (progress < 0.70) return "afternoon";
+            if (progress < 0.82) return "sunset";
+            return "night";
+        }
+
+        private static double round3(double value) {
+            return Math.round(value * 1000.0d) / 1000.0d;
         }
     }
 
