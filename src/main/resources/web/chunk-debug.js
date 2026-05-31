@@ -27,33 +27,33 @@ export function createChunkDebug(chunkX, chunkZ, chunkObject) {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   const material = new THREE.LineBasicMaterial({
-    color: 0x84f5c3,
+    color: 0x26383b,
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.72,
     depthTest: false,
   });
   const lines = new THREE.LineSegments(geometry, material);
   lines.renderOrder = 20;
   group.add(lines);
 
-  const label = makeChunkLabel(`${chunkX}, ${chunkZ}`);
-  label.position.set(16, highY + 4, 16);
+  const label = makeCornerLabel(`${chunkX}, ${chunkZ}`);
+  label.position.set(23.3, highY + 0.04, 28.1);
   group.add(label);
 
   return group;
 }
 
-function makeChunkLabel(text) {
+function makeCornerLabel(text) {
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 40;
+  canvas.width = 192;
+  canvas.height = 64;
   const context = canvas.getContext('2d');
-  context.fillStyle = 'rgba(10, 16, 18, 0.78)';
+  context.fillStyle = 'rgba(38, 48, 52, 0.82)';
   context.fillRect(0, 0, canvas.width, canvas.height);
-  context.strokeStyle = 'rgba(132, 245, 195, 0.85)';
-  context.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
-  context.fillStyle = '#d9fff0';
-  context.font = '700 18px system-ui, sans-serif';
+  context.strokeStyle = 'rgba(238, 243, 245, 0.52)';
+  context.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+  context.fillStyle = '#f4f7f8';
+  context.font = '800 28px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(text, canvas.width / 2, canvas.height / 2 + 1);
@@ -61,13 +61,19 @@ function makeChunkLabel(text) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  const material = new THREE.SpriteMaterial({
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  const material = new THREE.MeshBasicMaterial({
     map: texture,
     transparent: true,
     depthTest: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
   });
-  const sprite = new THREE.Sprite(material);
-  sprite.scale.set(24, 7.5, 1);
-  sprite.renderOrder = 21;
-  return sprite;
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(14.4, 4.8), material);
+  label.name = 'debug-corner-label';
+  label.rotation.x = -Math.PI / 2;
+  label.renderOrder = 21;
+  return label;
 }

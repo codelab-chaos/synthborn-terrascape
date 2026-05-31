@@ -119,7 +119,7 @@ public class WorldviewCommand extends AbstractWorldCommand {
             context.sendMessage(Message.raw("  common    : " + snapshot.mostCommonBlockKey()).color(Color.WHITE));
             context.sendMessage(Message.raw("  mesh      : " + mesh.vertexCount() + " vertices, "
                     + mesh.triangleCount() + " triangles").color(Color.WHITE));
-            context.sendMessage(Message.raw("  detail    : " + snapshot.details().length + " proxies, "
+            context.sendMessage(Message.raw("  detail    : " + snapshot.details().length + " voxels, "
                     + mesh.detail().vertexCount() + " vertices, " + mesh.detail().triangleCount() + " triangles")
                     .color(mesh.hasDetail() ? Color.GREEN : Color.WHITE));
             context.sendMessage(Message.raw("  glb       : " + glb.length + " bytes").color(Color.WHITE));

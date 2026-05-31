@@ -56,7 +56,7 @@ Goal: create the minimal SynthWorldview mod shell and serve a browser app.
 
 #### Story 1.1 - Create SynthWorldview Plugin Skeleton
 
-Status: In Progress
+Status: Closed
 
 Acceptance:
 
@@ -70,6 +70,8 @@ Validation:
 - `.\gradlew.bat build` succeeds.
 - `synth-worldview-mvp` boot log shows `SynthWorldview setup complete`,
   `SynthWorldview started`, and `Enabled plugin com.codelabchaos:SynthWorldview`.
+- Live MVP server has repeatedly booted with `SynthWorldview listening on
+  http://127.0.0.1:5960` and `Enabled plugin com.codelabchaos:SynthWorldview`.
 
 #### Story 1.2 - Add Config Loader
 
@@ -302,8 +304,8 @@ Validation:
   `67,233,924` bytes total.
 - `/worldview clearcache` deletes current disk artifacts for `terrain` and `samples`.
 - Disk cache writes GLBs plus a metadata sidecar containing columns, vertices,
-  triangles, and detail proxy count.
-- Disk cache is versioned under `terrain/v2/...` so incompatible mesh formats do not
+  triangles, and detail count.
+- Disk cache is versioned under `terrain/v8/...` so incompatible mesh formats do not
   reuse stale GLBs.
 - Cache keying includes world, lod, chunk coordinates, and experimental detail mode.
 - Live validation after restart: `/api/terrain/default/0/-7/3.glb` reused the persisted
@@ -621,25 +623,30 @@ Validation:
 - Playwright validation clicked the live player button when a player was present and
   confirmed the coordinate readout changed after focus.
 
-#### Story 5.4 - Add Player And Mob Visibility Toggles
+#### Story 5.4 - Add Player Visibility Toggle
 
-Status: Open
+Status: Closed
 
 Acceptance:
 
-- Viewer exposes separate toggles for player markers and mob markers.
 - Disabling players hides existing player markers and player HUD buttons without
   stopping the player feed.
-- Disabling mobs hides existing mob markers and labels without stopping the mob feed.
 - Toggle state is included in saved viewer state if it proves useful during testing.
 
 Validation:
 
-- Playwright toggles players and mobs off/on and confirms marker visibility changes.
+- `index.html` exposes the `Players` toggle.
+- Player markers and player HUD buttons hide immediately when `Players` is disabled,
+  while the existing player polling feed can continue.
+- Toggle state is saved under `synthworldview.viewState.v1` with the rest of the view
+  state.
+- Playwright toggles players off/on, confirms `Players hidden`, and validates player
+  visibility survives a saved-state page reload.
+- Follow-up: the experimental `Mobs` toggle was removed when mob rendering was parked.
 
 #### Story 5.5 - Add Mob Position Feed
 
-Status: Open
+Status: Parked
 
 Acceptance:
 
@@ -652,12 +659,62 @@ Acceptance:
 
 Validation:
 
-- `GET /api/mobs/{world}` returns `ok=true` and a bounded mob array.
-- A known nearby mob appears in the payload with plausible world coordinates.
+- `GET /api/mobs/default` returns `ok=true`, `max=256`, and a bounded `mobs` array.
+- Playwright validates the endpoint shape and validates mob fields when a live NPC is
+  present.
+- Build validated with `.\gradlew.bat build`.
+- Deployed to `synth-worldview-mvp`, restarted the server, and validated
+  `GET /api/mobs/default` returned `{"ok":true,"world":"default","max":256,"mobs":[]}`.
+- `npm.cmd test` passed after deployment.
+- Follow-up fix after hostile testing: widened the feed from `NPCEntity` only to
+  Hytale's `AllLegacyLivingEntityTypesQuery` plus `TransformComponent`, while skipping
+  players. This should include hostiles such as skeletons if they are represented as
+  living entities without the NPC role component.
+- Second follow-up fix after another empty hostile test: widened again to
+  `AllLegacyEntityTypesQuery` plus `TransformComponent`, while filtering out players,
+  dropped items, projectiles, and block entities. This favors seeing real hostile
+  entities even if Hytale does not classify them through the legacy living query.
+- Added a rate-limited `[mob-feed]` server diagnostic while field testing. The first
+  deployed diagnostic pass reported `chunks=0`, which suggests the next investigation is
+  whether hostile/player-adjacent entities live in a different queried store or become
+  visible only through a different SDK path.
+- Follow-up after ducks rendered but skeletons did not: broadened the scan from
+  `AllLegacyEntityTypesQuery + TransformComponent` to `TransformComponent` only, while
+  retaining the player/item/projectile/block-entity exclusions. This should reveal
+  hostile entities that carry transforms but are not included in Hytale's legacy entity
+  query.
+- Follow-up after the transform-only pass degraded known animal labels: changed the feed
+  to run both passes, with legacy entity snapshots first and transform-only snapshots as
+  a de-duplicated fallback. This keeps the known-good animal path while still surfacing
+  generic transform actors for skeleton/fox/mouse investigation.
+- Research follow-up: SynthUnits already validated real `Skeleton` detection through
+  `Query.and(NPCEntity.getComponentType(), TransformComponent.getComponentType())`.
+  Worldview now uses that `NPCEntity + TransformComponent` query for the live mob feed
+  instead of the broader transform fallback.
+- Spawn-marker follow-up: the broad transform fallback surfaced Hytale spawn-marker
+  NPCs such as `PC_Spawn_Mark` / `NPC_Spawn_Marker`, which are useful for spawn-region
+  discovery but wrong in the live mob layer. The feed now excludes spawn-marker types
+  from mobs; a separate optional spawn-marker overlay is parked for later.
+- Player-radar follow-up: after nearby cows, deer, wolves, foxes, frogs, and mice became
+  visible, the feed was narrowed to active-player radar semantics. The server gathers
+  online player positions, scans `NPCEntity` refs, fetches transforms by ref, filters to
+  mobs within 500 blocks of at least one player, sorts nearest-player-first, and caps the
+  response at 256 mobs. With no players online, `/api/mobs/{world}` returns an empty
+  bounded feed without scanning the world.
+- Live radar validation after player reconnect: `/api/players/default` reported
+  `Gigantomancer`, then `/api/mobs/default` returned six nearby mobs including
+  `Skeleton_Fighter_Wander`, multiple `Skeleton_Fighter` entries, and `Rabbit`.
+  The server log reported `chunks=1 entities=6 accepted=6 outsideRadar=0 radar=500`.
+- Stability follow-up rejected: do not smooth or cache missing mobs as a workaround.
+  The feed should stay honest so inconsistent animal tracking remains visible while we
+  find the correct Hytale API/path for those entities.
+- Decision: disable the experimental mob feed for now. The endpoint returns
+  `410 mob_feed_disabled` and the browser does not poll it. Reopen this story only after
+  we find a reliable server-side Hytale entity source for all nearby animals/NPCs.
 
 #### Story 5.6 - Render Color-Coded Mob Spheres And Labels
 
-Status: Open
+Status: Parked
 
 Acceptance:
 
@@ -669,8 +726,14 @@ Acceptance:
 
 Validation:
 
-- Browser shows mob spheres and compact labels without disrupting terrain navigation.
-- Playwright validates marker creation with a fixture or live mob feed when available.
+- Browser polls `GET /api/mobs/{world}` after terrain/player startup and then every
+  second.
+- Playwright fixtures a `Skeleton` mob payload, validates one mob marker is created, and
+  validates the `Mobs` toggle hides and shows the marker.
+- `npm.cmd test` passed against the deployed server after the broad living-entity feed
+  fix.
+- Decision: disable mob rendering for now. The browser no longer exposes the `Mobs`
+  toggle, no longer keeps mob marker state, and no longer reports mob counts in metrics.
 
 ### Epic 6: MVP Hardening
 
@@ -759,9 +822,12 @@ Validation:
 
 Status: Experimental
 
-Note: the first tree-canopy proxy pass is useful and validated, but it is intentionally
-experimental. Keep it available for visual exploration, but do not spend MVP time tuning
-canopy shapes, density, or exact block classification unless it becomes product-critical.
+Note: the first tree-canopy proxy pass was useful enough to validate the idea, but it is
+now parked. The active experiment is leaf-column voxel detail: when a top-down column
+hits leaves, preserve the contiguous leaf run as detail voxels, then continue downward
+to recover the stable ground surface. Keep it available for visual exploration, but do
+not spend MVP time tuning canopy density or exact block classification unless it becomes
+product-critical.
 The feature is off by default and only runs when the server setting is enabled with
 `synthworldview.experimental.details=true` or
 `SYNTH_WORLDVIEW_EXPERIMENTAL_DETAILS=true`. The viewer only reports the server state;
@@ -773,8 +839,7 @@ Candidate stories:
 - Scan bounded exposed faces below heightmap.
 - Add a config feature flag for enhanced structure mesh generation.
 - Classify block roles for ground, foliage, trunk, water, structure, and unknown blocks.
-- Capture overland vegetation as cheap tree proxies: trunk cylinders/boxes plus
-  simplified canopy volumes or billboards.
+- Capture overland vegetation as bounded leaf-column voxels.
 - Validate whether a bounded scan around heightmap tops can capture trees acceptably
   without exploding triangle counts.
 - Add separate water primitives with solid and transparent display modes.
@@ -821,7 +886,7 @@ Validation:
 
 #### Story 7.2 - Add Cheap Tree Proxies
 
-Status: Closed / Experimental
+Status: Parked / Superseded
 
 Acceptance:
 
@@ -843,12 +908,13 @@ Validation:
   `X-Worldview-Details: 0`, proving clients cannot override the server setting.
 - Prior server-enabled validation returned `X-Worldview-Details: 226`, `12548`
   vertices, `6274` triangles, and `529108` bytes.
-- Nearby live-player probe also found detail proxies in chunks `-6,3`, `-6,4`,
+- Nearby live-player probe also found detail geometry in chunks `-6,3`, `-6,4`,
   `-5,3`, `-7,4`, `-6,2`, and `-7,2`.
 - Playwright validation requests chunk `-7,3` and asserts the detail count is greater
   than zero while the normal viewer smoke test remains green.
-- Screenshot-level tree silhouette tuning is intentionally deferred; this feature is a
-  kept experiment, not a current polish track.
+- Decision: park this proxy approach. The oversized canopy/trunk boxes proved the server
+  can emit optional detail geometry, but the next experiment replaces them with literal
+  leaf-column voxels captured during the downward scan.
 
 #### Story 7.3 - Evaluate Bounded Exposed-Face Scan For Vegetation
 
@@ -862,29 +928,35 @@ Acceptance:
 
 Validation:
 
-- Compare proxy output versus bounded scan output on the same forest chunk.
+- Compare leaf-voxel output versus bounded scan output on the same forest chunk.
 - Record GLB bytes, vertices, triangles, generation time, and browser FPS impression.
 
-#### Story 7.3a - Experiment With First Canopy Hit Tree Sampling
+#### Story 7.3a - Fill First Canopy Leaf Runs As Detail Voxels
 
-Status: Parked / Experimental
+Status: Closed / Experimental
 
 Acceptance:
 
-- Experimental sampler treats leaves similarly to the existing water pass: record the
-  first leaf/canopy block encountered in a column, but continue scanning downward.
+- Experimental sampler treats leaves similarly to the existing water pass: when a
+  top-down column hits leaves, record the contiguous leaf run as detail voxels, but
+  continue scanning downward.
 - Terrain heightfield uses the first stable ground block found below canopy, not the
   leaf height.
-- Trunk/branch-like blocks can be recorded as support detail if encountered before
-  ground.
 - Output keeps canopy as a separate detail primitive/material so it can be disabled or
   tuned independently.
 - Experimental mode remains server-gated and off by default.
 
 Validation:
 
-- Compare current tree-proxy output against first-canopy-hit output on chunk `-7,3`.
-- Record proxy count, vertices, triangles, GLB bytes, and visual impression.
+- `TerrainSampler` records the real leaf and wood blocks hit by the downward column ray,
+  then emits those exact detail voxels. If the ray never resolves into ground, captured
+  tree detail is still emitted as floating detail instead of becoming a terrain column.
+- The overland downward scan currently allows up to `64` blocks below the heightmap so
+  tall tree canopies are not clipped by the scan ceiling.
+- `TerrainMesher` emits canopy detail as colored voxels in the `worldview-detail`
+  primitive, culling hidden faces between adjacent leaf voxels.
+- Terrain cache format was bumped to `v8` so terrain GLBs cannot reuse older
+  proxy-detail, giant-canopy-column, or unculled leaf-voxel cache entries.
 - Confirm default non-experimental terrain output remains unchanged.
 
 #### Story 7.4 - Render Water As Solid Or Transparent
@@ -937,9 +1009,36 @@ Candidate stories:
 - Avoid popping through hysteresis.
 - Cache region meshes separately from chunk meshes.
 
+### Epic 10: Spawn Discovery Overlays
+
+Status: Parked
+
+Note: while debugging the live mob feed, Worldview discovered Hytale spawn-marker
+entities such as `PC_Spawn_Mark` / `NPC_Spawn_Marker`. These are not live mobs, but they
+may be valuable as an operator/debug overlay for understanding where wildlife and
+hostiles can appear.
+
+#### Story 10.1 - Add Spawn Marker Overlay
+
+Status: Parked
+
+Acceptance:
+
+- Server exposes spawn markers through a separate endpoint or response layer, not
+  `/api/mobs`.
+- Viewer has a separate `Spawn markers` toggle that defaults off.
+- Spawn markers use a distinct marker shape/color from live mobs.
+- Labels identify marker id/type without crowding the live mob labels.
+
+Validation:
+
+- Confirm `PC_Spawn_Mark` / `NPC_Spawn_Marker` no longer appear in the `Mobs` layer.
+- Enable the spawn-marker overlay and confirm those markers appear in their own layer.
+- Compare marker positions with nearby observed wildlife/hostile spawns.
+
 ## MVP Closure Checklist
 
-- [ ] Plugin loads and starts HTTP server.
+- [x] Plugin loads and starts HTTP server.
 - [x] Browser opens a nonblank Three.js app.
 - [x] `/api/worlds` lists enabled worlds.
 - [x] One real explored chunk generates a valid GLB.
@@ -947,5 +1046,5 @@ Candidate stories:
 - [x] Online players render at correct coordinates.
 - [ ] Unexplored chunks are blocked by default.
 - [x] Memory cache, disk cache, and pending-future coalescing are validated.
-- [ ] Mesh generation concurrency is bounded.
+- [x] Mesh generation concurrency is bounded.
 - [ ] Basic docs explain setup, commands, and known limits.

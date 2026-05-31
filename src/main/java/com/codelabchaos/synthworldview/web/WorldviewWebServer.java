@@ -6,16 +6,34 @@ import com.codelabchaos.synthworldview.terrain.TerrainMesh;
 import com.codelabchaos.synthworldview.terrain.TerrainMesher;
 import com.codelabchaos.synthworldview.terrain.TerrainSampler;
 import com.codelabchaos.synthworldview.terrain.TerrainSnapshot;
+import com.hypixel.hytale.component.Archetype;
+import com.hypixel.hytale.component.ArchetypeChunk;
+import com.hypixel.hytale.component.CommandBuffer;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.math.vector.Rotation3f;
 import com.hypixel.hytale.math.vector.Transform;
+import com.hypixel.hytale.server.core.entity.Entity;
+import com.hypixel.hytale.server.core.entity.EntityUtils;
+import com.hypixel.hytale.server.core.entity.entities.BlockEntity;
+import com.hypixel.hytale.server.core.entity.entities.ProjectileComponent;
+import com.hypixel.hytale.server.core.modules.entity.EntityModule;
+import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
+import com.hypixel.hytale.server.core.modules.entity.component.PersistentModel;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.modules.entity.item.ItemComponent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.joml.Vector3d;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -28,9 +46,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -41,16 +61,20 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
 public final class WorldviewWebServer {
-    private static final String FORMAT_VERSION = "v2";
+    private static final String FORMAT_VERSION = "v8";
     private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
     private static final int MAX_BATCH_CHUNKS = 16;
     private static final int MAX_CONCURRENT_GENERATIONS = 2;
     private static final int MAX_MEMORY_CACHE_ENTRIES = 128;
     private static final long MAX_MEMORY_CACHE_BYTES = 128L * 1024L * 1024L;
+    private static final int MAX_MOB_SNAPSHOTS = 256;
+    private static final double MOB_RADAR_RADIUS = 500.0d;
+    private static final double MOB_RADAR_RADIUS_SQ = MOB_RADAR_RADIUS * MOB_RADAR_RADIUS;
     private static final Pattern WORLD_PATTERN = Pattern.compile("\"world\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern LOD_PATTERN = Pattern.compile("\"lod\"\\s*:\\s*(-?\\d+)");
     private static final Pattern CHUNK_OBJECT_PATTERN = Pattern.compile("\\{[^{}]*}");
@@ -75,6 +99,7 @@ public final class WorldviewWebServer {
     private final AtomicLong diskCacheHits = new AtomicLong();
     private final AtomicLong coalescedRequests = new AtomicLong();
     private final AtomicLong failedGenerations = new AtomicLong();
+    private final AtomicLong lastMobDebugLogMillis = new AtomicLong();
 
     public WorldviewWebServer(@Nonnull SynthWorldviewPlugin plugin, @Nonnull String host, int port,
                               boolean experimentalDetailsEnabled) throws IOException {
@@ -85,6 +110,7 @@ public final class WorldviewWebServer {
         this.server = HttpServer.create(new InetSocketAddress(host, port), 0);
         this.server.createContext("/api/worlds", this::handleWorlds);
         this.server.createContext("/api/players", this::handlePlayers);
+        this.server.createContext("/api/mobs", this::handleMobs);
         this.server.createContext("/api/terrain", this::handleTerrain);
         this.server.createContext("/", this::handleStatic);
         this.server.setExecutor(Executors.newFixedThreadPool(4, runnable -> {
@@ -193,6 +219,10 @@ public final class WorldviewWebServer {
             plugin.getLogger().at(Level.WARNING).withCause(e).log("Player snapshot request failed: " + worldName);
             writeJson(exchange, 500, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
         }
+    }
+
+    private void handleMobs(@Nonnull HttpExchange exchange) throws IOException {
+        writeJson(exchange, 410, "{\"ok\":false,\"error\":\"mob_feed_disabled\"}");
     }
 
     private void handleTerrain(@Nonnull HttpExchange exchange) throws IOException {
@@ -593,6 +623,347 @@ public final class WorldviewWebServer {
         return players;
     }
 
+    private List<MobSnapshot> snapshotMobs(@Nonnull World world) {
+        Store<EntityStore> store = world.getEntityStore().getStore();
+        Query<EntityStore> npcQuery = Archetype.of(NPCEntity.getComponentType());
+        List<Vector3d> playerPositions = playerPositionsForMobRadar(world);
+        List<MobCandidate> candidates = new ArrayList<>();
+        MobScanStats stats = new MobScanStats();
+        Set<Integer> seenRefs = new HashSet<>();
+        BiPredicate<ArchetypeChunk<EntityStore>, CommandBuffer<EntityStore>> collector = (chunk, ignored) -> {
+            collectMobSnapshots(store, chunk, candidates, stats, seenRefs, playerPositions);
+            return true;
+        };
+        if (!playerPositions.isEmpty()) {
+            store.forEachChunk(npcQuery, collector);
+        }
+        List<MobSnapshot> mobs = candidates.stream()
+                .sorted(Comparator.comparingDouble(MobCandidate::distanceSq))
+                .limit(MAX_MOB_SNAPSHOTS)
+                .map(MobCandidate::snapshot)
+                .toList();
+        logMobScan(world, store, stats, mobs);
+        return mobs;
+    }
+
+    private static void collectMobSnapshots(@Nonnull Store<EntityStore> store,
+                                            @Nonnull ArchetypeChunk<EntityStore> chunk,
+                                            @Nonnull List<MobCandidate> candidates,
+                                            @Nonnull MobScanStats stats,
+                                            @Nonnull Set<Integer> seenRefs,
+                                            @Nonnull List<Vector3d> playerPositions) {
+        stats.chunks++;
+        stats.addArchetype(chunk.getArchetype().toString());
+        for (int index = 0; index < chunk.size(); index++) {
+            stats.entities++;
+            try {
+                Ref<EntityStore> ref = chunk.getReferenceTo(index);
+                if (ref == null || !ref.isValid()) {
+                    stats.invalidRefs++;
+                    continue;
+                }
+                if (!seenRefs.add(ref.getIndex())) {
+                    stats.duplicates++;
+                    continue;
+                }
+                if (chunk.getComponent(index, PlayerRef.getComponentType()) != null) {
+                    stats.skippedPlayers++;
+                    continue;
+                }
+                if (isDefinitelyNotMob(chunk, index)) {
+                    stats.skippedNonMobs++;
+                    continue;
+                }
+                TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
+                if (transform == null) {
+                    stats.noTransform++;
+                    continue;
+                }
+                Vector3d position = transform.getPosition();
+                if (position == null) {
+                    stats.noPosition++;
+                    continue;
+                }
+                double distanceSq = nearestDistanceSq(position, playerPositions);
+                if (distanceSq > MOB_RADAR_RADIUS_SQ) {
+                    stats.skippedOutsideRadar++;
+                    continue;
+                }
+                NPCEntity npc = chunk.getComponent(index, NPCEntity.getComponentType());
+                Entity entity = EntityUtils.getEntity(index, chunk);
+                String type = safeMobType(chunk, index, npc, entity);
+                if (isSpawnMarkerType(type)) {
+                    stats.skippedNonMobs++;
+                    continue;
+                }
+                candidates.add(new MobCandidate(distanceSq, new MobSnapshot(
+                        Integer.toString(ref.getIndex()),
+                        type,
+                        safeMobRole(npc, entity, type),
+                        position.x,
+                        position.y,
+                        position.z,
+                        colorForMob(type))));
+                stats.accepted++;
+                stats.addType(type);
+            } catch (Exception ignored) {
+                // Individual NPC refs can unload while the ECS chunk is being copied.
+                stats.errors++;
+            }
+        }
+    }
+
+    private static List<Vector3d> playerPositionsForMobRadar(@Nonnull World world) {
+        List<Vector3d> playerPositions = new ArrayList<>();
+        for (PlayerRef playerRef : world.getPlayerRefs()) {
+            try {
+                Transform transform = playerRef.getTransform();
+                if (transform != null && transform.getPosition() != null) {
+                    playerPositions.add(new Vector3d(transform.getPosition()));
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return playerPositions;
+    }
+
+    private void logMobScan(@Nonnull World world, @Nonnull Store<EntityStore> store,
+                            @Nonnull MobScanStats stats, @Nonnull List<MobSnapshot> mobs) {
+        long now = System.currentTimeMillis();
+        long last = lastMobDebugLogMillis.get();
+        if (mobs.isEmpty() && now - last < 5_000L) {
+            return;
+        }
+        if (!lastMobDebugLogMillis.compareAndSet(last, now) && mobs.isEmpty()) {
+            return;
+        }
+
+        String firstMob = mobs.isEmpty() ? "none" : mobs.stream()
+                .limit(5)
+                .map(mob -> mob.type() + "@" + Math.round(mob.x()) + "," + Math.round(mob.y()) + "," + Math.round(mob.z()))
+                .collect(Collectors.joining(";"));
+        plugin.getLogger().at(Level.INFO).log("[mob-feed] world=" + world.getName()
+                + " chunks=" + stats.chunks
+                + " entities=" + stats.entities
+                + " accepted=" + stats.accepted
+                + " duplicates=" + stats.duplicates
+                + " players=" + stats.skippedPlayers
+                + " nonMob=" + stats.skippedNonMobs
+                + " outsideRadar=" + stats.skippedOutsideRadar
+                + " radar=" + Math.round(MOB_RADAR_RADIUS)
+                + " invalid=" + stats.invalidRefs
+                + " noTransform=" + stats.noTransform
+                + " noPosition=" + stats.noPosition
+                + " errors=" + stats.errors
+                + " types=" + stats.preview(stats.acceptedTypes)
+                + " archetypes=" + stats.preview(stats.archetypes)
+                + " first=" + firstMob
+                + " nearby=" + nearbyTransformPreview(world, store));
+    }
+
+    private static String nearbyTransformPreview(@Nonnull World world, @Nonnull Store<EntityStore> store) {
+        List<Vector3d> playerPositions = new ArrayList<>();
+        for (PlayerRef playerRef : world.getPlayerRefs()) {
+            try {
+                Transform transform = playerRef.getTransform();
+                if (transform != null && transform.getPosition() != null) {
+                    playerPositions.add(new Vector3d(transform.getPosition()));
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        if (playerPositions.isEmpty()) {
+            return "no-players";
+        }
+
+        Query<EntityStore> transformQuery = Archetype.of(TransformComponent.getComponentType());
+        List<NearbyCandidate> candidates = new ArrayList<>();
+        store.forEachChunk(transformQuery, (chunk, ignored) -> {
+            for (int index = 0; index < chunk.size(); index++) {
+                TransformComponent transform = chunk.getComponent(index, TransformComponent.getComponentType());
+                if (transform == null || transform.getPosition() == null) {
+                    continue;
+                }
+                Vector3d position = transform.getPosition();
+                double distanceSq = nearestDistanceSq(position, playerPositions);
+                if (distanceSq > 120.0d * 120.0d) {
+                    continue;
+                }
+                Ref<EntityStore> ref = chunk.getReferenceTo(index);
+                NPCEntity npc = chunk.getComponent(index, NPCEntity.getComponentType());
+                Entity entity = EntityUtils.getEntity(index, chunk);
+                String type = safeMobType(chunk, index, npc, entity);
+                String flags = "";
+                if (chunk.getComponent(index, PlayerRef.getComponentType()) != null) {
+                    flags += " player";
+                }
+                if (isDefinitelyNotMob(chunk, index)) {
+                    flags += " nonmob";
+                }
+                if (isSpawnMarkerType(type)) {
+                    flags += " spawnmarker";
+                }
+                candidates.add(new NearbyCandidate(
+                        ref == null ? -1 : ref.getIndex(),
+                        type,
+                        Math.sqrt(distanceSq),
+                        position.x,
+                        position.y,
+                        position.z,
+                        flags.trim()));
+            }
+            return true;
+        });
+
+        if (candidates.isEmpty()) {
+            return "none-within-120";
+        }
+        return candidates.stream()
+                .sorted(Comparator.comparingDouble(NearbyCandidate::distance))
+                .limit(12)
+                .map(NearbyCandidate::summary)
+                .collect(Collectors.joining(";"));
+    }
+
+    private static double nearestDistanceSq(@Nonnull Vector3d position, @Nonnull List<Vector3d> playerPositions) {
+        double best = Double.MAX_VALUE;
+        for (Vector3d playerPosition : playerPositions) {
+            double dx = position.x - playerPosition.x;
+            double dy = position.y - playerPosition.y;
+            double dz = position.z - playerPosition.z;
+            double distanceSq = dx * dx + dy * dy + dz * dz;
+            if (distanceSq < best) {
+                best = distanceSq;
+            }
+        }
+        return best;
+    }
+
+    private static boolean isDefinitelyNotMob(@Nonnull ArchetypeChunk<EntityStore> chunk, int index) {
+        return chunk.getComponent(index, ItemComponent.getComponentType()) != null
+                || chunk.getComponent(index, ProjectileComponent.getComponentType()) != null
+                || chunk.getComponent(index, BlockEntity.getComponentType()) != null;
+    }
+
+    private static boolean isSpawnMarkerType(@Nonnull String type) {
+        String normalized = type.toLowerCase();
+        return normalized.contains("spawn_marker")
+                || normalized.contains("spawnmark")
+                || normalized.contains("spawn_mark");
+    }
+
+    private static String safeMobType(@Nonnull ArchetypeChunk<EntityStore> chunk,
+                                      int index,
+                                      NPCEntity npc,
+                                      Entity entity) {
+        if (npc != null) {
+            try {
+                String type = npc.getNPCTypeId();
+                if (type != null && !type.isBlank()) {
+                    return type;
+                }
+            } catch (Exception ignored) {
+            }
+            try {
+                String roleName = npc.getRoleName();
+                if (roleName != null && !roleName.isBlank()) {
+                    return roleName;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        String modelType = safeModelType(chunk, index);
+        if (modelType != null) {
+            return modelType;
+        }
+        return safeEntityType(entity);
+    }
+
+    @Nullable
+    private static String safeModelType(@Nonnull ArchetypeChunk<EntityStore> chunk, int index) {
+        try {
+            ModelComponent modelComponent = chunk.getComponent(index, ModelComponent.getComponentType());
+            if (modelComponent != null && modelComponent.getModel() != null) {
+                String modelAssetId = modelComponent.getModel().getModelAssetId();
+                String type = labelFromAssetId(modelAssetId);
+                if (type != null) {
+                    return type;
+                }
+                type = labelFromAssetId(modelComponent.getModel().getModel());
+                if (type != null) {
+                    return type;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            PersistentModel persistentModel = chunk.getComponent(index, PersistentModel.getComponentType());
+            if (persistentModel != null && persistentModel.getModelReference() != null) {
+                String type = labelFromAssetId(persistentModel.getModelReference().getModelAssetId());
+                if (type != null) {
+                    return type;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    @Nullable
+    private static String labelFromAssetId(String assetId) {
+        if (assetId == null || assetId.isBlank()) {
+            return null;
+        }
+        String normalized = assetId.replace('\\', '/');
+        int slash = normalized.lastIndexOf('/');
+        if (slash >= 0 && slash + 1 < normalized.length()) {
+            normalized = normalized.substring(slash + 1);
+        }
+        int colon = normalized.lastIndexOf(':');
+        if (colon >= 0 && colon + 1 < normalized.length()) {
+            normalized = normalized.substring(colon + 1);
+        }
+        if (normalized.endsWith(".json")) {
+            normalized = normalized.substring(0, normalized.length() - ".json".length());
+        }
+        normalized = normalized.trim();
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private static String safeMobRole(NPCEntity npc, Entity entity, @Nonnull String fallback) {
+        if (npc != null) {
+            try {
+                String roleName = npc.getRoleName();
+                if (roleName != null && !roleName.isBlank()) {
+                    return roleName;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return fallback;
+    }
+
+    private static String safeEntityType(Entity entity) {
+        if (entity == null) {
+            return "LivingEntity";
+        }
+        try {
+            String identifier = EntityModule.get().getIdentifier(entity.getClass());
+            if (identifier != null && !identifier.isBlank()) {
+                return identifier;
+            }
+        } catch (Exception ignored) {
+        }
+        String simpleName = entity.getClass().getSimpleName();
+        return simpleName == null || simpleName.isBlank() ? "LivingEntity" : simpleName;
+    }
+
+    private static String colorForMob(@Nonnull String type) {
+        int hash = type.hashCode();
+        int hue = Math.floorMod(hash, 360);
+        return "hsl(" + hue + ",70%,58%)";
+    }
+
     private static Integer parseInt(@Nonnull String value) {
         try {
             return Integer.parseInt(value);
@@ -706,6 +1077,73 @@ public final class WorldviewWebServer {
                     + ",\"z\":" + z
                     + ",\"yaw\":" + yaw
                     + "}";
+        }
+    }
+
+    private record MobSnapshot(String id, String type, String label, double x, double y, double z, String color) {
+        String toJson() {
+            return "{\"id\":\"" + escapeJson(id) + "\""
+                    + ",\"type\":\"" + escapeJson(type) + "\""
+                    + ",\"label\":\"" + escapeJson(label) + "\""
+                    + ",\"x\":" + x
+                    + ",\"y\":" + y
+                    + ",\"z\":" + z
+                    + ",\"color\":\"" + escapeJson(color) + "\""
+                    + "}";
+        }
+    }
+
+    private record MobCandidate(double distanceSq, MobSnapshot snapshot) {
+    }
+
+    private record NearbyCandidate(int id, String type, double distance, double x, double y, double z, String flags) {
+        String summary() {
+            return type + "#" + id
+                    + " d=" + Math.round(distance)
+                    + " @" + Math.round(x) + "," + Math.round(y) + "," + Math.round(z)
+                    + (flags.isBlank() ? "" : " [" + flags + "]");
+        }
+    }
+
+    private static final class MobScanStats {
+        private final LinkedHashMap<String, Integer> archetypes = new LinkedHashMap<>();
+        private final LinkedHashMap<String, Integer> acceptedTypes = new LinkedHashMap<>();
+        private int chunks;
+        private int entities;
+        private int accepted;
+        private int duplicates;
+        private int skippedPlayers;
+        private int skippedNonMobs;
+        private int skippedOutsideRadar;
+        private int invalidRefs;
+        private int noTransform;
+        private int noPosition;
+        private int errors;
+
+        private void addArchetype(@Nonnull String archetype) {
+            archetypes.merge(shorten(archetype), 1, Integer::sum);
+        }
+
+        private void addType(@Nonnull String type) {
+            acceptedTypes.merge(type, 1, Integer::sum);
+        }
+
+        private String preview(@Nonnull LinkedHashMap<String, Integer> values) {
+            if (values.isEmpty()) {
+                return "none";
+            }
+            return values.entrySet().stream()
+                    .limit(6)
+                    .map(entry -> entry.getKey() + "=" + entry.getValue())
+                    .collect(Collectors.joining("|"));
+        }
+
+        private static String shorten(@Nonnull String value) {
+            String compact = value
+                    .replace("com.hypixel.hytale.server.core.", "")
+                    .replace("com.hypixel.hytale.server.", "")
+                    .replace("com.hypixel.hytale.", "");
+            return compact.length() <= 140 ? compact : compact.substring(0, 137) + "...";
         }
     }
 
