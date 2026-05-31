@@ -76,35 +76,32 @@ above-ground structures while keeping the conservative heightfield mesh as the d
 safe mode. The enhanced mode should be bounded by scan depth, block classification, and
 mesh budget settings.
 
-### [ ] Experimental Tree Detail Can Preserve First Canopy Hit While Finding Ground
+### [x] Experimental Tree Detail Can Fill Leaf Runs As Voxels
 
-Experimental tree generation can treat leaves similarly to water: when a column sees a
-leaf block, it records the first leaf/canopy hit for detail rendering, then keeps
-scanning downward until it finds ground or a trunk/branch support. The terrain mesh stays
-ground-based while the first meaningful canopy hit can still be represented as a small
-detail mesh.
+Tree handling treats leaves and floating canopy-like top blocks similarly to water: when
+a column ray hits tree detail, it records that top run, keeps scanning downward until
+stable ground, and keeps the terrain mesh ground-based. Experimental mode can emit the
+top run as separate colored voxel detail in `worldview-detail`; with experimental mode
+off, the tree top is omitted instead of becoming a giant terrain column.
 
 ### [ ] Worldview Can Invalidate Dirty Chunks
 
 The server can detect chunk/block updates and tell connected browsers to reload affected
 terrain.
 
-### [ ] Viewer Can Toggle Player And Mob Markers Independently
+### [ ] Viewer Can Toggle Spawn Marker Overlay For Mob Spawn Discovery
 
-The 3D view exposes independent toggles for player markers and mob markers so the
-operator can declutter the map without disabling the underlying live entity feeds.
+The viewer can show Hytale spawn-marker entities separately from live mobs. Spawn
+markers are not part of the normal mob layer because they represent spawn locations,
+not living entities, but an optional overlay can help operators find likely mob spawn
+regions and debug why an area has or lacks wildlife/hostiles.
 
-### [ ] Viewer Can Show Mobs As Color-Coded Spheres
+### [ ] Viewer Can Show Live Mob Markers Reliably
 
-The server exposes conservative mob snapshots by world, and the viewer renders each mob
-as a small colored sphere at its world position. The first pass should use stable colors
-by mob type or role instead of custom icon art.
-
-### [ ] Viewer Can Show Small Color-Coded Mob Labels
-
-The viewer can show compact mob labels that match the marker color and identify the mob
-type or useful short name. Labels should be small enough to avoid covering terrain and
-should be toggleable if they become noisy.
+Mob markers are disabled for now. The first implementation proved the browser can render
+mob spheres and labels, but the server feed does not consistently see every nearby
+animal/NPC type. The feature should stay parked until the server-side entity source is
+correct and repeatable.
 
 ## Implemented Capabilities
 
@@ -244,15 +241,20 @@ against a known shoreline remains a follow-up.
 
 ### [x] Worldview Can Show Experimental Overland Vegetation Detail
 
-The sampler separates foliage/trunk-like top blocks from the terrain heightfield, scans
-down to recover nearby ground, and emits cheap tree proxies as a separate
-`worldview-detail` GLB material. Validated on `synth-worldview-mvp` with chunk `-7,3`,
-which returned `226` detail proxies through `X-Worldview-Details`.
+The sampler separates foliage-like and floating canopy-like top blocks from the terrain
+heightfield, records the top run in each column, scans down to recover nearby ground,
+and emits leaf voxels as a separate `worldview-detail` GLB material when experimental
+details are enabled. The sampler does not invent canopy geometry: it records the leaf
+and wood blocks encountered on the downward ray, then emits those exact voxels as detail.
+If the ray never resolves into ground, the captured tree detail is still emitted as
+floating detail instead of becoming a terrain-height column. The mesher culls hidden
+faces between adjacent detail voxels. The earlier cheap canopy/trunk proxy experiment is
+parked in favor of this more literal column-detail model.
 
-Current caveat: this is explicitly experimental. The canopy/trunk proxy approach is
-useful enough to keep, but it is not a polished vegetation renderer and should not block
-MVP progress on visual tuning. It is off by default and can only be enabled as a server
-setting because it changes mesh generation and cache identity:
+Current caveat: this is explicitly experimental. The leaf-voxel approach is not a
+polished vegetation renderer and should not block MVP progress on visual tuning. It is
+off by default and can only be enabled as a server setting because it changes mesh
+generation and cache identity:
 `synthworldview.experimental.details=true` or `SYNTH_WORLDVIEW_EXPERIMENTAL_DETAILS=true`.
 The viewer only displays whether the server has the experiment enabled.
 
@@ -278,6 +280,12 @@ current server uses the JDK HTTP server.
 Clicking a player in the HUD moves the camera target to that player's position and
 places the camera in a nearby inspection view. Playwright validation clicked an online
 player button when present and confirmed the coordinate readout changed after focus.
+
+### [x] Viewer Can Disable The Experimental Mob Layer
+
+The unreliable mob layer is disabled in the MVP viewer. The HUD no longer exposes a
+`Mobs` toggle, the browser no longer polls `/api/mobs/{world}`, metrics no longer count
+mob markers, and the endpoint returns `410 mob_feed_disabled` for accidental callers.
 
 ### [x] Viewer Uses A Readable Sky And Reference Grid Palette
 

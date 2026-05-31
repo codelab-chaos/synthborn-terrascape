@@ -14,6 +14,7 @@ import {
   metricsEl,
   playersEl,
   radiusInput,
+  showPlayersInput,
   statusEl,
   waterModeInput,
   worldSelect,
@@ -135,6 +136,7 @@ function applyInitialParams() {
   applyNumberParam('radius', radiusInput);
   applyBooleanParam('auto', autoStreamInput);
   applyBooleanParam('bounds', debugBoundsInput);
+  applyBooleanParam('players', showPlayersInput);
   applySelectParam('water', waterModeInput);
 }
 
@@ -145,6 +147,7 @@ function applyStoredInputs() {
   setNumberInput(radiusInput, storedViewState.radius);
   if (typeof storedViewState.auto === 'boolean') autoStreamInput.checked = storedViewState.auto;
   if (typeof storedViewState.bounds === 'boolean') debugBoundsInput.checked = storedViewState.bounds;
+  if (typeof storedViewState.players === 'boolean') showPlayersInput.checked = storedViewState.players;
   if (typeof storedViewState.water === 'string') {
     applySelectValue(waterModeInput, storedViewState.water);
   }
@@ -466,7 +469,9 @@ function updatePlayers(players) {
   const seen = new Set();
   playersEl.replaceChildren();
 
-  if (players.length === 0) {
+  if (!showPlayersInput.checked) {
+    playersEl.textContent = 'Players hidden';
+  } else if (players.length === 0) {
     playersEl.textContent = 'No players';
   }
 
@@ -475,10 +480,15 @@ function updatePlayers(players) {
     const marker = playerMarkers.get(player.uuid) ?? createPlayerMarker(player);
     marker.position.set(player.x, player.y + 1.8, player.z);
     marker.rotation.y = -(player.yaw ?? 0);
+    marker.visible = showPlayersInput.checked;
     marker.userData.player = player;
     playerMarkers.set(player.uuid, marker);
     if (!marker.parent) {
       scene.add(marker);
+    }
+
+    if (!showPlayersInput.checked) {
+      continue;
     }
 
     const button = document.createElement('button');
@@ -496,6 +506,8 @@ function updatePlayers(players) {
       playerMarkers.delete(uuid);
     }
   }
+
+  updateEntityVisibility();
 }
 
 function focusPlayer(player) {
@@ -511,6 +523,22 @@ function updateDebugBounds() {
   for (const entry of loadedChunks.values()) {
     entry.debug.visible = debugBoundsInput.checked;
   }
+}
+
+function updateEntityVisibility() {
+  for (const marker of playerMarkers.values()) {
+    marker.visible = showPlayersInput.checked;
+  }
+  if (!showPlayersInput.checked) {
+    playersEl.textContent = 'Players hidden';
+  }
+}
+
+function exposeDebugState() {
+  window.__synthWorldviewDebug = {
+    loadedChunks,
+    playerMarkers,
+  };
 }
 
 function focusGrid(centerX, centerZ, radius) {
@@ -554,6 +582,7 @@ function saveViewState() {
     radius: Math.max(0, Number.parseInt(radiusInput.value, 10) || 0),
     auto: autoStreamInput.checked,
     bounds: debugBoundsInput.checked,
+    players: showPlayersInput.checked,
     water: waterModeInput.value,
     camera: vectorState(camera.position),
     target: vectorState(target),
@@ -665,6 +694,11 @@ window.addEventListener('keyup', (event) => {
 });
 debugBoundsInput.addEventListener('change', updateDebugBounds);
 debugBoundsInput.addEventListener('change', saveViewState);
+showPlayersInput.addEventListener('change', () => {
+  updateEntityVisibility();
+  refreshPlayers();
+  saveViewState();
+});
 waterModeInput.addEventListener('change', () => {
   applyWaterMode();
   saveViewState();
@@ -680,6 +714,7 @@ loadButton.addEventListener('click', () => {
 });
 
 applyInitialParams();
+exposeDebugState();
 resize();
 animate();
 await loadWorlds();

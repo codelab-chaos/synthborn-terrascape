@@ -2,7 +2,9 @@ package com.codelabchaos.synthworldview.terrain;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class TerrainMesher {
     private TerrainMesher() {
@@ -28,33 +30,57 @@ public final class TerrainMesher {
             addSideIfLower(builder, snapshot, column, 1, 0);
         }
         if (includeDetail) {
-            for (TerrainDetail overland : snapshot.details()) {
-                addDetail(detail, overland);
-            }
+            addDetails(detail, snapshot.details());
         }
         return new TerrainMesh(opaque.toPart(), water.toPart(), detail.toPart());
     }
 
-    private static void addDetail(MeshBuilder builder, TerrainDetail detail) {
-        if (detail.kind() == TerrainDetail.Kind.TRUNK) {
-            float x = detail.localX() + 0.5f;
-            float z = detail.localZ() + 0.5f;
-            addBox(builder, x - 0.18f, detail.y(), z - 0.18f, x + 0.18f, detail.y() + 3.2f, z + 0.18f, detail.rgb());
-            return;
+    private static void addDetails(MeshBuilder builder, TerrainDetail[] details) {
+        Map<DetailKey, TerrainDetail> canopy = new HashMap<>();
+        for (TerrainDetail detail : details) {
+            if (detail.kind() == TerrainDetail.Kind.CANOPY_VOXEL) {
+                canopy.put(new DetailKey(detail.localX(), detail.y(), detail.localZ()), detail);
+            }
         }
-
-        float x = detail.localX() + 0.5f;
-        float z = detail.localZ() + 0.5f;
-        addBox(builder, x - 1.7f, detail.y() - 0.4f, z - 1.7f, x + 1.7f, detail.y() + 2.4f, z + 1.7f, detail.rgb());
+        for (TerrainDetail detail : canopy.values()) {
+            addExposedDetail(builder, detail, canopy);
+        }
     }
 
-    private static void addBox(MeshBuilder builder, float x0, float y0, float z0, float x1, float y1, float z1, int rgb) {
-        builder.addQuad(x0, y1, z0, x0, y1, z1, x1, y1, z1, x1, y1, z0, 0, 1, 0, rgb);
-        builder.addQuad(x0, y0, z1, x0, y0, z0, x1, y0, z0, x1, y0, z1, 0, -1, 0, darken(rgb));
-        builder.addQuad(x1, y0, z1, x1, y1, z1, x1, y1, z0, x1, y0, z0, 1, 0, 0, darken(rgb));
-        builder.addQuad(x0, y0, z0, x0, y1, z0, x0, y1, z1, x0, y0, z1, -1, 0, 0, darken(rgb));
-        builder.addQuad(x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1, 0, 0, 1, darken(rgb));
-        builder.addQuad(x1, y0, z0, x0, y0, z0, x0, y1, z0, x1, y1, z0, 0, 0, -1, darken(rgb));
+    private static void addExposedDetail(MeshBuilder builder, TerrainDetail detail, Map<DetailKey, TerrainDetail> canopy) {
+        int x = detail.localX();
+        int y = detail.y();
+        int z = detail.localZ();
+        float x0 = x;
+        float x1 = x + 1.0f;
+        float y0 = y;
+        float y1 = y + 1.0f;
+        float z0 = z;
+        float z1 = z + 1.0f;
+        int rgb = detail.rgb();
+
+        if (!hasDetail(canopy, x, y + 1, z)) {
+            builder.addQuad(x0, y1, z0, x0, y1, z1, x1, y1, z1, x1, y1, z0, 0, 1, 0, rgb);
+        }
+        if (!hasDetail(canopy, x, y - 1, z)) {
+            builder.addQuad(x0, y0, z1, x0, y0, z0, x1, y0, z0, x1, y0, z1, 0, -1, 0, darken(rgb));
+        }
+        if (!hasDetail(canopy, x + 1, y, z)) {
+            builder.addQuad(x1, y0, z1, x1, y1, z1, x1, y1, z0, x1, y0, z0, 1, 0, 0, darken(rgb));
+        }
+        if (!hasDetail(canopy, x - 1, y, z)) {
+            builder.addQuad(x0, y0, z0, x0, y1, z0, x0, y1, z1, x0, y0, z1, -1, 0, 0, darken(rgb));
+        }
+        if (!hasDetail(canopy, x, y, z + 1)) {
+            builder.addQuad(x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1, 0, 0, 1, darken(rgb));
+        }
+        if (!hasDetail(canopy, x, y, z - 1)) {
+            builder.addQuad(x1, y0, z0, x0, y0, z0, x0, y1, z0, x1, y1, z0, 0, 0, -1, darken(rgb));
+        }
+    }
+
+    private static boolean hasDetail(Map<DetailKey, TerrainDetail> canopy, int x, int y, int z) {
+        return canopy.containsKey(new DetailKey(x, y, z));
     }
 
     private static void addTop(MeshBuilder builder, TerrainColumn column) {
@@ -102,6 +128,9 @@ public final class TerrainMesher {
         int g = (int) (((rgb >>> 8) & 0xff) * 0.72f);
         int b = (int) ((rgb & 0xff) * 0.72f);
         return (r << 16) | (g << 8) | b;
+    }
+
+    private record DetailKey(int x, int y, int z) {
     }
 
     private static final class MeshBuilder {

@@ -5,6 +5,7 @@ export const chunkZInput = document.querySelector('#chunk-z');
 export const radiusInput = document.querySelector('#radius');
 export const autoStreamInput = document.querySelector('#auto-stream');
 export const debugBoundsInput = document.querySelector('#debug-bounds');
+export const showPlayersInput = document.querySelector('#show-players');
 export const experimentalDetailsStateEl = document.querySelector('#experimental-details-state');
 export const waterModeInput = document.querySelector('#water-mode');
 export const loadButton = document.querySelector('#load');

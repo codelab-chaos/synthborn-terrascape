@@ -8,7 +8,6 @@ public record TerrainDetail(
         int rgb
 ) {
     public enum Kind {
-        TRUNK,
-        FOLIAGE
+        CANOPY_VOXEL
     }
 }
