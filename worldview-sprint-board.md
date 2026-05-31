@@ -1000,7 +1000,7 @@ Candidate stories:
 
 ### Epic 9: Region LOD
 
-Status: Parked
+Status: Experimental
 
 Candidate stories:
 
@@ -1008,6 +1008,46 @@ Candidate stories:
 - Request LOD by camera distance.
 - Avoid popping through hysteresis.
 - Cache region meshes separately from chunk meshes.
+
+#### Story 9.1 - Add First Low-Detail Horizon Ring
+
+Status: Parked / Disabled
+
+Acceptance:
+
+- Server makes `lod=1` meaningfully lower resolution than `lod=0`, but serving LOD is
+  currently disabled.
+- `lod=1` terrain is cached separately from full-resolution terrain.
+- Browser keeps the selected visible radius at `lod=0`; the LOD toggle is disabled
+  until the retain/load policy stops visible chunk churn.
+- Existing small-radius tests remain bounded.
+
+Validation:
+
+- `TerrainMesher.mesh(snapshot, includeDetails, lod)` now emits `lod=1` chunks from
+  4x4 sampled terrain cells and omits experimental detail voxels for distant chunks.
+- Terrain cache format bumped to `v10`, with cache paths still partitioned by
+  `lod-<n>` and experimental detail mode.
+- Browser `chunkId` includes `lod`, allowing high-detail and low-detail versions to
+  coexist safely while the retain set decides which one is active.
+- Client initially loaded normal radius chunks as `lod=0` and added a `lod=1` ring two
+  chunks beyond the high-detail radius. Field testing showed the mixed retain set caused
+  visible load/unload churn while moving, so the `LOD` viewer toggle now defaults off
+  and has since been disabled entirely for normal server sessions.
+- `WorldviewWebServer` returns `410 lod_disabled` for `lod > 0` terrain requests while
+  the experiment is parked.
+- Live validation on `synth-worldview-mvp`: `/api/terrain/default/0/-7/3.glb` returned
+  `34296` vertices / `17148` triangles, while `/api/terrain/default/1/-7/3.glb`
+  returned `568` vertices / `284` triangles.
+- Playwright validation asserts `lod=1` returns fewer vertices than `lod=0`.
+
+Follow-up acceptance before re-enabling:
+
+- LOD loads must use hysteresis or a separate larger retain radius so moving the camera
+  does not unload/reload the whole horizon band every streamed center update.
+- Horizon requests should be throttled or idle-loaded behind the high-detail grid.
+- The viewer now has a manual LOD toggle; before making it default-on, add clear
+  metrics showing LOD work is not harming interaction smoothness.
 
 ### Epic 10: Spawn Discovery Overlays
 

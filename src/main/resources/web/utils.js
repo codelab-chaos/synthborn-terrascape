@@ -1,5 +1,5 @@
-export function chunkId(world, chunkX, chunkZ) {
-  return `${world}:${chunkX}:${chunkZ}`;
+export function chunkId(world, chunkX, chunkZ, lod = 0) {
+  return `${world}:${lod}:${chunkX}:${chunkZ}`;
 }
 
 export function centerId(world, chunkX, chunkZ) {

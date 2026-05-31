@@ -46,10 +46,6 @@ The visible-radius field does not impose a client-side maximum while the project
 stress-test mode. Operators can intentionally enter large values to test loading,
 rendering, cache growth, and failure behavior.
 
-### [ ] Worldview Streams LOD Terrain
-
-The server can generate lower-detail terrain for distant chunks or regions.
-
 ### [ ] Worldview Unloads Distant Chunks In The Browser
 
 The client disposes geometry/material resources for chunks outside the retain radius.
@@ -173,6 +169,15 @@ The browser requests missing terrain chunks through capped `POST /api/terrain/ba
 calls instead of one HTTP request per chunk. Each batch returns per-chunk success or
 failure data so failed chunks do not poison the whole batch.
 
+### [x] Worldview Can Generate Low-Detail Terrain On Demand
+
+The server has an experimental `lod=1` terrain generator, but LOD serving is disabled
+for now. `lod > 0` terrain requests return `410 lod_disabled`, and the viewer disables
+the `LOD` toggle so normal sessions cannot trigger the churny horizon loader. Prior
+validation on chunk `-7,3` showed the parked generator reduced `lod=0` from `34296`
+vertices to `568` vertices at `lod=1`; re-enable only after the retain/load policy is
+fixed.
+
 ### [x] Worldview Caches Generated Terrain In Memory
 
 Recent GLB terrain chunks are served from a bounded access-order memory cache. The cache
@@ -214,6 +219,12 @@ disposal path as the terrain mesh.
 The HUD shows the current controls target X/Y/Z, target chunk X/Z, and camera X/Y/Z.
 The readout updates every frame and uses the same target chunk math as terrain
 streaming.
+
+### [x] Viewer Can See The World Day/Night Cycle
+
+The HUD includes a compact day/night ribbon driven by `/api/time/{world}`. The ribbon
+scrolls the day/night gradient under a fixed marker and shows faint reference ticks for
+midnight, dawn, noon, and dusk.
 
 ### [x] Viewer Restores Camera Position After Page Reload
 
