@@ -14,7 +14,7 @@ import {
   experimentalDetailsStateEl,
   hudEl,
   panelToggle,
-  lodHorizonInput,
+  mapTilesInput,
   metricLoadedEl,
   metricMeshesEl,
   metricResourcesEl,
@@ -51,6 +51,10 @@ import {
   updateTreeShadeObject,
 } from './lighting.js';
 import { createFpsCounter, positionFpsCounter, updateFpsCounter } from './fps-counter.js';
+import {
+  mapBackdropStats,
+  updateMapBackdrop,
+} from './map-backdrop.js';
 import { createPlayerMarker, disposeObject } from './players.js';
 import {
   createPostProcessing,
@@ -68,11 +72,8 @@ const GRID_LINE_COLOR = 0x343b42;
 const EMPTY_GRID_SIZE = 1024;
 const EMPTY_GRID_DIVISIONS = 128;
 const EMPTY_GRID_CHUNK_SNAP = 32;
-const EMPTY_GRID_TARGET_OFFSET_Y = 72;
+const EMPTY_GRID_Y = 96;
 const TERRAIN_BATCH_SIZE = 8;
-const LOD_SERVER_ENABLED = false;
-const LOD_MIN_RADIUS = 10;
-const LOD_OUTER_RADIUS_BONUS = 2;
 const DEFAULT_PLAYER_UPDATE_RATE_MS = 250;
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -82,9 +83,9 @@ renderer.setClearColor(SKY_COLOR, 1);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY_COLOR);
-scene.fog = new THREE.Fog(SKY_COLOR, 180, 620);
+scene.fog = new THREE.Fog(SKY_COLOR, 620, 4200);
 
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 2000);
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 6000);
 camera.position.set(88, 188, 88);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -92,9 +93,10 @@ controls.target.set(16, 122, 16);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.minDistance = 18;
-controls.maxDistance = 420;
-controls.maxPolarAngle = Math.PI * 0.47;
-controls.screenSpacePanning = false;
+controls.maxDistance = 1400;
+controls.minPolarAngle = 0.01;
+controls.maxPolarAngle = Math.PI - 0.01;
+controls.screenSpacePanning = true;
 controls.mouseButtons = {
   LEFT: THREE.MOUSE.ROTATE,
   MIDDLE: THREE.MOUSE.PAN,
@@ -108,15 +110,15 @@ controls.touches = {
 const lightingRig = createLightingRig(scene, SKY_COLOR);
 const postProcessing = createPostProcessing(renderer, scene, camera);
 const fpsCounter = createFpsCounter(scene, camera, renderer);
-lodHorizonInput.disabled = !LOD_SERVER_ENABLED;
-lodHorizonInput.checked = false;
 
 const grid = new THREE.GridHelper(EMPTY_GRID_SIZE, EMPTY_GRID_DIVISIONS, GRID_AXIS_COLOR, GRID_LINE_COLOR);
 for (const material of Array.isArray(grid.material) ? grid.material : [grid.material]) {
   material.transparent = true;
   material.opacity = 0.42;
+  material.depthTest = true;
   material.depthWrite = false;
 }
+grid.renderOrder = -50;
 scene.add(grid);
 
 const loader = new GLTFLoader();
@@ -175,9 +177,9 @@ function updateMetrics() {
   const center = activeCenterId ? activeCenterId.split(':').slice(1).join(', ') : 'pending';
   const resources = collectResourceStats();
   const rendererMemory = renderer.info.memory;
-  const lodChunks = Array.from(loadedChunks.values()).filter((entry) => entry.lod > 0).length;
+  const mapBackdrop = mapBackdropStats();
   metricLoadedEl.textContent = `${loaded} chunk${loaded === 1 ? '' : 's'}`
-    + (lodChunks > 0 ? ` (${lodChunks} lod)` : '');
+    + (mapBackdrop.loaded > 0 ? ` · map backdrop ${mapBackdrop.chunks}x${mapBackdrop.chunks}` : '');
   metricMeshesEl.textContent = `${resources.meshes}`;
   metricResourcesEl.textContent = `${resources.geometries} geo · ${resources.materials} mat · ${resources.textures} tex`;
   metricGpuEl.textContent = `${rendererMemory.geometries} geo · ${rendererMemory.textures} tex`;
@@ -216,9 +218,7 @@ function applyInitialParams() {
   applyBooleanParam('players', showPlayersInput);
   applyBooleanParam('sun', sunLightingInput);
   applyBooleanParam('shade', treeShadeInput);
-  if (LOD_SERVER_ENABLED) {
-    applyBooleanParam('lod', lodHorizonInput);
-  }
+  applyBooleanParam('mapTiles', mapTilesInput);
   applyFloatParam('shadeSize', shadeSizeInput, shadeSizeValueInput);
   applyFloatParam('shadeDarkness', shadeDarknessInput, shadeDarknessValueInput);
   applySelectParam('water', waterModeInput);
@@ -238,9 +238,6 @@ function applyStoredInputs() {
   if (typeof storedViewState.players === 'boolean') showPlayersInput.checked = storedViewState.players;
   if (typeof storedViewState.sun === 'boolean') sunLightingInput.checked = storedViewState.sun;
   if (typeof storedViewState.shade === 'boolean') treeShadeInput.checked = storedViewState.shade;
-  if (LOD_SERVER_ENABLED && typeof storedViewState.lod === 'boolean') {
-    lodHorizonInput.checked = storedViewState.lod;
-  }
   setPairedControlValue(shadeSizeInput, shadeSizeValueInput, storedViewState.shadeSize);
   setPairedControlValue(shadeDarknessInput, shadeDarknessValueInput, storedViewState.shadeDarkness);
   if (typeof storedViewState.water === 'string') {
@@ -380,8 +377,7 @@ async function loadGrid(options = {}) {
 
   for (let i = 0; i < missing.length;) {
     if (generation !== loadGeneration) return;
-    const batchLod = missing[i].lod ?? 0;
-    const batch = missing.slice(i, i + TERRAIN_BATCH_SIZE).filter((key) => (key.lod ?? 0) === batchLod);
+    const batch = missing.slice(i, i + TERRAIN_BATCH_SIZE);
     i += batch.length;
     const results = await loadChunkBatch(world, batch, generation);
     for (const result of results) {
@@ -397,30 +393,29 @@ async function loadGrid(options = {}) {
 
   activeCenterId = centerKey;
   requestedCenterId = null;
+  updateMapTileLayer(centerX, centerZ, radius);
   updateMetrics();
   setStatus(failed === 0
     ? `Loaded ${needed.length} chunks around ${centerX}, ${centerZ}`
     : `Loaded ${needed.length - failed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
 }
 
-async function loadChunk(world, chunkX, chunkZ, lod, generation) {
-  const url = `/api/terrain/${encodeURIComponent(world)}/${lod}/${chunkX}/${chunkZ}.glb`;
+async function loadChunk(world, chunkX, chunkZ, generation) {
+  const url = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
   const gltf = await loadGltfWithRetry(url);
   if (generation !== loadGeneration) return false;
-  addChunkObject(world, chunkX, chunkZ, lod, gltf.scene);
+  addChunkObject(world, chunkX, chunkZ, gltf.scene);
   return true;
 }
 
 async function loadChunkBatch(world, keys, generation) {
   if (keys.length === 0) return [];
-  const lod = keys[0]?.lod ?? 0;
   try {
     const response = await fetch('/api/terrain/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           world,
-          lod,
           chunks: keys.map((key) => ({ chunkX: key.chunkX, chunkZ: key.chunkZ })),
         }),
     });
@@ -435,7 +430,7 @@ async function loadChunkBatch(world, keys, generation) {
       if (chunk.ok && chunk.base64) {
         const gltf = await parseGltfBytes(base64ToArrayBuffer(chunk.base64));
         if (generation !== loadGeneration) return results;
-        addChunkObject(world, chunk.chunkX, chunk.chunkZ, lod, gltf.scene);
+        addChunkObject(world, chunk.chunkX, chunk.chunkZ, gltf.scene);
         results.push({ ok: true, chunkX: chunk.chunkX, chunkZ: chunk.chunkZ });
       } else {
         console.warn(`Failed to load chunk ${chunk.chunkX},${chunk.chunkZ}: ${chunk.error ?? 'unknown error'}`);
@@ -448,7 +443,7 @@ async function loadChunkBatch(world, keys, generation) {
     return await Promise.all(keys.map(async (key) => {
       try {
         return {
-          ok: await loadChunk(world, key.chunkX, key.chunkZ, key.lod ?? 0, generation),
+          ok: await loadChunk(world, key.chunkX, key.chunkZ, generation),
           chunkX: key.chunkX,
           chunkZ: key.chunkZ,
         };
@@ -460,9 +455,8 @@ async function loadChunkBatch(world, keys, generation) {
   }
 }
 
-function addChunkObject(world, chunkX, chunkZ, lod, object) {
+function addChunkObject(world, chunkX, chunkZ, object) {
   object.position.set(chunkX * 32, 0, chunkZ * 32);
-  object.userData.lod = lod;
   prepareWaterMaterials(object);
   applyWaterModeToObject(object, waterModeInput.value);
   const lightingOptions = currentLightingOptions();
@@ -475,7 +469,7 @@ function addChunkObject(world, chunkX, chunkZ, lod, object) {
   debug.visible = debugBoundsInput.checked;
   object.add(debug);
   scene.add(object);
-  loadedChunks.set(chunkId(world, chunkX, chunkZ, lod), { world, chunkX, chunkZ, lod, object, debug, shade });
+  loadedChunks.set(chunkId(world, chunkX, chunkZ), { world, chunkX, chunkZ, object, debug, shade });
 }
 
 async function parseGltfBytes(arrayBuffer) {
@@ -497,9 +491,6 @@ async function loadGltfWithRetry(url) {
 
 function chunkKeys(centerX, centerZ, radius) {
   const keys = [];
-  const outerRadius = LOD_SERVER_ENABLED && lodHorizonInput.checked && radius >= LOD_MIN_RADIUS
-    ? radius + LOD_OUTER_RADIUS_BONUS
-    : radius;
   for (let dz = -radius; dz <= radius; dz++) {
     for (let dx = -radius; dx <= radius; dx++) {
       const chunkX = centerX + dx;
@@ -507,29 +498,12 @@ function chunkKeys(centerX, centerZ, radius) {
       keys.push({
         chunkX,
         chunkZ,
-        lod: 0,
         distance: Math.abs(dx) + Math.abs(dz),
-        id: chunkId(worldSelect.value, chunkX, chunkZ, 0),
+        id: chunkId(worldSelect.value, chunkX, chunkZ),
       });
     }
   }
-  for (let dz = -outerRadius; dz <= outerRadius; dz++) {
-    for (let dx = -outerRadius; dx <= outerRadius; dx++) {
-      if (Math.abs(dx) <= radius && Math.abs(dz) <= radius) {
-        continue;
-      }
-      const chunkX = centerX + dx;
-      const chunkZ = centerZ + dz;
-      keys.push({
-        chunkX,
-        chunkZ,
-        lod: 1,
-        distance: Math.abs(dx) + Math.abs(dz),
-        id: chunkId(worldSelect.value, chunkX, chunkZ, 1),
-      });
-    }
-  }
-  return keys.sort((a, b) => a.lod - b.lod || a.distance - b.distance || a.chunkZ - b.chunkZ || a.chunkX - b.chunkX);
+  return keys.sort((a, b) => a.distance - b.distance || a.chunkZ - b.chunkZ || a.chunkX - b.chunkX);
 }
 
 function retainOnly(world, needed) {
@@ -612,6 +586,18 @@ function applyWaterMode() {
   for (const entry of loadedChunks.values()) {
     applyWaterModeToObject(entry.object, waterModeInput.value);
   }
+}
+
+function updateMapTileLayer(centerX = Number.parseInt(chunkXInput.value, 10), centerZ = Number.parseInt(chunkZInput.value, 10)) {
+  grid.visible = !mapTilesInput.checked;
+  updateMapBackdrop(scene, renderer, {
+    enabled: mapTilesInput.checked,
+    world: worldSelect.value,
+    centerX,
+    centerZ,
+    meshRadius: Math.max(0, numberOr(Number.parseInt(radiusInput.value, 10), 0)),
+  });
+  updateMetrics();
 }
 
 function applyLighting() {
@@ -1019,7 +1005,7 @@ function saveViewState() {
     players: showPlayersInput.checked,
     sun: sunLightingInput.checked,
     shade: treeShadeInput.checked,
-    lod: LOD_SERVER_ENABLED && lodHorizonInput.checked,
+    mapTiles: mapTilesInput.checked,
     shadeSize: Number.parseFloat(shadeSizeValueInput.value),
     shadeDarkness: Number.parseFloat(shadeDarknessValueInput.value),
     water: waterModeInput.value,
@@ -1059,7 +1045,7 @@ function updateCoordinates() {
 function updateEmptyGrid() {
   grid.position.set(
     Math.round(controls.target.x / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP,
-    Math.max(0, controls.target.y - EMPTY_GRID_TARGET_OFFSET_Y),
+    EMPTY_GRID_Y,
     Math.round(controls.target.z / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP);
 }
 
@@ -1112,6 +1098,8 @@ function handleKeyboardNavigation(deltaSeconds) {
   if (pressedKeys.has('KeyS')) move.sub(forward);
   if (pressedKeys.has('KeyA') || pressedKeys.has('KeyQ')) move.sub(right);
   if (pressedKeys.has('KeyD') || pressedKeys.has('KeyE')) move.add(right);
+  if (pressedKeys.has('Space') || pressedKeys.has('KeyR') || pressedKeys.has('PageUp')) move.y += 1;
+  if (pressedKeys.has('KeyC') || pressedKeys.has('PageDown')) move.y -= 1;
 
   if (move.lengthSq() === 0) return;
   move.normalize();
@@ -1208,7 +1196,21 @@ function animate() {
 window.addEventListener('resize', resize);
 window.addEventListener('keydown', (event) => {
   if (isTypingInHud()) return;
-  if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ShiftLeft', 'ShiftRight'].includes(event.code)) {
+  if ([
+    'KeyW',
+    'KeyA',
+    'KeyS',
+    'KeyD',
+    'KeyQ',
+    'KeyE',
+    'KeyR',
+    'KeyC',
+    'Space',
+    'PageUp',
+    'PageDown',
+    'ShiftLeft',
+    'ShiftRight',
+  ].includes(event.code)) {
     event.preventDefault();
     pressedKeys.add(event.code);
   }
@@ -1243,8 +1245,8 @@ for (const input of [sunLightingInput, treeShadeInput]) {
     saveViewState();
   });
 }
-lodHorizonInput.addEventListener('change', () => {
-  scheduleControlGridLoad();
+mapTilesInput.addEventListener('change', () => {
+  updateMapTileLayer();
   saveViewState();
 });
 syncPairedControl(shadeSizeInput, shadeSizeValueInput);

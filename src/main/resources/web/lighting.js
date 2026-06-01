@@ -94,8 +94,8 @@ export function applyLightingEnvironment(scene, renderer, rig, options) {
   scene.background = options.sun ? skyHorizon.clone().lerp(skyTop, 0.38) : new THREE.Color(rig.skyColor);
   scene.fog = new THREE.Fog(
     options.sun ? fogColor : new THREE.Color(rig.skyColor),
-    THREE.MathUtils.lerp(620, 860, daylight),
-    THREE.MathUtils.lerp(1600, 2200, daylight));
+    THREE.MathUtils.lerp(1100, 1500, daylight),
+    THREE.MathUtils.lerp(3600, 5200, daylight));
   renderer.setClearColor(scene.background, 1);
 }
 

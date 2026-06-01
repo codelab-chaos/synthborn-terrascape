@@ -15,6 +15,7 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.math.vector.Rotation3f;
 import com.hypixel.hytale.math.vector.Transform;
+import com.hypixel.hytale.protocol.packets.worldmap.MapImage;
 import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.entity.EntityUtils;
 import com.hypixel.hytale.server.core.entity.entities.BlockEntity;
@@ -29,6 +30,7 @@ import com.hypixel.hytale.server.core.modules.time.WorldTimeResource;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.worldmap.WorldMapManager;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.sun.net.httpserver.HttpExchange;
@@ -37,6 +39,7 @@ import org.joml.Vector3d;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -68,19 +71,20 @@ import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
 public final class WorldviewWebServer {
-    private static final String FORMAT_VERSION = "v10";
-    private static final boolean LOD_ENABLED = false;
+    private static final String FORMAT_VERSION = "v11";
     private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
     private static final int MAX_BATCH_CHUNKS = 8;
     private static final int MAX_CONCURRENT_GENERATIONS = 1;
     private static final int MAX_MEMORY_CACHE_ENTRIES = 128;
     private static final long MAX_MEMORY_CACHE_BYTES = 128L * 1024L * 1024L;
+    private static final int MAP_REGION_TILE_SIZE = 64;
+    private static final int MAX_MAP_REGION_RADIUS = 18;
+    private static final Duration MAP_REGION_TIMEOUT = Duration.ofSeconds(20);
     private static final int MAX_MOB_SNAPSHOTS = 256;
     private static final double MOB_RADAR_RADIUS = 500.0d;
     private static final double MOB_RADAR_RADIUS_SQ = MOB_RADAR_RADIUS * MOB_RADAR_RADIUS;
     private static final Pattern WORLD_PATTERN = Pattern.compile("\"world\"\\s*:\\s*\"([^\"]+)\"");
-    private static final Pattern LOD_PATTERN = Pattern.compile("\"lod\"\\s*:\\s*(-?\\d+)");
     private static final Pattern CHUNK_OBJECT_PATTERN = Pattern.compile("\\{[^{}]*}");
     private static final Pattern CHUNK_X_PATTERN = Pattern.compile("\"chunkX\"\\s*:\\s*(-?\\d+)");
     private static final Pattern CHUNK_Z_PATTERN = Pattern.compile("\"chunkZ\"\\s*:\\s*(-?\\d+)");
@@ -116,6 +120,7 @@ public final class WorldviewWebServer {
         this.server.createContext("/api/players", this::handlePlayers);
         this.server.createContext("/api/time", this::handleTime);
         this.server.createContext("/api/mobs", this::handleMobs);
+        this.server.createContext("/api/mapregion", this::handleMapRegion);
         this.server.createContext("/api/terrain", this::handleTerrain);
         this.server.createContext("/", this::handleStatic);
         this.server.setExecutor(Executors.newFixedThreadPool(4, runnable -> {
@@ -288,6 +293,43 @@ public final class WorldviewWebServer {
         writeJson(exchange, 410, "{\"ok\":false,\"error\":\"mob_feed_disabled\"}");
     }
 
+    private void handleMapRegion(@Nonnull HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+
+        MapRegionRequest request = parseMapRegionRequest(exchange.getRequestURI().getPath());
+        if (request == null) {
+            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/mapregion/{world}/{centerX}/{centerZ}/{radius}.png\"}");
+            return;
+        }
+
+        World world = findWorld(request.worldName());
+        if (world == null) {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"unknown_world\"}");
+            return;
+        }
+
+        try {
+            byte[] bytes = generateMapRegion(world, request).get(MAP_REGION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            if (bytes.length == 0) {
+                writeJson(exchange, 500, "{\"ok\":false,\"error\":\"map_region_empty\"}");
+                return;
+            }
+            exchange.getResponseHeaders().set("Content-Type", "image/png");
+            exchange.getResponseHeaders().set("Cache-Control", "no-cache");
+            addCors(exchange);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (OutputStream outputStream = exchange.getResponseBody()) {
+                outputStream.write(bytes);
+            }
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Map region request failed: " + request);
+            writeJson(exchange, 500, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+        }
+    }
+
     private void handleTerrain(@Nonnull HttpExchange exchange) throws IOException {
         if ("/api/terrain/batch".equals(exchange.getRequestURI().getPath())) {
             handleTerrainBatch(exchange);
@@ -301,11 +343,7 @@ public final class WorldviewWebServer {
 
         TerrainRequest request = parseTerrainRequest(exchange.getRequestURI().getPath(), experimentalDetailsEnabled);
         if (request == null) {
-            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/terrain/{world}/{lod}/{chunkX}/{chunkZ}.glb\"}");
-            return;
-        }
-        if (!LOD_ENABLED && request.lod() > 0) {
-            writeJson(exchange, 410, "{\"ok\":false,\"error\":\"lod_disabled\"}");
+            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/terrain/{world}/{chunkX}/{chunkZ}.glb\"}");
             return;
         }
 
@@ -350,11 +388,6 @@ public final class WorldviewWebServer {
             writeJson(exchange, 400, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
             return;
         }
-        if (!LOD_ENABLED && request.lod() > 0) {
-            writeJson(exchange, 410, "{\"ok\":false,\"error\":\"lod_disabled\"}");
-            return;
-        }
-
         World world = findWorld(request.worldName());
         if (world == null) {
             writeJson(exchange, 404, "{\"ok\":false,\"error\":\"unknown_world\"}");
@@ -435,7 +468,7 @@ public final class WorldviewWebServer {
                 TerrainSnapshot snapshot = TerrainSampler.sample(world, request.chunkX(), request.chunkZ());
                 CompletableFuture.runAsync(() -> {
                     try {
-                        TerrainMesh mesh = TerrainMesher.mesh(snapshot, request.includeDetails(), request.lod());
+                        TerrainMesh mesh = TerrainMesher.mesh(snapshot, request.includeDetails());
                         generatedChunks.incrementAndGet();
                         future.complete(TerrainResult.generated(snapshot, mesh, GltfWriter.writeGlb(mesh)));
                     } catch (Exception e) {
@@ -474,7 +507,6 @@ public final class WorldviewWebServer {
             try {
                 TerrainRequest terrainRequest = new TerrainRequest(
                         request.worldName(),
-                        request.lod(),
                         chunk.chunkX(),
                         chunk.chunkZ(),
                         experimentalDetailsEnabled);
@@ -488,6 +520,49 @@ public final class WorldviewWebServer {
             }
         }
         return results;
+    }
+
+    private CompletableFuture<byte[]> generateMapRegion(@Nonnull World world, @Nonnull MapRegionRequest request) {
+        WorldMapManager mapManager = world.getWorldMapManager();
+        if (mapManager == null || !mapManager.isWorldMapEnabled()) {
+            return CompletableFuture.completedFuture(new byte[0]);
+        }
+
+        int chunkCount = request.radius() * 2 + 1;
+        int outputSize = chunkCount * MAP_REGION_TILE_SIZE;
+        BufferedImage composite = new BufferedImage(outputSize, outputSize, BufferedImage.TYPE_INT_RGB);
+        List<CompletableFuture<Void>> futures = new ArrayList<>(chunkCount * chunkCount);
+        int minChunkX = request.centerX() - request.radius();
+        int minChunkZ = request.centerZ() - request.radius();
+
+        for (int dz = 0; dz < chunkCount; dz++) {
+            for (int dx = 0; dx < chunkCount; dx++) {
+                int chunkX = minChunkX + dx;
+                int chunkZ = minChunkZ + dz;
+                int outputX = dx * MAP_REGION_TILE_SIZE;
+                int outputY = dz * MAP_REGION_TILE_SIZE;
+                futures.add(mapManager.getImageAsync(chunkX, chunkZ)
+                        .thenAccept(mapImage -> drawMapRegionTile(composite, mapImage, outputX, outputY)));
+            }
+        }
+
+        return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
+                .thenApply(ignored -> MapTilePngEncoder.encode(composite))
+                .exceptionally(e -> {
+                    plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to generate map region " + request);
+                    return new byte[0];
+                });
+    }
+
+    private static void drawMapRegionTile(@Nonnull BufferedImage composite, @Nullable MapImage mapImage,
+                                          int outputX, int outputY) {
+        if (mapImage == null || mapImage.palette == null || mapImage.packedIndices == null
+                || mapImage.width <= 0 || mapImage.height <= 0) {
+            return;
+        }
+        synchronized (composite) {
+            MapTilePngEncoder.drawMapImage(composite, mapImage, outputX, outputY, MAP_REGION_TILE_SIZE);
+        }
     }
 
     private void handleStatic(@Nonnull HttpExchange exchange) throws IOException {
@@ -525,7 +600,7 @@ public final class WorldviewWebServer {
                 .resolve("terrain")
                 .resolve(FORMAT_VERSION)
                 .resolve(safeWorld)
-                .resolve("lod-" + request.lod() + (request.includeDetails() ? "-details" : ""))
+                .resolve(request.includeDetails() ? "surface-details" : "surface")
                 .resolve(request.chunkX() + "_" + request.chunkZ() + ".glb");
     }
 
@@ -634,21 +709,41 @@ public final class WorldviewWebServer {
             return null;
         }
         String[] parts = path.substring(prefix.length()).split("/");
-        if (parts.length != 4 || !parts[3].endsWith(".glb")) {
+        if (parts.length != 3 || !parts[2].endsWith(".glb")) {
             return null;
         }
-        Integer lod = parseInt(parts[1]);
-        Integer chunkX = parseInt(parts[2]);
-        Integer chunkZ = parseInt(parts[3].substring(0, parts[3].length() - 4));
-        if (lod == null || chunkX == null || chunkZ == null) {
+        Integer chunkX = parseInt(parts[1]);
+        Integer chunkZ = parseInt(parts[2].substring(0, parts[2].length() - 4));
+        if (chunkX == null || chunkZ == null) {
             return null;
         }
-        return new TerrainRequest(decode(parts[0]), lod, chunkX, chunkZ, includeDetails);
+        return new TerrainRequest(decode(parts[0]), chunkX, chunkZ, includeDetails);
+    }
+
+    private static MapRegionRequest parseMapRegionRequest(@Nonnull String path) {
+        String prefix = "/api/mapregion/";
+        if (!path.startsWith(prefix) || !path.endsWith(".png")) {
+            return null;
+        }
+        String[] parts = path.substring(prefix.length(), path.length() - ".png".length()).split("/");
+        if (parts.length != 4) {
+            return null;
+        }
+        Integer centerX = parseInt(parts[1]);
+        Integer centerZ = parseInt(parts[2]);
+        Integer radius = parseInt(parts[3]);
+        if (centerX == null || centerZ == null || radius == null) {
+            return null;
+        }
+        return new MapRegionRequest(
+                decode(parts[0]),
+                centerX,
+                centerZ,
+                Math.max(0, Math.min(MAX_MAP_REGION_RADIUS, radius)));
     }
 
     private static BatchTerrainRequest parseBatchTerrainRequest(@Nonnull String body) {
         String worldName = findString(WORLD_PATTERN, body, "world");
-        Integer lod = findInt(LOD_PATTERN, body, "lod");
         List<ChunkCoord> chunks = new ArrayList<>();
         Matcher matcher = CHUNK_OBJECT_PATTERN.matcher(body);
         while (matcher.find()) {
@@ -666,7 +761,7 @@ public final class WorldviewWebServer {
         if (chunks.isEmpty()) {
             throw new IllegalArgumentException("chunks_required");
         }
-        return new BatchTerrainRequest(worldName, lod, chunks);
+        return new BatchTerrainRequest(worldName, chunks);
     }
 
     private static World findWorld(@Nonnull String worldName) {
@@ -1137,13 +1232,16 @@ public final class WorldviewWebServer {
     public record MemoryCacheStats(int entries, long bytes) {
     }
 
-    private record TerrainRequest(String worldName, int lod, int chunkX, int chunkZ, boolean includeDetails) {
+    private record TerrainRequest(String worldName, int chunkX, int chunkZ, boolean includeDetails) {
         String key() {
-            return worldName + ":" + lod + ":" + chunkX + ":" + chunkZ + ":" + includeDetails;
+            return worldName + ":" + chunkX + ":" + chunkZ + ":" + includeDetails;
         }
     }
 
-    private record BatchTerrainRequest(String worldName, int lod, List<ChunkCoord> chunks) {
+    private record MapRegionRequest(String worldName, int centerX, int centerZ, int radius) {
+    }
+
+    private record BatchTerrainRequest(String worldName, List<ChunkCoord> chunks) {
     }
 
     private record ChunkCoord(int chunkX, int chunkZ) {
