@@ -22,6 +22,7 @@ import {
   metricDisposedEl,
   metricCenterEl,
   playersEl,
+  playerUpdateRateInput,
   radiusInput,
   shadeDarknessInput,
   shadeDarknessValueInput,
@@ -72,6 +73,7 @@ const TERRAIN_BATCH_SIZE = 8;
 const LOD_SERVER_ENABLED = false;
 const LOD_MIN_RADIUS = 10;
 const LOD_OUTER_RADIUS_BONUS = 2;
+const DEFAULT_PLAYER_UPDATE_RATE_MS = 250;
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 const rendererPixelRatio = Math.min(window.devicePixelRatio, 2);
@@ -144,6 +146,15 @@ let hasStarted = false;
 let lastViewStateSave = 0;
 let worldTime = null;
 let timePollTimer = null;
+let viewPlayerUuid = null;
+let followPlayerUuid = null;
+const cameraModeStack = [];
+let isRefreshingPlayers = false;
+
+const tempPlayerTarget = new THREE.Vector3();
+const tempPlayerCamera = new THREE.Vector3();
+const tempPlayerLook = new THREE.Vector3();
+const tempFollowDelta = new THREE.Vector3();
 
 function currentLightingOptions() {
   return lightingOptionsFromInputs({
@@ -212,6 +223,7 @@ function applyInitialParams() {
   applyFloatParam('shadeDarkness', shadeDarknessInput, shadeDarknessValueInput);
   applySelectParam('water', waterModeInput);
   applySelectParam('shader', shaderEffectInput);
+  applySelectParam('playerRate', playerUpdateRateInput);
   setShaderEffect(postProcessing, shaderEffectInput.value);
   applyLighting();
 }
@@ -236,6 +248,9 @@ function applyStoredInputs() {
   }
   if (typeof storedViewState.shader === 'string') {
     applySelectValue(shaderEffectInput, storedViewState.shader);
+  }
+  if (typeof storedViewState.playerRate === 'string') {
+    applySelectValue(playerUpdateRateInput, storedViewState.playerRate);
   }
 }
 
@@ -722,9 +737,10 @@ async function refreshWorldTime() {
 }
 
 async function refreshPlayers() {
-  if (!worldSelect.value) {
+  if (!worldSelect.value || isRefreshingPlayers) {
     return;
   }
+  isRefreshingPlayers = true;
   try {
     const response = await fetch(`/api/players/${encodeURIComponent(worldSelect.value)}`);
     if (!response.ok) {
@@ -734,7 +750,19 @@ async function refreshPlayers() {
     updatePlayers(data.players ?? []);
   } catch (error) {
     console.warn('Player refresh failed', error);
+  } finally {
+    isRefreshingPlayers = false;
   }
+}
+
+function playerUpdateRateMs() {
+  const parsed = Number.parseInt(playerUpdateRateInput.value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PLAYER_UPDATE_RATE_MS;
+}
+
+function restartPlayerPolling() {
+  clearInterval(playerPollTimer);
+  playerPollTimer = setInterval(refreshPlayers, playerUpdateRateMs());
 }
 
 function updatePlayers(players) {
@@ -750,8 +778,13 @@ function updatePlayers(players) {
   for (const player of players) {
     seen.add(player.uuid);
     const marker = playerMarkers.get(player.uuid) ?? createPlayerMarker(player);
-    marker.position.set(player.x, player.y, player.z);
-    marker.rotation.y = player.yaw ?? 0;
+    if (!playerMarkers.has(player.uuid)) {
+      marker.position.set(player.x, player.y, player.z);
+      marker.rotation.y = player.yaw ?? 0;
+    }
+    marker.userData.targetPosition ??= new THREE.Vector3();
+    marker.userData.targetPosition.set(player.x, player.y, player.z);
+    marker.userData.targetYaw = player.yaw ?? marker.userData.targetYaw ?? 0;
     marker.visible = showPlayersInput.checked;
     marker.userData.player = player;
     playerMarkers.set(player.uuid, marker);
@@ -763,12 +796,7 @@ function updatePlayers(players) {
       continue;
     }
 
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'player-button';
-    button.textContent = `${player.name} ${Math.round(player.x)},${Math.round(player.y)},${Math.round(player.z)}`;
-    button.addEventListener('click', () => focusPlayer(player));
-    playersEl.append(button);
+    playersEl.append(createPlayerTile(player));
   }
 
   for (const [uuid, marker] of playerMarkers) {
@@ -776,19 +804,152 @@ function updatePlayers(players) {
       scene.remove(marker);
       disposeObject(marker);
       playerMarkers.delete(uuid);
+      if (viewPlayerUuid === uuid) {
+        popCameraMode();
+      }
+      if (followPlayerUuid === uuid) {
+        popCameraMode();
+      }
     }
   }
 
   updateEntityVisibility();
 }
 
-function focusPlayer(player) {
-  const target = new THREE.Vector3(player.x, player.y + 1.5, player.z);
+function createPlayerTile(player) {
+  const tile = document.createElement('div');
+  tile.className = 'player-tile';
+
+  const main = document.createElement('button');
+  main.type = 'button';
+  main.className = 'player-tile-main';
+  main.textContent = player.name;
+  main.title = 'Move camera to player';
+  main.addEventListener('click', () => focusPlayer(player.uuid));
+
+  const actions = document.createElement('div');
+  actions.className = 'player-actions';
+
+  const eyeButton = document.createElement('button');
+  eyeButton.type = 'button';
+  eyeButton.className = `player-icon-button${viewPlayerUuid === player.uuid ? ' active' : ''}`;
+  eyeButton.textContent = '\u{1F441}\uFE0F';
+  eyeButton.title = 'Attach camera to player view';
+  eyeButton.setAttribute('aria-label', 'Attach camera to player view');
+  eyeButton.setAttribute('aria-pressed', String(viewPlayerUuid === player.uuid));
+  eyeButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setPlayerEyeView(viewPlayerUuid === player.uuid ? null : player.uuid);
+  });
+
+  const walkButton = document.createElement('button');
+  walkButton.type = 'button';
+  walkButton.className = `player-icon-button${followPlayerUuid === player.uuid ? ' active' : ''}`;
+  walkButton.textContent = '\u{1F6B6}';
+  walkButton.title = 'Follow player from isometric view';
+  walkButton.setAttribute('aria-label', 'Follow player from isometric view');
+  walkButton.setAttribute('aria-pressed', String(followPlayerUuid === player.uuid));
+  walkButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setPlayerFollow(followPlayerUuid === player.uuid ? null : player.uuid);
+  });
+
+  actions.append(eyeButton, walkButton);
+  tile.append(main, actions);
+  return tile;
+}
+
+function focusPlayer(uuid) {
+  const marker = playerMarkers.get(uuid);
+  if (!marker) return;
+  const target = marker.position.clone().add(new THREE.Vector3(0, 1.5, 0));
   const offset = new THREE.Vector3(34, 28, 34);
+  resetCameraModes();
   controls.target.copy(target);
   camera.position.copy(target).add(offset);
   controls.update();
   saveViewState();
+  updatePlayers(Array.from(playerMarkers.values()).map((markerEntry) => markerEntry.userData.player).filter(Boolean));
+}
+
+function setPlayerEyeView(uuid) {
+  if (uuid && !playerMarkers.has(uuid)) return;
+  if (uuid) {
+    pushCameraMode('eye', uuid);
+    updateEyeCamera();
+  } else if (viewPlayerUuid) {
+    popCameraMode();
+  }
+  refreshPlayers();
+}
+
+function setPlayerFollow(uuid) {
+  if (uuid && !playerMarkers.has(uuid)) return;
+  if (uuid) {
+    pushCameraMode('follow', uuid);
+  } else if (followPlayerUuid) {
+    popCameraMode();
+  }
+  refreshPlayers();
+}
+
+function pushCameraMode(mode, uuid) {
+  if ((mode === 'eye' && viewPlayerUuid === uuid) || (mode === 'follow' && followPlayerUuid === uuid)) {
+    popCameraMode();
+    return;
+  }
+
+  cameraModeStack.push(captureCameraModeState());
+  applyCameraMode(mode, uuid);
+}
+
+function popCameraMode() {
+  while (cameraModeStack.length > 0) {
+    const previous = cameraModeStack.pop();
+    if (restoreCameraModeState(previous)) {
+      refreshPlayers();
+      return;
+    }
+  }
+  resetCameraModes();
+}
+
+function resetCameraModes() {
+  cameraModeStack.length = 0;
+  viewPlayerUuid = null;
+  followPlayerUuid = null;
+  controls.enabled = true;
+}
+
+function captureCameraModeState() {
+  return {
+    camera: camera.position.clone(),
+    target: controls.target.clone(),
+    viewPlayerUuid,
+    followPlayerUuid,
+    controlsEnabled: controls.enabled,
+  };
+}
+
+function restoreCameraModeState(state) {
+  if (!state) return false;
+  if (state.viewPlayerUuid && !playerMarkers.has(state.viewPlayerUuid)) return false;
+  if (state.followPlayerUuid && !playerMarkers.has(state.followPlayerUuid)) return false;
+
+  camera.position.copy(state.camera);
+  controls.target.copy(state.target);
+  viewPlayerUuid = state.viewPlayerUuid;
+  followPlayerUuid = state.followPlayerUuid;
+  controls.enabled = state.controlsEnabled;
+  controls.update();
+  saveViewState();
+  return true;
+}
+
+function applyCameraMode(mode, uuid) {
+  viewPlayerUuid = mode === 'eye' ? uuid : null;
+  followPlayerUuid = mode === 'follow' ? uuid : null;
+  controls.enabled = mode !== 'eye';
 }
 
 function updateDebugBounds() {
@@ -863,6 +1024,7 @@ function saveViewState() {
     shadeDarkness: Number.parseFloat(shadeDarknessValueInput.value),
     water: waterModeInput.value,
     shader: shaderEffectInput.value,
+    playerRate: playerUpdateRateInput.value,
     camera: vectorState(camera.position),
     target: vectorState(target),
   };
@@ -872,6 +1034,7 @@ function saveViewState() {
 }
 
 function maybeSaveViewState() {
+  if (viewPlayerUuid || followPlayerUuid) return;
   const now = performance.now();
   if (now - lastViewStateSave < 500) return;
   lastViewStateSave = now;
@@ -934,7 +1097,7 @@ function resize() {
 }
 
 function handleKeyboardNavigation(deltaSeconds) {
-  if (pressedKeys.size === 0 || isTypingInHud()) return;
+  if (viewPlayerUuid || pressedKeys.size === 0 || isTypingInHud()) return;
 
   const forward = new THREE.Vector3();
   camera.getWorldDirection(forward);
@@ -959,6 +1122,64 @@ function handleKeyboardNavigation(deltaSeconds) {
   controls.target.add(move);
 }
 
+function updatePlayerMarkers(deltaSeconds) {
+  const alpha = 1 - Math.exp(-deltaSeconds * 10);
+  for (const marker of playerMarkers.values()) {
+    const targetPosition = marker.userData.targetPosition;
+    if (targetPosition) {
+      marker.position.lerp(targetPosition, alpha);
+    }
+    const targetYaw = marker.userData.targetYaw;
+    if (Number.isFinite(targetYaw)) {
+      marker.rotation.y = lerpAngle(marker.rotation.y, targetYaw, alpha);
+    }
+  }
+}
+
+function updatePlayerCameraMode(deltaSeconds) {
+  if (viewPlayerUuid) {
+    updateEyeCamera();
+    return;
+  }
+  if (followPlayerUuid) {
+    updateWalkFollowCamera(deltaSeconds);
+  }
+}
+
+function updateEyeCamera() {
+  const marker = playerMarkers.get(viewPlayerUuid);
+  if (!marker) {
+    setPlayerEyeView(null);
+    return;
+  }
+  tempPlayerCamera.set(0, 2.45, -0.44);
+  tempPlayerLook.set(0, 2.45, -12);
+  marker.localToWorld(tempPlayerCamera);
+  marker.localToWorld(tempPlayerLook);
+  camera.position.copy(tempPlayerCamera);
+  controls.target.copy(tempPlayerLook);
+  camera.lookAt(tempPlayerLook);
+}
+
+function updateWalkFollowCamera(deltaSeconds) {
+  const marker = playerMarkers.get(followPlayerUuid);
+  if (!marker) {
+    setPlayerFollow(null);
+    return;
+  }
+  tempPlayerTarget.copy(marker.position);
+  tempPlayerTarget.y += 2.1;
+  const alpha = 1 - Math.exp(-deltaSeconds * 4.8);
+  tempFollowDelta.copy(tempPlayerTarget).sub(controls.target).multiplyScalar(alpha);
+  controls.target.add(tempFollowDelta);
+  camera.position.add(tempFollowDelta);
+}
+
+function lerpAngle(current, target, alpha) {
+  const delta = THREE.MathUtils.euclideanModulo(target - current + Math.PI, Math.PI * 2) - Math.PI;
+  return current + delta * alpha;
+}
+
 function isTypingInHud() {
   const active = document.activeElement;
   return active instanceof HTMLInputElement
@@ -969,10 +1190,12 @@ function isTypingInHud() {
 function animate() {
   const deltaSeconds = Math.min(clock.getDelta(), 0.05);
   const elapsedSeconds = clock.elapsedTime;
+  updatePlayerMarkers(deltaSeconds);
   handleKeyboardNavigation(deltaSeconds);
+  controls.update();
+  updatePlayerCameraMode(deltaSeconds);
   positionSkyObjects(lightingRig, camera.position);
   updateEmptyGrid();
-  controls.update();
   updateFpsCounter(fpsCounter, deltaSeconds);
   maybeAutoStream();
   updateCoordinates();
@@ -1002,6 +1225,11 @@ showPlayersInput.addEventListener('change', () => {
 });
 waterModeInput.addEventListener('change', () => {
   applyWaterMode();
+  saveViewState();
+});
+playerUpdateRateInput.addEventListener('change', () => {
+  restartPlayerPolling();
+  refreshPlayers();
   saveViewState();
 });
 shaderEffectInput.addEventListener('change', () => {
@@ -1050,7 +1278,7 @@ if (worldSelect.value) {
   await refreshWorldTime();
   await loadGrid({ focus: !restoredCameraPose }).catch((error) => setStatus(error.message));
   await refreshPlayers();
-  playerPollTimer = setInterval(refreshPlayers, 1000);
+  restartPlayerPolling();
   timePollTimer = setInterval(refreshWorldTime, 5000);
   saveViewState();
 }
