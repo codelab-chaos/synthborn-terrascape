@@ -168,8 +168,8 @@ async function loadWorlds() {
   const data = await response.json();
   experimentalDetailsEnabled = data.features?.experimentalDetails === true;
   experimentalDetailsStateEl.textContent = experimentalDetailsEnabled
-    ? 'Experimental trees: server on'
-    : 'Experimental trees: server off';
+    ? 'Detailed trees: server on'
+    : 'Detailed trees: server off';
   experimentalDetailsStateEl.classList.toggle('enabled', experimentalDetailsEnabled);
   worldSelect.replaceChildren();
   for (const world of data.worlds ?? []) {
@@ -675,7 +675,7 @@ function updatePlayers(players) {
     seen.add(player.uuid);
     const marker = playerMarkers.get(player.uuid) ?? createPlayerMarker(player);
     marker.position.set(player.x, player.y, player.z);
-    marker.rotation.y = -(player.yaw ?? 0);
+    marker.rotation.y = player.yaw ?? 0;
     marker.visible = showPlayersInput.checked;
     marker.userData.player = player;
     playerMarkers.set(player.uuid, marker);

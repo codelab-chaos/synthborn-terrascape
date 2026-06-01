@@ -71,7 +71,7 @@ public class SynthWorldviewPlugin extends JavaPlugin {
         experimentalDetailsEnabled = parseBoolean(setting(
                 "synthworldview.experimental.details",
                 "SYNTH_WORLDVIEW_EXPERIMENTAL_DETAILS",
-                "false"));
+                "true"));
 
         try {
             webServer = new WorldviewWebServer(this, host, port, experimentalDetailsEnabled);
