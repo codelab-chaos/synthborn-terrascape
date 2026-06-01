@@ -6,7 +6,6 @@ const { performance } = require('node:perf_hooks');
 const args = parseArgs(process.argv.slice(2));
 const baseUrl = args.url ?? 'http://127.0.0.1:5960';
 const world = args.world ?? 'default';
-const lod = numberArg(args.lod, 0);
 const centerX = numberArg(args.x ?? args.chunkX, 0);
 const centerZ = numberArg(args.z ?? args.chunkZ, 0);
 const radius = numberArg(args.radius, 1);
@@ -26,7 +25,6 @@ async function main() {
   console.log('SynthWorldview terrain grid scale test');
   console.log(`  url        : ${baseUrl}`);
   console.log(`  world      : ${world}`);
-  console.log(`  lod        : ${lod}`);
   console.log(`  center     : ${centerX}, ${centerZ}`);
   console.log(`  radius     : ${radius} (${requests.length} chunks)`);
   console.log(`  concurrency: ${concurrency}`);
@@ -76,7 +74,7 @@ function grid(cx, cz, r) {
 }
 
 function fetchChunk(chunkX, chunkZ) {
-  const path = `/api/terrain/${encodeURIComponent(world)}/${lod}/${chunkX}/${chunkZ}.glb`;
+  const path = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
   const url = new URL(path, baseUrl);
   const started = performance.now();
 
