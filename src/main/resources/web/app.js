@@ -966,8 +966,8 @@ await loadWorlds();
 if (worldSelect.value) {
   hasStarted = true;
   const restoredCameraPose = restoreCameraPose();
-  await loadGrid({ focus: !restoredCameraPose }).catch((error) => setStatus(error.message));
   await refreshWorldTime();
+  await loadGrid({ focus: !restoredCameraPose }).catch((error) => setStatus(error.message));
   await refreshPlayers();
   playerPollTimer = setInterval(refreshPlayers, 1000);
   timePollTimer = setInterval(refreshWorldTime, 5000);
