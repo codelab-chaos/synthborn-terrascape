@@ -6,6 +6,7 @@ export const radiusInput = document.querySelector('#radius');
 export const autoStreamInput = document.querySelector('#auto-stream');
 export const debugBoundsInput = document.querySelector('#debug-bounds');
 export const showPlayersInput = document.querySelector('#show-players');
+export const playerUpdateRateInput = document.querySelector('#player-update-rate');
 export const sunLightingInput = document.querySelector('#sun-lighting');
 export const treeShadeInput = document.querySelector('#tree-shade');
 export const lodHorizonInput = document.querySelector('#lod-horizon');

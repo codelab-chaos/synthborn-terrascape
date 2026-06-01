@@ -361,6 +361,23 @@ button {
   scrollbar-color: #3b6658 rgb(255 255 255 / 8%);
 }
 
+.player-rate-control {
+  display: grid;
+  grid-template-columns: auto 88px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #aeb9b5;
+  font-size: 11px;
+}
+
+.player-rate-control select {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 7px;
+  font-size: 12px;
+}
+
 .feature-tag {
   height: 32px;
   display: flex;
@@ -487,15 +504,69 @@ button {
   box-shadow: 0 0 8px rgb(249 255 243 / 86%);
 }
 
-.player-button {
-  height: 26px;
+.player-tile {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 3px 4px;
+  border: 1px solid rgb(146 225 191 / 22%);
+  border-radius: 5px;
+  background: rgb(29 59 57 / 78%);
+}
+
+.player-tile-main {
   min-width: 0;
-  padding: 0 9px;
-  border-color: rgb(146 225 191 / 35%);
-  background: #1d3b39;
+  height: 22px;
+  padding: 0 7px;
+  overflow: hidden;
+  border-color: transparent;
+  background: transparent;
   color: #dff7ed;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-tile-main:hover,
+.player-tile-main:focus-visible {
+  background: rgb(255 255 255 / 8%);
+}
+
+.player-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.player-icon-button {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-color: rgb(255 255 255 / 18%);
+  background: rgb(11 17 19 / 72%);
+  color: #9eb0ac;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.player-icon-button:hover,
+.player-icon-button:focus-visible {
+  border-color: rgb(146 225 191 / 46%);
+  color: #e9fff4;
+}
+
+.player-icon-button.active {
+  border-color: rgb(125 245 203 / 72%);
+  background: #2f7c69;
+  color: #f4fff9;
+  box-shadow: 0 0 12px rgb(94 241 181 / 28%);
 }
 
 .info-card {

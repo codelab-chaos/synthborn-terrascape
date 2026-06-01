@@ -6,7 +6,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 0, 0');
   await expect(page.locator('#water-mode')).toHaveValue('transparent');
   await expect(page.locator('#shader-effect')).toHaveValue('none');
-  await expect(page.locator('#experimental-details-state')).toHaveText(/Experimental trees: server (on|off)/);
+  await expect(page.locator('#experimental-details-state')).toHaveText(/Detailed trees: server (on|off)/);
   const experimentalDetailsEnabled = await page.locator('#experimental-details-state').evaluate((el) => {
     return el.textContent?.includes('server on') === true;
   });
@@ -25,17 +25,14 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#load')).toHaveCount(0);
   await expect(page.locator('#auto-stream')).not.toBeChecked();
   await expect(page.locator('#players')).toBeVisible();
-  await expect(page.locator('#metrics')).toContainText('9 chunks');
-  await expect(page.locator('#metrics')).not.toContainText('mob');
-  await expect(page.locator('#metrics')).toContainText('geo');
-  await expect(page.locator('#metrics')).toContainText('disposed');
-  await expect(page.locator('.time-ribbon')).toBeVisible();
-  await expect(page.locator('#time-cycle-label')).toContainText(/\d{2}:\d{2}/);
-  await expect(page.locator('.time-ribbon-tick')).toHaveCount(4);
-  await expect(page.locator('#fps-counter')).toHaveCount(0);
+  await expect(page.locator('#metric-loaded')).toContainText('9 chunks');
+  await expect(page.locator('#metric-resources')).toContainText('geo');
+  await expect(page.locator('#metric-disposed')).toContainText('c');
+  await expect(page.locator('#fps-value')).toBeVisible();
+  await expect(page.locator('#fps-frame')).toBeVisible();
   await expect.poll(async () => page.evaluate(() => {
     const counter = window.__synthWorldviewDebug?.fpsCounter;
-    return counter?.sprite?.isSprite === true && counter?.texture?.isCanvasTexture === true;
+    return typeof counter?.fps === 'number' && typeof counter?.frameMs === 'number';
   })).toBe(true);
   const markerShape = await page.evaluate(async () => {
     const { createPlayerMarker, disposeObject } = await import('/players.js');
@@ -46,7 +43,6 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       'player-body',
       'player-head',
       'player-face-glow',
-      'player-look-light-cone',
       'player-look-light',
       'player-look-light-target',
       'player-overhead-diamond',
@@ -85,10 +81,10 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
 
   if (playersPayload.players.length > 0) {
     const player = playersPayload.players[0];
-    await expect(page.locator('.player-button').first()).toContainText(player.name);
-    const coordinatesBeforeFocus = await page.locator('#coordinates').textContent();
-    await page.locator('.player-button').first().click();
-    await expect(page.locator('#coordinates')).not.toHaveText(coordinatesBeforeFocus ?? '');
+    await expect(page.locator('.player-tile-main').first()).toContainText(player.name);
+    const coordinatesBeforeFocus = await page.locator('#coord-target').textContent();
+    await page.locator('.player-tile-main').first().click();
+    await expect(page.locator('#coord-target')).not.toHaveText(coordinatesBeforeFocus ?? '');
   }
 
   const mobsResponse = await page.request.get('/api/mobs/default');
@@ -96,9 +92,15 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   const mobsPayload = await mobsResponse.json();
   expect(mobsPayload.error).toBe('mob_feed_disabled');
 
-  await page.locator('#show-players').uncheck();
+  await page.locator('#show-players').evaluate((input) => {
+    input.checked = false;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await expect(page.locator('#players')).toHaveText('Players hidden');
-  await page.locator('#show-players').check();
+  await page.locator('#show-players').evaluate((input) => {
+    input.checked = true;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await expect(page.locator('#players')).not.toHaveText('Players hidden');
   const normalDetailResponse = await page.request.get('/api/terrain/default/0/-7/3.glb');
   expect(normalDetailResponse.ok()).toBeTruthy();

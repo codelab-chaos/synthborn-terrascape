@@ -24,8 +24,8 @@ export function createPlayerMarker(player) {
   const legs = new THREE.Mesh(
     new THREE.BoxGeometry(0.54, 1.28, 0.42),
     new THREE.MeshStandardMaterial({
-      color: 0xf7d98c,
-      emissive: 0x2e2410,
+      color: 0x5f666b,
+      emissive: 0x15181a,
       roughness: 0.72,
     }),
   );
@@ -34,27 +34,27 @@ export function createPlayerMarker(player) {
   avatar.add(legs);
 
   const body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.78, 1.08, 0.52),
+    new THREE.BoxGeometry(0.78, 0.78, 0.52),
     new THREE.MeshStandardMaterial({
-      color: 0xfff1a8,
-      emissive: 0x3d2d12,
+      color: 0x9da5aa,
+      emissive: 0x24282b,
       roughness: 0.65,
     }),
   );
   body.name = 'player-body';
-  body.position.y = 1.86;
+  body.position.y = 1.68;
   avatar.add(body);
 
   const head = new THREE.Mesh(
     new THREE.SphereGeometry(0.36, 24, 16),
     new THREE.MeshStandardMaterial({
-      color: 0xfff6c8,
-      emissive: 0x4a3518,
+      color: 0xf5f7f7,
+      emissive: 0x34393a,
       roughness: 0.58,
     }),
   );
   head.name = 'player-head';
-  head.position.y = 2.64;
+  head.position.y = 2.43;
   avatar.add(head);
 
   const faceGlow = new THREE.Mesh(
@@ -68,52 +68,34 @@ export function createPlayerMarker(player) {
     }),
   );
   faceGlow.name = 'player-face-glow';
-  faceGlow.position.set(0, 2.64, -0.365);
+  faceGlow.position.set(0, 2.43, -0.365);
   avatar.add(faceGlow);
-
-  const lookBeamGeometry = new THREE.CylinderGeometry(0.04, 2.25, 9.5, 32, 1, true);
-  lookBeamGeometry.translate(0, -4.75, 0);
-  lookBeamGeometry.rotateX(Math.PI / 2);
-  const lookBeam = new THREE.Mesh(
-    lookBeamGeometry,
-    new THREE.MeshBasicMaterial({
-      color: 0x58cfff,
-      transparent: true,
-      opacity: 0.16,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-    }),
-  );
-  lookBeam.name = 'player-look-light-cone';
-  lookBeam.position.set(0, 2.58, -0.38);
-  lookBeam.renderOrder = 18;
-  avatar.add(lookBeam);
 
   const lookLight = new THREE.SpotLight(0x66cfff, 4.8, 24, Math.PI * 0.18, 0.72, 1.2);
   lookLight.name = 'player-look-light';
-  lookLight.position.set(0, 2.58, -0.38);
+  lookLight.position.set(0, 2.39, -0.38);
   lookLight.castShadow = false;
   avatar.add(lookLight);
 
   const lookTarget = new THREE.Object3D();
   lookTarget.name = 'player-look-light-target';
-  lookTarget.position.set(0, 2.46, -8);
+  lookTarget.position.set(0, 2.31, -8);
   avatar.add(lookTarget);
   lookLight.target = lookTarget;
 
   const diamond = new THREE.Mesh(
     new THREE.OctahedronGeometry(0.34, 0),
     new THREE.MeshStandardMaterial({
-      color: 0x7df5cb,
-      emissive: 0x1f7f6a,
-      emissiveIntensity: 1.8,
+      color: 0xa8ff45,
+      emissive: 0x57a914,
+      emissiveIntensity: 2.1,
       roughness: 0.35,
     }),
   );
   diamond.name = 'player-overhead-diamond';
-  diamond.position.y = 3.52;
+  diamond.position.y = 3.38;
   diamond.rotation.y = Math.PI * 0.25;
+  diamond.scale.set(0.68, 1.35, 0.68);
   group.add(diamond);
 
   return group;
