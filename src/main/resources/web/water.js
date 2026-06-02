@@ -1,24 +1,16 @@
 import * as THREE from 'three';
 
 const FALLBACK_MAP_WATER_COLOR = new THREE.Color(0x2a80b7);
-const DEEP_WATER_BIAS = new THREE.Color(0x0f6fa9);
-const WATER_DARKEN = 0.72;
-const WATER_DEEP_BIAS = 0.32;
 const tempBox = new THREE.Box3();
 const tempCenter = new THREE.Vector3();
 
 export function prepareWaterMaterials(root) {
   root.traverse((object) => {
-    if (!object.material) return;
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    for (const material of materials) {
-      if (!isWaterMaterial(material)) continue;
-      material.name = 'worldview-water';
-      material.userData.worldviewWater = true;
-      material.userData.worldviewOriginalVertexColors = material.vertexColors;
-      material.transparent = true;
-      material.opacity = 0.72;
-      material.depthWrite = false;
+    if (!object.isMesh || !object.material) return;
+    if (Array.isArray(object.material)) {
+      object.material = object.material.map((material) => prepareWaterMaterial(material));
+    } else {
+      object.material = prepareWaterMaterial(object.material);
     }
   });
 }
@@ -64,11 +56,28 @@ function isWaterMaterial(material) {
   return material?.userData?.worldviewWater === true || material?.name === 'worldview-water';
 }
 
+function prepareWaterMaterial(material) {
+  if (!isWaterMaterial(material)) return material;
+  const waterMaterial = material.isMeshBasicMaterial
+    ? material
+    : new THREE.MeshBasicMaterial({
+      color: material.color?.clone?.() ?? FALLBACK_MAP_WATER_COLOR,
+      side: material.side ?? THREE.DoubleSide,
+      vertexColors: material.vertexColors === true,
+    });
+  waterMaterial.name = 'worldview-water';
+  waterMaterial.userData.worldviewWater = true;
+  waterMaterial.userData.worldviewOriginalVertexColors = material.vertexColors;
+  waterMaterial.transparent = true;
+  waterMaterial.opacity = 0.72;
+  waterMaterial.depthWrite = false;
+  waterMaterial.toneMapped = false;
+  waterMaterial.fog = false;
+  return waterMaterial;
+}
+
 function sampleWaterTint(mesh, sampleMapColor) {
-  const sampled = averageWaterSamples(mesh, sampleMapColor) ?? FALLBACK_MAP_WATER_COLOR;
-  return sampled.clone()
-    .lerp(DEEP_WATER_BIAS, WATER_DEEP_BIAS)
-    .multiplyScalar(WATER_DARKEN);
+  return averageWaterSamples(mesh, sampleMapColor) ?? FALLBACK_MAP_WATER_COLOR.clone();
 }
 
 function averageWaterSamples(mesh, sampleMapColor) {
@@ -98,7 +107,11 @@ function averageWaterSamples(mesh, sampleMapColor) {
     count++;
   }
   if (count === 0) return null;
-  return new THREE.Color(r / count / 255, g / count / 255, b / count / 255);
+  return new THREE.Color().setRGB(
+    r / count / 255,
+    g / count / 255,
+    b / count / 255,
+    THREE.SRGBColorSpace);
 }
 
 function isLikelyWater(sample) {

@@ -1186,6 +1186,7 @@ function exposeDebugState() {
     terrainFormatVersion: () => terrainFormatVersion,
     activeCenterId: () => activeCenterId,
     requestedCenterId: () => requestedCenterId,
+    waterMaterialSummary: () => waterMaterialSummary(),
     cameraPose: () => ({
       camera: vectorState(camera.position),
       target: vectorState(controls.target),
@@ -1219,12 +1220,46 @@ function exposeDebugState() {
   };
 }
 
+function waterMaterialSummary() {
+  const summaries = [];
+  for (const entry of loadedChunks.values()) {
+    entry.object.traverse((object) => {
+      if (!object.isMesh || !object.material) return;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        if (material?.name !== 'worldview-water' && material?.userData?.worldviewWater !== true) continue;
+        summaries.push({
+          type: material.type,
+          vertexColors: material.vertexColors === true,
+          toneMapped: material.toneMapped === true,
+          fog: material.fog === true,
+          transparent: material.transparent === true,
+          opacity: material.opacity,
+          color: material.color ? displayColor(material.color) : null,
+        });
+      }
+    });
+  }
+  return summaries;
+}
+
+function displayColor(color) {
+  const srgb = color.clone().convertLinearToSRGB();
+  return {
+    r: Math.round(srgb.r * 255),
+    g: Math.round(srgb.g * 255),
+    b: Math.round(srgb.b * 255),
+  };
+}
+
 function focusGrid(centerX, centerZ, radius) {
   const center = new THREE.Vector3(centerX * 32 + 16, 122, centerZ * 32 + 16);
+  camera.position.set(center.x, center.y + 58, center.z);
   controls.target.copy(center);
-  camera.position.set(center.x + 78, center.y + 58, center.z + 78);
+  camera.lookAt(center);
   controls.update();
   syncFlyLookFromCamera();
+  updateFlyTarget();
   saveViewState();
 }
 
@@ -1254,7 +1289,7 @@ function hasExplicitViewParams() {
 function saveViewState() {
   if (!hasStarted || !worldSelect.value) return;
   const target = controls.target;
-  const chunk = targetChunk();
+  const chunk = playerChunk();
   const state = {
     world: worldSelect.value,
     chunkX: Number.parseInt(chunkXInput.value, 10) || chunk.chunkX,
@@ -1288,16 +1323,16 @@ function maybeSaveViewState() {
   saveViewState();
 }
 
-function targetChunk() {
+function playerChunk() {
   return {
-    chunkX: Math.floor(controls.target.x / 32),
-    chunkZ: Math.floor(controls.target.z / 32),
+    chunkX: Math.floor(camera.position.x / 32),
+    chunkZ: Math.floor(camera.position.z / 32),
   };
 }
 
 function updateCoordinates() {
   const target = controls.target;
-  const chunk = targetChunk();
+  const chunk = playerChunk();
   coordTargetEl.textContent = `${formatCoord(target.x)}, ${formatCoord(target.y)}, ${formatCoord(target.z)}`;
   coordChunkEl.textContent = `${chunk.chunkX}, ${chunk.chunkZ}`;
   coordCameraEl.textContent = `${formatCoord(camera.position.x)}, ${formatCoord(camera.position.y)}, ${formatCoord(camera.position.z)}`;
@@ -1305,9 +1340,9 @@ function updateCoordinates() {
 
 function updateEmptyGrid() {
   grid.position.set(
-    Math.round(controls.target.x / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP,
+    Math.round(camera.position.x / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP,
     EMPTY_GRID_Y,
-    Math.round(controls.target.z / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP);
+    Math.round(camera.position.z / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP);
 }
 
 function syncFlyLookFromCamera() {
@@ -1355,15 +1390,15 @@ function isFlyLookActive() {
 
 function maybeAutoStream() {
   if (!autoStreamInput.checked || !hasFocusedInitialGrid || !worldSelect.value) return;
-  const target = targetChunk();
-  const targetId = centerId(worldSelect.value, target.chunkX, target.chunkZ);
-  if (targetId === activeCenterId || targetId === requestedCenterId || targetId === scheduledCenterId) return;
+  const player = playerChunk();
+  const playerId = centerId(worldSelect.value, player.chunkX, player.chunkZ);
+  if (playerId === activeCenterId || playerId === requestedCenterId || playerId === scheduledCenterId) return;
 
   clearTimeout(streamTimer);
-  scheduledCenterId = targetId;
+  scheduledCenterId = playerId;
   streamTimer = setTimeout(() => {
     scheduledCenterId = null;
-    loadGrid({ centerX: target.chunkX, centerZ: target.chunkZ }).catch((error) => setStatus(error.message));
+    loadGrid({ centerX: player.chunkX, centerZ: player.chunkZ }).catch((error) => setStatus(error.message));
   }, 250);
 }
 
