@@ -1,5 +1,58 @@
 const { expect, test } = require('@playwright/test');
 
+test('supports canvas-scoped FPS fly look, capped zoom, and sprint movement', async ({ page }) => {
+  await page.goto('/?radius=0&chunkX=0&chunkZ=0&auto=false&mapTiles=false');
+  await expect(page.locator('#status')).toHaveText('Loaded 1 chunks around 0, 0');
+
+  await page.evaluate(() => {
+    window.__synthWorldviewDebug.setCameraPose({
+      camera: { x: 0, y: 100, z: 100 },
+      target: { x: 100, y: 100, z: 0 },
+      lookAt: { x: 0, y: 100, z: 0 },
+    });
+  });
+
+  await page.evaluate(() => {
+    window.__synthWorldviewDebug.applyFlyLookDelta(100, -50);
+  });
+  const lookedPose = await page.evaluate(() => window.__synthWorldviewDebug.cameraPose());
+  expect(lookedPose.target.x).toBeGreaterThan(1);
+  expect(lookedPose.target.y).toBeGreaterThan(100);
+
+  const zoomPose = await page.evaluate(() => {
+    window.__synthWorldviewDebug.setCameraPose({
+      camera: { x: 0, y: 1190, z: 100 },
+      target: { x: 0, y: 1300, z: 0 },
+      lookAt: { x: 0, y: 1300, z: 0 },
+    });
+    window.__synthWorldviewDebug.zoomFlyView(-100000);
+    return window.__synthWorldviewDebug.cameraPose();
+  });
+  expect(zoomPose.camera.y).toBeLessThanOrEqual(1200);
+
+  const normalDistance = await flyForwardDistance(page, false);
+  const sprintDistance = await flyForwardDistance(page, true);
+  expect(sprintDistance).toBeGreaterThan(normalDistance * 1.8);
+});
+
+async function flyForwardDistance(page, sprint) {
+  await page.evaluate(() => {
+    window.__synthWorldviewDebug.setCameraPose({
+      camera: { x: 0, y: 100, z: 100 },
+      target: { x: 0, y: 100, z: 0 },
+      lookAt: { x: 0, y: 100, z: 0 },
+    });
+  });
+  const before = await page.evaluate(() => window.__synthWorldviewDebug.cameraPose().camera);
+  if (sprint) await page.keyboard.down('Shift');
+  await page.keyboard.down('w');
+  await page.waitForTimeout(220);
+  await page.keyboard.up('w');
+  if (sprint) await page.keyboard.up('Shift');
+  const after = await page.evaluate(() => window.__synthWorldviewDebug.cameraPose().camera);
+  return Math.hypot(after.x - before.x, after.y - before.y, after.z - before.z);
+}
+
 test('loads a bounded terrain grid and reports render resources', async ({ page }) => {
   await page.goto('/?radius=1&chunkX=0&chunkZ=0&water=transparent&auto=false');
   const setControlValue = async (selector, value, eventName = 'change') => {
@@ -27,6 +80,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   });
   await expect(page.locator('#show-players')).toBeChecked();
   await expect(page.locator('#sun-lighting')).toBeChecked();
+  await expect(page.locator('#map-time')).not.toBeChecked();
   await expect(page.locator('#height-grade')).toHaveCount(0);
   await expect(page.locator('#atmosphere-lighting')).toHaveCount(0);
   await expect(page.locator('#tree-shade')).toBeChecked();
@@ -179,6 +233,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       players: false,
       sun: true,
       shade: true,
+      mapTime: true,
       mapTiles: true,
       shadeSize: 1.45,
       shadeDarkness: 0.75,
@@ -197,6 +252,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#debug-bounds')).toBeChecked();
   await expect(page.locator('#show-players')).not.toBeChecked();
   await expect(page.locator('#sun-lighting')).toBeChecked();
+  await expect(page.locator('#map-time')).toBeChecked();
   await expect(page.locator('#tree-shade')).toBeChecked();
   await expect(page.locator('#lod-horizon')).toHaveCount(0);
   await expect(page.locator('#map-tiles')).toBeChecked();
@@ -206,7 +262,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#shade-darkness-value')).toHaveValue('0.75');
   await expect(page.locator('#show-mobs')).toHaveCount(0);
   await expect(page.locator('#players')).toHaveText('Players hidden');
-  await expect(page.locator('#coord-target')).toHaveText('80, 122, 112');
+  await expect(page.locator('#coord-target')).toHaveText('118, 150, 150');
   await expect(page.locator('#coord-camera')).toHaveText(/-?\d+, -?\d+, -?\d+/);
 
   await page.goto('/?radius=1&chunkX=0&chunkZ=0&auto=false&mapTiles=false');

@@ -3,9 +3,13 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "playwright test",
+    "test": "playwright test tests/worldview.spec.js",
     "test:headed": "playwright test --headed",
-    "test:ui": "playwright test --ui"
+    "test:ui": "playwright test --ui",
+    "perf": "node tools/run-worldview-perf.js --both",
+    "perf:dry": "node tools/run-worldview-perf.js --dry",
+    "perf:wet": "node tools/run-worldview-perf.js --wet",
+    "perf:postdeploy": "node tools/run-worldview-perf.js --post-deploy --both"
   },
   "keywords": [],
   "author": "",

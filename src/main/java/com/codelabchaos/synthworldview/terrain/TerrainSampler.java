@@ -283,7 +283,7 @@ public final class TerrainSampler {
         String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
         if (key.contains("lava")) return 0xd85d23;
         if (key.contains("ice")) return 0x9fd7ed;
-        return 0x2f83bd;
+        return 0x2a7fb5;
     }
 
     private static int toRgb(Color color) {

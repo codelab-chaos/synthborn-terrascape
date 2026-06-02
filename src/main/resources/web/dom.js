@@ -17,6 +17,7 @@ export const shadeDarknessValueInput = document.querySelector('#shade-darkness-v
 export const experimentalDetailsStateEl = document.querySelector('#experimental-details-state');
 export const waterModeInput = document.querySelector('#water-mode');
 export const shaderEffectInput = document.querySelector('#shader-effect');
+export const mapTimeInput = document.querySelector('#map-time');
 export const timeCycleLabelEl = document.querySelector('#time-cycle-label');
 export const skySceneEl = document.querySelector('#sky-scene');
 export const skySunEl = document.querySelector('#sky-sun');
