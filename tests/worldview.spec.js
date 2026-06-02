@@ -1,14 +1,14 @@
 const { expect, test } = require('@playwright/test');
 
 test('supports canvas-scoped FPS fly look, capped zoom, and sprint movement', async ({ page }) => {
-  await page.goto('/?radius=0&chunkX=0&chunkZ=0&auto=false&mapTiles=false');
+  await page.goto('/?radius=0&chunkX=0&chunkZ=0&auto=true&mapTiles=false');
   await expect(page.locator('#status')).toHaveText('Loaded 1 chunks around 0, 0');
 
   await page.evaluate(() => {
     window.__synthWorldviewDebug.setCameraPose({
-      camera: { x: 0, y: 100, z: 100 },
+      camera: { x: 16, y: 100, z: 16 },
       target: { x: 100, y: 100, z: 0 },
-      lookAt: { x: 0, y: 100, z: 0 },
+      lookAt: { x: 16, y: 100, z: -48 },
     });
   });
 
@@ -18,6 +18,10 @@ test('supports canvas-scoped FPS fly look, capped zoom, and sprint movement', as
   const lookedPose = await page.evaluate(() => window.__synthWorldviewDebug.cameraPose());
   expect(lookedPose.target.x).toBeGreaterThan(1);
   expect(lookedPose.target.y).toBeGreaterThan(100);
+  await page.waitForTimeout(400);
+  await expect(page.locator('#status')).toHaveText('Loaded 1 chunks around 0, 0');
+  await expect(page.locator('#coord-chunk')).toHaveText('0, 0');
+  expect(await page.evaluate(() => window.__synthWorldviewDebug.activeCenterId())).toBe('default:0:0');
 
   const zoomPose = await page.evaluate(() => {
     window.__synthWorldviewDebug.setCameraPose({
@@ -38,9 +42,9 @@ test('supports canvas-scoped FPS fly look, capped zoom, and sprint movement', as
 async function flyForwardDistance(page, sprint) {
   await page.evaluate(() => {
     window.__synthWorldviewDebug.setCameraPose({
-      camera: { x: 0, y: 100, z: 100 },
-      target: { x: 0, y: 100, z: 0 },
-      lookAt: { x: 0, y: 100, z: 0 },
+      camera: { x: 16, y: 100, z: 16 },
+      target: { x: 16, y: 100, z: -48 },
+      lookAt: { x: 16, y: 100, z: -48 },
     });
   });
   const before = await page.evaluate(() => window.__synthWorldviewDebug.cameraPose().camera);
@@ -52,6 +56,21 @@ async function flyForwardDistance(page, sprint) {
   const after = await page.evaluate(() => window.__synthWorldviewDebug.cameraPose().camera);
   return Math.hypot(after.x - before.x, after.y - before.y, after.z - before.z);
 }
+
+test('renders solid water with unlit map-matched material', async ({ page }) => {
+  await page.goto('/?radius=1&chunkX=7&chunkZ=-9&auto=false&mapTiles=true&water=solid');
+  await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 7, -9');
+  await expect.poll(async () => page.evaluate(() => {
+    return window.__synthWorldviewDebug.waterMaterialSummary().length;
+  })).toBeGreaterThan(0);
+
+  const waterMaterials = await page.evaluate(() => window.__synthWorldviewDebug.waterMaterialSummary());
+  expect(waterMaterials.every((material) => material.type === 'MeshBasicMaterial')).toBe(true);
+  expect(waterMaterials.every((material) => material.toneMapped === false)).toBe(true);
+  expect(waterMaterials.every((material) => material.fog === false)).toBe(true);
+  expect(waterMaterials.every((material) => material.vertexColors === false)).toBe(true);
+  expect(waterMaterials.every((material) => material.color?.b > material.color?.r)).toBe(true);
+});
 
 test('loads a bounded terrain grid and reports render resources', async ({ page }) => {
   await page.goto('/?radius=1&chunkX=0&chunkZ=0&water=transparent&auto=false');
@@ -262,7 +281,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#shade-darkness-value')).toHaveValue('0.75');
   await expect(page.locator('#show-mobs')).toHaveCount(0);
   await expect(page.locator('#players')).toHaveText('Players hidden');
-  await expect(page.locator('#coord-target')).toHaveText('118, 150, 150');
+  await expect(page.locator('#coord-target')).toHaveText('80, 116, 112');
   await expect(page.locator('#coord-camera')).toHaveText(/-?\d+, -?\d+, -?\d+/);
 
   await page.goto('/?radius=1&chunkX=0&chunkZ=0&auto=false&mapTiles=false');
