@@ -67,7 +67,7 @@ import {
 } from './postprocessing.js';
 import { base64ToArrayBuffer, centerId, chunkId, delay, formatCoord, numberOr } from './utils.js';
 import { isVectorState, loadStoredViewState, saveStoredViewState, vectorState } from './view-state.js';
-import { applyWaterModeToObject, prepareWaterMaterials, tintWaterMaterialsFromMap } from './water.js';
+import { applyWaterModeToObject, prepareWaterMaterials, tintWaterMaterialsFromMap, updateWaterMaterials } from './water.js';
 import { makeTerrainCacheKey, readTerrainCache, writeTerrainCache } from './mesh-cache.js';
 
 const SKY_COLOR = 0x173454;
@@ -77,7 +77,7 @@ const EMPTY_GRID_SIZE = 1024;
 const EMPTY_GRID_DIVISIONS = 128;
 const EMPTY_GRID_CHUNK_SNAP = 32;
 const EMPTY_GRID_Y = 96;
-const TERRAIN_BATCH_SIZE = 8;
+const TERRAIN_BATCH_SIZE = 16;
 const DEFAULT_PLAYER_UPDATE_RATE_MS = 250;
 const EMPTY_PLAYER_POLL_MS = 15000;
 const HIDDEN_PLAYER_POLL_MS = 30000;
@@ -109,7 +109,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY_COLOR);
 scene.fog = new THREE.Fog(SKY_COLOR, 620, 4200);
 
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 6000);
+const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 6000);
 camera.position.set(88, 188, 88);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -1190,7 +1190,24 @@ function exposeDebugState() {
     cameraPose: () => ({
       camera: vectorState(camera.position),
       target: vectorState(controls.target),
+      fov: camera.fov,
     }),
+    skySummary: () => ({
+      background: displayColor(scene.background),
+      starsVisible: lightingRig.stars.visible === true,
+      skyVisible: lightingRig.sky.visible === true,
+    }),
+    lightingSummary: () => ({
+      ambientIntensity: lightingRig.ambient.intensity,
+      sunIntensity: lightingRig.sun.intensity,
+      starsOpacity: lightingRig.stars.material.opacity,
+    }),
+    setWorldTimeForTest: (time) => {
+      worldTime = time;
+      mapTimeInput.checked = true;
+      applyLighting();
+      updateTimeRibbon();
+    },
     flyLook: () => ({
       yaw: flyYaw,
       pitch: flyPitch,
@@ -1235,7 +1252,15 @@ function waterMaterialSummary() {
           fog: material.fog === true,
           transparent: material.transparent === true,
           opacity: material.opacity,
-          color: material.color ? displayColor(material.color) : null,
+          color: material.userData?.worldviewWaterColor ? displayColor(material.userData.worldviewWaterColor) : null,
+          alpha: material.uniforms?.alpha?.value ?? null,
+          time: material.uniforms?.time?.value ?? null,
+          waveHeight: material.uniforms?.waveHeight?.value ?? null,
+          waveFrequency: material.uniforms?.waveFrequency?.value ?? null,
+          shaderMix: material.uniforms?.shaderMix?.value ?? null,
+          distortionScale: material.uniforms?.distortionScale?.value ?? null,
+          hasNormalSampler: Boolean(material.uniforms?.normalSampler?.value),
+          hasReflectionSampler: Boolean(material.uniforms?.reflectionSampler?.value),
         });
       }
     });
@@ -1532,6 +1557,7 @@ function animate() {
   updateFpsCounter(fpsCounter, deltaSeconds);
   maybeAutoStream();
   updateCoordinates();
+  updateWaterMaterials(scene, renderer, elapsedSeconds, camera);
   renderPostProcessing(postProcessing, renderer, scene, camera, deltaSeconds, elapsedSeconds);
   updateMetrics();
   maybeSaveViewState();

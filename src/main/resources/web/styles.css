@@ -602,8 +602,7 @@ button {
   left: 14px;
   bottom: 14px;
   z-index: 5;
-  width: max-content;
-  max-width: min(440px, calc(100vw - 28px));
+  width: min(420px, calc(100vw - 28px));
   padding: 12px;
   border: 1px solid rgb(255 255 255 / 14%);
   border-radius: 6px;
@@ -629,7 +628,7 @@ button {
 
 .info-grid {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 82px minmax(0, 1fr);
   gap: 5px 14px;
   margin: 0;
   align-items: baseline;
@@ -645,10 +644,13 @@ button {
 
 .info-grid dd {
   margin: 0;
+  min-width: 0;
+  overflow: hidden;
   font-family: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: right;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
