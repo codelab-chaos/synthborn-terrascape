@@ -71,16 +71,17 @@ import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
 public final class WorldviewWebServer {
-    private static final String FORMAT_VERSION = "v11";
+    private static final String FORMAT_VERSION = "v12";
     private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
     private static final int MAX_BATCH_CHUNKS = 8;
     private static final int MAX_CONCURRENT_GENERATIONS = 1;
     private static final int MAX_MEMORY_CACHE_ENTRIES = 128;
     private static final long MAX_MEMORY_CACHE_BYTES = 128L * 1024L * 1024L;
-    private static final int MAP_REGION_TILE_SIZE = 64;
-    private static final int MAX_MAP_REGION_RADIUS = 18;
+    private static final int MAP_REGION_TILE_SIZE = 32;
+    private static final int MAX_MAP_REGION_RADIUS = 36;
     private static final Duration MAP_REGION_TIMEOUT = Duration.ofSeconds(20);
+    private static final int MAX_CLIENT_LOG_BYTES = 16 * 1024;
     private static final int MAX_MOB_SNAPSHOTS = 256;
     private static final double MOB_RADAR_RADIUS = 500.0d;
     private static final double MOB_RADAR_RADIUS_SQ = MOB_RADAR_RADIUS * MOB_RADAR_RADIUS;
@@ -121,6 +122,7 @@ public final class WorldviewWebServer {
         this.server.createContext("/api/time", this::handleTime);
         this.server.createContext("/api/mobs", this::handleMobs);
         this.server.createContext("/api/mapregion", this::handleMapRegion);
+        this.server.createContext("/api/client-log", this::handleClientLog);
         this.server.createContext("/api/terrain", this::handleTerrain);
         this.server.createContext("/", this::handleStatic);
         this.server.setExecutor(Executors.newFixedThreadPool(4, runnable -> {
@@ -186,7 +188,39 @@ public final class WorldviewWebServer {
                 .map(name -> "{\"name\":\"" + escapeJson(name) + "\"}")
                 .collect(Collectors.joining(","));
         writeJson(exchange, 200, "{\"ok\":true,\"features\":{\"experimentalDetails\":" + experimentalDetailsEnabled
+                + ",\"terrainFormatVersion\":\"" + FORMAT_VERSION + "\""
                 + "},\"worlds\":[" + worlds + "]}");
+    }
+
+    private void handleClientLog(@Nonnull HttpExchange exchange) throws IOException {
+        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+            addCors(exchange);
+            exchange.sendResponseHeaders(204, -1);
+            return;
+        }
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+
+        byte[] body = exchange.getRequestBody().readNBytes(MAX_CLIENT_LOG_BYTES + 1);
+        if (body.length > MAX_CLIENT_LOG_BYTES) {
+            writeJson(exchange, 413, "{\"ok\":false,\"error\":\"client_log_too_large\"}");
+            return;
+        }
+
+        String message = new String(body, StandardCharsets.UTF_8)
+                .replace('\r', ' ')
+                .replace('\n', ' ')
+                .replace('\t', ' ')
+                .trim();
+        if (message.length() > MAX_CLIENT_LOG_BYTES) {
+            message = message.substring(0, MAX_CLIENT_LOG_BYTES);
+        }
+        if (!message.isBlank()) {
+            plugin.getLogger().at(Level.INFO).log("client-log " + message);
+        }
+        writeJson(exchange, 200, "{\"ok\":true}");
     }
 
     private void handlePlayers(@Nonnull HttpExchange exchange) throws IOException {
@@ -312,11 +346,17 @@ public final class WorldviewWebServer {
         }
 
         try {
+            long startedNanos = System.nanoTime();
             byte[] bytes = generateMapRegion(world, request).get(MAP_REGION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             if (bytes.length == 0) {
                 writeJson(exchange, 500, "{\"ok\":false,\"error\":\"map_region_empty\"}");
                 return;
             }
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
+            int chunkCount = request.radius() * 2 + 1;
+            exchange.getResponseHeaders().set("X-Worldview-Map-Region-Chunks", Integer.toString(chunkCount));
+            exchange.getResponseHeaders().set("X-Worldview-Map-Region-Tile-Size", Integer.toString(MAP_REGION_TILE_SIZE));
+            exchange.getResponseHeaders().set("X-Worldview-Map-Region-Millis", Long.toString(elapsedMillis));
             exchange.getResponseHeaders().set("Content-Type", "image/png");
             exchange.getResponseHeaders().set("Cache-Control", "no-cache");
             addCors(exchange);
@@ -324,6 +364,13 @@ public final class WorldviewWebServer {
             try (OutputStream outputStream = exchange.getResponseBody()) {
                 outputStream.write(bytes);
             }
+            plugin.getLogger().at(Level.INFO).log("map-region world=" + world.getName()
+                    + " center=" + request.centerX() + "," + request.centerZ()
+                    + " radius=" + request.radius()
+                    + " chunks=" + (chunkCount * chunkCount)
+                    + " pixels=" + (chunkCount * MAP_REGION_TILE_SIZE) + "x" + (chunkCount * MAP_REGION_TILE_SIZE)
+                    + " bytes=" + bytes.length
+                    + " ms=" + elapsedMillis);
         } catch (Exception e) {
             plugin.getLogger().at(Level.WARNING).withCause(e).log("Map region request failed: " + request);
             writeJson(exchange, 500, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
@@ -355,7 +402,9 @@ public final class WorldviewWebServer {
 
         try {
             singleRequests.incrementAndGet();
+            long startedNanos = System.nanoTime();
             TerrainResult result = generateTerrain(world, request);
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
 
             exchange.getResponseHeaders().set("Content-Type", "model/gltf-binary");
             exchange.getResponseHeaders().set("Cache-Control", "no-cache");
@@ -369,6 +418,15 @@ public final class WorldviewWebServer {
             try (OutputStream outputStream = exchange.getResponseBody()) {
                 outputStream.write(result.glb());
             }
+            plugin.getLogger().at(Level.FINE).log("terrain-single world=" + world.getName()
+                    + " chunk=" + request.chunkX() + "," + request.chunkZ()
+                    + " cache=" + result.source()
+                    + " bytes=" + result.glb().length
+                    + " columns=" + result.columns()
+                    + " vertices=" + result.vertices()
+                    + " triangles=" + result.triangles()
+                    + " details=" + result.details()
+                    + " ms=" + elapsedMillis);
         } catch (Exception e) {
             plugin.getLogger().at(Level.WARNING).withCause(e).log("Terrain request failed: " + request);
             writeJson(exchange, 500, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
@@ -396,7 +454,10 @@ public final class WorldviewWebServer {
 
         try {
             batchRequests.incrementAndGet();
+            long startedNanos = System.nanoTime();
             List<BatchTerrainResult> results = generateTerrainBatch(world, request);
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
+            TerrainBatchSummary summary = summarizeTerrainBatch(results);
             StringBuilder json = new StringBuilder(256 + results.size() * 256);
             json.append("{\"ok\":true,\"maxBatchChunks\":").append(MAX_BATCH_CHUNKS).append(",\"chunks\":[");
             for (int i = 0; i < results.size(); i++) {
@@ -425,6 +486,19 @@ public final class WorldviewWebServer {
             }
             json.append("]}");
             writeJson(exchange, 200, json.toString());
+            plugin.getLogger().at(Level.INFO).log("terrain-batch world=" + world.getName()
+                    + " requested=" + request.chunks().size()
+                    + " ok=" + summary.ok()
+                    + " errors=" + summary.errors()
+                    + " generated=" + summary.generated()
+                    + " disk=" + summary.disk()
+                    + " memory=" + summary.memory()
+                    + " bytes=" + summary.bytes()
+                    + " columns=" + summary.columns()
+                    + " vertices=" + summary.vertices()
+                    + " triangles=" + summary.triangles()
+                    + " details=" + summary.details()
+                    + " ms=" + elapsedMillis);
         } catch (Exception e) {
             plugin.getLogger().at(Level.WARNING).withCause(e).log("Batch terrain request failed.");
             writeJson(exchange, 500, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
@@ -563,6 +637,41 @@ public final class WorldviewWebServer {
         synchronized (composite) {
             MapTilePngEncoder.drawMapImage(composite, mapImage, outputX, outputY, MAP_REGION_TILE_SIZE);
         }
+    }
+
+    private static TerrainBatchSummary summarizeTerrainBatch(@Nonnull List<BatchTerrainResult> results) {
+        int ok = 0;
+        int errors = 0;
+        int generated = 0;
+        int disk = 0;
+        int memory = 0;
+        long bytes = 0;
+        long columns = 0;
+        long vertices = 0;
+        long triangles = 0;
+        long details = 0;
+
+        for (BatchTerrainResult result : results) {
+            TerrainResult terrain = result.terrain();
+            if (terrain == null || result.error() != null) {
+                errors++;
+                continue;
+            }
+            ok++;
+            bytes += terrain.glb().length;
+            columns += terrain.columns();
+            vertices += terrain.vertices();
+            triangles += terrain.triangles();
+            details += terrain.details();
+            switch (terrain.source()) {
+                case "generated" -> generated++;
+                case "disk" -> disk++;
+                case "memory" -> memory++;
+                default -> {
+                }
+            }
+        }
+        return new TerrainBatchSummary(ok, errors, generated, disk, memory, bytes, columns, vertices, triangles, details);
     }
 
     private void handleStatic(@Nonnull HttpExchange exchange) throws IOException {
@@ -1407,6 +1516,19 @@ public final class WorldviewWebServer {
     }
 
     private record BatchTerrainResult(int chunkX, int chunkZ, TerrainResult terrain, String error) {
+    }
+
+    private record TerrainBatchSummary(
+            int ok,
+            int errors,
+            int generated,
+            int disk,
+            int memory,
+            long bytes,
+            long columns,
+            long vertices,
+            long triangles,
+            long details) {
     }
 
     private record TerrainMetadata(int columns, int vertices, int triangles, int details) {

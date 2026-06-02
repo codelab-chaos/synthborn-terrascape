@@ -112,6 +112,34 @@ body {
   width: 220px;
 }
 
+.map-time-toggle {
+  position: absolute;
+  left: calc(50% + 124px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 5px;
+  background: rgb(24 33 37 / 78%);
+  color: #c7d3d0;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.map-time-toggle input {
+  width: 14px;
+  height: 14px;
+}
+
+.map-time-toggle span {
+  color: inherit;
+  font-size: inherit;
+}
+
 .sky-scene {
   height: 42px;
   border: 1px solid rgb(255 255 255 / 16%);
@@ -626,6 +654,10 @@ button {
 
 @media (max-width: 640px) {
   .titlebar-cycle {
+    display: none;
+  }
+
+  .map-time-toggle {
     display: none;
   }
 

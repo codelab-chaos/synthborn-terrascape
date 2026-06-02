@@ -15,6 +15,7 @@ import {
   hudEl,
   panelToggle,
   mapTilesInput,
+  mapTimeInput,
   metricLoadedEl,
   metricMeshesEl,
   metricResourcesEl,
@@ -50,9 +51,11 @@ import {
   positionSkyObjects,
   updateTreeShadeObject,
 } from './lighting.js';
+import { logClientEvent, logClientTiming } from './client-log.js';
 import { createFpsCounter, positionFpsCounter, updateFpsCounter } from './fps-counter.js';
 import {
   mapBackdropStats,
+  sampleMapBackdropColor,
   updateMapBackdrop,
 } from './map-backdrop.js';
 import { createPlayerMarker, disposeObject } from './players.js';
@@ -64,7 +67,8 @@ import {
 } from './postprocessing.js';
 import { base64ToArrayBuffer, centerId, chunkId, delay, formatCoord, numberOr } from './utils.js';
 import { isVectorState, loadStoredViewState, saveStoredViewState, vectorState } from './view-state.js';
-import { applyWaterModeToObject, prepareWaterMaterials } from './water.js';
+import { applyWaterModeToObject, prepareWaterMaterials, tintWaterMaterialsFromMap } from './water.js';
+import { makeTerrainCacheKey, readTerrainCache, writeTerrainCache } from './mesh-cache.js';
 
 const SKY_COLOR = 0x173454;
 const GRID_AXIS_COLOR = 0x58616a;
@@ -75,6 +79,26 @@ const EMPTY_GRID_CHUNK_SNAP = 32;
 const EMPTY_GRID_Y = 96;
 const TERRAIN_BATCH_SIZE = 8;
 const DEFAULT_PLAYER_UPDATE_RATE_MS = 250;
+const EMPTY_PLAYER_POLL_MS = 15000;
+const HIDDEN_PLAYER_POLL_MS = 30000;
+const PLAYER_POLL_ERROR_MS = 10000;
+const MAP_TIME_ACTIVE_POLL_MS = 5000;
+const MAP_TIME_VISIBLE_POLL_MS = 10000;
+const MAP_TIME_IDLE_POLL_MS = 30000;
+const FLY_LOOK_DISTANCE = 64;
+const FLY_MOUSE_SENSITIVITY = 0.0022;
+const FLY_MOVE_SPEED = 72;
+const FLY_SPRINT_MULTIPLIER = 3;
+const FLY_ZOOM_STEP = 18;
+const FLY_ZOOM_MAX_TICKS = 6;
+const FLY_MIN_Y = 8;
+const FLY_MAX_Y = 1200;
+const NOON_LIGHTING_TIME = {
+  dayProgress: 0.5,
+  sunlightFactor: 1,
+  phase: 'noon',
+  sunDirection: { x: 0.2, y: -1, z: 0.25 },
+};
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 const rendererPixelRatio = Math.min(window.devicePixelRatio, 2);
@@ -90,6 +114,7 @@ camera.position.set(88, 188, 88);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(16, 122, 16);
+controls.enabled = false;
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.minDistance = 18;
@@ -98,7 +123,7 @@ controls.minPolarAngle = 0.01;
 controls.maxPolarAngle = Math.PI - 0.01;
 controls.screenSpacePanning = true;
 controls.mouseButtons = {
-  LEFT: THREE.MOUSE.ROTATE,
+  LEFT: null,
   MIDDLE: THREE.MOUSE.PAN,
   RIGHT: THREE.MOUSE.DOLLY,
 };
@@ -142,21 +167,32 @@ const pressedKeys = new Set();
 const clock = new THREE.Clock();
 const initialParams = new URLSearchParams(window.location.search);
 let experimentalDetailsEnabled = false;
+let terrainFormatVersion = 'unknown';
 let storedViewState = loadStoredViewState();
 let hasRestoredCameraPose = false;
 let hasStarted = false;
 let lastViewStateSave = 0;
+let flyYaw = 0;
+let flyPitch = 0;
 let worldTime = null;
 let timePollTimer = null;
 let viewPlayerUuid = null;
 let followPlayerUuid = null;
 const cameraModeStack = [];
 let isRefreshingPlayers = false;
+let lastPlayerCount = 0;
+let lastPlayerPollFailed = false;
 
 const tempPlayerTarget = new THREE.Vector3();
 const tempPlayerCamera = new THREE.Vector3();
 const tempPlayerLook = new THREE.Vector3();
 const tempFollowDelta = new THREE.Vector3();
+const tempCameraForward = new THREE.Vector3();
+const tempCenteredPivot = new THREE.Vector3();
+const tempFlyRight = new THREE.Vector3();
+const tempFlyMove = new THREE.Vector3();
+const tempFlyZoom = new THREE.Vector3();
+const tempFlyEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 function currentLightingOptions() {
   return lightingOptionsFromInputs({
@@ -164,7 +200,7 @@ function currentLightingOptions() {
     treeShadeInput,
     shadeSizeInput: shadeSizeValueInput,
     shadeDarknessInput: shadeDarknessValueInput,
-    time: worldTime,
+    time: mapTimeInput.checked ? worldTime : NOON_LIGHTING_TIME,
   });
 }
 
@@ -179,7 +215,11 @@ function updateMetrics() {
   const rendererMemory = renderer.info.memory;
   const mapBackdrop = mapBackdropStats();
   metricLoadedEl.textContent = `${loaded} chunk${loaded === 1 ? '' : 's'}`
-    + (mapBackdrop.loaded > 0 ? ` · map backdrop ${mapBackdrop.chunks}x${mapBackdrop.chunks}` : '');
+    + (mapBackdrop.loaded > 0
+      ? ` · map backdrop ${mapBackdrop.chunks}x${mapBackdrop.chunks}`
+        + (mapBackdrop.bytes > 0 ? ` ${formatBytes(mapBackdrop.bytes)}` : '')
+        + (mapBackdrop.loadMs > 0 ? ` ${Math.round(mapBackdrop.loadMs)}ms` : '')
+      : '');
   metricMeshesEl.textContent = `${resources.meshes}`;
   metricResourcesEl.textContent = `${resources.geometries} geo · ${resources.materials} mat · ${resources.textures} tex`;
   metricGpuEl.textContent = `${rendererMemory.geometries} geo · ${rendererMemory.textures} tex`;
@@ -187,11 +227,18 @@ function updateMetrics() {
   metricCenterEl.textContent = center;
 }
 
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 async function loadWorlds() {
   setStatus('Loading worlds');
   const response = await fetch('/api/worlds');
   const data = await response.json();
   experimentalDetailsEnabled = data.features?.experimentalDetails === true;
+  terrainFormatVersion = data.features?.terrainFormatVersion ?? terrainFormatVersion;
   experimentalDetailsStateEl.textContent = experimentalDetailsEnabled
     ? 'Detailed trees: server on'
     : 'Detailed trees: server off';
@@ -219,6 +266,7 @@ function applyInitialParams() {
   applyBooleanParam('sun', sunLightingInput);
   applyBooleanParam('shade', treeShadeInput);
   applyBooleanParam('mapTiles', mapTilesInput);
+  applyBooleanParam('mapTime', mapTimeInput);
   applyFloatParam('shadeSize', shadeSizeInput, shadeSizeValueInput);
   applyFloatParam('shadeDarkness', shadeDarknessInput, shadeDarknessValueInput);
   applySelectParam('water', waterModeInput);
@@ -238,6 +286,8 @@ function applyStoredInputs() {
   if (typeof storedViewState.players === 'boolean') showPlayersInput.checked = storedViewState.players;
   if (typeof storedViewState.sun === 'boolean') sunLightingInput.checked = storedViewState.sun;
   if (typeof storedViewState.shade === 'boolean') treeShadeInput.checked = storedViewState.shade;
+  if (typeof storedViewState.mapTime === 'boolean') mapTimeInput.checked = storedViewState.mapTime;
+  if (typeof storedViewState.mapTiles === 'boolean') mapTilesInput.checked = storedViewState.mapTiles;
   setPairedControlValue(shadeSizeInput, shadeSizeValueInput, storedViewState.shadeSize);
   setPairedControlValue(shadeDarknessInput, shadeDarknessValueInput, storedViewState.shadeDarkness);
   if (typeof storedViewState.water === 'string') {
@@ -336,6 +386,7 @@ function normalizePairedValue(input, value) {
 }
 
 async function loadGrid(options = {}) {
+  const gridStarted = performance.now();
   const world = worldSelect.value;
   const centerX = options.centerX ?? Number.parseInt(chunkXInput.value, 10);
   const centerZ = options.centerZ ?? Number.parseInt(chunkZInput.value, 10);
@@ -360,11 +411,16 @@ async function loadGrid(options = {}) {
 
   const needed = chunkKeys(centerX, centerZ, radius);
   retainOnly(world, needed);
+  updateMapTileLayer(centerX, centerZ, radius);
   updateMetrics();
 
   setStatus(`Loading ${needed.length} chunks around ${centerX}, ${centerZ}`);
   let completed = 0;
   let failed = 0;
+  let cacheHits = 0;
+  let cacheMisses = 0;
+  let cacheReadMs = 0;
+  let cacheParseMs = 0;
   const missing = [];
   for (const key of needed) {
     if (generation !== loadGeneration) return;
@@ -375,9 +431,46 @@ async function loadGrid(options = {}) {
     }
   }
 
-  for (let i = 0; i < missing.length;) {
+  const networkMissing = [];
+  const cacheReadStarted = performance.now();
+  for (const key of missing) {
     if (generation !== loadGeneration) return;
-    const batch = missing.slice(i, i + TERRAIN_BATCH_SIZE);
+    const cacheKey = terrainCacheKey(world, key.chunkX, key.chunkZ);
+    const cached = await readTerrainCache(cacheKey);
+    if (!cached?.bytes) {
+      cacheMisses++;
+      networkMissing.push(key);
+      continue;
+    }
+
+    try {
+      const parseStarted = performance.now();
+      const gltf = await parseGltfBytes(cached.bytes);
+      cacheParseMs += performance.now() - parseStarted;
+      if (generation !== loadGeneration) return;
+      addChunkObject(world, key.chunkX, key.chunkZ, gltf.scene);
+      cacheHits++;
+      completed++;
+    } catch (error) {
+      console.warn(`Cached terrain parse failed for ${key.chunkX},${key.chunkZ}`, error);
+      logClientEvent('terrain_cache_parse_failed', {
+        chunkX: key.chunkX,
+        chunkZ: key.chunkZ,
+        error: error?.message ?? error,
+      });
+      cacheMisses++;
+      networkMissing.push(key);
+    }
+  }
+  cacheReadMs = performance.now() - cacheReadStarted - cacheParseMs;
+  if (cacheHits > 0) {
+    setStatus(`Loaded ${completed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
+    updateMetrics();
+  }
+
+  for (let i = 0; i < networkMissing.length;) {
+    if (generation !== loadGeneration) return;
+    const batch = networkMissing.slice(i, i + TERRAIN_BATCH_SIZE);
     i += batch.length;
     const results = await loadChunkBatch(world, batch, generation);
     for (const result of results) {
@@ -398,18 +491,41 @@ async function loadGrid(options = {}) {
   setStatus(failed === 0
     ? `Loaded ${needed.length} chunks around ${centerX}, ${centerZ}`
     : `Loaded ${needed.length - failed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
+  logClientTiming('grid_load', gridStarted, {
+    world,
+    centerX,
+    centerZ,
+    radius,
+    needed: needed.length,
+    alreadyLoaded: needed.length - missing.length,
+    cacheHits,
+    cacheMisses,
+    networkChunks: networkMissing.length,
+    failed,
+    cacheReadMs: Math.round(cacheReadMs),
+    cacheParseMs: Math.round(cacheParseMs),
+  });
 }
 
 async function loadChunk(world, chunkX, chunkZ, generation) {
   const url = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
+  const started = performance.now();
   const gltf = await loadGltfWithRetry(url);
   if (generation !== loadGeneration) return false;
   addChunkObject(world, chunkX, chunkZ, gltf.scene);
+  logClientTiming('terrain_single_load', started, { world, chunkX, chunkZ });
   return true;
 }
 
 async function loadChunkBatch(world, keys, generation) {
   if (keys.length === 0) return [];
+  const started = performance.now();
+  let fetchMs = 0;
+  let jsonMs = 0;
+  let decodeMs = 0;
+  let parseMs = 0;
+  let cacheWriteAttempts = 0;
+  let base64Bytes = 0;
   try {
     const response = await fetch('/api/terrain/batch', {
       method: 'POST',
@@ -419,16 +535,40 @@ async function loadChunkBatch(world, keys, generation) {
           chunks: keys.map((key) => ({ chunkX: key.chunkX, chunkZ: key.chunkZ })),
         }),
     });
+    fetchMs = performance.now() - started;
     if (!response.ok) {
       throw new Error(`Batch terrain request failed: ${response.status}`);
     }
 
+    const jsonStarted = performance.now();
     const data = await response.json();
+    jsonMs = performance.now() - jsonStarted;
     const results = [];
+    const cacheSummary = { generated: 0, disk: 0, memory: 0, other: 0 };
     for (const chunk of data.chunks ?? []) {
       if (generation !== loadGeneration) return results;
       if (chunk.ok && chunk.base64) {
-        const gltf = await parseGltfBytes(base64ToArrayBuffer(chunk.base64));
+        const source = chunk.cache ?? 'other';
+        if (source in cacheSummary) {
+          cacheSummary[source]++;
+        } else {
+          cacheSummary.other++;
+        }
+        base64Bytes += chunk.base64.length;
+        const decodeStarted = performance.now();
+        const bytes = base64ToArrayBuffer(chunk.base64);
+        decodeMs += performance.now() - decodeStarted;
+        cacheWriteAttempts++;
+        writeTerrainCache(terrainCacheKey(world, chunk.chunkX, chunk.chunkZ), bytes.slice(0), {
+          source,
+          columns: chunk.columns,
+          vertices: chunk.vertices,
+          triangles: chunk.triangles,
+          details: chunk.details,
+        });
+        const parseStarted = performance.now();
+        const gltf = await parseGltfBytes(bytes);
+        parseMs += performance.now() - parseStarted;
         if (generation !== loadGeneration) return results;
         addChunkObject(world, chunk.chunkX, chunk.chunkZ, gltf.scene);
         results.push({ ok: true, chunkX: chunk.chunkX, chunkZ: chunk.chunkZ });
@@ -437,9 +577,31 @@ async function loadChunkBatch(world, keys, generation) {
         results.push({ ok: false, chunkX: chunk.chunkX, chunkZ: chunk.chunkZ });
       }
     }
+    logClientTiming('terrain_batch_load', started, {
+      world,
+      requested: keys.length,
+      ok: results.filter((result) => result.ok).length,
+      failed: results.filter((result) => !result.ok).length,
+      fetchMs: Math.round(fetchMs),
+      jsonMs: Math.round(jsonMs),
+      decodeMs: Math.round(decodeMs),
+      parseMs: Math.round(parseMs),
+      payloadKB: Math.round(base64Bytes / 1024),
+      generated: cacheSummary.generated,
+      disk: cacheSummary.disk,
+      memory: cacheSummary.memory,
+      cacheWrites: cacheWriteAttempts,
+    });
     return results;
   } catch (error) {
     console.warn('Batch terrain request failed, falling back to single chunk requests', error);
+    logClientEvent('terrain_batch_failed', {
+      world,
+      requested: keys.length,
+      fetchMs: Math.round(fetchMs),
+      jsonMs: Math.round(jsonMs),
+      error: error?.message ?? error,
+    });
     return await Promise.all(keys.map(async (key) => {
       try {
         return {
@@ -458,6 +620,7 @@ async function loadChunkBatch(world, keys, generation) {
 function addChunkObject(world, chunkX, chunkZ, object) {
   object.position.set(chunkX * 32, 0, chunkZ * 32);
   prepareWaterMaterials(object);
+  tintWaterMaterialsFromMap(object, sampleMapBackdropColor);
   applyWaterModeToObject(object, waterModeInput.value);
   const lightingOptions = currentLightingOptions();
   applyLightingToObject(object, lightingOptions);
@@ -584,7 +747,24 @@ function collectResourceStats() {
 
 function applyWaterMode() {
   for (const entry of loadedChunks.values()) {
+    tintWaterMaterialsFromMap(entry.object, sampleMapBackdropColor);
     applyWaterModeToObject(entry.object, waterModeInput.value);
+  }
+}
+
+function terrainCacheKey(world, chunkX, chunkZ) {
+  return makeTerrainCacheKey({
+    world,
+    chunkX,
+    chunkZ,
+    formatVersion: terrainFormatVersion,
+    detailsEnabled: experimentalDetailsEnabled,
+  });
+}
+
+function applyMapWaterTint() {
+  for (const entry of loadedChunks.values()) {
+    tintWaterMaterialsFromMap(entry.object, sampleMapBackdropColor);
   }
 }
 
@@ -719,7 +899,23 @@ async function refreshWorldTime() {
     }
   } catch (error) {
     console.warn('World time refresh failed', error);
+    logClientEvent('world_time_refresh_failed', { error: error?.message ?? error });
   }
+}
+
+function worldTimePollDelayMs() {
+  if (mapTimeInput.checked) {
+    return MAP_TIME_ACTIVE_POLL_MS;
+  }
+  return lastPlayerCount > 0 ? MAP_TIME_VISIBLE_POLL_MS : MAP_TIME_IDLE_POLL_MS;
+}
+
+function restartWorldTimePolling(delayMs = worldTimePollDelayMs()) {
+  clearTimeout(timePollTimer);
+  timePollTimer = setTimeout(async () => {
+    await refreshWorldTime();
+    restartWorldTimePolling();
+  }, delayMs);
 }
 
 async function refreshPlayers() {
@@ -733,9 +929,12 @@ async function refreshPlayers() {
       throw new Error(`Player request failed: ${response.status}`);
     }
     const data = await response.json();
+    lastPlayerPollFailed = false;
     updatePlayers(data.players ?? []);
   } catch (error) {
+    lastPlayerPollFailed = true;
     console.warn('Player refresh failed', error);
+    logClientEvent('player_refresh_failed', { error: error?.message ?? error });
   } finally {
     isRefreshingPlayers = false;
   }
@@ -746,12 +945,34 @@ function playerUpdateRateMs() {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PLAYER_UPDATE_RATE_MS;
 }
 
-function restartPlayerPolling() {
-  clearInterval(playerPollTimer);
-  playerPollTimer = setInterval(refreshPlayers, playerUpdateRateMs());
+function playerPollDelayMs() {
+  if (lastPlayerPollFailed) {
+    return PLAYER_POLL_ERROR_MS;
+  }
+  if (!showPlayersInput.checked) {
+    return HIDDEN_PLAYER_POLL_MS;
+  }
+  return lastPlayerCount > 0 ? playerUpdateRateMs() : EMPTY_PLAYER_POLL_MS;
+}
+
+function restartPlayerPolling(delayMs = playerPollDelayMs()) {
+  clearTimeout(playerPollTimer);
+  playerPollTimer = setTimeout(async () => {
+    await refreshPlayers();
+    restartPlayerPolling();
+  }, delayMs);
 }
 
 function updatePlayers(players) {
+  const previousPlayerCount = lastPlayerCount;
+  lastPlayerCount = players.length;
+  if (previousPlayerCount !== lastPlayerCount) {
+    logClientEvent('player_count_changed', {
+      players: lastPlayerCount,
+      nextPollMs: playerPollDelayMs(),
+    });
+    restartWorldTimePolling();
+  }
   const seen = new Set();
   playersEl.replaceChildren();
 
@@ -854,6 +1075,7 @@ function focusPlayer(uuid) {
   controls.target.copy(target);
   camera.position.copy(target).add(offset);
   controls.update();
+  syncFlyLookFromCamera();
   saveViewState();
   updatePlayers(Array.from(playerMarkers.values()).map((markerEntry) => markerEntry.userData.player).filter(Boolean));
 }
@@ -904,7 +1126,7 @@ function resetCameraModes() {
   cameraModeStack.length = 0;
   viewPlayerUuid = null;
   followPlayerUuid = null;
-  controls.enabled = true;
+  controls.enabled = false;
 }
 
 function captureCameraModeState() {
@@ -913,7 +1135,7 @@ function captureCameraModeState() {
     target: controls.target.clone(),
     viewPlayerUuid,
     followPlayerUuid,
-    controlsEnabled: controls.enabled,
+    controlsEnabled: false,
   };
 }
 
@@ -926,8 +1148,9 @@ function restoreCameraModeState(state) {
   controls.target.copy(state.target);
   viewPlayerUuid = state.viewPlayerUuid;
   followPlayerUuid = state.followPlayerUuid;
-  controls.enabled = state.controlsEnabled;
+  controls.enabled = false;
   controls.update();
+  syncFlyLookFromCamera();
   saveViewState();
   return true;
 }
@@ -935,7 +1158,7 @@ function restoreCameraModeState(state) {
 function applyCameraMode(mode, uuid) {
   viewPlayerUuid = mode === 'eye' ? uuid : null;
   followPlayerUuid = mode === 'follow' ? uuid : null;
-  controls.enabled = mode !== 'eye';
+  controls.enabled = false;
 }
 
 function updateDebugBounds() {
@@ -958,6 +1181,41 @@ function exposeDebugState() {
     fpsCounter,
     loadedChunks,
     playerMarkers,
+    loadGrid: (options = {}) => loadGrid(options),
+    mapBackdropStats,
+    terrainFormatVersion: () => terrainFormatVersion,
+    activeCenterId: () => activeCenterId,
+    requestedCenterId: () => requestedCenterId,
+    cameraPose: () => ({
+      camera: vectorState(camera.position),
+      target: vectorState(controls.target),
+    }),
+    flyLook: () => ({
+      yaw: flyYaw,
+      pitch: flyPitch,
+      pointerLocked: isFlyLookActive(),
+    }),
+    applyFlyLookDelta: (movementX, movementY) => {
+      flyYaw -= Number(movementX) * FLY_MOUSE_SENSITIVITY;
+      flyPitch -= Number(movementY) * FLY_MOUSE_SENSITIVITY;
+      applyFlyLook();
+    },
+    zoomFlyView: (deltaY) => {
+      zoomFlyView(Number(deltaY));
+    },
+    setCameraPose: ({ camera: cameraState, target: targetState, lookAt }) => {
+      if (isVectorState(cameraState)) {
+        camera.position.set(cameraState.x, cameraState.y, cameraState.z);
+      }
+      if (isVectorState(targetState)) {
+        controls.target.set(targetState.x, targetState.y, targetState.z);
+      }
+      controls.update();
+      if (isVectorState(lookAt)) {
+        camera.lookAt(lookAt.x, lookAt.y, lookAt.z);
+      }
+      syncFlyLookFromCamera();
+    },
   };
 }
 
@@ -966,6 +1224,7 @@ function focusGrid(centerX, centerZ, radius) {
   controls.target.copy(center);
   camera.position.set(center.x + 78, center.y + 58, center.z + 78);
   controls.update();
+  syncFlyLookFromCamera();
   saveViewState();
 }
 
@@ -982,6 +1241,7 @@ function restoreCameraPose() {
   camera.position.set(cameraState.x, cameraState.y, cameraState.z);
   controls.target.set(targetState.x, targetState.y, targetState.z);
   controls.update();
+  syncFlyLookFromCamera();
   hasFocusedInitialGrid = true;
   hasRestoredCameraPose = true;
   return true;
@@ -1005,6 +1265,7 @@ function saveViewState() {
     players: showPlayersInput.checked,
     sun: sunLightingInput.checked,
     shade: treeShadeInput.checked,
+    mapTime: mapTimeInput.checked,
     mapTiles: mapTilesInput.checked,
     shadeSize: Number.parseFloat(shadeSizeValueInput.value),
     shadeDarkness: Number.parseFloat(shadeDarknessValueInput.value),
@@ -1049,6 +1310,49 @@ function updateEmptyGrid() {
     Math.round(controls.target.z / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP);
 }
 
+function syncFlyLookFromCamera() {
+  camera.getWorldDirection(tempCameraForward);
+  if (tempCameraForward.lengthSq() < 0.0001) return;
+  flyYaw = Math.atan2(-tempCameraForward.x, -tempCameraForward.z);
+  flyPitch = Math.asin(Math.max(-1, Math.min(1, tempCameraForward.y)));
+}
+
+function applyFlyLook() {
+  flyPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, flyPitch));
+  tempFlyEuler.set(flyPitch, flyYaw, 0);
+  camera.quaternion.setFromEuler(tempFlyEuler);
+  updateFlyTarget();
+}
+
+function updateFlyTarget() {
+  camera.getWorldDirection(tempCameraForward);
+  tempCenteredPivot.copy(camera.position).addScaledVector(tempCameraForward, FLY_LOOK_DISTANCE);
+  controls.target.copy(tempCenteredPivot);
+}
+
+function zoomFlyView(deltaY) {
+  if (viewPlayerUuid || !Number.isFinite(deltaY) || deltaY === 0) return;
+  camera.getWorldDirection(tempCameraForward);
+  if (tempCameraForward.lengthSq() < 0.0001) return;
+
+  const ticks = Math.max(-FLY_ZOOM_MAX_TICKS, Math.min(FLY_ZOOM_MAX_TICKS, deltaY / 100));
+  tempFlyZoom.copy(tempCameraForward).multiplyScalar(-ticks * FLY_ZOOM_STEP);
+  const nextY = camera.position.y + tempFlyZoom.y;
+  if (nextY < FLY_MIN_Y || nextY > FLY_MAX_Y) {
+    tempFlyZoom.y = Math.max(FLY_MIN_Y, Math.min(FLY_MAX_Y, nextY)) - camera.position.y;
+  }
+  camera.position.add(tempFlyZoom);
+  updateFlyTarget();
+}
+
+function shouldStartFlyLook(event) {
+  return event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey;
+}
+
+function isFlyLookActive() {
+  return document.pointerLockElement === renderer.domElement;
+}
+
 function maybeAutoStream() {
   if (!autoStreamInput.checked || !hasFocusedInitialGrid || !worldSelect.value) return;
   const target = targetChunk();
@@ -1087,27 +1391,31 @@ function handleKeyboardNavigation(deltaSeconds) {
 
   const forward = new THREE.Vector3();
   camera.getWorldDirection(forward);
-  forward.y = 0;
   if (forward.lengthSq() < 0.0001) return;
   forward.normalize();
 
-  const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
-  const move = new THREE.Vector3();
+  tempFlyRight.crossVectors(forward, camera.up);
+  if (tempFlyRight.lengthSq() < 0.0001) {
+    tempFlyRight.set(1, 0, 0);
+  } else {
+    tempFlyRight.normalize();
+  }
+  tempFlyMove.set(0, 0, 0);
 
-  if (pressedKeys.has('KeyW')) move.add(forward);
-  if (pressedKeys.has('KeyS')) move.sub(forward);
-  if (pressedKeys.has('KeyA') || pressedKeys.has('KeyQ')) move.sub(right);
-  if (pressedKeys.has('KeyD') || pressedKeys.has('KeyE')) move.add(right);
-  if (pressedKeys.has('Space') || pressedKeys.has('KeyR') || pressedKeys.has('PageUp')) move.y += 1;
-  if (pressedKeys.has('KeyC') || pressedKeys.has('PageDown')) move.y -= 1;
+  if (pressedKeys.has('KeyW')) tempFlyMove.add(forward);
+  if (pressedKeys.has('KeyS')) tempFlyMove.sub(forward);
+  if (pressedKeys.has('KeyA') || pressedKeys.has('KeyQ')) tempFlyMove.sub(tempFlyRight);
+  if (pressedKeys.has('KeyD') || pressedKeys.has('KeyE')) tempFlyMove.add(tempFlyRight);
+  if (pressedKeys.has('Space') || pressedKeys.has('KeyR') || pressedKeys.has('PageUp')) tempFlyMove.y += 1;
+  if (pressedKeys.has('KeyC') || pressedKeys.has('PageDown')) tempFlyMove.y -= 1;
 
-  if (move.lengthSq() === 0) return;
-  move.normalize();
+  if (tempFlyMove.lengthSq() === 0) return;
+  tempFlyMove.normalize();
 
-  const boost = pressedKeys.has('ShiftLeft') || pressedKeys.has('ShiftRight') ? 3 : 1;
-  move.multiplyScalar(72 * boost * deltaSeconds);
-  camera.position.add(move);
-  controls.target.add(move);
+  const boost = pressedKeys.has('ShiftLeft') || pressedKeys.has('ShiftRight') ? FLY_SPRINT_MULTIPLIER : 1;
+  tempFlyMove.multiplyScalar(FLY_MOVE_SPEED * boost * deltaSeconds);
+  camera.position.add(tempFlyMove);
+  updateFlyTarget();
 }
 
 function updatePlayerMarkers(deltaSeconds) {
@@ -1180,8 +1488,10 @@ function animate() {
   const elapsedSeconds = clock.elapsedTime;
   updatePlayerMarkers(deltaSeconds);
   handleKeyboardNavigation(deltaSeconds);
-  controls.update();
   updatePlayerCameraMode(deltaSeconds);
+  if (!viewPlayerUuid && !followPlayerUuid) {
+    updateFlyTarget();
+  }
   positionSkyObjects(lightingRig, camera.position);
   updateEmptyGrid();
   updateFpsCounter(fpsCounter, deltaSeconds);
@@ -1218,11 +1528,30 @@ window.addEventListener('keydown', (event) => {
 window.addEventListener('keyup', (event) => {
   pressedKeys.delete(event.code);
 });
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  if (!viewPlayerUuid && shouldStartFlyLook(event)) {
+    event.preventDefault();
+    renderer.domElement.requestPointerLock?.();
+  }
+}, { capture: true });
+renderer.domElement.addEventListener('wheel', (event) => {
+  if (viewPlayerUuid) return;
+  event.preventDefault();
+  zoomFlyView(event.deltaY);
+}, { passive: false });
+window.addEventListener('mousemove', (event) => {
+  if (!isFlyLookActive() || viewPlayerUuid) return;
+  flyYaw -= event.movementX * FLY_MOUSE_SENSITIVITY;
+  flyPitch -= event.movementY * FLY_MOUSE_SENSITIVITY;
+  applyFlyLook();
+});
+window.addEventListener('worldview:map-backdrop-loaded', applyMapWaterTint);
 debugBoundsInput.addEventListener('change', updateDebugBounds);
 debugBoundsInput.addEventListener('change', saveViewState);
 showPlayersInput.addEventListener('change', () => {
   updateEntityVisibility();
   refreshPlayers();
+  restartPlayerPolling();
   saveViewState();
 });
 waterModeInput.addEventListener('change', () => {
@@ -1231,7 +1560,6 @@ waterModeInput.addEventListener('change', () => {
 });
 playerUpdateRateInput.addEventListener('change', () => {
   restartPlayerPolling();
-  refreshPlayers();
   saveViewState();
 });
 shaderEffectInput.addEventListener('change', () => {
@@ -1245,6 +1573,11 @@ for (const input of [sunLightingInput, treeShadeInput]) {
     saveViewState();
   });
 }
+mapTimeInput.addEventListener('change', () => {
+  applyLighting();
+  restartWorldTimePolling();
+  saveViewState();
+});
 mapTilesInput.addEventListener('change', () => {
   updateMapTileLayer();
   saveViewState();
@@ -1255,6 +1588,8 @@ worldSelect.addEventListener('change', () => {
   updatePlayers([]);
   refreshPlayers();
   refreshWorldTime();
+  restartPlayerPolling();
+  restartWorldTimePolling();
   scheduleControlGridLoad();
   saveViewState();
 });
@@ -1281,7 +1616,7 @@ if (worldSelect.value) {
   await loadGrid({ focus: !restoredCameraPose }).catch((error) => setStatus(error.message));
   await refreshPlayers();
   restartPlayerPolling();
-  timePollTimer = setInterval(refreshWorldTime, 5000);
+  restartWorldTimePolling();
   saveViewState();
 }
 
