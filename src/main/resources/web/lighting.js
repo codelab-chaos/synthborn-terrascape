@@ -6,8 +6,8 @@ const MAX_SHADES_PER_CHUNK = 72;
 const TREE_SHADE_KEY = 'worldviewTreeShade';
 const DAY_SKY_TOP = new THREE.Color(0x3d86cf);
 const DAY_SKY_HORIZON = new THREE.Color(0x88badd);
-const NIGHT_SKY_TOP = new THREE.Color(0x020713);
-const NIGHT_SKY_HORIZON = new THREE.Color(0x173454);
+const NIGHT_SKY_TOP = new THREE.Color(0x07111f);
+const NIGHT_SKY_HORIZON = new THREE.Color(0x151f34);
 const DAWN_SKY_TOP = new THREE.Color(0x7d91c4);
 const DAWN_SKY_HORIZON = new THREE.Color(0xe9a18a);
 const DAWN_SUN_GLOW = new THREE.Color(0xffdf92);
@@ -15,6 +15,8 @@ const DAWN_HAZE = new THREE.Color(0xd9a4bd);
 const FOG_DAY = new THREE.Color(0x547b93);
 const FOG_NIGHT = new THREE.Color(0x071321);
 const FOG_DAWN = new THREE.Color(0xc39698);
+const NIGHT_TERRAIN_TINT = new THREE.Color(0x243225);
+const DAY_TERRAIN_TINT = new THREE.Color(0xffffff);
 let shadeTexture;
 
 export function createLightingRig(scene, skyColor) {
@@ -50,11 +52,12 @@ export function lightingOptionsFromInputs({ sunLightingInput, treeShadeInput, sh
 
 export function applyLightingEnvironment(scene, renderer, rig, options) {
   const time = normalizeTime(options.time);
-  const sunRayDirection = sunRayVector(time);
-  const sunPosition = sunRayDirection.clone().negate();
-  const daylight = options.sun ? time.sunlightFactor : 1;
+  const sunPosition = visualSunPosition(time);
+  const sunRayDirection = sunPosition.clone().negate();
+  const daylight = visualDaylight(time.dayProgress);
   const night = 1 - daylight;
   const dawn = dawnAmount(time.dayProgress);
+  const starOpacity = THREE.MathUtils.clamp((night - 0.52) / 0.34, 0, 1);
   const skyTop = colorForTime(NIGHT_SKY_TOP, DAY_SKY_TOP, DAWN_SKY_TOP, daylight, dawn);
   const skyHorizon = colorForTime(NIGHT_SKY_HORIZON, DAY_SKY_HORIZON, DAWN_SKY_HORIZON, daylight, dawn);
   const fogColor = FOG_NIGHT.clone()
@@ -62,10 +65,10 @@ export function applyLightingEnvironment(scene, renderer, rig, options) {
     .lerp(FOG_DAWN, dawn * (1 - daylight * 0.22));
 
   if (options.sun) {
-    rig.ambient.intensity = THREE.MathUtils.lerp(0.72, 1.55, daylight) + dawn * 0.18;
-    rig.ambient.color.copy(new THREE.Color(0x59749a).lerp(new THREE.Color(0xe7f4ff), daylight));
-    rig.ambient.groundColor.copy(new THREE.Color(0x14221f).lerp(new THREE.Color(0x405638), daylight));
-    rig.sun.intensity = THREE.MathUtils.lerp(0.08, 3.9, daylight);
+    rig.ambient.intensity = THREE.MathUtils.lerp(0.24, 1.55, daylight) + dawn * 0.12;
+    rig.ambient.color.copy(new THREE.Color(0x24364f).lerp(new THREE.Color(0xe7f4ff), daylight));
+    rig.ambient.groundColor.copy(new THREE.Color(0x07110d).lerp(new THREE.Color(0x405638), daylight));
+    rig.sun.intensity = THREE.MathUtils.lerp(0.0, 3.9, daylight);
     rig.sun.color.copy(new THREE.Color(0x8fb5ff).lerp(new THREE.Color(0xffddb0), Math.max(daylight, dawn)));
     rig.sun.position.copy(sunPosition).multiplyScalar(240);
   } else {
@@ -77,23 +80,23 @@ export function applyLightingEnvironment(scene, renderer, rig, options) {
     rig.sun.position.set(80, 180, 40);
   }
 
-  rig.sky.material.uniforms.topColor.value.copy(options.sun ? skyTop : new THREE.Color(rig.skyColor));
-  rig.sky.material.uniforms.bottomColor.value.copy(options.sun ? skyHorizon : new THREE.Color(rig.skyColor));
+  rig.sky.material.uniforms.topColor.value.copy(skyTop);
+  rig.sky.material.uniforms.bottomColor.value.copy(skyHorizon);
   rig.sky.material.uniforms.sunDirection.value.copy(sunPosition);
   rig.sky.material.uniforms.sunGlowColor.value.copy(DAWN_SUN_GLOW);
   rig.sky.material.uniforms.dawnHazeColor.value.copy(DAWN_HAZE);
-  rig.sky.material.uniforms.daylight.value = options.sun ? daylight : 1;
-  rig.sky.material.uniforms.dawnAmount.value = options.sun ? dawn : 0;
+  rig.sky.material.uniforms.daylight.value = daylight;
+  rig.sky.material.uniforms.dawnAmount.value = dawn;
   rig.sky.visible = true;
-  rig.stars.visible = options.sun && night > 0.16;
-  rig.stars.material.opacity = THREE.MathUtils.clamp((night - 0.18) / 0.62, 0, 1);
+  rig.stars.visible = starOpacity > 0.01;
+  rig.stars.material.opacity = starOpacity;
   rig.stars.material.needsUpdate = true;
-  updateSkyDisc(rig.sunDisc, sunPosition, daylight, 980);
+  updateSkyDisc(rig.sunDisc, sunPosition, THREE.MathUtils.clamp(daylight + dawn * 0.26, 0, 1), 980);
   updateSkyDisc(rig.moonDisc, sunPosition.clone().negate(), night, 980);
 
-  scene.background = options.sun ? skyHorizon.clone().lerp(skyTop, 0.38) : new THREE.Color(rig.skyColor);
+  scene.background = skyHorizon.clone().lerp(skyTop, 0.38);
   scene.fog = new THREE.Fog(
-    options.sun ? fogColor : new THREE.Color(rig.skyColor),
+    fogColor,
     THREE.MathUtils.lerp(1100, 1500, daylight),
     THREE.MathUtils.lerp(3600, 5200, daylight));
   renderer.setClearColor(scene.background, 1);
@@ -142,8 +145,8 @@ export function updateTreeShadeObject(mesh, options) {
   if (!mesh?.userData?.[TREE_SHADE_KEY]) return;
   mesh.visible = options.shade === true;
   const time = normalizeTime(options.time);
-  const daylight = options.sun ? time.sunlightFactor : 0.78;
-  const sunRayDirection = sunRayVector(time);
+  const daylight = options.sun ? visualDaylight(time.dayProgress) : 0.78;
+  const sunRayDirection = visualSunPosition(time).negate();
   const lowSun = 1 - THREE.MathUtils.clamp(Math.abs(sunRayDirection.y) / 0.72, 0, 1);
   mesh.material.opacity = options.shadeDarkness * THREE.MathUtils.clamp(daylight + 0.1, 0.12, 1) * (options.sun ? 1 : 0.75);
   mesh.material.needsUpdate = true;
@@ -203,6 +206,28 @@ function createSkyDome() {
       uniform float daylight;
       uniform float dawnAmount;
       varying vec3 vWorldPosition;
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+      }
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(
+          mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+          mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+          u.y);
+      }
+      float fbm(vec2 p) {
+        float value = 0.0;
+        float amplitude = 0.5;
+        for (int i = 0; i < 4; i++) {
+          value += noise(p) * amplitude;
+          p *= 2.03;
+          amplitude *= 0.5;
+        }
+        return value;
+      }
       void main() {
         vec3 direction = normalize(vWorldPosition);
         float h = direction.y;
@@ -221,6 +246,15 @@ function createSkyDome() {
         color = mix(color, sunGlowColor, dayWarmth * 0.22);
         color += sunGlowColor * sunCoreGlow * dawnStrength * 0.2;
 
+        vec2 skyUv = direction.xz / max(direction.y + 0.72, 0.18);
+        float clouds = smoothstep(0.56, 0.82, fbm(skyUv * 2.25 + vec2(4.2, -1.7)));
+        float cloudBand = smoothstep(0.08, 0.48, h) * (1.0 - smoothstep(0.84, 1.0, h));
+        color = mix(color, vec3(0.78, 0.9, 1.0), clouds * cloudBand * daylight * 0.28);
+
+        float nebula = smoothstep(0.64, 0.9, fbm(skyUv * 1.45 + vec2(-7.0, 3.5)));
+        float nightSky = 1.0 - daylight;
+        color = mix(color, vec3(0.5, 0.24, 0.34), nebula * nightSky * smoothstep(0.16, 0.86, h) * 0.16);
+
         gl_FragColor = vec4(color, 1.0);
       }
     `,
@@ -233,7 +267,7 @@ function createSkyDome() {
 }
 
 function createStarField() {
-  const count = 1200;
+  const count = 2600;
   const positions = new Float32Array(count * 3);
   let seed = 0x5eed1234;
   for (let i = 0; i < count; i++) {
@@ -344,10 +378,38 @@ function sunRayVector(time) {
   return vector.normalize();
 }
 
+function visualSunPosition(time) {
+  const ray = sunRayVector(time);
+  const horizontal = new THREE.Vector3(-ray.x, 0, -ray.z);
+  if (horizontal.lengthSq() < 0.001) {
+    horizontal.set(SUN_RAY_DIRECTION.x, 0, SUN_RAY_DIRECTION.z).negate();
+  }
+  horizontal.normalize();
+
+  const rawElevation = Math.sin(time.dayProgress * Math.PI * 2 - Math.PI / 2);
+  const daylight = visualDaylight(time.dayProgress);
+  const elevation = daylight > 0.02
+    ? Math.max(0.075, rawElevation)
+    : Math.min(-0.075, rawElevation);
+  const horizontalScale = Math.sqrt(Math.max(0, 1 - elevation * elevation));
+  return horizontal.multiplyScalar(horizontalScale).setY(elevation).normalize();
+}
+
 function dawnAmount(progress) {
   const sunrise = pulse(progress, 0.25, 0.11);
   const sunset = pulse(progress, 0.75, 0.12);
   return Math.max(sunrise, sunset);
+}
+
+function visualDaylight(progress) {
+  return Math.min(
+    smoothstep(0.21, 0.31, progress),
+    1 - smoothstep(0.72, 0.82, progress));
+}
+
+function smoothstep(edge0, edge1, value) {
+  const t = THREE.MathUtils.clamp((value - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 function pulse(value, center, width) {
@@ -366,9 +428,16 @@ function readRange(input, fallback) {
 }
 
 function applyMaterialLightResponse(mesh, options) {
+  const time = normalizeTime(options.time);
+  const daylight = visualDaylight(time.dayProgress);
+  const nightGrade = THREE.MathUtils.clamp((0.72 - daylight) / 0.72, 0, 1);
+  const terrainTint = DAY_TERRAIN_TINT.clone().lerp(NIGHT_TERRAIN_TINT, nightGrade * 0.72);
   const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
   for (const material of materials) {
     if (!material) continue;
+    if (material.color && material.userData?.worldviewWater !== true) {
+      material.color.copy(terrainTint);
+    }
     material.roughness = material.userData?.worldviewWater ? 0.38 : 0.88;
     material.metalness = 0;
     material.needsUpdate = true;

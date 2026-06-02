@@ -71,10 +71,10 @@ import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
 public final class WorldviewWebServer {
-    private static final String FORMAT_VERSION = "v12";
+    private static final String FORMAT_VERSION = "v13";
     private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
-    private static final int MAX_BATCH_CHUNKS = 8;
+    private static final int MAX_BATCH_CHUNKS = 16;
     private static final int MAX_CONCURRENT_GENERATIONS = 1;
     private static final int MAX_MEMORY_CACHE_ENTRIES = 128;
     private static final long MAX_MEMORY_CACHE_BYTES = 128L * 1024L * 1024L;
@@ -685,6 +685,7 @@ public final class WorldviewWebServer {
             case "/", "/index.html" -> "/web/index.html";
             case "/app.js" -> "/web/app.js";
             case "/styles.css" -> "/web/styles.css";
+            case "/textures/waternormals.jpg" -> "/web/textures/waternormals.jpg";
             default -> moduleResourcePath(requestPath);
         };
 
@@ -1285,6 +1286,7 @@ public final class WorldviewWebServer {
         if (resourcePath.endsWith(".html")) return "text/html; charset=utf-8";
         if (resourcePath.endsWith(".js")) return "text/javascript; charset=utf-8";
         if (resourcePath.endsWith(".css")) return "text/css; charset=utf-8";
+        if (resourcePath.endsWith(".jpg") || resourcePath.endsWith(".jpeg")) return "image/jpeg";
         return "application/octet-stream";
     }
 

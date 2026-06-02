@@ -57,19 +57,32 @@ async function flyForwardDistance(page, sprint) {
   return Math.hypot(after.x - before.x, after.y - before.y, after.z - before.z);
 }
 
-test('renders solid water with unlit map-matched material', async ({ page }) => {
-  await page.goto('/?radius=1&chunkX=7&chunkZ=-9&auto=false&mapTiles=true&water=solid');
+test('renders shader water with map-matched wave shader', async ({ page }) => {
+  await page.goto('/?radius=1&chunkX=7&chunkZ=-9&auto=false&mapTiles=true&water=shader');
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 7, -9');
+  await expect(page.locator('#water-mode')).toHaveValue('shader');
   await expect.poll(async () => page.evaluate(() => {
     return window.__synthWorldviewDebug.waterMaterialSummary().length;
   })).toBeGreaterThan(0);
 
   const waterMaterials = await page.evaluate(() => window.__synthWorldviewDebug.waterMaterialSummary());
-  expect(waterMaterials.every((material) => material.type === 'MeshBasicMaterial')).toBe(true);
+  expect(waterMaterials.every((material) => material.type === 'ShaderMaterial')).toBe(true);
   expect(waterMaterials.every((material) => material.toneMapped === false)).toBe(true);
   expect(waterMaterials.every((material) => material.fog === false)).toBe(true);
   expect(waterMaterials.every((material) => material.vertexColors === false)).toBe(true);
   expect(waterMaterials.every((material) => material.color?.b > material.color?.r)).toBe(true);
+  expect(waterMaterials.every((material) => material.waveHeight === 0.35)).toBe(true);
+  expect(waterMaterials.every((material) => material.waveFrequency === 1)).toBe(true);
+  expect(waterMaterials.every((material) => material.alpha === 0.92)).toBe(true);
+  expect(waterMaterials.every((material) => material.shaderMix === 1)).toBe(true);
+  expect(waterMaterials.every((material) => material.distortionScale === 20)).toBe(true);
+  expect(waterMaterials.every((material) => material.hasNormalSampler === true)).toBe(true);
+  expect(waterMaterials.every((material) => material.hasReflectionSampler === true)).toBe(true);
+
+  const firstTime = waterMaterials[0].time;
+  await page.waitForTimeout(250);
+  const updatedTime = await page.evaluate(() => window.__synthWorldviewDebug.waterMaterialSummary()[0]?.time);
+  expect(updatedTime).toBeGreaterThan(firstTime);
 });
 
 test('loads a bounded terrain grid and reports render resources', async ({ page }) => {
@@ -100,6 +113,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#show-players')).toBeChecked();
   await expect(page.locator('#sun-lighting')).toBeChecked();
   await expect(page.locator('#map-time')).not.toBeChecked();
+  expect(await page.evaluate(() => window.__synthWorldviewDebug.cameraPose().fov)).toBe(70);
   await expect(page.locator('#height-grade')).toHaveCount(0);
   await expect(page.locator('#atmosphere-lighting')).toHaveCount(0);
   await expect(page.locator('#tree-shade')).toBeChecked();
@@ -166,6 +180,52 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(timePayload.hour).toBeLessThanOrEqual(23);
   expect(typeof timePayload.phase).toBe('string');
   expect(typeof timePayload.sunDirection?.x).toBe('number');
+  await page.locator('#map-time').evaluate((input) => {
+    input.checked = true;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.locator('#sun-lighting').evaluate((input) => {
+    input.checked = false;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.locator('#sun-lighting').evaluate((input) => {
+    input.checked = true;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  const afternoonSky = await page.evaluate(() => {
+    window.__synthWorldviewDebug.setWorldTimeForTest({
+      dayProgress: 0.645,
+      sunlightFactor: 0.2,
+      phase: 'afternoon',
+      sunDirection: { x: 0.35, y: -0.85, z: -0.2 },
+    });
+    return window.__synthWorldviewDebug.skySummary();
+  });
+  expect(afternoonSky.starsVisible).toBe(false);
+  expect(afternoonSky.background.b).toBeGreaterThan(afternoonSky.background.r);
+  const sunsetSky = await page.evaluate(() => {
+    window.__synthWorldviewDebug.setWorldTimeForTest({
+      dayProgress: 0.758,
+      sunlightFactor: 0,
+      phase: 'sunset',
+      sunDirection: { x: 0.58, y: -0.61, z: -0.13 },
+    });
+    return window.__synthWorldviewDebug.skySummary();
+  });
+  expect(sunsetSky.starsVisible).toBe(false);
+  const nightSky = await page.evaluate(() => {
+    window.__synthWorldviewDebug.setWorldTimeForTest({
+      dayProgress: 0.04,
+      sunlightFactor: 0,
+      phase: 'midnight',
+      sunDirection: { x: -0.2, y: 0.9, z: 0.2 },
+    });
+    return window.__synthWorldviewDebug.skySummary();
+  });
+  expect(nightSky.starsVisible).toBe(true);
+  const nightLighting = await page.evaluate(() => window.__synthWorldviewDebug.lightingSummary());
+  expect(nightLighting.ambientIntensity).toBeLessThan(0.45);
+  expect(nightLighting.sunIntensity).toBeLessThan(0.05);
 
   if (playersPayload.players.length > 0) {
     const player = playersPayload.players[0];
@@ -216,6 +276,14 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
 
   await setControlValue('#water-mode', 'solid');
   await expect(page.locator('#water-mode')).toHaveValue('solid');
+  await expect.poll(async () => page.evaluate(() => {
+    return window.__synthWorldviewDebug.waterMaterialSummary().every((material) => material.shaderMix === 0);
+  })).toBe(true);
+  await setControlValue('#water-mode', 'shader');
+  await expect(page.locator('#water-mode')).toHaveValue('shader');
+  await expect.poll(async () => page.evaluate(() => {
+    return window.__synthWorldviewDebug.waterMaterialSummary().every((material) => material.shaderMix === 1);
+  })).toBe(true);
   await setControlValue('#water-mode', 'hidden');
   await expect(page.locator('#water-mode')).toHaveValue('hidden');
   await setControlValue('#shader-effect', 'tiltShift');

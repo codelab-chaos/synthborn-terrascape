@@ -235,10 +235,18 @@ public final class TerrainMesher {
             normals.add(nx);
             normals.add(ny);
             normals.add(nz);
-            colors.add(Math.min(1.0f, ((rgb >>> 16) & 0xff) / 255.0f * shade));
-            colors.add(Math.min(1.0f, ((rgb >>> 8) & 0xff) / 255.0f * shade));
-            colors.add(Math.min(1.0f, (rgb & 0xff) / 255.0f * shade));
+            colors.add(srgbToLinear(((rgb >>> 16) & 0xff) / 255.0f * shade));
+            colors.add(srgbToLinear(((rgb >>> 8) & 0xff) / 255.0f * shade));
+            colors.add(srgbToLinear((rgb & 0xff) / 255.0f * shade));
             vertexCount++;
+        }
+
+        private static float srgbToLinear(float value) {
+            float clamped = Math.max(0.0f, Math.min(1.0f, value));
+            if (clamped <= 0.04045f) {
+                return clamped / 12.92f;
+            }
+            return (float) Math.pow((clamped + 0.055f) / 1.055f, 2.4f);
         }
 
         TerrainMesh.TerrainPart toPart() {
