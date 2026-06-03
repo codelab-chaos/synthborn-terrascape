@@ -123,6 +123,12 @@ controls.touches = {
     ONE: three__WEBPACK_IMPORTED_MODULE_0__.TOUCH.PAN,
     TWO: three__WEBPACK_IMPORTED_MODULE_0__.TOUCH.DOLLY_ROTATE,
 };
+const FLY_MOUSE_BUTTONS = { ...controls.mouseButtons };
+const FOLLOW_MOUSE_BUTTONS = {
+    LEFT: three__WEBPACK_IMPORTED_MODULE_0__.MOUSE.ROTATE,
+    MIDDLE: three__WEBPACK_IMPORTED_MODULE_0__.MOUSE.PAN,
+    RIGHT: three__WEBPACK_IMPORTED_MODULE_0__.MOUSE.DOLLY,
+};
 const lightingRig = (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.createLightingRig)(scene, SKY_COLOR);
 const postProcessing = (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_12__.createPostProcessing)(renderer, scene, camera);
 const fpsCounter = (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_8__.createFpsCounter)(scene, camera, renderer);
@@ -677,7 +683,6 @@ function addChunkObject(world, chunkX, chunkZ, object) {
         debug,
         shade,
     });
-    updateMapTileLayer();
 }
 async function parseGltfBytes(arrayBuffer) {
     return await loader.parseAsync(arrayBuffer, '');
@@ -749,7 +754,6 @@ function disposeChunk(id, entry) {
     disposalStats.materials += materials.size;
     disposalStats.textures += textures.size;
     loadedChunks.delete(id);
-    updateMapTileLayer();
     updateMetrics();
 }
 function collectResourceStats() {
@@ -1370,7 +1374,7 @@ function resetCameraModes() {
     cameraModeStack.length = 0;
     viewPlayerUuid = null;
     followPlayerUuid = null;
-    controls.enabled = false;
+    setFollowControlsEnabled(false);
 }
 function captureCameraModeState() {
     return {
@@ -1378,7 +1382,7 @@ function captureCameraModeState() {
         target: controls.target.clone(),
         viewPlayerUuid,
         followPlayerUuid,
-        controlsEnabled: false,
+        controlsEnabled: controls.enabled,
     };
 }
 function restoreCameraModeState(state) {
@@ -1392,7 +1396,7 @@ function restoreCameraModeState(state) {
     controls.target.copy(state.target);
     viewPlayerUuid = state.viewPlayerUuid;
     followPlayerUuid = state.followPlayerUuid;
-    controls.enabled = false;
+    setFollowControlsEnabled(Boolean(followPlayerUuid));
     controls.update();
     syncFlyLookFromCamera();
     saveViewState();
@@ -1401,7 +1405,17 @@ function restoreCameraModeState(state) {
 function applyCameraMode(mode, uuid) {
     viewPlayerUuid = mode === 'eye' ? uuid : null;
     followPlayerUuid = mode === 'follow' ? uuid : null;
-    controls.enabled = false;
+    setFollowControlsEnabled(mode === 'follow');
+    if (mode === 'follow') {
+        updateWalkFollowCamera(1);
+    }
+}
+function setFollowControlsEnabled(enabled) {
+    controls.enabled = enabled;
+    controls.enableRotate = enabled;
+    controls.enableZoom = enabled;
+    controls.enablePan = enabled;
+    controls.mouseButtons = enabled ? FOLLOW_MOUSE_BUTTONS : FLY_MOUSE_BUTTONS;
 }
 function updateDebugBounds() {
     for (const entry of loadedChunks.values()) {
@@ -1839,6 +1853,11 @@ function isTypingInHud() {
         || active instanceof HTMLSelectElement
         || active instanceof HTMLTextAreaElement;
 }
+function blurFocusedHudControl() {
+    if (isTypingInHud()) {
+        document.activeElement.blur();
+    }
+}
 function animate() {
     const deltaSeconds = Math.min(clock.getDelta(), 0.05);
     const elapsedSeconds = clock.elapsedTime;
@@ -1848,6 +1867,9 @@ function animate() {
     updatePlayerCameraMode(deltaSeconds);
     if (!viewPlayerUuid && !followPlayerUuid) {
         updateFlyTarget();
+    }
+    if (controls.enabled) {
+        controls.update();
     }
     (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.positionSkyObjects)(lightingRig, camera.position);
     updateEmptyGrid();
@@ -1887,13 +1909,14 @@ window.addEventListener('keyup', (event) => {
     pressedKeys.delete(event.code);
 });
 renderer.domElement.addEventListener('pointerdown', (event) => {
-    if (!viewPlayerUuid && shouldStartFlyLook(event)) {
+    blurFocusedHudControl();
+    if (!viewPlayerUuid && !followPlayerUuid && shouldStartFlyLook(event)) {
         event.preventDefault();
         renderer.domElement.requestPointerLock?.();
     }
 }, { capture: true });
 renderer.domElement.addEventListener('wheel', (event) => {
-    if (viewPlayerUuid)
+    if (viewPlayerUuid || followPlayerUuid)
         return;
     event.preventDefault();
     zoomFlyView(event.deltaY);
@@ -2953,6 +2976,7 @@ const MAP_REGION_MAX_RADIUS = 34;
 const MAP_BACKDROP_Y = 112.0;
 let activeBackdrop = null;
 let activeKey = null;
+let pendingKey = null;
 let activeGeometryKey = null;
 let activeSampler = null;
 let requestSerial = 0;
@@ -2978,7 +3002,10 @@ function updateMapBackdrop(scene, renderer, options) {
         updateBackdropGeometry(geometryKey, centerX, centerZ, radius, innerRadius, coveredChunks);
         return;
     }
-    activeKey = key;
+    if (key === pendingKey) {
+        return;
+    }
+    pendingKey = key;
     activeStats = {
         loaded: 0,
         radius,
@@ -3013,7 +3040,6 @@ function updateMapBackdrop(scene, renderer, options) {
             texture.dispose();
             return;
         }
-        disposeActiveBackdrop(scene);
         texture.colorSpace = three__WEBPACK_IMPORTED_MODULE_0__.SRGBColorSpace;
         texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy?.() ?? 1);
         texture.needsUpdate = true;
@@ -3022,23 +3048,9 @@ function updateMapBackdrop(scene, renderer, options) {
         const minX = (centerX - radius) * CHUNK_SIZE;
         const minZ = (centerZ - radius) * CHUNK_SIZE;
         const geometry = createBackdropCoverageGeometry(minX, minZ, size, centerX, centerZ, radius, innerRadius, coveredChunks);
-        const material = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
-            map: texture,
-            side: three__WEBPACK_IMPORTED_MODULE_0__.DoubleSide,
-            transparent: true,
-            opacity: 0.98,
-            depthTest: true,
-            depthWrite: false,
-            fog: false,
-            toneMapped: false,
-        });
-        const mesh = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(geometry, material);
-        mesh.name = 'worldview-map-backdrop';
-        mesh.renderOrder = -30;
-        mesh.frustumCulled = false;
-        mesh.userData.chunkCount = chunkCount;
-        mesh.userData.radius = radius;
-        activeBackdrop = mesh;
+        applyBackdropMesh(scene, geometry, texture, chunkCount, radius);
+        activeKey = key;
+        pendingKey = null;
         activeGeometryKey = geometryKey;
         activeSampler = createBackdropSampler(texture.image, minX, minZ, size);
         activeStats = {
@@ -3049,7 +3061,6 @@ function updateMapBackdrop(scene, renderer, options) {
             loadMs,
             textureSize: texture.image ? `${texture.image.width}x${texture.image.height}` : '',
         };
-        scene.add(mesh);
         (0,_client_log_js__WEBPACK_IMPORTED_MODULE_1__.logClientEvent)('map_backdrop_load', {
             world,
             centerX,
@@ -3064,6 +3075,7 @@ function updateMapBackdrop(scene, renderer, options) {
     })
         .catch((error) => {
         if (serial === requestSerial) {
+            pendingKey = null;
             console.warn('Map backdrop load failed', error);
             (0,_client_log_js__WEBPACK_IMPORTED_MODULE_1__.logClientEvent)('map_backdrop_failed', {
                 world,
@@ -3078,6 +3090,7 @@ function updateMapBackdrop(scene, renderer, options) {
 }
 function clearMapBackdrop(scene) {
     activeKey = null;
+    pendingKey = null;
     activeGeometryKey = null;
     requestSerial++;
     activeStats = {
@@ -3101,6 +3114,39 @@ function disposeActiveBackdrop(scene) {
     }
     activeBackdrop.material?.dispose();
     activeBackdrop = null;
+}
+function applyBackdropMesh(scene, geometry, texture, chunkCount, radius) {
+    if (!activeBackdrop) {
+        const material = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
+            map: texture,
+            side: three__WEBPACK_IMPORTED_MODULE_0__.DoubleSide,
+            transparent: true,
+            opacity: 0.98,
+            depthTest: true,
+            depthWrite: false,
+            fog: false,
+            toneMapped: false,
+        });
+        activeBackdrop = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(geometry, material);
+        activeBackdrop.name = 'worldview-map-backdrop';
+        activeBackdrop.renderOrder = -30;
+        activeBackdrop.frustumCulled = false;
+        scene.add(activeBackdrop);
+    }
+    else {
+        const previousGeometry = activeBackdrop.geometry;
+        const previousTexture = activeBackdrop.material?.map;
+        activeBackdrop.geometry = geometry;
+        activeBackdrop.material.map = texture;
+        activeBackdrop.material.needsUpdate = true;
+        previousGeometry?.dispose();
+        previousTexture?.dispose();
+        if (!activeBackdrop.parent) {
+            scene.add(activeBackdrop);
+        }
+    }
+    activeBackdrop.userData.chunkCount = chunkCount;
+    activeBackdrop.userData.radius = radius;
 }
 function updateBackdropGeometry(geometryKey, centerX, centerZ, radius, innerRadius, coveredChunks) {
     if (!activeBackdrop || geometryKey === activeGeometryKey)
