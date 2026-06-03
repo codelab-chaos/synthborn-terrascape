@@ -140,7 +140,7 @@ final class MapTilePngEncoder {
             ImageWriteParam param = writer.getDefaultWriteParam();
             if (param.canWriteCompressed()) {
                 param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-                param.setCompressionQuality(1.0f);
+                param.setCompressionQuality(outputSize >= 1024 ? 0.0f : 1.0f);
             }
             writer.write(null, new IIOImage(image, null, null), param);
             writer.reset();

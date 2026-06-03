@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { logClientEvent } from './client-log.js';
 
 const CHUNK_SIZE = 32;
-const MAP_REGION_BONUS_RADIUS = 18;
-const MAP_REGION_MAX_RADIUS = 34;
+const MAP_REGION_BONUS_RADIUS = 54;
+const MAP_REGION_MAX_RADIUS = 102;
 const MAP_BACKDROP_Y = 112.0;
 
 let activeBackdrop = null;
@@ -14,6 +14,8 @@ let activeSampler = null;
 let requestSerial = 0;
 let activeStats = {
   loaded: 0,
+  centerX: 0,
+  centerZ: 0,
   radius: 0,
   chunks: 0,
   bytes: 0,
@@ -42,6 +44,8 @@ export function updateMapBackdrop(scene, renderer, options) {
   pendingKey = key;
   activeStats = {
     loaded: 0,
+    centerX,
+    centerZ,
     radius,
     chunks: radius * 2 + 1,
     bytes: 0,
@@ -92,6 +96,8 @@ export function updateMapBackdrop(scene, renderer, options) {
       activeSampler = createBackdropSampler(texture.image, minX, minZ, size);
       activeStats = {
         loaded: 1,
+        centerX,
+        centerZ,
         radius,
         chunks: chunkCount,
         bytes,
@@ -121,7 +127,9 @@ export function updateMapBackdrop(scene, renderer, options) {
           radius,
           error: error?.message ?? error,
         });
-        clearMapBackdrop(scene);
+        if (!activeBackdrop) {
+          clearMapBackdrop(scene);
+        }
       }
     });
 }
@@ -133,6 +141,8 @@ export function clearMapBackdrop(scene) {
   requestSerial++;
   activeStats = {
     loaded: 0,
+    centerX: 0,
+    centerZ: 0,
     radius: 0,
     chunks: 0,
     bytes: 0,
