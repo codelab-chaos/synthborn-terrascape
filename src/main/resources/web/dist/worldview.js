@@ -3018,7 +3018,7 @@ function updateMapBackdrop(scene, renderer, options) {
     const textureLoader = new three__WEBPACK_IMPORTED_MODULE_0__.TextureLoader();
     const url = `/api/mapregion/${encodeURIComponent(world)}/${centerX}/${centerZ}/${radius}.png`;
     const started = performance.now();
-    fetch(url, { cache: 'no-store' })
+    fetch(url)
         .then((response) => {
         if (!response.ok) {
             throw new Error(`Map backdrop request failed: ${response.status}`);

@@ -103,6 +103,9 @@ public final class WorldviewWebServer {
     private static final long MAX_MEMORY_CACHE_BYTES = 128L * 1024L * 1024L;
     private static final int MAP_REGION_TILE_SIZE = 32;
     private static final int MAX_MAP_REGION_RADIUS = 36;
+    private static final int MAX_MAP_REGION_MEMORY_CACHE_ENTRIES = 16;
+    private static final long MAX_MAP_REGION_MEMORY_CACHE_BYTES = 64L * 1024L * 1024L;
+    private static final String MAP_REGION_CACHE_CONTROL = "public, max-age=31536000, immutable";
     private static final Duration MAP_REGION_TIMEOUT = Duration.ofSeconds(20);
     private static final int MAX_CLIENT_LOG_BYTES = 16 * 1024;
     private static final int MAX_MOB_SNAPSHOTS = 256;
@@ -133,9 +136,13 @@ public final class WorldviewWebServer {
     private final HttpServer server;
     private final Semaphore generationPermits = new Semaphore(MAX_CONCURRENT_GENERATIONS);
     private final ConcurrentHashMap<String, CompletableFuture<TerrainResult>> pendingTerrain = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CompletableFuture<MapRegionResult>> pendingMapRegions = new ConcurrentHashMap<>();
     private final Object memoryCacheLock = new Object();
     private final LinkedHashMap<String, TerrainResult> memoryCache = new LinkedHashMap<>(32, 0.75f, true);
+    private final Object mapRegionMemoryCacheLock = new Object();
+    private final LinkedHashMap<String, byte[]> mapRegionMemoryCache = new LinkedHashMap<>(16, 0.75f, true);
     private long memoryCacheBytes;
+    private long mapRegionMemoryCacheBytes;
     private final AtomicInteger activeGenerations = new AtomicInteger();
     private final AtomicLong singleRequests = new AtomicLong();
     private final AtomicLong batchRequests = new AtomicLong();
@@ -546,7 +553,8 @@ public final class WorldviewWebServer {
 
         try {
             long startedNanos = System.nanoTime();
-            byte[] bytes = generateMapRegion(world, request).get(MAP_REGION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            MapRegionResult result = getMapRegion(world, request);
+            byte[] bytes = result.bytes();
             if (bytes.length == 0) {
                 writeJson(exchange, 500, "{\"ok\":false,\"error\":\"map_region_empty\"}");
                 return;
@@ -556,8 +564,9 @@ public final class WorldviewWebServer {
             exchange.getResponseHeaders().set("X-Worldview-Map-Region-Chunks", Integer.toString(chunkCount));
             exchange.getResponseHeaders().set("X-Worldview-Map-Region-Tile-Size", Integer.toString(MAP_REGION_TILE_SIZE));
             exchange.getResponseHeaders().set("X-Worldview-Map-Region-Millis", Long.toString(elapsedMillis));
+            exchange.getResponseHeaders().set("X-Worldview-Map-Region-Cache", result.source());
             exchange.getResponseHeaders().set("Content-Type", "image/png");
-            exchange.getResponseHeaders().set("Cache-Control", "no-cache");
+            exchange.getResponseHeaders().set("Cache-Control", MAP_REGION_CACHE_CONTROL);
             addCors(exchange);
             exchange.sendResponseHeaders(200, bytes.length);
             try (OutputStream outputStream = exchange.getResponseBody()) {
@@ -569,6 +578,7 @@ public final class WorldviewWebServer {
                     + " chunks=" + (chunkCount * chunkCount)
                     + " pixels=" + (chunkCount * MAP_REGION_TILE_SIZE) + "x" + (chunkCount * MAP_REGION_TILE_SIZE)
                     + " bytes=" + bytes.length
+                    + " cache=" + result.source()
                     + " ms=" + elapsedMillis);
         } catch (Exception e) {
             plugin.getLogger().at(Level.WARNING).withCause(e).log("Map region request failed: " + request);
@@ -795,6 +805,42 @@ public final class WorldviewWebServer {
         return results;
     }
 
+    private MapRegionResult getMapRegion(@Nonnull World world, @Nonnull MapRegionRequest request) throws Exception {
+        String key = request.key();
+        byte[] memoryCached = readMapRegionMemoryCache(key);
+        if (memoryCached != null) {
+            return new MapRegionResult(memoryCached, "memory");
+        }
+
+        byte[] diskCached = readMapRegionDiskCache(request);
+        if (diskCached != null) {
+            putMapRegionMemoryCache(key, diskCached);
+            return new MapRegionResult(diskCached, "disk");
+        }
+
+        CompletableFuture<MapRegionResult> future = new CompletableFuture<>();
+        CompletableFuture<MapRegionResult> existing = pendingMapRegions.putIfAbsent(key, future);
+        if (existing != null) {
+            return existing.get(MAP_REGION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).withSource("pending");
+        }
+
+        try {
+            byte[] generated = generateMapRegion(world, request).get(MAP_REGION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            if (generated.length > 0) {
+                putMapRegionMemoryCache(key, generated);
+                writeMapRegionDiskCache(request, generated);
+            }
+            MapRegionResult result = new MapRegionResult(generated, "generated");
+            future.complete(result);
+            return result;
+        } catch (Exception e) {
+            future.completeExceptionally(e);
+            throw e;
+        } finally {
+            pendingMapRegions.remove(key, future);
+        }
+    }
+
     private CompletableFuture<byte[]> generateMapRegion(@Nonnull World world, @Nonnull MapRegionRequest request) {
         WorldMapManager mapManager = world.getWorldMapManager();
         if (mapManager == null || !mapManager.isWorldMapEnabled()) {
@@ -985,6 +1031,67 @@ public final class WorldviewWebServer {
             Files.writeString(metadataPath, result.metadataJson());
         } catch (IOException e) {
             plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to write terrain cache entry " + glbPath);
+        }
+    }
+
+    private Path mapRegionOutputPath(@Nonnull MapRegionRequest request) {
+        return plugin.worldviewDir()
+                .resolve("map-region")
+                .resolve("tile-" + MAP_REGION_TILE_SIZE)
+                .resolve(safeName(request.worldName()))
+                .resolve("r" + request.radius())
+                .resolve(request.centerX() + "_" + request.centerZ() + ".png");
+    }
+
+    @Nullable
+    private byte[] readMapRegionMemoryCache(@Nonnull String key) {
+        synchronized (mapRegionMemoryCacheLock) {
+            return mapRegionMemoryCache.get(key);
+        }
+    }
+
+    private void putMapRegionMemoryCache(@Nonnull String key, byte[] bytes) {
+        synchronized (mapRegionMemoryCacheLock) {
+            byte[] previous = mapRegionMemoryCache.put(key, bytes);
+            if (previous != null) {
+                mapRegionMemoryCacheBytes -= previous.length;
+            }
+            mapRegionMemoryCacheBytes += bytes.length;
+            evictMapRegionMemoryCache();
+        }
+    }
+
+    private void evictMapRegionMemoryCache() {
+        while ((mapRegionMemoryCache.size() > MAX_MAP_REGION_MEMORY_CACHE_ENTRIES
+                || mapRegionMemoryCacheBytes > MAX_MAP_REGION_MEMORY_CACHE_BYTES)
+                && !mapRegionMemoryCache.isEmpty()) {
+            Map.Entry<String, byte[]> eldest = mapRegionMemoryCache.entrySet().iterator().next();
+            mapRegionMemoryCacheBytes -= eldest.getValue().length;
+            mapRegionMemoryCache.remove(eldest.getKey());
+        }
+    }
+
+    @Nullable
+    private byte[] readMapRegionDiskCache(@Nonnull MapRegionRequest request) {
+        Path path = mapRegionOutputPath(request);
+        if (!Files.isRegularFile(path)) {
+            return null;
+        }
+        try {
+            return Files.readAllBytes(path);
+        } catch (IOException e) {
+            plugin.getLogger().at(Level.FINE).log("Ignoring invalid map-region cache entry " + path + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private void writeMapRegionDiskCache(@Nonnull MapRegionRequest request, byte[] bytes) {
+        Path path = mapRegionOutputPath(request);
+        try {
+            Files.createDirectories(path.getParent());
+            Files.write(path, bytes);
+        } catch (IOException e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to write map-region cache entry " + path);
         }
     }
 
@@ -2660,6 +2767,15 @@ public final class WorldviewWebServer {
     }
 
     private record MapRegionRequest(String worldName, int centerX, int centerZ, int radius) {
+        String key() {
+            return worldName + ":" + MAP_REGION_TILE_SIZE + ":" + centerX + ":" + centerZ + ":" + radius;
+        }
+    }
+
+    private record MapRegionResult(byte[] bytes, String source) {
+        MapRegionResult withSource(@Nonnull String source) {
+            return new MapRegionResult(bytes, source);
+        }
     }
 
     private record BatchTerrainRequest(String worldName, List<ChunkCoord> chunks) {
