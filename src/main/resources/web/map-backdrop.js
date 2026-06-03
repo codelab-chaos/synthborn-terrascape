@@ -5,10 +5,10 @@ const CHUNK_SIZE = 32;
 const MAP_REGION_BONUS_RADIUS = 18;
 const MAP_REGION_MAX_RADIUS = 34;
 const MAP_BACKDROP_Y = 112.0;
-const MAP_BACKDROP_EDGE_OVERLAP_CHUNKS = 0.65;
 
 let activeBackdrop = null;
 let activeKey = null;
+let activeGeometryKey = null;
 let activeSampler = null;
 let requestSerial = 0;
 let activeStats = {
@@ -21,7 +21,7 @@ let activeStats = {
 };
 
 export function updateMapBackdrop(scene, renderer, options) {
-  const { enabled, world, centerX, centerZ, meshRadius } = options;
+  const { enabled, world, centerX, centerZ, meshRadius, coveredChunks } = options;
   if (!enabled || !world || !Number.isFinite(centerX) || !Number.isFinite(centerZ)) {
     clearMapBackdrop(scene);
     return;
@@ -30,7 +30,9 @@ export function updateMapBackdrop(scene, renderer, options) {
   const innerRadius = Math.max(0, Math.floor(meshRadius));
   const radius = Math.min(MAP_REGION_MAX_RADIUS, Math.max(innerRadius + MAP_REGION_BONUS_RADIUS, innerRadius + 1));
   const key = `${world}:${centerX}:${centerZ}:${innerRadius}:${radius}`;
+  const geometryKey = `${key}:${coveredChunkKey(coveredChunks)}`;
   if (key === activeKey) {
+    updateBackdropGeometry(geometryKey, centerX, centerZ, radius, innerRadius, coveredChunks);
     return;
   }
   activeKey = key;
@@ -79,7 +81,7 @@ export function updateMapBackdrop(scene, renderer, options) {
       const size = chunkCount * CHUNK_SIZE;
       const minX = (centerX - radius) * CHUNK_SIZE;
       const minZ = (centerZ - radius) * CHUNK_SIZE;
-      const geometry = createBackdropRingGeometry(minX, minZ, size, centerX, centerZ, innerRadius);
+      const geometry = createBackdropCoverageGeometry(minX, minZ, size, centerX, centerZ, radius, innerRadius, coveredChunks);
       const material = new THREE.MeshBasicMaterial({
         map: texture,
         side: THREE.DoubleSide,
@@ -97,6 +99,7 @@ export function updateMapBackdrop(scene, renderer, options) {
       mesh.userData.chunkCount = chunkCount;
       mesh.userData.radius = radius;
       activeBackdrop = mesh;
+      activeGeometryKey = geometryKey;
       activeSampler = createBackdropSampler(texture.image, minX, minZ, size);
       activeStats = {
         loaded: 1,
@@ -136,6 +139,7 @@ export function updateMapBackdrop(scene, renderer, options) {
 
 export function clearMapBackdrop(scene) {
   activeKey = null;
+  activeGeometryKey = null;
   requestSerial++;
   activeStats = {
     loaded: 0,
@@ -158,6 +162,18 @@ function disposeActiveBackdrop(scene) {
   }
   activeBackdrop.material?.dispose();
   activeBackdrop = null;
+}
+
+function updateBackdropGeometry(geometryKey, centerX, centerZ, radius, innerRadius, coveredChunks) {
+  if (!activeBackdrop || geometryKey === activeGeometryKey) return;
+  const chunkCount = radius * 2 + 1;
+  const size = chunkCount * CHUNK_SIZE;
+  const minX = (centerX - radius) * CHUNK_SIZE;
+  const minZ = (centerZ - radius) * CHUNK_SIZE;
+  const previous = activeBackdrop.geometry;
+  activeBackdrop.geometry = createBackdropCoverageGeometry(minX, minZ, size, centerX, centerZ, radius, innerRadius, coveredChunks);
+  previous?.dispose();
+  activeGeometryKey = geometryKey;
 }
 
 export function mapBackdropStats() {
@@ -201,18 +217,14 @@ function createBackdropSampler(image, minX, minZ, size) {
   };
 }
 
-function createBackdropRingGeometry(minX, minZ, size, centerX, centerZ, innerRadius) {
+function coveredChunkKey(coveredChunks) {
+  if (!(coveredChunks instanceof Set) || coveredChunks.size === 0) return '';
+  return Array.from(coveredChunks).sort().join('|');
+}
+
+function createBackdropCoverageGeometry(minX, minZ, size, centerX, centerZ, radius, innerRadius, coveredChunks) {
   const maxX = minX + size;
   const maxZ = minZ + size;
-  const terrainMinX = (centerX - innerRadius) * CHUNK_SIZE;
-  const terrainMinZ = (centerZ - innerRadius) * CHUNK_SIZE;
-  const terrainMaxX = (centerX + innerRadius + 1) * CHUNK_SIZE;
-  const terrainMaxZ = (centerZ + innerRadius + 1) * CHUNK_SIZE;
-  const overlap = MAP_BACKDROP_EDGE_OVERLAP_CHUNKS * CHUNK_SIZE;
-  const innerMinX = THREE.MathUtils.clamp(terrainMinX + overlap, minX, maxX);
-  const innerMinZ = THREE.MathUtils.clamp(terrainMinZ + overlap, minZ, maxZ);
-  const innerMaxX = THREE.MathUtils.clamp(terrainMaxX - overlap, minX, maxX);
-  const innerMaxZ = THREE.MathUtils.clamp(terrainMaxZ - overlap, minZ, maxZ);
   const positions = [];
   const uvs = [];
   const indices = [];
@@ -232,13 +244,17 @@ function createBackdropRingGeometry(minX, minZ, size, centerX, centerZ, innerRad
     indices.push(index, index + 1, index + 2, index, index + 2, index + 3);
   };
 
-  if (innerMaxX <= innerMinX || innerMaxZ <= innerMinZ) {
-    addRect(minX, minZ, maxX, maxZ);
-  } else {
-    addRect(minX, minZ, maxX, innerMinZ);
-    addRect(minX, innerMaxZ, maxX, maxZ);
-    addRect(minX, innerMinZ, innerMinX, innerMaxZ);
-    addRect(innerMaxX, innerMinZ, maxX, innerMaxZ);
+  const covered = coveredChunks instanceof Set ? coveredChunks : new Set();
+  for (let chunkZ = centerZ - radius; chunkZ <= centerZ + radius; chunkZ += 1) {
+    for (let chunkX = centerX - radius; chunkX <= centerX + radius; chunkX += 1) {
+      const x0 = chunkX * CHUNK_SIZE;
+      const z0 = chunkZ * CHUNK_SIZE;
+      const x1 = x0 + CHUNK_SIZE;
+      const z1 = z0 + CHUNK_SIZE;
+      if (!covered.has(`${chunkX}:${chunkZ}`)) {
+        addRect(x0, z0, x1, z1);
+      }
+    }
   }
 
   const geometry = new THREE.BufferGeometry();

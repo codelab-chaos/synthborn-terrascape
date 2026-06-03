@@ -1,7 +1,7 @@
 const { expect, test } = require('@playwright/test');
 
 test('supports canvas-scoped FPS fly look, capped zoom, and sprint movement', async ({ page }) => {
-  await page.goto('/?radius=0&chunkX=0&chunkZ=0&auto=true&mapTiles=false');
+  await page.goto('/?radius=0&chunkX=0&chunkZ=0&auto=true&mapTiles=false&players=false');
   await expect(page.locator('#status')).toHaveText('Loaded 1 chunks around 0, 0');
 
   await page.evaluate(() => {
@@ -119,11 +119,26 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#tree-shade')).toBeChecked();
   await expect(page.locator('#lod-horizon')).toHaveCount(0);
   await expect(page.locator('#map-tiles')).toBeChecked();
+  const mapTileFog = await page.evaluate(() => window.__synthWorldviewDebug.skySummary());
+  expect(mapTileFog.fogType).toBe('Fog');
+  expect(mapTileFog.fogNear).toBeGreaterThan(500);
+  expect(mapTileFog.fogFar).toBeGreaterThan(2000);
+  expect(typeof mapTileFog.fogColor.r).toBe('number');
+  let mapBackdrop = null;
+  await expect.poll(async () => {
+    mapBackdrop = await page.evaluate(() => window.__synthWorldviewDebug.mapBackdropStats());
+    return mapBackdrop.textureSize !== '';
+  }).toBe(true);
+  expect(mapBackdrop.radius).toBeLessThanOrEqual(36);
+  expect(mapBackdrop.chunks).toBe(mapBackdrop.radius * 2 + 1);
+  expect(mapBackdrop.textureSize).toBe(`${mapBackdrop.chunks * 32}x${mapBackdrop.chunks * 32}`);
   await expect(page.locator('#shade-size')).toHaveValue('1.85');
   await expect(page.locator('#shade-size-value')).toHaveValue('1.85');
   await expect(page.locator('#shade-darkness')).toHaveValue('0.4');
   await expect(page.locator('#shade-darkness-value')).toHaveValue('0.4');
-  await expect(page.locator('#show-mobs')).toHaveCount(0);
+  await expect(page.locator('#show-mobs')).toBeChecked();
+  await expect(page.locator('.titlebar-actions #show-mobs')).toBeVisible();
+  await expect(page.locator('.hud #show-mobs')).toHaveCount(0);
   await expect(page.locator('#load')).toHaveCount(0);
   await expect(page.locator('#auto-stream')).not.toBeChecked();
   await expect(page.locator('#players')).toBeVisible();
@@ -132,27 +147,49 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#metric-disposed')).toContainText('c');
   await expect(page.locator('#fps-value')).toBeVisible();
   await expect(page.locator('#fps-frame')).toBeVisible();
+  await page.locator('#info-card-head').click();
+  await expect(page.locator('.info-card')).toHaveClass(/collapsed/);
+  await expect(page.locator('#fps-value')).toBeVisible();
+  await expect(page.locator('#metric-loaded')).not.toBeVisible();
+  await expect(page.locator('#info-card-head')).toHaveAttribute('aria-expanded', 'false');
+  await page.locator('#info-card-head').click();
+  await expect(page.locator('.info-card')).not.toHaveClass(/collapsed/);
+  await expect(page.locator('#metric-loaded')).toBeVisible();
+  await expect(page.locator('#info-card-head')).toHaveAttribute('aria-expanded', 'true');
   await expect.poll(async () => page.evaluate(() => {
     const counter = window.__synthWorldviewDebug?.fpsCounter;
     return typeof counter?.fps === 'number' && typeof counter?.frameMs === 'number';
   })).toBe(true);
   const markerShape = await page.evaluate(async () => {
     const { createPlayerMarker, disposeObject } = await import('/players.js');
-    const marker = createPlayerMarker({ uuid: 'test-player' });
+    const marker = createPlayerMarker({
+      uuid: 'test-player',
+      name: 'Avatar Tester',
+      avatarUrl: '/api/player-avatar/00000000-0000-0000-0000-000000000001.png?name=Avatar%20Tester',
+    });
     const parts = [
-      'player-base',
       'player-legs',
       'player-body',
       'player-head',
       'player-face-glow',
       'player-look-light',
       'player-look-light-target',
-      'player-overhead-diamond',
+      'player-card',
+      'player-card-pointer',
     ];
     const result = {
       hasParts: parts.every((part) => marker.getObjectByName(part) !== undefined),
+      hasBase: marker.getObjectByName('player-base') !== undefined,
+      hasDiamond: marker.getObjectByName('player-overhead-diamond') !== undefined,
+      sharedBadge: marker.userData.badge === marker.getObjectByName('player-card'),
+      cardPlayerMode: marker.getObjectByName('player-card')?.userData.mob?.playerCard === true,
+      cardIconUrl: marker.getObjectByName('player-card')?.userData.mob?.iconUrl,
+      cardHideStats: marker.getObjectByName('player-card')?.userData.mob?.hideStats === true,
       headY: marker.getObjectByName('player-head')?.position.y,
-      diamondY: marker.getObjectByName('player-overhead-diamond')?.position.y,
+      cardY: marker.getObjectByName('player-card')?.position.y,
+      cardScaleY: marker.getObjectByName('player-card')?.scale.y,
+      pointerScaleY: marker.getObjectByName('player-card-pointer')?.scale.y,
+      pointerY: marker.getObjectByName('player-card-pointer')?.position.y,
       lightDistance: marker.getObjectByName('player-look-light')?.distance,
       lookTargetZ: marker.getObjectByName('player-look-light-target')?.position.z,
     };
@@ -162,15 +199,223 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(markerShape.hasParts).toBe(true);
   expect(markerShape.headY).toBeGreaterThan(2.35);
   expect(markerShape.headY).toBeLessThan(2.5);
-  expect(markerShape.diamondY).toBeGreaterThan(3);
+  expect(markerShape.hasBase).toBe(false);
+  expect(markerShape.hasDiamond).toBe(false);
+  expect(markerShape.sharedBadge).toBe(true);
+  expect(markerShape.cardPlayerMode).toBe(true);
+  expect(markerShape.cardIconUrl).toContain('/api/player-avatar/');
+  expect(markerShape.cardHideStats).toBe(true);
+  expect(markerShape.cardScaleY).toBeGreaterThan(6);
+  expect(markerShape.cardY).toBeGreaterThan(6.5);
+  expect(markerShape.pointerScaleY).toBeGreaterThan(0.85);
+  expect(markerShape.pointerY - markerShape.pointerScaleY / 2).toBeCloseTo(2.8, 2);
+  expect(markerShape.cardY - markerShape.cardScaleY / 2).toBeGreaterThan(3.65);
   expect(markerShape.lightDistance).toBeGreaterThan(10);
   expect(markerShape.lookTargetZ).toBeLessThan(-4);
+
+  const mobMarkerShape = await page.evaluate(async () => {
+    const { createMobMarker, disposeObject, updateMobMarkerHeight } = await import('/players.js');
+    const marker = createMobMarker({
+      id: 'test-chicken',
+      type: 'Chicken',
+      label: 'Chicken',
+      category: 'livestock',
+      color: '#ffd36a',
+      maxHealth: 29,
+      attackDamage: 0,
+      iconUrl: '/mob-icons/Chicken.png',
+    });
+    updateMobMarkerHeight(marker, 12);
+    const result = {
+      hasCard: marker.getObjectByName('mob-card') !== undefined,
+      hasGlow: marker.getObjectByName('mob-ground-glow') !== undefined,
+      hasShadow: marker.getObjectByName('mob-ground-shadow') !== undefined,
+      hasPointer: marker.getObjectByName('mob-pointer') !== undefined,
+      cardY: marker.getObjectByName('mob-card')?.position.y,
+      pointerScaleY: marker.getObjectByName('mob-pointer')?.scale.y,
+    };
+    disposeObject(marker);
+    return result;
+  });
+  expect(mobMarkerShape.hasCard).toBe(true);
+  expect(mobMarkerShape.hasGlow).toBe(true);
+  expect(mobMarkerShape.hasShadow).toBe(true);
+  expect(mobMarkerShape.hasPointer).toBe(true);
+  expect(mobMarkerShape.cardY).toBe(12);
+  expect(mobMarkerShape.pointerScaleY).toBeGreaterThan(10);
+
+  const testMobVisible = await page.evaluate(() => {
+    window.__synthWorldviewDebug.updateMobsForTest([{
+      id: 'test-chicken',
+      type: 'Chicken',
+      label: 'Chicken',
+      category: 'livestock',
+      x: 8,
+      y: 120,
+      z: 8,
+      color: '#ffd36a',
+      source: 'test',
+    }]);
+    const marker = window.__synthWorldviewDebug.mobMarkers.get('test-chicken');
+    return {
+      visible: marker?.visible === true,
+      label: marker?.userData.mob?.label,
+      hp: marker?.userData.mob?.hp,
+      attackDamage: marker?.userData.mob?.attackDamage,
+      iconUrl: marker?.userData.mob?.iconUrl,
+    };
+  });
+  expect(testMobVisible.visible).toBe(true);
+  expect(testMobVisible.label).toBe('Chicken');
+  expect(testMobVisible.hp).toBe(29);
+  expect(testMobVisible.attackDamage).toBe(0);
+  expect(testMobVisible.iconUrl).toBe('/mob-icons/Chicken.png');
+
+  await page.locator('#show-mobs').uncheck();
+  await expect.poll(async () => page.evaluate(() => {
+    return window.__synthWorldviewDebug.mobMarkers.size;
+  })).toBe(0);
+  await expect(page.locator('#metric-mobs')).toHaveText('hidden');
+  await expect.poll(async () => page.evaluate(() => window.__synthWorldviewDebug.entityStreamState().mobs)).toBe(false);
+  await page.locator('#show-mobs').check();
+  await expect.poll(async () => page.evaluate(() => window.__synthWorldviewDebug.entityStreamState().mobs)).toBe(true);
+
+  const predatorMobVisible = await page.evaluate(() => {
+    window.__synthWorldviewDebug.updateMobsForTest([{
+      id: 'test-bear',
+      type: 'Bear_Grizzly',
+      label: 'Bear_Grizzly',
+      category: 'passive',
+      x: 9,
+      y: 120,
+      z: 9,
+      color: '#a7e06f',
+      source: 'test',
+    }, {
+      id: 'test-boar',
+      type: 'Boar',
+      label: 'Boar',
+      category: 'livestock',
+      x: 10,
+      y: 120,
+      z: 10,
+      color: '#ffd36a',
+      source: 'test',
+    }, {
+      id: 'test-skeleton',
+      type: 'Skeleton_Fighter',
+      label: 'Skeleton_Fighter',
+      category: 'undead',
+      x: 11,
+      y: 120,
+      z: 11,
+      color: '#ff5c70',
+      source: 'test',
+    }]);
+    return {
+      bearAttack: window.__synthWorldviewDebug.mobMarkers.get('test-bear')?.userData.mob?.attackDamage,
+      bearHp: window.__synthWorldviewDebug.mobMarkers.get('test-bear')?.userData.mob?.hp,
+      boarAttack: window.__synthWorldviewDebug.mobMarkers.get('test-boar')?.userData.mob?.attackDamage,
+      skeletonAttack: window.__synthWorldviewDebug.mobMarkers.get('test-skeleton')?.userData.mob?.attackDamage,
+      skeletonHp: window.__synthWorldviewDebug.mobMarkers.get('test-skeleton')?.userData.mob?.hp,
+    };
+  });
+  expect(predatorMobVisible.bearAttack).toBe(38);
+  expect(predatorMobVisible.bearHp).toBe(124);
+  expect(predatorMobVisible.boarAttack).toBe(10);
+  expect(predatorMobVisible.skeletonAttack).toBe(5);
+  expect(predatorMobVisible.skeletonHp).toBe(36);
+
+  const detailsResponse = await page.request.get('/npc-details.json');
+  expect(detailsResponse.ok()).toBeTruthy();
+  const detailsPayload = await detailsResponse.json();
+  expect(detailsPayload.entries.Chicken.maxHealth).toBe(29);
+  expect(detailsPayload.entries.Chicken.icon).toBe('mob-icons/Chicken.png');
+  expect(detailsPayload.entries.Frog_Green.label).toBe('Frog');
+  expect(detailsPayload.entries.Skeleton_Fighter.attackDamage).toBe(5);
+  expect(detailsPayload.entries.Skeleton_Archer.attackDamage).toBe(20);
+  expect(detailsPayload.entries.Wolf_Black.label).toBe('Black Wolf');
+  expect(detailsPayload.entries.Wolf_Black.attackDamage).toBe(27);
+  const iconResponse = await page.request.get('/mob-icons/Chicken.png');
+  expect(iconResponse.ok()).toBeTruthy();
+  expect(iconResponse.headers()['content-type']).toContain('image/png');
 
   const playersResponse = await page.request.get('/api/players/default');
   expect(playersResponse.ok()).toBeTruthy();
   const playersPayload = await playersResponse.json();
   expect(playersPayload.ok).toBeTruthy();
   expect(Array.isArray(playersPayload.players)).toBeTruthy();
+  for (const player of playersPayload.players) {
+    if (player.skin) {
+      expect(typeof player.skin.key).toBe('string');
+      expect(player.avatarUrl).toContain(`/api/player-avatar/${player.uuid}-${player.skin.key}.png`);
+      expect(player.avatarUrl).not.toContain('skin=');
+    } else {
+      expect(player.avatarUrl).toContain(`/api/player-avatar/${player.uuid}.png`);
+    }
+  }
+  await page.evaluate(() => {
+    window.__synthWorldviewDebug.updatePlayersForTest([{
+      uuid: '00000000-0000-0000-0000-000000000001',
+      name: 'Avatar Tester',
+      avatarUrl: '/api/player-avatar/00000000-0000-0000-0000-000000000001.png?name=Avatar%20Tester',
+      x: 0,
+      y: 120,
+      z: 0,
+      yaw: 0,
+    }]);
+  });
+  await expect(page.locator('.player-avatar').first()).toBeVisible();
+  await expect(page.locator('.player-avatar').first()).toHaveText(/AT/);
+  await expect(page.locator('.player-name').first()).toHaveText('Avatar Tester');
+  const streamAnchor = await page.evaluate(() => {
+    window.__synthWorldviewDebug.setCameraPose({
+      camera: { x: 960, y: 180, z: 960 },
+      target: { x: 960, y: 120, z: 900 },
+    });
+    window.__synthWorldviewDebug.updatePlayersForTest([{
+      uuid: '00000000-0000-0000-0000-000000000001',
+      name: 'Avatar Tester',
+      avatarUrl: '/api/player-avatar/00000000-0000-0000-0000-000000000001.png?name=Avatar%20Tester',
+      x: 96,
+      y: 120,
+      z: 64,
+      yaw: 0,
+    }]);
+    return window.__synthWorldviewDebug.streamAnchorChunk();
+  });
+  expect(streamAnchor).toEqual({ chunkX: 3, chunkZ: 2 });
+  const playerAvatarReuse = await page.evaluate(() => {
+    const onePixelPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    window.__synthWorldviewDebug.updatePlayersForTest([{
+      uuid: '00000000-0000-0000-0000-000000000002',
+      name: 'Stable Avatar',
+      avatarUrl: onePixelPng,
+      x: 1,
+      y: 120,
+      z: 1,
+      yaw: 0,
+    }]);
+    const tile = window.__synthWorldviewDebug.playerTiles.get('00000000-0000-0000-0000-000000000002');
+    const before = tile?.avatarImage;
+    const beforeElement = tile?.element;
+    window.__synthWorldviewDebug.updatePlayersForTest([{
+      uuid: '00000000-0000-0000-0000-000000000002',
+      name: 'Stable Avatar',
+      avatarUrl: onePixelPng,
+      x: 2,
+      y: 120,
+      z: 2,
+      yaw: 0,
+    }]);
+    const afterTile = window.__synthWorldviewDebug.playerTiles.get('00000000-0000-0000-0000-000000000002');
+    const after = afterTile?.avatarImage;
+    return before instanceof HTMLImageElement && before === after && beforeElement === afterTile?.element;
+  });
+  expect(playerAvatarReuse).toBe(true);
+  await page.evaluate((players) => {
+    window.__synthWorldviewDebug.updatePlayersForTest(players);
+  }, playersPayload.players);
 
   const timeResponse = await page.request.get('/api/time/default');
   expect(timeResponse.ok()).toBeTruthy();
@@ -236,9 +481,59 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   }
 
   const mobsResponse = await page.request.get('/api/mobs/default');
-  expect(mobsResponse.status()).toBe(410);
+  expect(mobsResponse.ok()).toBeTruthy();
   const mobsPayload = await mobsResponse.json();
-  expect(mobsPayload.error).toBe('mob_feed_disabled');
+  expect(mobsPayload.ok).toBeTruthy();
+  expect(mobsPayload.world).toBe('default');
+  expect(mobsPayload.max).toBe(256);
+  expect(mobsPayload.radar).toBe(500);
+  expect(Array.isArray(mobsPayload.mobs)).toBeTruthy();
+  expect(typeof mobsPayload.sourceStats?.source).toBe('string');
+  expect(typeof mobsPayload.sourceStats?.chunks).toBe('number');
+  expect(typeof mobsPayload.sourceStats?.accepted).toBe('number');
+  expect(typeof mobsPayload.sourceStats?.liveRoleMatches).toBe('number');
+  for (const mob of mobsPayload.mobs) {
+    expect(typeof mob.id).toBe('string');
+    expect(typeof mob.type).toBe('string');
+    expect(typeof mob.label).toBe('string');
+    expect(typeof mob.category).toBe('string');
+    expect(typeof mob.x).toBe('number');
+    expect(typeof mob.y).toBe('number');
+    expect(typeof mob.z).toBe('number');
+    expect(typeof mob.color).toBe('string');
+    expect(typeof mob.source).toBe('string');
+    if (mob.yaw !== undefined) expect(typeof mob.yaw).toBe('number');
+    if (mob.health !== undefined) expect(typeof mob.health).toBe('number');
+    if (mob.maxHealth !== undefined) expect(typeof mob.maxHealth).toBe('number');
+    if (mob.role !== undefined) expect(typeof mob.role).toBe('string');
+    if (mob.npcTypeIndex !== undefined) expect(typeof mob.npcTypeIndex).toBe('number');
+    if (mob.roleIndex !== undefined) expect(typeof mob.roleIndex).toBe('number');
+    if (mob.modelAsset !== undefined) expect(typeof mob.modelAsset).toBe('string');
+    if (mob.persistentModelAsset !== undefined) expect(typeof mob.persistentModelAsset).toBe('string');
+    if (mob.liveRoleId !== undefined) expect(typeof mob.liveRoleId).toBe('string');
+    if (mob.liveRoleCategory !== undefined) expect(typeof mob.liveRoleCategory).toBe('string');
+    if (mob.liveRolePath !== undefined) expect(typeof mob.liveRolePath).toBe('string');
+  }
+
+  const npcIndexResponse = await page.request.get('/api/npc-index');
+  expect(npcIndexResponse.ok()).toBeTruthy();
+  const npcIndexPayload = await npcIndexResponse.json();
+  expect(npcIndexPayload.ok).toBeTruthy();
+  expect(typeof npcIndexPayload.loaded).toBe('boolean');
+  expect(typeof npcIndexPayload.roles).toBe('number');
+
+  const mobDebugResponse = await page.request.get('/api/mob-debug/default');
+  expect(mobDebugResponse.ok()).toBeTruthy();
+  const mobDebugPayload = await mobDebugResponse.json();
+  expect(mobDebugPayload.ok).toBeTruthy();
+  expect(typeof mobDebugPayload.players).toBe('number');
+  expect(Array.isArray(mobDebugPayload.candidates)).toBeTruthy();
+  for (const candidate of mobDebugPayload.candidates) {
+    expect(typeof candidate.id).toBe('number');
+    expect(typeof candidate.type).toBe('string');
+    expect(typeof candidate.reason).toBe('string');
+    expect(typeof candidate.distance).toBe('number');
+  }
 
   await page.locator('#show-players').evaluate((input) => {
     input.checked = false;
@@ -347,7 +642,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#shade-size-value')).toHaveValue('1.45');
   await expect(page.locator('#shade-darkness')).toHaveValue('0.75');
   await expect(page.locator('#shade-darkness-value')).toHaveValue('0.75');
-  await expect(page.locator('#show-mobs')).toHaveCount(0);
+  await expect(page.locator('#show-mobs')).toBeChecked();
   await expect(page.locator('#players')).toHaveText('Players hidden');
   await expect(page.locator('#coord-target')).toHaveText('80, 116, 112');
   await expect(page.locator('#coord-camera')).toHaveText(/-?\d+, -?\d+, -?\d+/);

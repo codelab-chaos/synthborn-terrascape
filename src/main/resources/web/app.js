@@ -13,6 +13,8 @@ import {
   debugBoundsInput,
   experimentalDetailsStateEl,
   hudEl,
+  infoCardEl,
+  infoCardHeadEl,
   panelToggle,
   mapTilesInput,
   mapTimeInput,
@@ -21,6 +23,7 @@ import {
   metricResourcesEl,
   metricGpuEl,
   metricDisposedEl,
+  metricMobsEl,
   metricCenterEl,
   playersEl,
   playerUpdateRateInput,
@@ -31,6 +34,7 @@ import {
   shadeSizeValueInput,
   shaderEffectInput,
   showPlayersInput,
+  showMobsInput,
   sunLightingInput,
   statusEl,
   timeCycleLabelEl,
@@ -58,7 +62,15 @@ import {
   sampleMapBackdropColor,
   updateMapBackdrop,
 } from './map-backdrop.js';
-import { createPlayerMarker, disposeObject } from './players.js';
+import {
+  createMobMarker,
+  createPlayerMarker,
+  disposeObject,
+  updateMobMarkerCard,
+  updateMobMarkerHeight,
+  updatePlayerMarkerCard,
+  updatePlayerMarkerCardHeight,
+} from './players.js';
 import {
   createPostProcessing,
   renderPostProcessing,
@@ -78,13 +90,19 @@ const EMPTY_GRID_DIVISIONS = 128;
 const EMPTY_GRID_CHUNK_SNAP = 32;
 const EMPTY_GRID_Y = 96;
 const TERRAIN_BATCH_SIZE = 16;
-const DEFAULT_PLAYER_UPDATE_RATE_MS = 250;
+const DEFAULT_PLAYER_UPDATE_RATE_MS = 1000;
+const FOCUSED_PLAYER_POLL_MIN_MS = 1000;
 const EMPTY_PLAYER_POLL_MS = 15000;
 const HIDDEN_PLAYER_POLL_MS = 30000;
 const PLAYER_POLL_ERROR_MS = 10000;
+const MOB_POLL_MS = 5000;
+const EMPTY_MOB_POLL_MS = 12000;
+const MOB_POLL_ERROR_MS = 15000;
+const ENTITY_STREAM_FALLBACK_DELAY_MS = 4000;
 const MAP_TIME_ACTIVE_POLL_MS = 5000;
 const MAP_TIME_VISIBLE_POLL_MS = 10000;
 const MAP_TIME_IDLE_POLL_MS = 30000;
+const PLAYER_CONNECT_MOB_SAMPLE_DELAY_MS = 1500;
 const FLY_LOOK_DISTANCE = 64;
 const FLY_MOUSE_SENSITIVITY = 0.0022;
 const FLY_MOVE_SPEED = 72;
@@ -93,6 +111,9 @@ const FLY_ZOOM_STEP = 18;
 const FLY_ZOOM_MAX_TICKS = 6;
 const FLY_MIN_Y = 8;
 const FLY_MAX_Y = 1200;
+const MOB_CARD_MIN_HEIGHT = 3.4;
+const MOB_CARD_PLAYER_HEIGHT = 4.8;
+const MOB_CARD_TREE_TOP_HEIGHT = 24;
 const NOON_LIGHTING_TIME = {
   dayProgress: 0.5,
   sunlightFactor: 1,
@@ -149,6 +170,8 @@ scene.add(grid);
 const loader = new GLTFLoader();
 const loadedChunks = new Map();
 const playerMarkers = new Map();
+const playerTiles = new Map();
+const mobMarkers = new Map();
 const disposalStats = {
   chunks: 0,
   geometries: 0,
@@ -163,6 +186,13 @@ let scheduledCenterId = null;
 let streamTimer = null;
 let controlLoadTimer = null;
 let playerPollTimer = null;
+let mobPollTimer = null;
+let entityStream = null;
+let entityStreamWorld = null;
+let entityStreamPlayers = null;
+let entityStreamMobs = null;
+let entityStreamFallbackTimer = null;
+let playerConnectMobSampleTimer = null;
 const pressedKeys = new Set();
 const clock = new THREE.Clock();
 const initialParams = new URLSearchParams(window.location.search);
@@ -182,10 +212,21 @@ const cameraModeStack = [];
 let isRefreshingPlayers = false;
 let lastPlayerCount = 0;
 let lastPlayerPollFailed = false;
+let isRefreshingMobs = false;
+let lastMobCount = 0;
+let lastMobPollFailed = false;
+let entityStreamConnected = false;
+let lastMobSourceStats = null;
+let npcDetailsLoaded = false;
+const npcDetailsById = new Map();
+const npcDetailsAliases = new Map();
 
 const tempPlayerTarget = new THREE.Vector3();
+const tempMobTarget = new THREE.Vector3();
 const tempPlayerCamera = new THREE.Vector3();
 const tempPlayerLook = new THREE.Vector3();
+const tempPlayerCardQuaternion = new THREE.Quaternion();
+const tempPlayerParentQuaternion = new THREE.Quaternion();
 const tempFollowDelta = new THREE.Vector3();
 const tempCameraForward = new THREE.Vector3();
 const tempCenteredPivot = new THREE.Vector3();
@@ -224,7 +265,130 @@ function updateMetrics() {
   metricResourcesEl.textContent = `${resources.geometries} geo · ${resources.materials} mat · ${resources.textures} tex`;
   metricGpuEl.textContent = `${rendererMemory.geometries} geo · ${rendererMemory.textures} tex`;
   metricDisposedEl.textContent = `${disposalStats.chunks}c · ${disposalStats.geometries}g · ${disposalStats.materials}m · ${disposalStats.textures}t`;
+  metricMobsEl.textContent = mobMetricText();
   metricCenterEl.textContent = center;
+}
+
+function mobMetricText() {
+  if (!showMobsInput.checked) {
+    return 'hidden';
+  }
+  const summary = summarizeMobTypes();
+  const source = lastMobSourceStats?.source ? ` · ${lastMobSourceStats.source}` : '';
+  return summary ? `${mobMarkers.size} · ${summary}${source}` : `${mobMarkers.size}${source}`;
+}
+
+function summarizeMobTypes() {
+  const counts = new Map();
+  for (const marker of mobMarkers.values()) {
+    const type = marker.userData.mob?.type ?? marker.userData.mob?.category ?? 'Mob';
+    counts.set(type, (counts.get(type) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 4)
+    .map(([type, count]) => `${type} ${count}`)
+    .join(' · ');
+}
+
+async function loadNpcDetails() {
+  try {
+    const response = await fetch('/npc-details.json');
+    if (!response.ok) {
+      throw new Error(`NPC details request failed: ${response.status}`);
+    }
+    const data = await response.json();
+    npcDetailsById.clear();
+    npcDetailsAliases.clear();
+    for (const entry of Object.values(data.entries ?? {})) {
+      if (!entry?.id) continue;
+      npcDetailsById.set(entry.id, entry);
+      for (const alias of entry.aliases ?? []) {
+        npcDetailsAliases.set(normalizeNpcKey(alias), entry);
+      }
+      npcDetailsAliases.set(normalizeNpcKey(entry.id), entry);
+      npcDetailsAliases.set(normalizeNpcKey(entry.label), entry);
+      npcDetailsAliases.set(normalizeNpcKey(entry.appearance), entry);
+    }
+    npcDetailsLoaded = true;
+    logClientEvent('npc_details_loaded', {
+      roles: npcDetailsById.size,
+      aliases: npcDetailsAliases.size,
+    });
+  } catch (error) {
+    npcDetailsLoaded = false;
+    console.warn('NPC details lookup failed', error);
+    logClientEvent('npc_details_failed', { error: error?.message ?? error });
+  }
+}
+
+function enrichMob(mob, id) {
+  const details = resolveNpcDetails(mob);
+  const category = String(mob.category ?? details?.categoryPath ?? '').toLowerCase();
+  const maxHealth = firstFiniteNumber(mob.maxHealth, mob.maxHp, details?.maxHealth, mob.hp, mob.health);
+  const rawAttackDamage = firstFiniteNumber(mob.attackDamage, mob.damage, details?.attackDamage);
+  const passiveCard = isPassiveMobCategory(category, rawAttackDamage);
+  const attackDamage = passiveCard ? 0 : rawAttackDamage;
+  return {
+    ...mob,
+    id,
+    details,
+    label: details?.label ?? mob.label ?? mob.type ?? id,
+    maxHealth,
+    hp: firstFiniteNumber(mob.health, mob.hp, maxHealth),
+    attackDamage,
+    iconUrl: details?.icon ? `/${details.icon}` : mob.iconUrl,
+    passiveCard,
+  };
+}
+
+function resolveNpcDetails(mob) {
+  const candidates = [
+    mob.id,
+    mob.type,
+    mob.label,
+    mob.role,
+    mob.appearance,
+    stripRuntimeSuffix(mob.type),
+    stripRuntimeSuffix(mob.label),
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    const exact = npcDetailsById.get(candidate);
+    if (exact) return exact;
+    const alias = npcDetailsAliases.get(normalizeNpcKey(candidate));
+    if (alias) return alias;
+  }
+  return null;
+}
+
+function isPassiveMobCategory(category, attackDamage) {
+  if (typeof attackDamage === 'number' && attackDamage > 0) {
+    return false;
+  }
+  if (['passive', 'livestock', 'critter', 'flying', 'swimming'].some((value) => category.includes(value))) {
+    return true;
+  }
+  return attackDamage === null && ['creature', 'avian', 'fish'].some((value) => category.includes(value));
+}
+
+function normalizeNpcKey(value) {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function stripRuntimeSuffix(value) {
+  if (typeof value !== 'string') return null;
+  return value.replace(/_(Wander|Patrol|Fighter|Archer|Scout|Soldier)$/i, '');
+}
+
+function firstFiniteNumber(...values) {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function formatBytes(bytes) {
@@ -263,6 +427,7 @@ function applyInitialParams() {
   applyBooleanParam('auto', autoStreamInput);
   applyBooleanParam('bounds', debugBoundsInput);
   applyBooleanParam('players', showPlayersInput);
+  applyBooleanParam('mobs', showMobsInput);
   applyBooleanParam('sun', sunLightingInput);
   applyBooleanParam('shade', treeShadeInput);
   applyBooleanParam('mapTiles', mapTilesInput);
@@ -284,10 +449,12 @@ function applyStoredInputs() {
   if (typeof storedViewState.auto === 'boolean') autoStreamInput.checked = storedViewState.auto;
   if (typeof storedViewState.bounds === 'boolean') debugBoundsInput.checked = storedViewState.bounds;
   if (typeof storedViewState.players === 'boolean') showPlayersInput.checked = storedViewState.players;
+  if (typeof storedViewState.mobs === 'boolean') showMobsInput.checked = storedViewState.mobs;
   if (typeof storedViewState.sun === 'boolean') sunLightingInput.checked = storedViewState.sun;
   if (typeof storedViewState.shade === 'boolean') treeShadeInput.checked = storedViewState.shade;
   if (typeof storedViewState.mapTime === 'boolean') mapTimeInput.checked = storedViewState.mapTime;
   if (typeof storedViewState.mapTiles === 'boolean') mapTilesInput.checked = storedViewState.mapTiles;
+  if (typeof storedViewState.renderDetails === 'boolean') setRenderDetailsOpen(storedViewState.renderDetails);
   setPairedControlValue(shadeSizeInput, shadeSizeValueInput, storedViewState.shadeSize);
   setPairedControlValue(shadeDarknessInput, shadeDarknessValueInput, storedViewState.shadeDarkness);
   if (typeof storedViewState.water === 'string') {
@@ -632,7 +799,15 @@ function addChunkObject(world, chunkX, chunkZ, object) {
   debug.visible = debugBoundsInput.checked;
   object.add(debug);
   scene.add(object);
-  loadedChunks.set(chunkId(world, chunkX, chunkZ), { world, chunkX, chunkZ, object, debug, shade });
+  loadedChunks.set(chunkId(world, chunkX, chunkZ), {
+    world,
+    chunkX,
+    chunkZ,
+    object,
+    debug,
+    shade,
+  });
+  updateMapTileLayer();
 }
 
 async function parseGltfBytes(arrayBuffer) {
@@ -703,6 +878,7 @@ function disposeChunk(id, entry) {
   disposalStats.materials += materials.size;
   disposalStats.textures += textures.size;
   loadedChunks.delete(id);
+  updateMapTileLayer();
   updateMetrics();
 }
 
@@ -776,8 +952,19 @@ function updateMapTileLayer(centerX = Number.parseInt(chunkXInput.value, 10), ce
     centerX,
     centerZ,
     meshRadius: Math.max(0, numberOr(Number.parseInt(radiusInput.value, 10), 0)),
+    coveredChunks: mapCoveredChunks(worldSelect.value),
   });
   updateMetrics();
+}
+
+function mapCoveredChunks(world) {
+  const covered = new Set();
+  for (const entry of loadedChunks.values()) {
+    if (entry.world === world && entry.object?.parent === scene) {
+      covered.add(`${entry.chunkX}:${entry.chunkZ}`);
+    }
+  }
+  return covered;
 }
 
 function applyLighting() {
@@ -952,15 +1139,152 @@ function playerPollDelayMs() {
   if (!showPlayersInput.checked) {
     return HIDDEN_PLAYER_POLL_MS;
   }
-  return lastPlayerCount > 0 ? playerUpdateRateMs() : EMPTY_PLAYER_POLL_MS;
+  if (lastPlayerCount <= 0) {
+    return EMPTY_PLAYER_POLL_MS;
+  }
+  const requestedRate = playerUpdateRateMs();
+  return viewPlayerUuid || followPlayerUuid
+    ? Math.max(requestedRate, FOCUSED_PLAYER_POLL_MIN_MS)
+    : requestedRate;
 }
 
 function restartPlayerPolling(delayMs = playerPollDelayMs()) {
   clearTimeout(playerPollTimer);
+  if (entityStreamConnected) return;
   playerPollTimer = setTimeout(async () => {
     await refreshPlayers();
     restartPlayerPolling();
   }, delayMs);
+}
+
+async function refreshMobs() {
+  if (!worldSelect.value || !showMobsInput.checked || isRefreshingMobs) {
+    return;
+  }
+  isRefreshingMobs = true;
+  try {
+    const response = await fetch(`/api/mobs/${encodeURIComponent(worldSelect.value)}`);
+    if (!response.ok) {
+      throw new Error(`Mob request failed: ${response.status}`);
+    }
+    const data = await response.json();
+    lastMobPollFailed = false;
+    lastMobSourceStats = data.sourceStats ?? null;
+    updateMobs(data.mobs ?? []);
+  } catch (error) {
+    lastMobPollFailed = true;
+    console.warn('Mob refresh failed', error);
+    logClientEvent('mob_refresh_failed', { error: error?.message ?? error });
+  } finally {
+    isRefreshingMobs = false;
+  }
+}
+
+function mobPollDelayMs() {
+  if (!showMobsInput.checked) {
+    return null;
+  }
+  if (lastMobPollFailed) {
+    return MOB_POLL_ERROR_MS;
+  }
+  return lastMobCount > 0 ? MOB_POLL_MS : EMPTY_MOB_POLL_MS;
+}
+
+function restartMobPolling(delayMs = mobPollDelayMs()) {
+  clearTimeout(mobPollTimer);
+  mobPollTimer = null;
+  if (delayMs === null || entityStreamConnected) return;
+  mobPollTimer = setTimeout(async () => {
+    await refreshMobs();
+    restartMobPolling();
+  }, delayMs);
+}
+
+function wantsEntityStream() {
+  return worldSelect.value && (showPlayersInput.checked || showMobsInput.checked);
+}
+
+function restartEntityStream() {
+  clearTimeout(entityStreamFallbackTimer);
+  if (!('EventSource' in window) || !wantsEntityStream()) {
+    closeEntityStream();
+    restartPlayerPolling();
+    restartMobPolling();
+    return;
+  }
+
+  const includePlayers = showPlayersInput.checked;
+  const includeMobs = showMobsInput.checked;
+  if (entityStream
+      && entityStreamWorld === worldSelect.value
+      && entityStreamPlayers === includePlayers
+      && entityStreamMobs === includeMobs) {
+    return;
+  }
+
+  closeEntityStream();
+  entityStreamWorld = worldSelect.value;
+  entityStreamPlayers = includePlayers;
+  entityStreamMobs = includeMobs;
+  const params = new URLSearchParams({
+    players: includePlayers ? '1' : '0',
+    mobs: includeMobs ? '1' : '0',
+  });
+  entityStream = new EventSource(`/api/entities/stream/${encodeURIComponent(worldSelect.value)}?${params}`);
+  entityStream.addEventListener('open', () => {
+    entityStreamConnected = true;
+    clearTimeout(playerPollTimer);
+    clearTimeout(mobPollTimer);
+    clearTimeout(entityStreamFallbackTimer);
+  });
+  entityStream.addEventListener('entities', (event) => {
+    entityStreamConnected = true;
+    clearTimeout(playerPollTimer);
+    clearTimeout(mobPollTimer);
+    try {
+      applyEntitySnapshot(JSON.parse(event.data));
+    } catch (error) {
+      console.warn('Entity stream parse failed', error);
+      logClientEvent('entity_stream_parse_failed', { error: error?.message ?? error });
+    }
+  });
+  entityStream.addEventListener('error', () => {
+    entityStreamConnected = false;
+    scheduleEntityFallbackPolling();
+  });
+}
+
+function closeEntityStream() {
+  clearTimeout(entityStreamFallbackTimer);
+  if (entityStream) {
+    entityStream.close();
+  }
+  entityStream = null;
+  entityStreamWorld = null;
+  entityStreamPlayers = null;
+  entityStreamMobs = null;
+  entityStreamConnected = false;
+}
+
+function scheduleEntityFallbackPolling() {
+  clearTimeout(entityStreamFallbackTimer);
+  entityStreamFallbackTimer = setTimeout(() => {
+    if (entityStreamConnected) return;
+    restartPlayerPolling(0);
+    restartMobPolling(0);
+  }, ENTITY_STREAM_FALLBACK_DELAY_MS);
+}
+
+function applyEntitySnapshot(snapshot) {
+  if (!snapshot?.ok) return;
+  if (snapshot.world && snapshot.world !== worldSelect.value) return;
+  if (showPlayersInput.checked) {
+    updatePlayers(snapshot.players ?? []);
+  }
+  if (showMobsInput.checked) {
+    lastMobSourceStats = snapshot.mobSourceStats ?? null;
+    updateMobs(snapshot.mobs ?? []);
+  }
 }
 
 function updatePlayers(players) {
@@ -972,20 +1296,34 @@ function updatePlayers(players) {
       nextPollMs: playerPollDelayMs(),
     });
     restartWorldTimePolling();
+    if (lastPlayerCount > previousPlayerCount) {
+      schedulePlayerConnectMobSample(players);
+    }
   }
   const seen = new Set();
-  playersEl.replaceChildren();
 
   if (!showPlayersInput.checked) {
+    playersEl.replaceChildren();
     playersEl.textContent = 'Players hidden';
   } else if (players.length === 0) {
+    playersEl.replaceChildren();
     playersEl.textContent = 'No players';
+  } else if (playersEl.childNodes.length === 1 && playersEl.firstChild.nodeType === Node.TEXT_NODE) {
+    playersEl.replaceChildren();
   }
 
+  let tileIndex = 0;
   for (const player of players) {
     seen.add(player.uuid);
+    const existingMarker = playerMarkers.get(player.uuid);
+    const markerIsLegacy = existingMarker && !existingMarker.userData.card;
+    if (markerIsLegacy) {
+      scene.remove(existingMarker);
+      disposeObject(existingMarker);
+      playerMarkers.delete(player.uuid);
+    }
     const marker = playerMarkers.get(player.uuid) ?? createPlayerMarker(player);
-    if (!playerMarkers.has(player.uuid)) {
+    if (!existingMarker || markerIsLegacy) {
       marker.position.set(player.x, player.y, player.z);
       marker.rotation.y = player.yaw ?? 0;
     }
@@ -994,6 +1332,8 @@ function updatePlayers(players) {
     marker.userData.targetYaw = player.yaw ?? marker.userData.targetYaw ?? 0;
     marker.visible = showPlayersInput.checked;
     marker.userData.player = player;
+    updatePlayerMarkerCard(marker, player);
+    updatePlayerMarkerCardHeight(marker, 4.35);
     playerMarkers.set(player.uuid, marker);
     if (!marker.parent) {
       scene.add(marker);
@@ -1003,7 +1343,12 @@ function updatePlayers(players) {
       continue;
     }
 
-    playersEl.append(createPlayerTile(player));
+    const tile = playerTiles.get(player.uuid) ?? createPlayerTile(player);
+    if (!playerTiles.has(player.uuid)) {
+      playerTiles.set(player.uuid, tile);
+    }
+    updatePlayerTile(tile, player);
+    ensurePlayerTileOrder(tile.element, tileIndex++);
   }
 
   for (const [uuid, marker] of playerMarkers) {
@@ -1011,6 +1356,8 @@ function updatePlayers(players) {
       scene.remove(marker);
       disposeObject(marker);
       playerMarkers.delete(uuid);
+      playerTiles.get(uuid)?.element.remove();
+      playerTiles.delete(uuid);
       if (viewPlayerUuid === uuid) {
         popCameraMode();
       }
@@ -1023,6 +1370,183 @@ function updatePlayers(players) {
   updateEntityVisibility();
 }
 
+function ensurePlayerTileOrder(tileElement, index) {
+  const current = playersEl.children[index] ?? null;
+  if (current === tileElement) {
+    return;
+  }
+  if (tileElement.parentElement !== playersEl) {
+    playersEl.insertBefore(tileElement, current);
+    return;
+  }
+  playersEl.insertBefore(tileElement, current);
+}
+
+function schedulePlayerConnectMobSample(players) {
+  if (!worldSelect.value || !showMobsInput.checked) return;
+  clearTimeout(playerConnectMobSampleTimer);
+  const sampledPlayers = players.map((player) => compactObject({
+    uuid: player.uuid,
+    name: player.name,
+    x: roundCoord(player.x),
+    y: roundCoord(player.y),
+    z: roundCoord(player.z),
+  }));
+  playerConnectMobSampleTimer = setTimeout(() => {
+    sampleMobFeedOnPlayerConnect(sampledPlayers);
+  }, PLAYER_CONNECT_MOB_SAMPLE_DELAY_MS);
+}
+
+async function sampleMobFeedOnPlayerConnect(players) {
+  const world = worldSelect.value;
+  if (!world || !showMobsInput.checked) return;
+  try {
+    const response = await fetch(`/api/mobs/${encodeURIComponent(world)}`);
+    if (!response.ok) {
+      throw new Error(`Mob sample request failed: ${response.status}`);
+    }
+    const data = await response.json();
+    const mobs = Array.isArray(data.mobs) ? data.mobs : [];
+    logClientEvent('mob_connect_sample', {
+      world,
+      players: players.length,
+      player: players[0] ?? null,
+      mobs: mobs.length,
+      types: summarizeItems(mobs, (mob) => mob.type ?? mob.label ?? 'Mob'),
+      categories: summarizeItems(mobs, (mob) => mob.category ?? 'unknown'),
+      sources: summarizeItems(mobs, (mob) => mob.source ?? 'unknown'),
+      sourceStats: compactMobSourceStats(data.sourceStats),
+      nearest: nearestMobsForSample(mobs, players[0], 12),
+    });
+  } catch (error) {
+    logClientEvent('mob_connect_sample_failed', { error: error?.message ?? error });
+  }
+}
+
+function summarizeItems(items, selector, limit = 10) {
+  const counts = new Map();
+  for (const item of items) {
+    const key = String(selector(item) ?? 'unknown');
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([key, count]) => `${key}=${count}`)
+    .join('|');
+}
+
+function compactMobSourceStats(stats) {
+  if (!stats || typeof stats !== 'object') return null;
+  return compactObject({
+    source: stats.source,
+    chunks: stats.chunks,
+    accepted: stats.accepted,
+    duplicate: stats.duplicate,
+    outsideRadar: stats.outsideRadar,
+    nonMob: stats.nonMob,
+    skippedTypes: summarizeCountsObject(stats.skippedTypes, 8),
+  });
+}
+
+function summarizeCountsObject(countsObject, limit = 10) {
+  return Object.entries(countsObject ?? {})
+    .filter(([, count]) => typeof count === 'number' && count > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([key, count]) => `${key}=${count}`)
+    .join('|');
+}
+
+function nearestMobsForSample(mobs, player, limit) {
+  return mobs
+    .map((mob) => ({
+      mob,
+      distance: distanceBetween(mob, player),
+    }))
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, limit)
+    .map(({ mob, distance }) => compactObject({
+      type: mob.type,
+      label: mob.label,
+      category: mob.category,
+      source: mob.source,
+      x: roundCoord(mob.x),
+      y: roundCoord(mob.y),
+      z: roundCoord(mob.z),
+      d: Number.isFinite(distance) ? Math.round(distance) : null,
+    }));
+}
+
+function distanceBetween(a, b) {
+  if (![a?.x, a?.y, a?.z, b?.x, b?.y, b?.z].every(Number.isFinite)) return Number.POSITIVE_INFINITY;
+  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+
+function roundCoord(value) {
+  return Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
+}
+
+function compactObject(object) {
+  const result = {};
+  for (const [key, value] of Object.entries(object)) {
+    if (value !== null && value !== undefined && value !== '') {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+function updateMobs(mobs) {
+  if (!showMobsInput.checked && mobs.length > 0) {
+    return;
+  }
+  const previousMobCount = lastMobCount;
+  lastMobCount = mobs.length;
+  if (previousMobCount !== lastMobCount) {
+    logClientEvent('mob_count_changed', {
+      mobs: lastMobCount,
+      nextPollMs: mobPollDelayMs(),
+    });
+  }
+
+  const seen = new Set();
+  for (const mob of mobs) {
+    const id = String(mob.id ?? `${mob.type}:${mob.x}:${mob.y}:${mob.z}`);
+    const enrichedMob = enrichMob(mob, id);
+    seen.add(id);
+    const marker = mobMarkers.get(id) ?? createMobMarker(enrichedMob);
+    if (!mobMarkers.has(id)) {
+      marker.position.set(mob.x, mob.y, mob.z);
+    }
+    marker.userData.targetPosition ??= new THREE.Vector3();
+    marker.userData.targetPosition.set(mob.x, mob.y, mob.z);
+    marker.userData.mob = enrichedMob;
+    updateMobMarkerCard(marker, enrichedMob);
+    marker.visible = showMobsInput.checked;
+    mobMarkers.set(id, marker);
+    if (!marker.parent) {
+      scene.add(marker);
+    }
+  }
+
+  for (const [id, marker] of mobMarkers) {
+    if (!seen.has(id)) {
+      scene.remove(marker);
+      disposeObject(marker);
+      mobMarkers.delete(id);
+    }
+  }
+
+  updateEntityVisibility();
+}
+
+function clearMobs() {
+  updateMobs([]);
+  lastMobPollFailed = false;
+  lastMobSourceStats = null;
+}
+
 function createPlayerTile(player) {
   const tile = document.createElement('div');
   tile.className = 'player-tile';
@@ -1030,9 +1554,15 @@ function createPlayerTile(player) {
   const main = document.createElement('button');
   main.type = 'button';
   main.className = 'player-tile-main';
-  main.textContent = player.name;
   main.title = 'Move camera to player';
   main.addEventListener('click', () => focusPlayer(player.uuid));
+
+  const avatar = document.createElement('span');
+  avatar.className = 'player-avatar';
+
+  const name = document.createElement('span');
+  name.className = 'player-name';
+  main.append(avatar, name);
 
   const actions = document.createElement('div');
   actions.className = 'player-actions';
@@ -1063,7 +1593,70 @@ function createPlayerTile(player) {
 
   actions.append(eyeButton, walkButton);
   tile.append(main, actions);
-  return tile;
+  return {
+    element: tile,
+    avatar,
+    avatarUrl: null,
+    avatarImage: null,
+    name,
+    eyeButton,
+    walkButton,
+  };
+}
+
+function updatePlayerTile(tile, player) {
+  const initials = playerInitials(player.name);
+  if (tile.avatar.firstChild?.nodeType === Node.TEXT_NODE) {
+    tile.avatar.firstChild.nodeValue = initials;
+  } else {
+    tile.avatar.prepend(document.createTextNode(initials));
+  }
+  const avatarUrl = player.avatarUrl ?? playerAvatarUrl(player);
+  if (avatarUrl && avatarUrl !== tile.avatarUrl) {
+    tile.avatarUrl = avatarUrl;
+    tile.avatar.classList.remove('loaded');
+    tile.avatarImage?.remove();
+    const image = document.createElement('img');
+    image.alt = '';
+    image.decoding = 'async';
+    image.loading = 'lazy';
+    image.src = avatarUrl;
+    image.addEventListener('load', () => tile.avatar.classList.add('loaded'));
+    image.addEventListener('error', () => {
+      image.remove();
+      if (tile.avatarImage === image) {
+        tile.avatarImage = null;
+      }
+      tile.avatar.classList.remove('loaded');
+    });
+    tile.avatarImage = image;
+    tile.avatar.append(image);
+  } else if (!avatarUrl && tile.avatarUrl) {
+    tile.avatarUrl = null;
+    tile.avatarImage?.remove();
+    tile.avatarImage = null;
+    tile.avatar.classList.remove('loaded');
+  }
+  tile.name.textContent = player.name;
+  tile.eyeButton.classList.toggle('active', viewPlayerUuid === player.uuid);
+  tile.eyeButton.setAttribute('aria-pressed', String(viewPlayerUuid === player.uuid));
+  tile.walkButton.classList.toggle('active', followPlayerUuid === player.uuid);
+  tile.walkButton.setAttribute('aria-pressed', String(followPlayerUuid === player.uuid));
+}
+
+function playerInitials(name) {
+  const parts = String(name ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`.toUpperCase();
+}
+
+function playerAvatarUrl(player) {
+  if (!player?.uuid || !player?.name) return null;
+  return `/api/player-avatar/${encodeURIComponent(player.uuid)}.png?name=${encodeURIComponent(player.name)}`;
 }
 
 function focusPlayer(uuid) {
@@ -1077,7 +1670,7 @@ function focusPlayer(uuid) {
   controls.update();
   syncFlyLookFromCamera();
   saveViewState();
-  updatePlayers(Array.from(playerMarkers.values()).map((markerEntry) => markerEntry.userData.player).filter(Boolean));
+  updatePlayers(currentPlayersFromMarkers());
 }
 
 function setPlayerEyeView(uuid) {
@@ -1088,7 +1681,8 @@ function setPlayerEyeView(uuid) {
   } else if (viewPlayerUuid) {
     popCameraMode();
   }
-  refreshPlayers();
+  updatePlayers(currentPlayersFromMarkers());
+  restartPlayerPolling();
 }
 
 function setPlayerFollow(uuid) {
@@ -1098,7 +1692,8 @@ function setPlayerFollow(uuid) {
   } else if (followPlayerUuid) {
     popCameraMode();
   }
-  refreshPlayers();
+  updatePlayers(currentPlayersFromMarkers());
+  restartPlayerPolling();
 }
 
 function pushCameraMode(mode, uuid) {
@@ -1115,11 +1710,16 @@ function popCameraMode() {
   while (cameraModeStack.length > 0) {
     const previous = cameraModeStack.pop();
     if (restoreCameraModeState(previous)) {
-      refreshPlayers();
+      updatePlayers(currentPlayersFromMarkers());
+      restartPlayerPolling();
       return;
     }
   }
   resetCameraModes();
+}
+
+function currentPlayersFromMarkers() {
+  return Array.from(playerMarkers.values()).map((markerEntry) => markerEntry.userData.player).filter(Boolean);
 }
 
 function resetCameraModes() {
@@ -1167,9 +1767,24 @@ function updateDebugBounds() {
   }
 }
 
+function setRenderDetailsOpen(open) {
+  const isOpen = open === true;
+  infoCardEl.classList.toggle('collapsed', !isOpen);
+  infoCardHeadEl.setAttribute('aria-expanded', String(isOpen));
+  infoCardHeadEl.title = isOpen ? 'Hide render details' : 'Show render details';
+}
+
+function toggleRenderDetails() {
+  setRenderDetailsOpen(infoCardEl.classList.contains('collapsed'));
+  saveViewState();
+}
+
 function updateEntityVisibility() {
   for (const marker of playerMarkers.values()) {
     marker.visible = showPlayersInput.checked;
+  }
+  for (const marker of mobMarkers.values()) {
+    marker.visible = showMobsInput.checked;
   }
   if (!showPlayersInput.checked) {
     playersEl.textContent = 'Players hidden';
@@ -1181,19 +1796,41 @@ function exposeDebugState() {
     fpsCounter,
     loadedChunks,
     playerMarkers,
+    playerTiles,
+    mobMarkers,
+    entityStreamState: () => ({
+      connected: entityStreamConnected,
+      world: entityStreamWorld,
+      players: entityStreamPlayers,
+      mobs: entityStreamMobs,
+      available: 'EventSource' in window,
+    }),
+    npcDetailsState: () => ({
+      loaded: npcDetailsLoaded,
+      entries: npcDetailsById.size,
+      aliases: npcDetailsAliases.size,
+    }),
     loadGrid: (options = {}) => loadGrid(options),
     mapBackdropStats,
     terrainFormatVersion: () => terrainFormatVersion,
     activeCenterId: () => activeCenterId,
     requestedCenterId: () => requestedCenterId,
+    updatePlayersForTest: (players) => updatePlayers(players),
+    updateMobsForTest: (mobs) => updateMobs(mobs),
     waterMaterialSummary: () => waterMaterialSummary(),
     cameraPose: () => ({
       camera: vectorState(camera.position),
       target: vectorState(controls.target),
       fov: camera.fov,
     }),
+    streamAnchorChunk: () => playerChunk(),
     skySummary: () => ({
       background: displayColor(scene.background),
+      fogType: scene.fog?.isFogExp2 ? 'FogExp2' : (scene.fog?.isFog ? 'Fog' : null),
+      fogNear: scene.fog?.near ?? null,
+      fogFar: scene.fog?.far ?? null,
+      fogDensity: scene.fog?.density ?? null,
+      fogColor: displayColor(scene.fog?.color),
       starsVisible: lightingRig.stars.visible === true,
       skyVisible: lightingRig.sky.visible === true,
     }),
@@ -1323,6 +1960,8 @@ function saveViewState() {
     auto: autoStreamInput.checked,
     bounds: debugBoundsInput.checked,
     players: showPlayersInput.checked,
+    mobs: showMobsInput.checked,
+    renderDetails: !infoCardEl.classList.contains('collapsed'),
     sun: sunLightingInput.checked,
     shade: treeShadeInput.checked,
     mapTime: mapTimeInput.checked,
@@ -1349,10 +1988,24 @@ function maybeSaveViewState() {
 }
 
 function playerChunk() {
+  const anchor = streamAnchorPosition();
   return {
-    chunkX: Math.floor(camera.position.x / 32),
-    chunkZ: Math.floor(camera.position.z / 32),
+    chunkX: Math.floor(anchor.x / 32),
+    chunkZ: Math.floor(anchor.z / 32),
   };
+}
+
+function streamAnchorPosition() {
+  const focusedMarker = playerMarkers.get(viewPlayerUuid) ?? playerMarkers.get(followPlayerUuid);
+  const playerMarker = focusedMarker ?? playerMarkers.values().next().value;
+  const targetPosition = playerMarker?.userData?.targetPosition;
+  if (targetPosition) {
+    return targetPosition;
+  }
+  if (playerMarker?.position) {
+    return playerMarker.position;
+  }
+  return camera.position;
 }
 
 function updateCoordinates() {
@@ -1489,6 +2142,38 @@ function updatePlayerMarkers(deltaSeconds) {
     if (Number.isFinite(targetYaw)) {
       marker.rotation.y = lerpAngle(marker.rotation.y, targetYaw, alpha);
     }
+    const card = marker.userData.card;
+    if (card) {
+      marker.getWorldQuaternion(tempPlayerParentQuaternion);
+      tempPlayerCardQuaternion.copy(tempPlayerParentQuaternion).invert().multiply(camera.quaternion);
+      card.quaternion.copy(tempPlayerCardQuaternion);
+    }
+  }
+}
+
+function updateMobMarkers(deltaSeconds, elapsedSeconds) {
+  const alpha = 1 - Math.exp(-deltaSeconds * 5);
+  const playerHeightSource = playerMarkers.get(viewPlayerUuid) ?? playerMarkers.get(followPlayerUuid);
+  const desiredWorldY = playerHeightSource
+    ? playerHeightSource.position.y + MOB_CARD_PLAYER_HEIGHT
+    : camera.position.y;
+  for (const marker of mobMarkers.values()) {
+    const targetPosition = marker.userData.targetPosition;
+    if (targetPosition) {
+      tempMobTarget.copy(targetPosition);
+      tempMobTarget.y += 0.25 + Math.sin(elapsedSeconds * 3.2 + marker.name.length) * 0.08;
+      marker.position.lerp(tempMobTarget, alpha);
+      const cardHeight = clamp(
+        desiredWorldY - targetPosition.y,
+        MOB_CARD_MIN_HEIGHT,
+        MOB_CARD_TREE_TOP_HEIGHT,
+      );
+      updateMobMarkerHeight(marker, cardHeight);
+    }
+    const badge = marker.userData.badge;
+    if (badge) {
+      badge.quaternion.copy(camera.quaternion);
+    }
   }
 }
 
@@ -1547,6 +2232,7 @@ function animate() {
   const deltaSeconds = Math.min(clock.getDelta(), 0.05);
   const elapsedSeconds = clock.elapsedTime;
   updatePlayerMarkers(deltaSeconds);
+  updateMobMarkers(deltaSeconds, elapsedSeconds);
   handleKeyboardNavigation(deltaSeconds);
   updatePlayerCameraMode(deltaSeconds);
   if (!viewPlayerUuid && !followPlayerUuid) {
@@ -1611,8 +2297,21 @@ debugBoundsInput.addEventListener('change', updateDebugBounds);
 debugBoundsInput.addEventListener('change', saveViewState);
 showPlayersInput.addEventListener('change', () => {
   updateEntityVisibility();
-  refreshPlayers();
+  restartEntityStream();
   restartPlayerPolling();
+  saveViewState();
+});
+showMobsInput.addEventListener('change', () => {
+  clearTimeout(mobPollTimer);
+  mobPollTimer = null;
+  if (!showMobsInput.checked) {
+    clearMobs();
+  }
+  updateEntityVisibility();
+  restartEntityStream();
+  if (showMobsInput.checked) {
+    restartMobPolling(0);
+  }
   saveViewState();
 });
 waterModeInput.addEventListener('change', () => {
@@ -1646,10 +2345,13 @@ mapTilesInput.addEventListener('change', () => {
 syncPairedControl(shadeSizeInput, shadeSizeValueInput);
 syncPairedControl(shadeDarknessInput, shadeDarknessValueInput);
 worldSelect.addEventListener('change', () => {
+  closeEntityStream();
   updatePlayers([]);
-  refreshPlayers();
+  clearMobs();
+  restartEntityStream();
   refreshWorldTime();
   restartPlayerPolling();
+  restartMobPolling();
   restartWorldTimePolling();
   scheduleControlGridLoad();
   saveViewState();
@@ -1663,28 +2365,36 @@ panelToggle.addEventListener('click', () => {
   panelToggle.classList.toggle('active', open);
   panelToggle.setAttribute('aria-expanded', String(open));
 });
-
+setRenderDetailsOpen(!storedViewState || storedViewState.renderDetails !== false);
+infoCardHeadEl.addEventListener('click', toggleRenderDetails);
+infoCardHeadEl.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  toggleRenderDetails();
+});
 applyInitialParams();
 exposeDebugState();
 resize();
 updateTimeRibbon();
 animate();
 await loadWorlds();
+await loadNpcDetails();
 if (worldSelect.value) {
   hasStarted = true;
   const restoredCameraPose = restoreCameraPose();
   await refreshWorldTime();
   await loadGrid({ focus: !restoredCameraPose }).catch((error) => setStatus(error.message));
-  await refreshPlayers();
+  restartEntityStream();
   restartPlayerPolling();
+  restartMobPolling();
   restartWorldTimePolling();
   saveViewState();
 }
 
-function syncPairedControl(rangeInput, numberInput) {
+function syncPairedControl(rangeInput, numberInput, applyUpdate = applyLighting) {
   rangeInput.addEventListener('input', () => {
     numberInput.value = rangeInput.value;
-    applyLighting();
+    applyUpdate();
     saveViewState();
   });
   numberInput.addEventListener('input', () => {
@@ -1692,12 +2402,12 @@ function syncPairedControl(rangeInput, numberInput) {
     if (Number.isFinite(parsed)) {
       rangeInput.value = normalizePairedValue(rangeInput, parsed);
     }
-    applyLighting();
+    applyUpdate();
     saveViewState();
   });
   numberInput.addEventListener('change', () => {
     setPairedControlValue(rangeInput, numberInput, Number.parseFloat(numberInput.value));
-    applyLighting();
+    applyUpdate();
     saveViewState();
   });
 }

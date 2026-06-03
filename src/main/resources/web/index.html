@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SynthWorldview</title>
+  <title>Synthborn: Worldviewer</title>
   <link rel="stylesheet" href="/styles.css">
   <script type="importmap">
     {
@@ -17,7 +17,7 @@
 <body>
   <canvas id="scene"></canvas>
   <header class="titlebar">
-    <div class="brand">SynthWorldview</div>
+    <div class="brand">Synthborn: Worldviewer</div>
     <div class="sky-scene titlebar-cycle" id="sky-scene" aria-label="World day and night cycle">
       <div class="sky-stars" id="sky-stars"></div>
       <div class="sky-body sky-sun" id="sky-sun"></div>
@@ -32,12 +32,18 @@
       <input id="map-time" type="checkbox">
       <span>Map time</span>
     </label>
-    <button id="panel-toggle" class="panel-toggle" type="button" aria-label="Toggle controls" aria-expanded="false">
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="3"></circle>
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-    </svg>
-    </button>
+    <div class="titlebar-actions">
+      <label class="titlebar-toggle" title="Show mob cards and request mob feed updates">
+        <input id="show-mobs" type="checkbox" checked>
+        <span>Mobs</span>
+      </label>
+      <button id="panel-toggle" class="panel-toggle" type="button" aria-label="Toggle controls" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+      </button>
+    </div>
   </header>
   <div class="hud">
     <div class="brand">Settings</div>
@@ -132,17 +138,17 @@
     <label class="player-rate-control">
       <span>Update</span>
       <select id="player-update-rate">
-        <option value="1000">1 Hz</option>
+        <option value="2000">0.5 Hz</option>
+        <option value="1000" selected>1 Hz</option>
         <option value="500">2 Hz</option>
-        <option value="250" selected>4 Hz</option>
-        <option value="125">8 Hz</option>
+        <option value="250">4 Hz</option>
       </select>
     </label>
     <div id="players" class="players">No players</div>
   </aside>
   <div class="info-card">
-    <div class="info-card-head">
-      <span>Render Details</span>
+    <div id="info-card-head" class="info-card-head" role="button" tabindex="0" aria-expanded="true">
+      <span class="info-card-title">Render Details</span>
       <span class="fps-readout" aria-label="Frames per second">
         <span class="fps-label">FPS</span>
         <span id="fps-value">0</span>
@@ -156,6 +162,7 @@
       <dt>Resources</dt><dd id="metric-resources">0 geo · 0 mat · 0 tex</dd>
       <dt>GPU</dt><dd id="metric-gpu">0 geo · 0 tex</dd>
       <dt>Disposed</dt><dd id="metric-disposed">0c · 0g · 0m · 0t</dd>
+      <dt>Mobs</dt><dd id="metric-mobs">0</dd>
       <dt>Center</dt><dd id="metric-center">pending</dd>
       <dt>Target</dt><dd id="coord-target">—</dd>
       <dt>Chunk</dt><dd id="coord-chunk">—</dd>

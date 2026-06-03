@@ -13,18 +13,28 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.ResourceType;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
+import com.hypixel.hytale.component.spatial.SpatialResource;
 import com.hypixel.hytale.math.vector.Rotation3f;
 import com.hypixel.hytale.math.vector.Transform;
 import com.hypixel.hytale.protocol.packets.worldmap.MapImage;
 import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.entity.EntityUtils;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.BlockEntity;
 import com.hypixel.hytale.server.core.entity.entities.ProjectileComponent;
+import com.hypixel.hytale.server.core.modules.entity.AllLegacyEntityTypesQuery;
+import com.hypixel.hytale.server.core.modules.entity.AllLegacyLivingEntityTypesQuery;
 import com.hypixel.hytale.server.core.modules.entity.EntityModule;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.PersistentModel;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.modules.entity.tracker.EntityTrackerSystems;
+import com.hypixel.hytale.server.core.modules.entity.tracker.NetworkId;
+import com.hypixel.hytale.server.core.modules.entitystats.EntityStatMap;
+import com.hypixel.hytale.server.core.modules.entitystats.EntityStatValue;
+import com.hypixel.hytale.server.core.modules.entitystats.asset.DefaultEntityStatTypes;
 import com.hypixel.hytale.server.core.modules.entity.item.ItemComponent;
+import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
 import com.hypixel.hytale.server.core.modules.time.TimeModule;
 import com.hypixel.hytale.server.core.modules.time.WorldTimeResource;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -32,7 +42,10 @@ import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.worldmap.WorldMapManager;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.protocol.PlayerSkin;
+import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
+import com.hypixel.hytale.server.npc.role.Role;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.joml.Vector3d;
@@ -44,16 +57,24 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,6 +90,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 public final class WorldviewWebServer {
     private static final String FORMAT_VERSION = "v13";
@@ -83,17 +106,30 @@ public final class WorldviewWebServer {
     private static final Duration MAP_REGION_TIMEOUT = Duration.ofSeconds(20);
     private static final int MAX_CLIENT_LOG_BYTES = 16 * 1024;
     private static final int MAX_MOB_SNAPSHOTS = 256;
+    private static final int MAX_MOB_DEBUG_SUMMARY_ITEMS = 32;
     private static final double MOB_RADAR_RADIUS = 500.0d;
     private static final double MOB_RADAR_RADIUS_SQ = MOB_RADAR_RADIUS * MOB_RADAR_RADIUS;
+    private static final long ENTITY_STREAM_INTERVAL_MS = 1000L;
+    private static final String PLAYER_AVATAR_RENDER_BASE_URL = "https://hyvatar.io/render/";
+    private static final int PLAYER_AVATAR_SIZE = 64;
+    private static final int MAX_PLAYER_AVATAR_BYTES = 512 * 1024;
+    private static final long PLAYER_AVATAR_CACHE_TTL_MS = Duration.ofHours(12).toMillis();
     private static final Pattern WORLD_PATTERN = Pattern.compile("\"world\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern CHUNK_OBJECT_PATTERN = Pattern.compile("\\{[^{}]*}");
     private static final Pattern CHUNK_X_PATTERN = Pattern.compile("\"chunkX\"\\s*:\\s*(-?\\d+)");
     private static final Pattern CHUNK_Z_PATTERN = Pattern.compile("\"chunkZ\"\\s*:\\s*(-?\\d+)");
+    private static final Pattern MOB_ICON_PATH_PATTERN = Pattern.compile("^/mob-icons/([A-Za-z0-9_.-]+\\.png)$");
+    private static final Pattern PLAYER_AVATAR_PATH_PATTERN = Pattern.compile("^/api/player-avatar/([A-Za-z0-9-]{1,64})\\.png$");
+    private static final String GENERATED_ICON_ENTRY_PREFIX = "Common/Icons/ModelsGenerated/";
+    private static final HttpClient AVATAR_HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(4))
+            .build();
 
     private final SynthWorldviewPlugin plugin;
     private final String host;
     private final int port;
     private final boolean experimentalDetailsEnabled;
+    private final NpcRoleIndex npcRoleIndex;
     private final HttpServer server;
     private final Semaphore generationPermits = new Semaphore(MAX_CONCURRENT_GENERATIONS);
     private final ConcurrentHashMap<String, CompletableFuture<TerrainResult>> pendingTerrain = new ConcurrentHashMap<>();
@@ -109,23 +145,30 @@ public final class WorldviewWebServer {
     private final AtomicLong coalescedRequests = new AtomicLong();
     private final AtomicLong failedGenerations = new AtomicLong();
     private final AtomicLong lastMobDebugLogMillis = new AtomicLong();
+    private final ConcurrentHashMap<String, Integer> lastMobSamplePlayerCounts = new ConcurrentHashMap<>();
+    private volatile Path assetsZipPath;
 
     public WorldviewWebServer(@Nonnull SynthWorldviewPlugin plugin, @Nonnull String host, int port,
-                              boolean experimentalDetailsEnabled) throws IOException {
+                              boolean experimentalDetailsEnabled, @Nonnull NpcRoleIndex npcRoleIndex) throws IOException {
         this.plugin = plugin;
         this.host = host;
         this.port = port;
         this.experimentalDetailsEnabled = experimentalDetailsEnabled;
+        this.npcRoleIndex = npcRoleIndex;
         this.server = HttpServer.create(new InetSocketAddress(host, port), 0);
         this.server.createContext("/api/worlds", this::handleWorlds);
         this.server.createContext("/api/players", this::handlePlayers);
+        this.server.createContext("/api/player-avatar", this::handlePlayerAvatar);
         this.server.createContext("/api/time", this::handleTime);
         this.server.createContext("/api/mobs", this::handleMobs);
+        this.server.createContext("/api/mob-debug", this::handleMobDebug);
+        this.server.createContext("/api/npc-index", this::handleNpcIndex);
+        this.server.createContext("/api/entities/stream", this::handleEntityStream);
         this.server.createContext("/api/mapregion", this::handleMapRegion);
         this.server.createContext("/api/client-log", this::handleClientLog);
         this.server.createContext("/api/terrain", this::handleTerrain);
         this.server.createContext("/", this::handleStatic);
-        this.server.setExecutor(Executors.newFixedThreadPool(4, runnable -> {
+        this.server.setExecutor(Executors.newFixedThreadPool(8, runnable -> {
             Thread thread = new Thread(runnable, "SynthWorldview-http");
             thread.setDaemon(true);
             return thread;
@@ -223,6 +266,17 @@ public final class WorldviewWebServer {
         writeJson(exchange, 200, "{\"ok\":true}");
     }
 
+    private void handleNpcIndex(@Nonnull HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+        writeJson(exchange, 200, "{\"ok\":true"
+                + ",\"loaded\":" + npcRoleIndex.isLoaded()
+                + ",\"roles\":" + npcRoleIndex.size()
+                + "}");
+    }
+
     private void handlePlayers(@Nonnull HttpExchange exchange) throws IOException {
         if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
             writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
@@ -263,6 +317,30 @@ public final class WorldviewWebServer {
             plugin.getLogger().at(Level.WARNING).withCause(e).log("Player snapshot request failed: " + worldName);
             writeJson(exchange, 500, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
         }
+    }
+
+    private void handlePlayerAvatar(@Nonnull HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+
+        Matcher matcher = PLAYER_AVATAR_PATH_PATTERN.matcher(exchange.getRequestURI().getPath());
+        if (!matcher.matches()) {
+            writeText(exchange, 404, "not found", "text/plain; charset=utf-8");
+            return;
+        }
+
+        String uuid = matcher.group(1);
+        String username = queryParam(exchange, "name");
+        String skinKey = queryParam(exchange, "skin");
+        byte[] bytes = readOrFetchPlayerAvatar(uuid, username, skinKey);
+        if (bytes == null || bytes.length == 0) {
+            writeText(exchange, 404, "not found", "text/plain; charset=utf-8");
+            return;
+        }
+
+        writeCacheableBytes(exchange, 200, bytes, "image/png", "public, max-age=43200");
     }
 
     private void handleTime(@Nonnull HttpExchange exchange) throws IOException {
@@ -324,7 +402,128 @@ public final class WorldviewWebServer {
     }
 
     private void handleMobs(@Nonnull HttpExchange exchange) throws IOException {
-        writeJson(exchange, 410, "{\"ok\":false,\"error\":\"mob_feed_disabled\"}");
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+
+        String prefix = "/api/mobs/";
+        String path = exchange.getRequestURI().getPath();
+        if (!path.startsWith(prefix) || path.length() <= prefix.length()) {
+            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/mobs/{world}\"}");
+            return;
+        }
+
+        String worldName = decode(path.substring(prefix.length()));
+        World world = findWorld(worldName);
+        if (world == null) {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"unknown_world\"}");
+            return;
+        }
+
+        CompletableFuture<MobFeedSnapshot> future = new CompletableFuture<>();
+        world.execute(() -> {
+            try {
+                future.complete(snapshotMobs(world));
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            }
+        });
+        future.completeOnTimeout(MobFeedSnapshot.empty(), 1, TimeUnit.SECONDS);
+
+        try {
+            MobFeedSnapshot snapshot = future.get(1500, TimeUnit.MILLISECONDS);
+            writeJson(exchange, 200, snapshot.toJson(world.getName()));
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Mob snapshot request failed: " + worldName);
+            writeJson(exchange, 500, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+        }
+    }
+
+    private void handleMobDebug(@Nonnull HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+
+        String prefix = "/api/mob-debug/";
+        String path = exchange.getRequestURI().getPath();
+        if (!path.startsWith(prefix) || path.length() <= prefix.length()) {
+            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/mob-debug/{world}\"}");
+            return;
+        }
+
+        String worldName = decode(path.substring(prefix.length()));
+        World world = findWorld(worldName);
+        if (world == null) {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"unknown_world\"}");
+            return;
+        }
+
+        CompletableFuture<String> future = new CompletableFuture<>();
+        world.execute(() -> {
+            try {
+                future.complete(mobDebugJson(world));
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            }
+        });
+        future.completeOnTimeout("{\"ok\":false,\"world\":\"" + escapeJson(world.getName())
+                + "\",\"error\":\"mob_debug_timeout\"}", 1, TimeUnit.SECONDS);
+
+        try {
+            writeJson(exchange, 200, future.get(1500, TimeUnit.MILLISECONDS));
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Mob debug request failed: " + worldName);
+            writeJson(exchange, 500, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+        }
+    }
+
+    private void handleEntityStream(@Nonnull HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+
+        String prefix = "/api/entities/stream/";
+        String path = exchange.getRequestURI().getPath();
+        if (!path.startsWith(prefix) || path.length() <= prefix.length()) {
+            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/entities/stream/{world}\"}");
+            return;
+        }
+
+        String worldName = decode(path.substring(prefix.length()));
+        World world = findWorld(worldName);
+        if (world == null) {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"unknown_world\"}");
+            return;
+        }
+        boolean includePlayers = queryFlag(exchange, "players", true);
+        boolean includeMobs = queryFlag(exchange, "mobs", true);
+
+        addCors(exchange);
+        exchange.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
+        exchange.getResponseHeaders().set("Cache-Control", "no-cache");
+        exchange.getResponseHeaders().set("Connection", "keep-alive");
+        exchange.sendResponseHeaders(200, 0);
+
+        try (OutputStream output = exchange.getResponseBody()) {
+            writeSseEvent(output, "hello", "{\"ok\":true,\"world\":\"" + escapeJson(world.getName()) + "\"}");
+            while (!Thread.currentThread().isInterrupted()) {
+                String json = snapshotEntitiesForStream(world, includePlayers, includeMobs);
+                writeSseEvent(output, "entities", json);
+                try {
+                    Thread.sleep(ENTITY_STREAM_INTERVAL_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        } catch (IOException ignored) {
+            // Browser navigated away or EventSource reconnected.
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Entity stream failed: " + worldName);
+        }
     }
 
     private void handleMapRegion(@Nonnull HttpExchange exchange) throws IOException {
@@ -681,6 +880,10 @@ public final class WorldviewWebServer {
         }
 
         String requestPath = exchange.getRequestURI().getPath();
+        if (tryHandleMobIcon(exchange, requestPath)) {
+            return;
+        }
+
         String resourcePath = switch (requestPath) {
             case "/", "/index.html" -> "/web/index.html";
             case "/app.js" -> "/web/app.js";
@@ -807,6 +1010,12 @@ public final class WorldviewWebServer {
     }
 
     private static String moduleResourcePath(@Nonnull String requestPath) {
+        if ("/npc-details.json".equals(requestPath)) {
+            return "/web/npc-details.json";
+        }
+        if (requestPath.matches("/mob-icons/[A-Za-z0-9_.-]+\\.png")) {
+            return "/web" + requestPath;
+        }
         if (!requestPath.matches("/[A-Za-z0-9_-]+\\.js")) {
             return null;
         }
@@ -895,13 +1104,15 @@ public final class WorldviewWebServer {
                 }
                 Vector3d position = transform.getPosition();
                 Rotation3f rotation = transform.getRotation();
+                PlayerSkinSnapshot skin = PlayerSkinSnapshot.from(playerRef);
                 players.add(new PlayerSnapshot(
                         playerRef.getUuid().toString(),
                         playerRef.getUsername(),
                         position.x,
                         position.y,
                         position.z,
-                        rotation == null ? 0.0f : rotation.yaw()));
+                        rotation == null ? 0.0f : rotation.yaw(),
+                        skin));
             } catch (Exception ignored) {
                 // Player may disconnect while the world-thread snapshot is being copied.
             }
@@ -909,19 +1120,93 @@ public final class WorldviewWebServer {
         return players;
     }
 
-    private List<MobSnapshot> snapshotMobs(@Nonnull World world) {
+    @Nullable
+    private byte[] readOrFetchPlayerAvatar(@Nonnull String uuid, @Nullable String username, @Nullable String skinKey) {
+        String cacheToken = safeName(uuid) + (skinKey == null || skinKey.isBlank() ? "" : "-" + safeName(skinKey));
+        Path cachePath = plugin.worldviewDir()
+                .resolve("player-avatars")
+                .resolve(cacheToken + ".png");
+        try {
+            if (Files.isRegularFile(cachePath)) {
+                long ageMs = System.currentTimeMillis() - Files.getLastModifiedTime(cachePath).toMillis();
+                if (ageMs <= PLAYER_AVATAR_CACHE_TTL_MS) {
+                    return Files.readAllBytes(cachePath);
+                }
+            }
+        } catch (IOException ignored) {
+        }
+
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+
+        byte[] bytes = fetchPlayerAvatar(username);
+        if (bytes == null || bytes.length == 0) {
+            return null;
+        }
+
+        try {
+            Files.createDirectories(cachePath.getParent());
+            Files.write(cachePath, bytes);
+            plugin.getLogger().at(Level.INFO).log("Cached player avatar from Hyvatar: " + username + " (" + uuid + ")");
+        } catch (IOException e) {
+            plugin.getLogger().at(Level.FINE).withCause(e).log("Unable to cache player avatar: " + username);
+        }
+        return bytes;
+    }
+
+    @Nullable
+    private byte[] fetchPlayerAvatar(@Nonnull String username) {
+        String encodedName = URLEncoder.encode(username, StandardCharsets.UTF_8);
+        URI uri = URI.create(PLAYER_AVATAR_RENDER_BASE_URL + encodedName + "?size=" + PLAYER_AVATAR_SIZE);
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(uri)
+                .timeout(Duration.ofSeconds(8))
+                .GET()
+                .build();
+        try {
+            HttpResponse<byte[]> response = AVATAR_HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            byte[] body = response.body();
+            if (response.statusCode() != 200 || body == null || body.length == 0 || body.length > MAX_PLAYER_AVATAR_BYTES) {
+                plugin.getLogger().at(Level.FINE).log("Player avatar fetch failed for " + username
+                        + ": status=" + response.statusCode()
+                        + " bytes=" + (body == null ? 0 : body.length));
+                return null;
+            }
+            return body;
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.FINE).withCause(e).log("Player avatar fetch failed for " + username);
+            return null;
+        }
+    }
+
+    private MobFeedSnapshot snapshotMobs(@Nonnull World world) {
         Store<EntityStore> store = world.getEntityStore().getStore();
         Query<EntityStore> npcQuery = Archetype.of(NPCEntity.getComponentType());
+        Query<EntityStore> legacyLivingQuery = Query.and(
+                AllLegacyLivingEntityTypesQuery.INSTANCE,
+                Archetype.of(TransformComponent.getComponentType()));
+        Query<EntityStore> legacyEntityQuery = Query.and(
+                AllLegacyEntityTypesQuery.INSTANCE,
+                Archetype.of(TransformComponent.getComponentType()));
+        Query<EntityStore> transformQuery = Archetype.of(TransformComponent.getComponentType());
         List<Vector3d> playerPositions = playerPositionsForMobRadar(world);
         List<MobCandidate> candidates = new ArrayList<>();
         MobScanStats stats = new MobScanStats();
+        initializeMobScanCounts(store, stats);
         Set<Integer> seenRefs = new HashSet<>();
-        BiPredicate<ArchetypeChunk<EntityStore>, CommandBuffer<EntityStore>> collector = (chunk, ignored) -> {
-            collectMobSnapshots(store, chunk, candidates, stats, seenRefs, playerPositions);
-            return true;
-        };
         if (!playerPositions.isEmpty()) {
-            store.forEachChunk(npcQuery, collector);
+            collectMobSnapshotVisibleViewers(world, store, candidates, stats, seenRefs, playerPositions, npcRoleIndex);
+            collectMobSnapshotSpatial(store, EntityModule.get().getNetworkSendableSpatialResourceType(),
+                    candidates, stats, seenRefs, playerPositions, "NetworkSendableSpatial", npcRoleIndex);
+            collectMobSnapshotSpatial(store, NPCPlugin.get().getNpcSpatialResource(),
+                    candidates, stats, seenRefs, playerPositions, "NPCSpatial", npcRoleIndex);
+            collectMobSnapshotSpatial(store, EntityModule.get().getEntitySpatialResourceType(),
+                    candidates, stats, seenRefs, playerPositions, "EntitySpatial", npcRoleIndex);
+            collectMobSnapshotPass(store, npcQuery, candidates, stats, seenRefs, playerPositions, "NPCEntity", npcRoleIndex);
+            collectMobSnapshotPass(store, legacyLivingQuery, candidates, stats, seenRefs, playerPositions, "LegacyLivingEntity", npcRoleIndex);
+            collectMobSnapshotPass(store, legacyEntityQuery, candidates, stats, seenRefs, playerPositions, "LegacyEntity", npcRoleIndex);
+            collectMobSnapshotPass(store, transformQuery, candidates, stats, seenRefs, playerPositions, "TransformFallback", npcRoleIndex);
         }
         List<MobSnapshot> mobs = candidates.stream()
                 .sorted(Comparator.comparingDouble(MobCandidate::distanceSq))
@@ -929,7 +1214,410 @@ public final class WorldviewWebServer {
                 .map(MobCandidate::snapshot)
                 .toList();
         logMobScan(world, store, stats, mobs);
-        return mobs;
+        logMobConnectSampleIfNeeded(world, playerPositions.size(), stats, mobs);
+        return new MobFeedSnapshot(mobs, stats, playerPositions.size(), MOB_RADAR_RADIUS);
+    }
+
+    private String snapshotEntitiesForStream(@Nonnull World world, boolean includePlayers, boolean includeMobs) {
+        CompletableFuture<String> future = new CompletableFuture<>();
+        world.execute(() -> {
+            try {
+                List<PlayerSnapshot> players = includePlayers ? snapshotPlayers(world) : List.of();
+                MobFeedSnapshot mobFeed = includeMobs ? snapshotMobs(world) : MobFeedSnapshot.empty();
+                future.complete(entityFeedJson(world, players, mobFeed));
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            }
+        });
+        future.completeOnTimeout("{\"ok\":false,\"world\":\"" + escapeJson(world.getName())
+                + "\",\"error\":\"entity_stream_timeout\"}", 1, TimeUnit.SECONDS);
+        try {
+            return future.get(1500, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Entity stream snapshot failed: " + world.getName());
+            return "{\"ok\":false,\"world\":\"" + escapeJson(world.getName())
+                    + "\",\"error\":\"" + escapeJson(e.getMessage()) + "\"}";
+        }
+    }
+
+    private boolean tryHandleMobIcon(@Nonnull HttpExchange exchange, @Nonnull String requestPath) throws IOException {
+        Matcher matcher = MOB_ICON_PATH_PATTERN.matcher(requestPath);
+        if (!matcher.matches()) {
+            return false;
+        }
+
+        String fileName = matcher.group(1);
+        byte[] bytes = readOrCacheGeneratedMobIcon(fileName);
+        if (bytes != null) {
+            writeBytes(exchange, 200, bytes, "image/png");
+            return true;
+        }
+
+        String resourcePath = "/web/mob-icons/" + fileName;
+        try (InputStream input = WorldviewWebServer.class.getResourceAsStream(resourcePath)) {
+            if (input != null) {
+                writeBytes(exchange, 200, input.readAllBytes(), "image/png");
+                return true;
+            }
+        }
+
+        writeText(exchange, 404, "not found", "text/plain; charset=utf-8");
+        return true;
+    }
+
+    @Nullable
+    private byte[] readOrCacheGeneratedMobIcon(@Nonnull String fileName) {
+        Path cachePath = plugin.worldviewDir().resolve("mob-icons").resolve(fileName);
+        try {
+            if (Files.isRegularFile(cachePath)) {
+                return Files.readAllBytes(cachePath);
+            }
+        } catch (IOException ignored) {
+        }
+
+        byte[] bytes = readGeneratedMobIcon(fileName);
+        if (bytes == null) {
+            return null;
+        }
+        try {
+            Files.createDirectories(cachePath.getParent());
+            Files.write(cachePath, bytes);
+            plugin.getLogger().at(Level.INFO).log("Cached mob icon from Hytale assets: " + fileName);
+        } catch (IOException e) {
+            plugin.getLogger().at(Level.FINE).withCause(e).log("Unable to cache mob icon: " + fileName);
+        }
+        return bytes;
+    }
+
+    @Nullable
+    private byte[] readGeneratedMobIcon(@Nonnull String fileName) {
+        Path looseIcon = resolveLooseGeneratedIcon(fileName);
+        if (looseIcon != null) {
+            try {
+                return Files.readAllBytes(looseIcon);
+            } catch (IOException ignored) {
+            }
+        }
+
+        Path zipPath = resolveAssetsZipPath();
+        if (zipPath == null) {
+            return null;
+        }
+        String entryName = GENERATED_ICON_ENTRY_PREFIX + fileName;
+        try (ZipFile zipFile = new ZipFile(zipPath.toFile())) {
+            ZipEntry entry = zipFile.getEntry(entryName);
+            if (entry == null || entry.isDirectory()) {
+                return null;
+            }
+            try (InputStream input = zipFile.getInputStream(entry)) {
+                return input.readAllBytes();
+            }
+        } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private Path resolveLooseGeneratedIcon(@Nonnull String fileName) {
+        for (Path root : assetSearchRoots()) {
+            Path candidate = root.resolve("_Assets").resolve("Common").resolve("Icons").resolve("ModelsGenerated").resolve(fileName);
+            if (Files.isRegularFile(candidate)) {
+                return candidate.toAbsolutePath().normalize();
+            }
+            candidate = root.resolve("Common").resolve("Icons").resolve("ModelsGenerated").resolve(fileName);
+            if (Files.isRegularFile(candidate)) {
+                return candidate.toAbsolutePath().normalize();
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private Path resolveAssetsZipPath() {
+        Path cached = assetsZipPath;
+        if (cached != null && Files.isRegularFile(cached)) {
+            return cached;
+        }
+
+        String explicit = firstNonBlank(
+                System.getProperty("hytale.assets_zip"),
+                System.getenv("HYTALE_ASSETS_ZIP"));
+        if (explicit != null) {
+            Path explicitPath = Paths.get(explicit).toAbsolutePath().normalize();
+            if (Files.isRegularFile(explicitPath)) {
+                assetsZipPath = explicitPath;
+                return explicitPath;
+            }
+        }
+
+        for (Path root : assetSearchRoots()) {
+            for (Path path = root; path != null; path = path.getParent()) {
+                for (Path candidate : assetsZipCandidates(path)) {
+                    if (Files.isRegularFile(candidate)) {
+                        assetsZipPath = candidate.toAbsolutePath().normalize();
+                        plugin.getLogger().at(Level.INFO).log("Resolved Hytale Assets.zip for lazy mob icons: " + assetsZipPath);
+                        return assetsZipPath;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static List<Path> assetsZipCandidates(@Nonnull Path root) {
+        return List.of(
+                root.resolve("Assets.zip"),
+                root.resolve("latest").resolve("Assets.zip"),
+                root.resolve("release").resolve("latest").resolve("Assets.zip"),
+                root.resolve("Client").resolve("latest").resolve("Assets.zip"),
+                root.resolve("Client").resolve("release").resolve("latest").resolve("Assets.zip"),
+                root.resolve("game").resolve("latest").resolve("Assets.zip"),
+                root.resolve("release").resolve("package").resolve("game").resolve("latest").resolve("Assets.zip"),
+                root.resolve("install").resolve("release").resolve("package").resolve("game").resolve("latest").resolve("Assets.zip"),
+                root.resolve("Hytale-API").resolve("latest").resolve("Assets.zip"),
+                root.resolve("Hytale-API").resolve("Client").resolve("latest").resolve("Assets.zip"),
+                root.resolve("Hytale-API").resolve("Client").resolve("release").resolve("latest").resolve("Assets.zip"));
+    }
+
+    private List<Path> assetSearchRoots() {
+        LinkedHashSet<Path> roots = new LinkedHashSet<>();
+        addPathIfPresent(roots, System.getProperty("synthworldview.assets_root"));
+        addPathIfPresent(roots, System.getenv("SYNTH_WORLDVIEW_ASSETS_ROOT"));
+        addPathIfPresent(roots, System.getProperty("hytale.assets_root"));
+        addPathIfPresent(roots, System.getenv("HYTALE_ASSETS_ROOT"));
+        addPathIfPresent(roots, System.getenv("VSCODE_CWD"));
+        addPathIfPresent(roots, System.getenv("WORKSPACE_FOLDER"));
+        addPathIfPresent(roots, System.getProperty("user.dir"));
+        roots.add(Paths.get("").toAbsolutePath().normalize());
+        roots.add(plugin.worldviewDir().toAbsolutePath().normalize());
+        return List.copyOf(roots);
+    }
+
+    private static void addPathIfPresent(@Nonnull LinkedHashSet<Path> roots, @Nullable String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        roots.add(Paths.get(value).toAbsolutePath().normalize());
+    }
+
+    private static String entityFeedJson(@Nonnull World world,
+                                         @Nonnull List<PlayerSnapshot> players,
+                                         @Nonnull MobFeedSnapshot mobFeed) {
+        String playerJson = players.stream()
+                .map(PlayerSnapshot::toJson)
+                .collect(Collectors.joining(","));
+        String mobJson = mobFeed.mobs().stream()
+                .map(MobSnapshot::toJson)
+                .collect(Collectors.joining(","));
+        return "{\"ok\":true,\"world\":\"" + escapeJson(world.getName()) + "\""
+                + ",\"intervalMs\":" + ENTITY_STREAM_INTERVAL_MS
+                + ",\"players\":[" + playerJson + "]"
+                + ",\"mobs\":[" + mobJson + "]"
+                + ",\"mobRadar\":" + Math.round(mobFeed.radar())
+                + ",\"mobRadarPlayers\":" + mobFeed.players()
+                + ",\"mobSourceStats\":" + mobFeed.stats().toJson()
+                + "}";
+    }
+
+    private static void writeSseEvent(@Nonnull OutputStream output,
+                                      @Nonnull String event,
+                                      @Nonnull String json) throws IOException {
+        output.write(("event: " + event + "\n").getBytes(StandardCharsets.UTF_8));
+        output.write(("data: " + json + "\n\n").getBytes(StandardCharsets.UTF_8));
+        output.flush();
+    }
+
+    private static void initializeMobScanCounts(@Nonnull Store<EntityStore> store, @Nonnull MobScanStats stats) {
+        stats.storeEntities = safeEntityCount(store, Archetype.of());
+        stats.npcEntities = safeEntityCount(store, Archetype.of(NPCEntity.getComponentType()));
+        stats.transformEntities = safeEntityCount(store, Archetype.of(TransformComponent.getComponentType()));
+        stats.networkSendableEntities = safeEntityCount(store,
+                Archetype.of(TransformComponent.getComponentType(), NetworkId.getComponentType()));
+    }
+
+    private static int safeEntityCount(@Nonnull Store<EntityStore> store, @Nonnull Query<EntityStore> query) {
+        try {
+            return store.getEntityCountFor(query);
+        } catch (Exception ignored) {
+            return -1;
+        }
+    }
+
+    private static void collectMobSnapshotVisibleViewers(@Nonnull World world,
+                                                         @Nonnull Store<EntityStore> store,
+                                                         @Nonnull List<MobCandidate> candidates,
+                                                         @Nonnull MobScanStats stats,
+                                                         @Nonnull Set<Integer> seenRefs,
+                                                         @Nonnull List<Vector3d> playerPositions,
+                                                         @Nonnull NpcRoleIndex npcRoleIndex) {
+        for (PlayerRef playerRef : world.getPlayerRefs()) {
+            try {
+                Ref<EntityStore> playerEntityRef = playerRef.getReference();
+                if (playerEntityRef == null || !playerEntityRef.isValid()) {
+                    continue;
+                }
+                EntityTrackerSystems.EntityViewer viewer = store.getComponent(
+                        playerEntityRef,
+                        EntityModule.get().getEntityViewerComponentType());
+                if (viewer == null || viewer.visible == null) {
+                    continue;
+                }
+                stats.addSource("EntityViewerVisible");
+                stats.viewerVisible += viewer.visible.size();
+                stats.viewerSent += viewer.sent == null ? 0 : viewer.sent.size();
+                collectMobSnapshotRefs(store, viewer.visible, candidates, stats, seenRefs,
+                        playerPositions, "EntityViewerVisible", npcRoleIndex);
+            } catch (Exception ignored) {
+                stats.errors++;
+            }
+        }
+    }
+
+    private static void collectMobSnapshotSpatial(
+            @Nonnull Store<EntityStore> store,
+            @Nonnull ResourceType<EntityStore, SpatialResource<Ref<EntityStore>, EntityStore>> resourceType,
+            @Nonnull List<MobCandidate> candidates,
+            @Nonnull MobScanStats stats,
+            @Nonnull Set<Integer> seenRefs,
+            @Nonnull List<Vector3d> playerPositions,
+            @Nonnull String source,
+            @Nonnull NpcRoleIndex npcRoleIndex) {
+        try {
+            SpatialResource<Ref<EntityStore>, EntityStore> spatial = store.getResource(resourceType);
+            if (spatial == null) {
+                return;
+            }
+            stats.addSource(source);
+            stats.spatialSources++;
+            stats.spatialIndexed += spatial.getSpatialStructure().size();
+            for (Vector3d playerPosition : playerPositions) {
+                List<Ref<EntityStore>> refs = new ArrayList<>();
+                spatial.getSpatialStructure().collect(playerPosition, MOB_RADAR_RADIUS, refs);
+                stats.spatialRefs += refs.size();
+                collectMobSnapshotRefs(store, refs, candidates, stats, seenRefs, playerPositions, source, npcRoleIndex);
+            }
+        } catch (Exception ignored) {
+            stats.errors++;
+        }
+    }
+
+    private static void collectMobSnapshotRefs(@Nonnull Store<EntityStore> store,
+                                               @Nonnull Collection<Ref<EntityStore>> refs,
+                                               @Nonnull List<MobCandidate> candidates,
+                                               @Nonnull MobScanStats stats,
+                                               @Nonnull Set<Integer> seenRefs,
+                                               @Nonnull List<Vector3d> playerPositions,
+                                               @Nonnull String source,
+                                               @Nonnull NpcRoleIndex npcRoleIndex) {
+        for (Ref<EntityStore> ref : refs) {
+            collectMobSnapshotRef(store, ref, candidates, stats, seenRefs, playerPositions, source, npcRoleIndex);
+        }
+    }
+
+    private static void collectMobSnapshotRef(@Nonnull Store<EntityStore> store,
+                                              @Nullable Ref<EntityStore> ref,
+                                              @Nonnull List<MobCandidate> candidates,
+                                              @Nonnull MobScanStats stats,
+                                              @Nonnull Set<Integer> seenRefs,
+                                              @Nonnull List<Vector3d> playerPositions,
+                                              @Nonnull String source,
+                                              @Nonnull NpcRoleIndex npcRoleIndex) {
+        stats.entities++;
+        try {
+            if (ref == null || !ref.isValid()) {
+                stats.invalidRefs++;
+                return;
+            }
+            if (seenRefs.contains(ref.getIndex())) {
+                stats.duplicates++;
+                return;
+            }
+            if (store.getComponent(ref, PlayerRef.getComponentType()) != null) {
+                stats.skippedPlayers++;
+                return;
+            }
+            String nonMobReason = nonMobReason(store, ref);
+            if (nonMobReason != null) {
+                stats.addSkippedType(nonMobReason);
+                stats.skippedNonMobs++;
+                return;
+            }
+            TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
+            if (transform == null) {
+                stats.noTransform++;
+                return;
+            }
+            Vector3d position = transform.getPosition();
+            if (position == null) {
+                stats.noPosition++;
+                return;
+            }
+            double distanceSq = nearestDistanceSq(position, playerPositions);
+            if (distanceSq > MOB_RADAR_RADIUS_SQ) {
+                stats.skippedOutsideRadar++;
+                return;
+            }
+            NPCEntity npc = store.getComponent(ref, NPCEntity.getComponentType());
+            String type = safeMobType(store, ref, npc);
+            if (isSpawnMarkerType(type)) {
+                stats.addSkippedType(type);
+                stats.skippedNonMobs++;
+                return;
+            }
+            seenRefs.add(ref.getIndex());
+            HealthSnapshot health = safeHealth(store, ref);
+            String roleName = safeNpcRoleName(npc);
+            String modelAsset = safeModelAssetId(store, ref);
+            String persistentModelAsset = safePersistentModelAssetId(store, ref);
+            NpcRoleIndex.Entry liveRole = liveNpcEntry(npcRoleIndex, type, roleName, modelAsset, persistentModelAsset);
+            if (liveRole != null) {
+                stats.liveRoleMatches++;
+            }
+            String category = liveRole == null
+                    ? categoryForMob(type)
+                    : categoryForMob(type, liveRole.category());
+            candidates.add(new MobCandidate(distanceSq, new MobSnapshot(
+                    safeMobId(store, ref),
+                    type,
+                    safeMobRole(npc, null, type),
+                    category,
+                    position.x,
+                    position.y,
+                    position.z,
+                    safeYaw(transform),
+                    colorForMob(type),
+                    source,
+                    roleName,
+                    safeNpcNameTranslationKey(npc),
+                    safeNpcTypeIndex(npc),
+                    safeNpcRoleIndex(npc),
+                    modelAsset,
+                    persistentModelAsset,
+                    liveRole == null ? null : liveRole.id(),
+                    liveRole == null ? null : liveRole.category(),
+                    liveRole == null ? null : liveRole.pathHint(),
+                    health.health(),
+                    health.maxHealth())));
+            stats.accepted++;
+            stats.addType(type);
+        } catch (Exception ignored) {
+            stats.errors++;
+        }
+    }
+
+    private static void collectMobSnapshotPass(@Nonnull Store<EntityStore> store,
+                                               @Nonnull Query<EntityStore> query,
+                                               @Nonnull List<MobCandidate> candidates,
+                                               @Nonnull MobScanStats stats,
+                                               @Nonnull Set<Integer> seenRefs,
+                                               @Nonnull List<Vector3d> playerPositions,
+                                               @Nonnull String source,
+                                               @Nonnull NpcRoleIndex npcRoleIndex) {
+        BiPredicate<ArchetypeChunk<EntityStore>, CommandBuffer<EntityStore>> collector = (chunk, ignored) -> {
+            collectMobSnapshots(store, chunk, candidates, stats, seenRefs, playerPositions, source, npcRoleIndex);
+            return true;
+        };
+        store.forEachChunk(query, collector);
     }
 
     private static void collectMobSnapshots(@Nonnull Store<EntityStore> store,
@@ -937,8 +1625,11 @@ public final class WorldviewWebServer {
                                             @Nonnull List<MobCandidate> candidates,
                                             @Nonnull MobScanStats stats,
                                             @Nonnull Set<Integer> seenRefs,
-                                            @Nonnull List<Vector3d> playerPositions) {
+                                            @Nonnull List<Vector3d> playerPositions,
+                                            @Nonnull String source,
+                                            @Nonnull NpcRoleIndex npcRoleIndex) {
         stats.chunks++;
+        stats.addSource(source);
         stats.addArchetype(chunk.getArchetype().toString());
         for (int index = 0; index < chunk.size(); index++) {
             stats.entities++;
@@ -948,7 +1639,7 @@ public final class WorldviewWebServer {
                     stats.invalidRefs++;
                     continue;
                 }
-                if (!seenRefs.add(ref.getIndex())) {
+                if (seenRefs.contains(ref.getIndex())) {
                     stats.duplicates++;
                     continue;
                 }
@@ -979,17 +1670,44 @@ public final class WorldviewWebServer {
                 Entity entity = EntityUtils.getEntity(index, chunk);
                 String type = safeMobType(chunk, index, npc, entity);
                 if (isSpawnMarkerType(type)) {
+                    stats.addSkippedType(type);
                     stats.skippedNonMobs++;
                     continue;
                 }
+                seenRefs.add(ref.getIndex());
+                HealthSnapshot health = safeHealth(store, ref);
+                String roleName = safeNpcRoleName(npc);
+                String modelAsset = safeModelAssetId(chunk, index);
+                String persistentModelAsset = safePersistentModelAssetId(chunk, index);
+                NpcRoleIndex.Entry liveRole = liveNpcEntry(npcRoleIndex, type, roleName, modelAsset, persistentModelAsset);
+                if (liveRole != null) {
+                    stats.liveRoleMatches++;
+                }
+                String category = liveRole == null
+                        ? categoryForMob(type)
+                        : categoryForMob(type, liveRole.category());
                 candidates.add(new MobCandidate(distanceSq, new MobSnapshot(
-                        Integer.toString(ref.getIndex()),
+                        safeMobId(chunk, index, ref),
                         type,
                         safeMobRole(npc, entity, type),
+                        category,
                         position.x,
                         position.y,
                         position.z,
-                        colorForMob(type))));
+                        safeYaw(transform),
+                        colorForMob(type),
+                        source,
+                        roleName,
+                        safeNpcNameTranslationKey(npc),
+                        safeNpcTypeIndex(npc),
+                        safeNpcRoleIndex(npc),
+                        modelAsset,
+                        persistentModelAsset,
+                        liveRole == null ? null : liveRole.id(),
+                        liveRole == null ? null : liveRole.category(),
+                        liveRole == null ? null : liveRole.pathHint(),
+                        health.health(),
+                        health.maxHealth())));
                 stats.accepted++;
                 stats.addType(type);
             } catch (Exception ignored) {
@@ -1017,10 +1735,10 @@ public final class WorldviewWebServer {
                             @Nonnull MobScanStats stats, @Nonnull List<MobSnapshot> mobs) {
         long now = System.currentTimeMillis();
         long last = lastMobDebugLogMillis.get();
-        if (mobs.isEmpty() && now - last < 5_000L) {
+        if (now - last < 10_000L) {
             return;
         }
-        if (!lastMobDebugLogMillis.compareAndSet(last, now) && mobs.isEmpty()) {
+        if (!lastMobDebugLogMillis.compareAndSet(last, now)) {
             return;
         }
 
@@ -1029,6 +1747,10 @@ public final class WorldviewWebServer {
                 .map(mob -> mob.type() + "@" + Math.round(mob.x()) + "," + Math.round(mob.y()) + "," + Math.round(mob.z()))
                 .collect(Collectors.joining(";"));
         plugin.getLogger().at(Level.INFO).log("[mob-feed] world=" + world.getName()
+                + " storeEntities=" + stats.storeEntities
+                + " npcEntities=" + stats.npcEntities
+                + " transformEntities=" + stats.transformEntities
+                + " networkSendableEntities=" + stats.networkSendableEntities
                 + " chunks=" + stats.chunks
                 + " entities=" + stats.entities
                 + " accepted=" + stats.accepted
@@ -1041,10 +1763,41 @@ public final class WorldviewWebServer {
                 + " noTransform=" + stats.noTransform
                 + " noPosition=" + stats.noPosition
                 + " errors=" + stats.errors
+                + " viewerVisible=" + stats.viewerVisible
+                + " viewerSent=" + stats.viewerSent
+                + " spatialSources=" + stats.spatialSources
+                + " spatialIndexed=" + stats.spatialIndexed
+                + " spatialRefs=" + stats.spatialRefs
                 + " types=" + stats.preview(stats.acceptedTypes)
+                + " skippedTypes=" + stats.preview(stats.skippedTypes)
+                + " sources=" + stats.preview(stats.sources)
                 + " archetypes=" + stats.preview(stats.archetypes)
                 + " first=" + firstMob
                 + " nearby=" + nearbyTransformPreview(world, store));
+    }
+
+    private void logMobConnectSampleIfNeeded(@Nonnull World world, int players,
+                                             @Nonnull MobScanStats stats,
+                                             @Nonnull List<MobSnapshot> mobs) {
+        Integer previous = lastMobSamplePlayerCounts.put(world.getName(), players);
+        if (players <= 0 || (previous != null && previous >= players)) {
+            return;
+        }
+        String nearest = mobs.stream()
+                .limit(12)
+                .map(mob -> mob.type()
+                        + "@" + Math.round(mob.x()) + "," + Math.round(mob.y()) + "," + Math.round(mob.z())
+                        + (mob.liveRoleId() == null ? "" : " role=" + mob.liveRoleId()))
+                .collect(Collectors.joining(";"));
+        plugin.getLogger().at(Level.INFO).log("[mob-connect-sample] world=" + world.getName()
+                + " players=" + players
+                + " mobs=" + mobs.size()
+                + " types=" + stats.preview(stats.acceptedTypes)
+                + " skippedTypes=" + stats.preview(stats.skippedTypes)
+                + " sources=" + stats.preview(stats.sources)
+                + " npcIndexLoaded=" + npcRoleIndex.isLoaded()
+                + " npcIndexSize=" + npcRoleIndex.size()
+                + " nearest=" + (nearest.isBlank() ? "none" : nearest));
     }
 
     private static String nearbyTransformPreview(@Nonnull World world, @Nonnull Store<EntityStore> store) {
@@ -1111,6 +1864,134 @@ public final class WorldviewWebServer {
                 .collect(Collectors.joining(";"));
     }
 
+    private String mobDebugJson(@Nonnull World world) {
+        Store<EntityStore> store = world.getEntityStore().getStore();
+        MobScanStats stats = new MobScanStats();
+        initializeMobScanCounts(store, stats);
+        collectMobDebugViewerStats(world, store, stats);
+        collectMobDebugSpatialStats(store, EntityModule.get().getNetworkSendableSpatialResourceType(), stats);
+        collectMobDebugSpatialStats(store, NPCPlugin.get().getNpcSpatialResource(), stats);
+        collectMobDebugSpatialStats(store, EntityModule.get().getEntitySpatialResourceType(), stats);
+        List<Vector3d> playerPositions = playerPositionsForMobRadar(world);
+        Query<EntityStore> transformQuery = Archetype.of(TransformComponent.getComponentType());
+        List<NearbyDebugCandidate> candidates = new ArrayList<>();
+        store.forEachChunk(transformQuery, (chunk, ignored) -> {
+            for (int index = 0; index < chunk.size(); index++) {
+                try {
+                    TransformComponent transform = chunk.getComponent(index, TransformComponent.getComponentType());
+                    if (transform == null || transform.getPosition() == null) {
+                        continue;
+                    }
+                    Vector3d position = transform.getPosition();
+                    double distanceSq = playerPositions.isEmpty()
+                            ? 0.0d
+                            : nearestDistanceSq(position, playerPositions);
+                    Ref<EntityStore> ref = chunk.getReferenceTo(index);
+                    NPCEntity npc = chunk.getComponent(index, NPCEntity.getComponentType());
+                    Entity entity = EntityUtils.getEntity(index, chunk);
+                    String type = safeMobType(chunk, index, npc, entity);
+                    String roleName = safeNpcRoleName(npc);
+                    String modelAsset = safeModelAssetId(chunk, index);
+                    String persistentModelAsset = safePersistentModelAssetId(chunk, index);
+                    NpcRoleIndex.Entry liveRole = liveNpcEntry(npcRoleIndex, type, roleName, modelAsset, persistentModelAsset);
+                    String reason = debugMobReason(chunk, index, type, playerPositions, distanceSq);
+                    candidates.add(new NearbyDebugCandidate(
+                            ref == null ? -1 : ref.getIndex(),
+                            type,
+                            reason,
+                            Math.sqrt(distanceSq),
+                            position.x,
+                            position.y,
+                            position.z,
+                            npc != null,
+                            chunk.getComponent(index, PlayerRef.getComponentType()) != null,
+                            roleName,
+                            modelAsset,
+                            persistentModelAsset,
+                            liveRole == null ? null : liveRole.id(),
+                            chunk.getArchetype().toString()));
+                } catch (Exception ignoredCandidate) {
+                }
+            }
+            return true;
+        });
+
+        String candidateJson = candidates.stream()
+                .sorted(Comparator.comparingDouble(NearbyDebugCandidate::distance))
+                .limit(96)
+                .map(NearbyDebugCandidate::toJson)
+                .collect(Collectors.joining(","));
+        return "{\"ok\":true,\"world\":\"" + escapeJson(world.getName()) + "\""
+                + ",\"players\":" + playerPositions.size()
+                + ",\"radar\":" + Math.round(MOB_RADAR_RADIUS)
+                + ",\"sourceStats\":" + stats.toJson()
+                + ",\"candidates\":[" + candidateJson + "]}";
+    }
+
+    private static void collectMobDebugViewerStats(@Nonnull World world,
+                                                   @Nonnull Store<EntityStore> store,
+                                                   @Nonnull MobScanStats stats) {
+        for (PlayerRef playerRef : world.getPlayerRefs()) {
+            try {
+                Ref<EntityStore> playerEntityRef = playerRef.getReference();
+                if (playerEntityRef == null || !playerEntityRef.isValid()) {
+                    continue;
+                }
+                EntityTrackerSystems.EntityViewer viewer = store.getComponent(
+                        playerEntityRef,
+                        EntityModule.get().getEntityViewerComponentType());
+                if (viewer == null || viewer.visible == null) {
+                    continue;
+                }
+                stats.addSource("EntityViewerVisible");
+                stats.viewerVisible += viewer.visible.size();
+                stats.viewerSent += viewer.sent == null ? 0 : viewer.sent.size();
+            } catch (Exception ignored) {
+                stats.errors++;
+            }
+        }
+    }
+
+    private static void collectMobDebugSpatialStats(
+            @Nonnull Store<EntityStore> store,
+            @Nonnull ResourceType<EntityStore, SpatialResource<Ref<EntityStore>, EntityStore>> resourceType,
+            @Nonnull MobScanStats stats) {
+        try {
+            SpatialResource<Ref<EntityStore>, EntityStore> spatial = store.getResource(resourceType);
+            if (spatial == null) {
+                return;
+            }
+            stats.spatialSources++;
+            stats.spatialIndexed += spatial.getSpatialStructure().size();
+        } catch (Exception ignored) {
+            stats.errors++;
+        }
+    }
+
+    private static String debugMobReason(@Nonnull ArchetypeChunk<EntityStore> chunk,
+                                         int index,
+                                         @Nonnull String type,
+                                         @Nonnull List<Vector3d> playerPositions,
+                                         double distanceSq) {
+        if (chunk.getComponent(index, PlayerRef.getComponentType()) != null) {
+            return "player";
+        }
+        String nonMobReason = nonMobReason(chunk, index);
+        if (nonMobReason != null) {
+            return "technical_" + nonMobReason;
+        }
+        if (isSpawnMarkerType(type)) {
+            return "technical_marker";
+        }
+        if (playerPositions.isEmpty()) {
+            return "no_player_anchor";
+        }
+        if (distanceSq > MOB_RADAR_RADIUS_SQ) {
+            return "outside_radar";
+        }
+        return "accepted";
+    }
+
     private static double nearestDistanceSq(@Nonnull Vector3d position, @Nonnull List<Vector3d> playerPositions) {
         double best = Double.MAX_VALUE;
         for (Vector3d playerPosition : playerPositions) {
@@ -1126,16 +2007,49 @@ public final class WorldviewWebServer {
     }
 
     private static boolean isDefinitelyNotMob(@Nonnull ArchetypeChunk<EntityStore> chunk, int index) {
-        return chunk.getComponent(index, ItemComponent.getComponentType()) != null
-                || chunk.getComponent(index, ProjectileComponent.getComponentType()) != null
-                || chunk.getComponent(index, BlockEntity.getComponentType()) != null;
+        return nonMobReason(chunk, index) != null;
+    }
+
+    @Nullable
+    private static String nonMobReason(@Nonnull ArchetypeChunk<EntityStore> chunk, int index) {
+        if (chunk.getComponent(index, ItemComponent.getComponentType()) != null) {
+            return "item";
+        }
+        if (chunk.getComponent(index, ProjectileComponent.getComponentType()) != null) {
+            return "projectile";
+        }
+        if (chunk.getComponent(index, BlockEntity.getComponentType()) != null) {
+            return "block_entity";
+        }
+        return null;
+    }
+
+    @Nullable
+    private static String nonMobReason(@Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref) {
+        if (store.getComponent(ref, ItemComponent.getComponentType()) != null) {
+            return "item";
+        }
+        if (store.getComponent(ref, ProjectileComponent.getComponentType()) != null) {
+            return "projectile";
+        }
+        if (store.getComponent(ref, BlockEntity.getComponentType()) != null) {
+            return "block_entity";
+        }
+        return null;
+    }
+
+    private static boolean isDefinitelyNotMob(@Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref) {
+        return nonMobReason(store, ref) != null;
     }
 
     private static boolean isSpawnMarkerType(@Nonnull String type) {
         String normalized = type.toLowerCase();
         return normalized.contains("spawn_marker")
                 || normalized.contains("spawnmark")
-                || normalized.contains("spawn_mark");
+                || normalized.contains("spawn_mark")
+                || normalized.contains("path_marker")
+                || normalized.contains("pathmark")
+                || normalized.contains("path_mark");
     }
 
     private static String safeMobType(@Nonnull ArchetypeChunk<EntityStore> chunk,
@@ -1144,16 +2058,16 @@ public final class WorldviewWebServer {
                                       Entity entity) {
         if (npc != null) {
             try {
-                String type = npc.getNPCTypeId();
-                if (type != null && !type.isBlank()) {
-                    return type;
+                String roleName = npc.getRoleName();
+                if (roleName != null && !roleName.isBlank()) {
+                    return roleName;
                 }
             } catch (Exception ignored) {
             }
             try {
-                String roleName = npc.getRoleName();
-                if (roleName != null && !roleName.isBlank()) {
-                    return roleName;
+                String type = npc.getNPCTypeId();
+                if (type != null && !type.isBlank()) {
+                    return type;
                 }
             } catch (Exception ignored) {
             }
@@ -1163,6 +2077,29 @@ public final class WorldviewWebServer {
             return modelType;
         }
         return safeEntityType(entity);
+    }
+
+    private static String safeMobType(@Nonnull Store<EntityStore> store,
+                                      @Nonnull Ref<EntityStore> ref,
+                                      NPCEntity npc) {
+        if (npc != null) {
+            try {
+                String roleName = npc.getRoleName();
+                if (roleName != null && !roleName.isBlank()) {
+                    return roleName;
+                }
+            } catch (Exception ignored) {
+            }
+            try {
+                String type = npc.getNPCTypeId();
+                if (type != null && !type.isBlank()) {
+                    return type;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        String modelType = safeModelType(store, ref);
+        return modelType == null ? "LivingEntity" : modelType;
     }
 
     @Nullable
@@ -1229,6 +2166,231 @@ public final class WorldviewWebServer {
         return fallback;
     }
 
+    private static String safeMobId(@Nonnull ArchetypeChunk<EntityStore> chunk,
+                                    int index,
+                                    @Nonnull Ref<EntityStore> ref) {
+        try {
+            UUIDComponent uuidComponent = chunk.getComponent(index, UUIDComponent.getComponentType());
+            if (uuidComponent != null && uuidComponent.getUuid() != null) {
+                return uuidComponent.getUuid().toString();
+            }
+        } catch (Exception ignored) {
+        }
+        return "idx-" + ref.getIndex();
+    }
+
+    private static String safeMobId(@Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref) {
+        try {
+            UUIDComponent uuidComponent = store.getComponent(ref, UUIDComponent.getComponentType());
+            if (uuidComponent != null && uuidComponent.getUuid() != null) {
+                return uuidComponent.getUuid().toString();
+            }
+        } catch (Exception ignored) {
+        }
+        return "idx-" + ref.getIndex();
+    }
+
+    @Nullable
+    private static String safeNpcNameTranslationKey(NPCEntity npc) {
+        if (npc == null) {
+            return null;
+        }
+        try {
+            Role role = npc.getRole();
+            String translationKey = role == null ? null : role.getNameTranslationKey();
+            if (translationKey != null && !translationKey.isBlank()) {
+                return translationKey;
+            }
+        } catch (Exception ignored) {
+        }
+        String roleName = safeNpcRoleName(npc);
+        return roleName == null ? null : "server.npcRoles." + roleName + ".name";
+    }
+
+    @Nullable
+    private static NpcRoleIndex.Entry liveNpcEntry(@Nonnull NpcRoleIndex npcRoleIndex,
+                                                  @Nullable String type,
+                                                  @Nullable String role,
+                                                  @Nullable String modelAsset,
+                                                  @Nullable String persistentModelAsset) {
+        List<String> candidates = new ArrayList<>();
+        if (type != null) candidates.add(type);
+        if (role != null) candidates.add(role);
+        String modelType = labelFromAssetId(modelAsset);
+        if (modelType != null) candidates.add(modelType);
+        String persistentModelType = labelFromAssetId(persistentModelAsset);
+        if (persistentModelType != null) candidates.add(persistentModelType);
+        for (String candidate : candidates) {
+            NpcRoleIndex.Entry entry = npcRoleIndex.resolve(candidate);
+            if (entry != null) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static String safeModelType(@Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref) {
+        try {
+            ModelComponent modelComponent = store.getComponent(ref, ModelComponent.getComponentType());
+            if (modelComponent != null && modelComponent.getModel() != null) {
+                String modelAssetId = modelComponent.getModel().getModelAssetId();
+                String type = labelFromAssetId(modelAssetId);
+                if (type != null) {
+                    return type;
+                }
+                type = labelFromAssetId(modelComponent.getModel().getModel());
+                if (type != null) {
+                    return type;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            PersistentModel persistentModel = store.getComponent(ref, PersistentModel.getComponentType());
+            if (persistentModel != null && persistentModel.getModelReference() != null) {
+                String type = labelFromAssetId(persistentModel.getModelReference().getModelAssetId());
+                if (type != null) {
+                    return type;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    @Nullable
+    private static String safeNpcRoleName(NPCEntity npc) {
+        if (npc == null) {
+            return null;
+        }
+        try {
+            String roleName = npc.getRoleName();
+            return roleName == null || roleName.isBlank() ? null : roleName;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private static Integer safeNpcTypeIndex(NPCEntity npc) {
+        if (npc == null) {
+            return null;
+        }
+        try {
+            int value = npc.getNPCTypeIndex();
+            return value < 0 ? null : value;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private static Integer safeNpcRoleIndex(NPCEntity npc) {
+        if (npc == null) {
+            return null;
+        }
+        try {
+            int value = npc.getRoleIndex();
+            return value < 0 ? null : value;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private static Float safeYaw(@Nonnull TransformComponent transform) {
+        try {
+            Rotation3f rotation = transform.getRotation();
+            return rotation == null || !Float.isFinite(rotation.yaw()) ? null : rotation.yaw();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private static String safeModelAssetId(@Nonnull ArchetypeChunk<EntityStore> chunk, int index) {
+        try {
+            ModelComponent modelComponent = chunk.getComponent(index, ModelComponent.getComponentType());
+            if (modelComponent != null && modelComponent.getModel() != null) {
+                String assetId = modelComponent.getModel().getModelAssetId();
+                if (assetId != null && !assetId.isBlank()) {
+                    return assetId;
+                }
+                assetId = modelComponent.getModel().getModel();
+                if (assetId != null && !assetId.isBlank()) {
+                    return assetId;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    @Nullable
+    private static String safeModelAssetId(@Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref) {
+        try {
+            ModelComponent modelComponent = store.getComponent(ref, ModelComponent.getComponentType());
+            if (modelComponent != null && modelComponent.getModel() != null) {
+                String assetId = modelComponent.getModel().getModelAssetId();
+                if (assetId != null && !assetId.isBlank()) {
+                    return assetId;
+                }
+                assetId = modelComponent.getModel().getModel();
+                if (assetId != null && !assetId.isBlank()) {
+                    return assetId;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    @Nullable
+    private static String safePersistentModelAssetId(@Nonnull ArchetypeChunk<EntityStore> chunk, int index) {
+        try {
+            PersistentModel persistentModel = chunk.getComponent(index, PersistentModel.getComponentType());
+            if (persistentModel != null && persistentModel.getModelReference() != null) {
+                String assetId = persistentModel.getModelReference().getModelAssetId();
+                return assetId == null || assetId.isBlank() ? null : assetId;
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    @Nullable
+    private static String safePersistentModelAssetId(@Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref) {
+        try {
+            PersistentModel persistentModel = store.getComponent(ref, PersistentModel.getComponentType());
+            if (persistentModel != null && persistentModel.getModelReference() != null) {
+                String assetId = persistentModel.getModelReference().getModelAssetId();
+                return assetId == null || assetId.isBlank() ? null : assetId;
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private static HealthSnapshot safeHealth(@Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref) {
+        try {
+            EntityStatMap statMap = store.getComponent(ref, EntityStatMap.getComponentType());
+            if (statMap == null) {
+                return HealthSnapshot.empty();
+            }
+            EntityStatValue health = statMap.get(DefaultEntityStatTypes.getHealth());
+            if (health == null) {
+                health = statMap.get("health");
+            }
+            if (health == null) {
+                return HealthSnapshot.empty();
+            }
+            return new HealthSnapshot((double) health.get(), (double) health.getMax());
+        } catch (Exception ignored) {
+            return HealthSnapshot.empty();
+        }
+    }
+
     private static String safeEntityType(Entity entity) {
         if (entity == null) {
             return "LivingEntity";
@@ -1244,7 +2406,92 @@ public final class WorldviewWebServer {
         return simpleName == null || simpleName.isBlank() ? "LivingEntity" : simpleName;
     }
 
+    private static String categoryForMob(@Nonnull String type) {
+        return categoryForMob(type, null);
+    }
+
+    private static String categoryForMob(@Nonnull String type, @Nullable String liveCategory) {
+        if (liveCategory != null) {
+            String normalizedCategory = liveCategory.toLowerCase();
+            if (normalizedCategory.contains("undead") || normalizedCategory.contains("aggressive")
+                    || normalizedCategory.contains("elemental")) {
+                return "hostile";
+            }
+            if (normalizedCategory.contains("livestock")) {
+                return "livestock";
+            }
+            if (normalizedCategory.contains("critter")) {
+                return "critter";
+            }
+            if (normalizedCategory.contains("flying") || normalizedCategory.contains("avian")) {
+                return "flying";
+            }
+            if (normalizedCategory.contains("swimming") || normalizedCategory.contains("fish")) {
+                return "swimming";
+            }
+            if (normalizedCategory.contains("intelligent")) {
+                return "npc";
+            }
+        }
+        String normalized = type.toLowerCase();
+        if (normalized.contains("boss") || normalized.contains("giant") || normalized.contains("rex")
+                || normalized.contains("dragon") || normalized.contains("guardian")) {
+            return "boss";
+        }
+        if (normalized.contains("skeleton") || normalized.contains("zombie") || normalized.contains("ghoul")
+                || normalized.contains("undead") || normalized.contains("goblin") || normalized.contains("outlander")
+                || normalized.contains("trork") || normalized.contains("yeti") || normalized.contains("spider")
+                || normalized.contains("scarak") || normalized.contains("scorpion") || normalized.contains("void")
+                || normalized.contains("hound") || normalized.contains("wolf") || normalized.contains("bear")) {
+            return "hostile";
+        }
+        if (normalized.contains("kweebec") || normalized.contains("feran") || normalized.contains("klops")
+                || normalized.contains("tuluk") || normalized.contains("slothian") || normalized.contains("bramblekin")
+                || normalized.contains("elf") || normalized.contains("merchant") || normalized.contains("npc")) {
+            return "npc";
+        }
+        if (normalized.contains("cow") || normalized.contains("pig") || normalized.contains("boar")
+                || normalized.contains("bison") || normalized.contains("chicken") || normalized.contains("horse")
+                || normalized.contains("goat") || normalized.contains("warthog") || normalized.contains("sheep")) {
+            return "livestock";
+        }
+        if (normalized.contains("frog") || normalized.contains("mouse") || normalized.contains("rat")
+                || normalized.contains("rabbit") || normalized.contains("squirrel") || normalized.contains("gecko")
+                || normalized.contains("meerkat")) {
+            return "critter";
+        }
+        if (normalized.contains("tetrabird") || normalized.contains("bird") || normalized.contains("duck")
+                || normalized.contains("hawk") || normalized.contains("raven")
+                || normalized.contains("crow") || normalized.contains("bat") || normalized.contains("owl")
+                || normalized.contains("vulture") || normalized.contains("sparrow")) {
+            return "flying";
+        }
+        if (normalized.contains("fish") || normalized.contains("shark") || normalized.contains("puffer")
+                || normalized.contains("crocodile") || normalized.contains("swimming")) {
+            return "swimming";
+        }
+        if (normalized.contains("deer") || normalized.contains("fox") || normalized.contains("penguin")) {
+            return "passive";
+        }
+        return "unknown";
+    }
+
     private static String colorForMob(@Nonnull String type) {
+        String category = categoryForMob(type);
+        return switch (category) {
+            case "hostile" -> "#ff5d6c";
+            case "npc" -> "#7ec8ff";
+            case "boss" -> "#d189ff";
+            case "livestock" -> "#ffd36a";
+            case "critter" -> "#8ee58b";
+            case "flying" -> "#b8d8ff";
+            case "swimming" -> "#62d4e7";
+            case "passive" -> "#a7e06f";
+            default -> fallbackMobColor(type);
+        };
+    }
+
+    private static String fallbackMobColor(@Nonnull String type) {
         int hash = type.hashCode();
         int hue = Math.floorMod(hash, 360);
         return "hsl(" + hue + ",70%,58%)";
@@ -1256,6 +2503,10 @@ public final class WorldviewWebServer {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private static double round3(double value) {
+        return Math.round(value * 1000.0d) / 1000.0d;
     }
 
     private static String findString(@Nonnull Pattern pattern, @Nonnull String body, @Nonnull String fieldName) {
@@ -1278,14 +2529,70 @@ public final class WorldviewWebServer {
         return URLDecoder.decode(value, StandardCharsets.UTF_8);
     }
 
+    private static boolean queryFlag(@Nonnull HttpExchange exchange, @Nonnull String name, boolean defaultValue) {
+        String query = exchange.getRequestURI().getRawQuery();
+        if (query == null || query.isBlank()) {
+            return defaultValue;
+        }
+        for (String pair : query.split("&")) {
+            int equals = pair.indexOf('=');
+            String rawKey = equals >= 0 ? pair.substring(0, equals) : pair;
+            if (!name.equals(decode(rawKey))) {
+                continue;
+            }
+            String value = equals >= 0 ? decode(pair.substring(equals + 1)) : "true";
+            if (value.isBlank()) {
+                return defaultValue;
+            }
+            String normalized = value.toLowerCase();
+            return normalized.equals("1")
+                    || normalized.equals("true")
+                    || normalized.equals("yes")
+                    || normalized.equals("on");
+        }
+        return defaultValue;
+    }
+
+    @Nullable
+    private static String queryParam(@Nonnull HttpExchange exchange, @Nonnull String name) {
+        String query = exchange.getRequestURI().getRawQuery();
+        if (query == null || query.isBlank()) {
+            return null;
+        }
+        for (String pair : query.split("&")) {
+            int equals = pair.indexOf('=');
+            String rawKey = equals >= 0 ? pair.substring(0, equals) : pair;
+            if (!name.equals(decode(rawKey))) {
+                continue;
+            }
+            return equals >= 0 ? decode(pair.substring(equals + 1)) : "";
+        }
+        return null;
+    }
+
     private static String safeName(@Nonnull String value) {
         return value.replaceAll("[^A-Za-z0-9_.-]", "_");
+    }
+
+    @Nullable
+    private static String firstNonBlank(@Nullable String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     private static String contentType(@Nonnull String resourcePath) {
         if (resourcePath.endsWith(".html")) return "text/html; charset=utf-8";
         if (resourcePath.endsWith(".js")) return "text/javascript; charset=utf-8";
+        if (resourcePath.endsWith(".json")) return "application/json; charset=utf-8";
         if (resourcePath.endsWith(".css")) return "text/css; charset=utf-8";
+        if (resourcePath.endsWith(".png")) return "image/png";
         if (resourcePath.endsWith(".jpg") || resourcePath.endsWith(".jpeg")) return "image/jpeg";
         return "application/octet-stream";
     }
@@ -1301,7 +2608,13 @@ public final class WorldviewWebServer {
 
     private static void writeBytes(@Nonnull HttpExchange exchange, int status, byte[] bytes,
                                    @Nonnull String contentType) throws IOException {
+        writeCacheableBytes(exchange, status, bytes, contentType, "no-cache");
+    }
+
+    private static void writeCacheableBytes(@Nonnull HttpExchange exchange, int status, byte[] bytes,
+                                            @Nonnull String contentType, @Nonnull String cacheControl) throws IOException {
         exchange.getResponseHeaders().set("Content-Type", contentType);
+        exchange.getResponseHeaders().set("Cache-Control", cacheControl);
         addCors(exchange);
         exchange.sendResponseHeaders(status, bytes.length);
         try (OutputStream output = exchange.getResponseBody()) {
@@ -1358,15 +2671,146 @@ public final class WorldviewWebServer {
     private record ChunkCoord(int chunkX, int chunkZ) {
     }
 
-    private record PlayerSnapshot(String uuid, String name, double x, double y, double z, float yaw) {
+    private record PlayerSnapshot(String uuid, String name, double x, double y, double z, float yaw,
+                                  @Nullable PlayerSkinSnapshot skin) {
         String toJson() {
             return "{\"uuid\":\"" + escapeJson(uuid) + "\""
                     + ",\"name\":\"" + escapeJson(name) + "\""
+                    + ",\"avatarUrl\":\"" + escapeJson(avatarUrl()) + "\""
+                    + (skin == null ? "" : ",\"skin\":" + skin.toJson())
                     + ",\"x\":" + x
                     + ",\"y\":" + y
                     + ",\"z\":" + z
                     + ",\"yaw\":" + yaw
                     + "}";
+        }
+
+        private String avatarUrl() {
+            String avatarToken = safeName(uuid) + (skin == null ? "" : "-" + safeName(skin.key()));
+            return "/api/player-avatar/" + avatarToken + ".png?name="
+                    + URLEncoder.encode(name, StandardCharsets.UTF_8);
+        }
+    }
+
+    private record PlayerSkinSnapshot(
+            String key,
+            String bodyCharacteristic,
+            String underwear,
+            String face,
+            String eyes,
+            String ears,
+            String mouth,
+            String facialHair,
+            String haircut,
+            String eyebrows,
+            String pants,
+            String overpants,
+            String undertop,
+            String overtop,
+            String shoes,
+            String headAccessory,
+            String faceAccessory,
+            String earAccessory,
+            String skinFeature,
+            String gloves,
+            String cape) {
+        @Nullable
+        static PlayerSkinSnapshot from(@Nonnull PlayerRef playerRef) {
+            try {
+                Ref<EntityStore> ref = playerRef.getReference();
+                if (ref == null || !ref.isValid()) {
+                    return null;
+                }
+                PlayerSkinComponent skinComponent = ref.getStore().getComponent(ref, PlayerSkinComponent.getComponentType());
+                if (skinComponent == null || skinComponent.getPlayerSkin() == null) {
+                    return null;
+                }
+                PlayerSkin skin = skinComponent.getPlayerSkin();
+                return fromSkin(skin);
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+
+        private static PlayerSkinSnapshot fromSkin(@Nonnull PlayerSkin skin) {
+            String data = String.join("|",
+                    value(skin.bodyCharacteristic),
+                    value(skin.underwear),
+                    value(skin.face),
+                    value(skin.eyes),
+                    value(skin.ears),
+                    value(skin.mouth),
+                    value(skin.facialHair),
+                    value(skin.haircut),
+                    value(skin.eyebrows),
+                    value(skin.pants),
+                    value(skin.overpants),
+                    value(skin.undertop),
+                    value(skin.overtop),
+                    value(skin.shoes),
+                    value(skin.headAccessory),
+                    value(skin.faceAccessory),
+                    value(skin.earAccessory),
+                    value(skin.skinFeature),
+                    value(skin.gloves),
+                    value(skin.cape));
+            return new PlayerSkinSnapshot(
+                    Integer.toUnsignedString(data.hashCode(), 36),
+                    value(skin.bodyCharacteristic),
+                    value(skin.underwear),
+                    value(skin.face),
+                    value(skin.eyes),
+                    value(skin.ears),
+                    value(skin.mouth),
+                    value(skin.facialHair),
+                    value(skin.haircut),
+                    value(skin.eyebrows),
+                    value(skin.pants),
+                    value(skin.overpants),
+                    value(skin.undertop),
+                    value(skin.overtop),
+                    value(skin.shoes),
+                    value(skin.headAccessory),
+                    value(skin.faceAccessory),
+                    value(skin.earAccessory),
+                    value(skin.skinFeature),
+                    value(skin.gloves),
+                    value(skin.cape));
+        }
+
+        private static String value(@Nullable String value) {
+            return value == null ? "" : value;
+        }
+
+        String toJson() {
+            return "{\"key\":\"" + escapeJson(key) + "\""
+                    + skinField("bodyCharacteristic", bodyCharacteristic)
+                    + skinField("underwear", underwear)
+                    + skinField("face", face)
+                    + skinField("eyes", eyes)
+                    + skinField("ears", ears)
+                    + skinField("mouth", mouth)
+                    + skinField("facialHair", facialHair)
+                    + skinField("haircut", haircut)
+                    + skinField("eyebrows", eyebrows)
+                    + skinField("pants", pants)
+                    + skinField("overpants", overpants)
+                    + skinField("undertop", undertop)
+                    + skinField("overtop", overtop)
+                    + skinField("shoes", shoes)
+                    + skinField("headAccessory", headAccessory)
+                    + skinField("faceAccessory", faceAccessory)
+                    + skinField("earAccessory", earAccessory)
+                    + skinField("skinFeature", skinFeature)
+                    + skinField("gloves", gloves)
+                    + skinField("cape", cape)
+                    + "}";
+        }
+
+        private static String skinField(@Nonnull String name, @Nullable String value) {
+            return value == null || value.isBlank()
+                    ? ""
+                    : ",\"" + name + "\":\"" + escapeJson(value) + "\"";
         }
     }
 
@@ -1424,16 +2868,77 @@ public final class WorldviewWebServer {
         }
     }
 
-    private record MobSnapshot(String id, String type, String label, double x, double y, double z, String color) {
+    private record MobFeedSnapshot(List<MobSnapshot> mobs, MobScanStats stats, int players, double radar) {
+        static MobFeedSnapshot empty() {
+            return new MobFeedSnapshot(List.of(), new MobScanStats(), 0, MOB_RADAR_RADIUS);
+        }
+
+        String toJson(@Nonnull String worldName) {
+            String mobJson = mobs.stream()
+                    .map(MobSnapshot::toJson)
+                    .collect(Collectors.joining(","));
+            return "{\"ok\":true"
+                    + ",\"world\":\"" + escapeJson(worldName) + "\""
+                    + ",\"max\":" + MAX_MOB_SNAPSHOTS
+                    + ",\"radar\":" + Math.round(radar)
+                    + ",\"players\":" + players
+                    + ",\"mobs\":[" + mobJson + "]"
+                    + ",\"sourceStats\":" + stats.toJson()
+                    + "}";
+        }
+    }
+
+    private record MobSnapshot(
+            String id,
+            String type,
+            String label,
+            String category,
+            double x,
+            double y,
+            double z,
+            Float yaw,
+            String color,
+            String source,
+            String role,
+            String nameTranslationKey,
+            Integer npcTypeIndex,
+            Integer roleIndex,
+            String modelAsset,
+            String persistentModelAsset,
+            String liveRoleId,
+            String liveRoleCategory,
+            String liveRolePath,
+            Double health,
+            Double maxHealth) {
         String toJson() {
             return "{\"id\":\"" + escapeJson(id) + "\""
                     + ",\"type\":\"" + escapeJson(type) + "\""
                     + ",\"label\":\"" + escapeJson(label) + "\""
+                    + ",\"category\":\"" + escapeJson(category) + "\""
                     + ",\"x\":" + x
                     + ",\"y\":" + y
                     + ",\"z\":" + z
+                    + (yaw == null ? "" : ",\"yaw\":" + yaw)
                     + ",\"color\":\"" + escapeJson(color) + "\""
+                    + ",\"source\":\"" + escapeJson(source) + "\""
+                    + (role == null ? "" : ",\"role\":\"" + escapeJson(role) + "\"")
+                    + (nameTranslationKey == null ? "" : ",\"nameTranslationKey\":\"" + escapeJson(nameTranslationKey) + "\"")
+                    + (npcTypeIndex == null ? "" : ",\"npcTypeIndex\":" + npcTypeIndex)
+                    + (roleIndex == null ? "" : ",\"roleIndex\":" + roleIndex)
+                    + (modelAsset == null ? "" : ",\"modelAsset\":\"" + escapeJson(modelAsset) + "\"")
+                    + (persistentModelAsset == null ? "" : ",\"persistentModelAsset\":\"" + escapeJson(persistentModelAsset) + "\"")
+                    + (liveRoleId == null ? "" : ",\"liveRoleId\":\"" + escapeJson(liveRoleId) + "\"")
+                    + (liveRoleCategory == null ? "" : ",\"liveRoleCategory\":\"" + escapeJson(liveRoleCategory) + "\"")
+                    + (liveRolePath == null ? "" : ",\"liveRolePath\":\"" + escapeJson(liveRolePath) + "\"")
+                    + (health == null ? "" : ",\"health\":" + round3(health))
+                    + (maxHealth == null ? "" : ",\"maxHealth\":" + round3(maxHealth))
                     + "}";
+        }
+    }
+
+    private record HealthSnapshot(Double health, Double maxHealth) {
+        static HealthSnapshot empty() {
+            return new HealthSnapshot(null, null);
         }
     }
 
@@ -1449,9 +2954,45 @@ public final class WorldviewWebServer {
         }
     }
 
+    private record NearbyDebugCandidate(
+            int id,
+            String type,
+            String reason,
+            double distance,
+            double x,
+            double y,
+            double z,
+            boolean npc,
+            boolean player,
+            @Nullable String role,
+            @Nullable String modelAsset,
+            @Nullable String persistentModelAsset,
+            @Nullable String liveRoleId,
+            String archetype) {
+        String toJson() {
+            return "{\"id\":" + id
+                    + ",\"type\":\"" + escapeJson(type) + "\""
+                    + ",\"reason\":\"" + escapeJson(reason) + "\""
+                    + ",\"distance\":" + round3(distance)
+                    + ",\"x\":" + round3(x)
+                    + ",\"y\":" + round3(y)
+                    + ",\"z\":" + round3(z)
+                    + ",\"npc\":" + npc
+                    + ",\"player\":" + player
+                    + (role == null ? "" : ",\"role\":\"" + escapeJson(role) + "\"")
+                    + (modelAsset == null ? "" : ",\"modelAsset\":\"" + escapeJson(modelAsset) + "\"")
+                    + (persistentModelAsset == null ? "" : ",\"persistentModelAsset\":\"" + escapeJson(persistentModelAsset) + "\"")
+                    + (liveRoleId == null ? "" : ",\"liveRoleId\":\"" + escapeJson(liveRoleId) + "\"")
+                    + ",\"archetype\":\"" + escapeJson(MobScanStats.shorten(archetype)) + "\""
+                    + "}";
+        }
+    }
+
     private static final class MobScanStats {
+        private final LinkedHashMap<String, Integer> sources = new LinkedHashMap<>();
         private final LinkedHashMap<String, Integer> archetypes = new LinkedHashMap<>();
         private final LinkedHashMap<String, Integer> acceptedTypes = new LinkedHashMap<>();
+        private final LinkedHashMap<String, Integer> skippedTypes = new LinkedHashMap<>();
         private int chunks;
         private int entities;
         private int accepted;
@@ -1463,13 +3004,31 @@ public final class WorldviewWebServer {
         private int noTransform;
         private int noPosition;
         private int errors;
+        private int liveRoleMatches;
+        private int storeEntities;
+        private int npcEntities;
+        private int transformEntities;
+        private int networkSendableEntities;
+        private int viewerVisible;
+        private int viewerSent;
+        private int spatialSources;
+        private int spatialIndexed;
+        private int spatialRefs;
 
         private void addArchetype(@Nonnull String archetype) {
             archetypes.merge(shorten(archetype), 1, Integer::sum);
         }
 
+        private void addSource(@Nonnull String source) {
+            sources.merge(source, 1, Integer::sum);
+        }
+
         private void addType(@Nonnull String type) {
             acceptedTypes.merge(type, 1, Integer::sum);
+        }
+
+        private void addSkippedType(@Nonnull String type) {
+            skippedTypes.merge(type, 1, Integer::sum);
         }
 
         private String preview(@Nonnull LinkedHashMap<String, Integer> values) {
@@ -1477,9 +3036,38 @@ public final class WorldviewWebServer {
                 return "none";
             }
             return values.entrySet().stream()
-                    .limit(6)
+                    .limit(MAX_MOB_DEBUG_SUMMARY_ITEMS)
                     .map(entry -> entry.getKey() + "=" + entry.getValue())
                     .collect(Collectors.joining("|"));
+        }
+
+        private String toJson() {
+            return "{\"source\":\"" + escapeJson(preview(sources)) + "\""
+                    + ",\"storeEntities\":" + storeEntities
+                    + ",\"npcEntities\":" + npcEntities
+                    + ",\"transformEntities\":" + transformEntities
+                    + ",\"networkSendableEntities\":" + networkSendableEntities
+                    + ",\"chunks\":" + chunks
+                    + ",\"entities\":" + entities
+                    + ",\"accepted\":" + accepted
+                    + ",\"duplicates\":" + duplicates
+                    + ",\"players\":" + skippedPlayers
+                    + ",\"nonMob\":" + skippedNonMobs
+                    + ",\"outsideRadar\":" + skippedOutsideRadar
+                    + ",\"invalid\":" + invalidRefs
+                    + ",\"noTransform\":" + noTransform
+                    + ",\"noPosition\":" + noPosition
+                    + ",\"errors\":" + errors
+                    + ",\"liveRoleMatches\":" + liveRoleMatches
+                    + ",\"viewerVisible\":" + viewerVisible
+                    + ",\"viewerSent\":" + viewerSent
+                    + ",\"spatialSources\":" + spatialSources
+                    + ",\"spatialIndexed\":" + spatialIndexed
+                    + ",\"spatialRefs\":" + spatialRefs
+                    + ",\"types\":\"" + escapeJson(preview(acceptedTypes)) + "\""
+                    + ",\"skippedTypes\":\"" + escapeJson(preview(skippedTypes)) + "\""
+                    + ",\"archetypes\":\"" + escapeJson(preview(archetypes)) + "\""
+                    + "}";
         }
 
         private static String shorten(@Nonnull String value) {

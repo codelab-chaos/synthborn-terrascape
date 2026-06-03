@@ -1,6 +1,7 @@
 package com.codelabchaos.synthworldview;
 
 import com.codelabchaos.synthworldview.commands.WorldviewCommand;
+import com.codelabchaos.synthworldview.web.NpcRoleIndex;
 import com.codelabchaos.synthworldview.web.WorldviewWebServer;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
@@ -19,6 +20,7 @@ public class SynthWorldviewPlugin extends JavaPlugin {
 
     private Instant startedAt;
     private WorldviewWebServer webServer;
+    private NpcRoleIndex npcRoleIndex;
     private boolean experimentalDetailsEnabled;
 
     public SynthWorldviewPlugin(@Nonnull JavaPluginInit init) {
@@ -49,6 +51,10 @@ public class SynthWorldviewPlugin extends JavaPlugin {
         return webServer;
     }
 
+    public NpcRoleIndex npcRoleIndex() {
+        return npcRoleIndex;
+    }
+
     public boolean experimentalDetailsEnabled() {
         return experimentalDetailsEnabled;
     }
@@ -56,6 +62,8 @@ public class SynthWorldviewPlugin extends JavaPlugin {
     @Override
     protected void setup() {
         instance = this;
+        npcRoleIndex = new NpcRoleIndex();
+        npcRoleIndex.subscribe(getEventRegistry());
         getCommandRegistry().registerCommand(new WorldviewCommand(this));
         getLogger().at(Level.INFO).log("SynthWorldview setup complete.");
     }
@@ -74,7 +82,7 @@ public class SynthWorldviewPlugin extends JavaPlugin {
                 "true"));
 
         try {
-            webServer = new WorldviewWebServer(this, host, port, experimentalDetailsEnabled);
+            webServer = new WorldviewWebServer(this, host, port, experimentalDetailsEnabled, npcRoleIndex);
             webServer.start();
         } catch (IOException e) {
             getLogger().at(Level.SEVERE).withCause(e).log("Failed to start SynthWorldview HTTP server.");
@@ -89,6 +97,7 @@ public class SynthWorldviewPlugin extends JavaPlugin {
             webServer.stop();
             webServer = null;
         }
+        npcRoleIndex = null;
         startedAt = null;
         instance = null;
     }

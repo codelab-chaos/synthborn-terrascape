@@ -8,3 +8,4 @@ perf-history/
 *.class
 *.log
 *.tmp
+mods/SynthWorldview/src/main/resources/web/mob-icons/
