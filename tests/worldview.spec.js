@@ -161,7 +161,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
     return typeof counter?.fps === 'number' && typeof counter?.frameMs === 'number';
   })).toBe(true);
   const markerShape = await page.evaluate(async () => {
-    const { createPlayerMarker, disposeObject } = await import('/players.js');
+    const { createPlayerMarker, disposeObject } = await import('/dist/worldview.js');
     const marker = createPlayerMarker({
       uuid: 'test-player',
       name: 'Avatar Tester',
@@ -214,7 +214,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(markerShape.lookTargetZ).toBeLessThan(-4);
 
   const mobMarkerShape = await page.evaluate(async () => {
-    const { createMobMarker, disposeObject, updateMobMarkerHeight } = await import('/players.js');
+    const { createMobMarker, disposeObject, updateMobMarkerHeight } = await import('/dist/worldview.js');
     const marker = createMobMarker({
       id: 'test-chicken',
       type: 'Chicken',

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+export { createMobMarker, createPlayerMarker, disposeObject, updateMobMarkerHeight } from './players.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createChunkDebug } from './chunk-debug.js';
