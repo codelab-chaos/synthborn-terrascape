@@ -26,3 +26,13 @@ export function base64ToArrayBuffer(base64) {
   }
   return bytes.buffer;
 }
+
+export function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+export function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}

@@ -63,6 +63,8 @@ import {
   sampleMapBackdropColor,
   updateMapBackdrop,
 } from './map-backdrop.js';
+import { createNpcCatalog } from './npc-catalog.js';
+import { createPlayerTile, updatePlayerTile } from './player-tiles.js';
 import {
   createMobMarker,
   createPlayerMarker,
@@ -78,7 +80,8 @@ import {
   resizePostProcessing,
   setShaderEffect,
 } from './postprocessing.js';
-import { base64ToArrayBuffer, centerId, chunkId, delay, formatCoord, numberOr } from './utils.js';
+import { createTimeRibbon } from './time-ribbon.js';
+import { base64ToArrayBuffer, centerId, chunkId, clamp, delay, formatBytes, formatCoord, numberOr } from './utils.js';
 import { isVectorState, loadStoredViewState, saveStoredViewState, vectorState } from './view-state.js';
 import { applyWaterModeToObject, prepareWaterMaterials, tintWaterMaterialsFromMap, updateWaterMaterials } from './water.js';
 import { makeTerrainCacheKey, readTerrainCache, writeTerrainCache } from './mesh-cache.js';
@@ -157,6 +160,14 @@ controls.touches = {
 const lightingRig = createLightingRig(scene, SKY_COLOR);
 const postProcessing = createPostProcessing(renderer, scene, camera);
 const fpsCounter = createFpsCounter(scene, camera, renderer);
+const npcCatalog = createNpcCatalog({ logClientEvent });
+const timeRibbon = createTimeRibbon({
+  labelEl: timeCycleLabelEl,
+  sceneEl: skySceneEl,
+  sunEl: skySunEl,
+  moonEl: skyMoonEl,
+  starsEl: skyStarsEl,
+});
 
 const grid = new THREE.GridHelper(EMPTY_GRID_SIZE, EMPTY_GRID_DIVISIONS, GRID_AXIS_COLOR, GRID_LINE_COLOR);
 for (const material of Array.isArray(grid.material) ? grid.material : [grid.material]) {
@@ -218,9 +229,6 @@ let lastMobCount = 0;
 let lastMobPollFailed = false;
 let entityStreamConnected = false;
 let lastMobSourceStats = null;
-let npcDetailsLoaded = false;
-const npcDetailsById = new Map();
-const npcDetailsAliases = new Map();
 
 const tempPlayerTarget = new THREE.Vector3();
 const tempMobTarget = new THREE.Vector3();
@@ -290,112 +298,6 @@ function summarizeMobTypes() {
     .slice(0, 4)
     .map(([type, count]) => `${type} ${count}`)
     .join(' · ');
-}
-
-async function loadNpcDetails() {
-  try {
-    const response = await fetch('/npc-details.json');
-    if (!response.ok) {
-      throw new Error(`NPC details request failed: ${response.status}`);
-    }
-    const data = await response.json();
-    npcDetailsById.clear();
-    npcDetailsAliases.clear();
-    for (const entry of Object.values(data.entries ?? {})) {
-      if (!entry?.id) continue;
-      npcDetailsById.set(entry.id, entry);
-      for (const alias of entry.aliases ?? []) {
-        npcDetailsAliases.set(normalizeNpcKey(alias), entry);
-      }
-      npcDetailsAliases.set(normalizeNpcKey(entry.id), entry);
-      npcDetailsAliases.set(normalizeNpcKey(entry.label), entry);
-      npcDetailsAliases.set(normalizeNpcKey(entry.appearance), entry);
-    }
-    npcDetailsLoaded = true;
-    logClientEvent('npc_details_loaded', {
-      roles: npcDetailsById.size,
-      aliases: npcDetailsAliases.size,
-    });
-  } catch (error) {
-    npcDetailsLoaded = false;
-    console.warn('NPC details lookup failed', error);
-    logClientEvent('npc_details_failed', { error: error?.message ?? error });
-  }
-}
-
-function enrichMob(mob, id) {
-  const details = resolveNpcDetails(mob);
-  const category = String(mob.category ?? details?.categoryPath ?? '').toLowerCase();
-  const maxHealth = firstFiniteNumber(mob.maxHealth, mob.maxHp, details?.maxHealth, mob.hp, mob.health);
-  const rawAttackDamage = firstFiniteNumber(mob.attackDamage, mob.damage, details?.attackDamage);
-  const passiveCard = isPassiveMobCategory(category, rawAttackDamage);
-  const attackDamage = passiveCard ? 0 : rawAttackDamage;
-  return {
-    ...mob,
-    id,
-    details,
-    label: details?.label ?? mob.label ?? mob.type ?? id,
-    maxHealth,
-    hp: firstFiniteNumber(mob.health, mob.hp, maxHealth),
-    attackDamage,
-    iconUrl: details?.icon ? `/${details.icon}` : mob.iconUrl,
-    passiveCard,
-  };
-}
-
-function resolveNpcDetails(mob) {
-  const candidates = [
-    mob.id,
-    mob.type,
-    mob.label,
-    mob.role,
-    mob.appearance,
-    stripRuntimeSuffix(mob.type),
-    stripRuntimeSuffix(mob.label),
-  ].filter(Boolean);
-  for (const candidate of candidates) {
-    const exact = npcDetailsById.get(candidate);
-    if (exact) return exact;
-    const alias = npcDetailsAliases.get(normalizeNpcKey(candidate));
-    if (alias) return alias;
-  }
-  return null;
-}
-
-function isPassiveMobCategory(category, attackDamage) {
-  if (typeof attackDamage === 'number' && attackDamage > 0) {
-    return false;
-  }
-  if (['passive', 'livestock', 'critter', 'flying', 'swimming'].some((value) => category.includes(value))) {
-    return true;
-  }
-  return attackDamage === null && ['creature', 'avian', 'fish'].some((value) => category.includes(value));
-}
-
-function normalizeNpcKey(value) {
-  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-}
-
-function stripRuntimeSuffix(value) {
-  if (typeof value !== 'string') return null;
-  return value.replace(/_(Wander|Patrol|Fighter|Archer|Scout|Soldier)$/i, '');
-}
-
-function firstFiniteNumber(...values) {
-  for (const value of values) {
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-  }
-  return null;
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function formatBytes(bytes) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '';
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 async function loadWorlds() {
@@ -977,99 +879,6 @@ function applyLighting() {
   }
 }
 
-function updateTimeRibbon() {
-  if (!worldTime) {
-    timeCycleLabelEl.value = '--:--';
-    renderSky(0.5);
-    return;
-  }
-
-  const progress = normalizedProgress(worldTime.dayProgress);
-  const totalMinutes = Math.floor(progress * 24 * 60);
-  const hour = Math.floor(totalMinutes / 60) % 24;
-  const minute = totalMinutes % 60;
-  const phase = typeof worldTime.phase === 'string' && worldTime.phase.length > 0
-    ? worldTime.phase.replace(/_/g, ' ')
-    : 'cycle';
-  timeCycleLabelEl.value = `${pad2(hour)}:${pad2(minute)} ${phase}`;
-  renderSky(progress);
-}
-
-// Sky palette keyframes sampled from the in-game references (deep-navy night, peach dawn,
-// vivid teal-blue noon, fiery dusk). Each entry is [progress, topRGB, bottomRGB].
-const SKY_KEYFRAMES = [
-  { p: 0.00, top: [12, 18, 46], bottom: [26, 32, 70] },
-  { p: 0.20, top: [40, 54, 110], bottom: [120, 80, 120] },
-  { p: 0.27, top: [70, 96, 175], bottom: [243, 170, 135] },
-  { p: 0.34, top: [78, 152, 212], bottom: [205, 234, 240] },
-  { p: 0.50, top: [46, 142, 216], bottom: [208, 240, 244] },
-  { p: 0.66, top: [78, 152, 212], bottom: [205, 234, 240] },
-  { p: 0.73, top: [86, 70, 150], bottom: [240, 118, 64] },
-  { p: 0.80, top: [44, 42, 104], bottom: [120, 70, 120] },
-  { p: 0.90, top: [16, 22, 54], bottom: [30, 36, 76] },
-  { p: 1.00, top: [12, 18, 46], bottom: [26, 32, 70] },
-];
-
-function renderSky(progress) {
-  const { top, bottom } = skyColors(progress);
-  skySceneEl.style.background = `linear-gradient(180deg, ${top} 0%, ${bottom} 100%)`;
-
-  const day = dayFactor(progress);
-  placeSkyBody(skySunEl, (progress - 0.25) / 0.5, day);
-  const moonProgress = progress >= 0.5 ? progress : progress + 1;
-  placeSkyBody(skyMoonEl, (moonProgress - 0.75) / 0.5, 1 - day);
-  skyStarsEl.style.opacity = (1 - day).toFixed(3);
-}
-
-function skyColors(progress) {
-  let lo = SKY_KEYFRAMES[0];
-  let hi = SKY_KEYFRAMES[SKY_KEYFRAMES.length - 1];
-  for (let i = 0; i < SKY_KEYFRAMES.length - 1; i++) {
-    if (progress >= SKY_KEYFRAMES[i].p && progress <= SKY_KEYFRAMES[i + 1].p) {
-      lo = SKY_KEYFRAMES[i];
-      hi = SKY_KEYFRAMES[i + 1];
-      break;
-    }
-  }
-  const t = (progress - lo.p) / (hi.p - lo.p || 1);
-  return { top: lerpColor(lo.top, hi.top, t), bottom: lerpColor(lo.bottom, hi.bottom, t) };
-}
-
-// Position a celestial body along its horizon-to-horizon arc; t in [0,1], clamped.
-function placeSkyBody(el, t, opacity) {
-  const clamped = Math.max(0, Math.min(1, t));
-  const arc = Math.sin(clamped * Math.PI);
-  el.style.left = `${6 + clamped * 88}%`;
-  el.style.top = `${78 - arc * 62}%`;
-  el.style.opacity = opacity.toFixed(3);
-}
-
-// 0 at night, 1 in full day, smooth across dawn (~0.25) and dusk (~0.75).
-function dayFactor(progress) {
-  return Math.min(smoothstep(0.21, 0.30, progress), 1 - smoothstep(0.70, 0.79, progress));
-}
-
-function smoothstep(edge0, edge1, x) {
-  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
-  return t * t * (3 - 2 * t);
-}
-
-function lerpColor(a, b, t) {
-  const channel = (i) => Math.round(a[i] + (b[i] - a[i]) * t);
-  return `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
-}
-
-function normalizedProgress(value) {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  return ((value % 1) + 1) % 1;
-}
-
-function pad2(value) {
-  return Math.max(0, Math.min(99, Math.floor(value))).toString().padStart(2, '0');
-}
-
 async function refreshWorldTime() {
   if (!worldSelect.value) {
     return;
@@ -1083,7 +892,7 @@ async function refreshWorldTime() {
     if (data.ok) {
       worldTime = data;
       applyLighting();
-      updateTimeRibbon();
+      timeRibbon.update(worldTime);
     }
   } catch (error) {
     console.warn('World time refresh failed', error);
@@ -1344,11 +1153,11 @@ function updatePlayers(players) {
       continue;
     }
 
-    const tile = playerTiles.get(player.uuid) ?? createPlayerTile(player);
+    const tile = playerTiles.get(player.uuid) ?? createPlayerTile(player, playerTileContext());
     if (!playerTiles.has(player.uuid)) {
       playerTiles.set(player.uuid, tile);
     }
-    updatePlayerTile(tile, player);
+    updatePlayerTile(tile, player, playerTileContext());
     ensurePlayerTileOrder(tile.element, tileIndex++);
   }
 
@@ -1369,6 +1178,16 @@ function updatePlayers(players) {
   }
 
   updateEntityVisibility();
+}
+
+function playerTileContext() {
+  return {
+    activeViewUuid: viewPlayerUuid,
+    activeFollowUuid: followPlayerUuid,
+    onFocus: focusPlayer,
+    onToggleEyeView: (uuid) => setPlayerEyeView(viewPlayerUuid === uuid ? null : uuid),
+    onToggleFollow: (uuid) => setPlayerFollow(followPlayerUuid === uuid ? null : uuid),
+  };
 }
 
 function ensurePlayerTileOrder(tileElement, index) {
@@ -1514,7 +1333,7 @@ function updateMobs(mobs) {
   const seen = new Set();
   for (const mob of mobs) {
     const id = String(mob.id ?? `${mob.type}:${mob.x}:${mob.y}:${mob.z}`);
-    const enrichedMob = enrichMob(mob, id);
+    const enrichedMob = npcCatalog.enrich(mob, id);
     seen.add(id);
     const marker = mobMarkers.get(id) ?? createMobMarker(enrichedMob);
     if (!mobMarkers.has(id)) {
@@ -1546,118 +1365,6 @@ function clearMobs() {
   updateMobs([]);
   lastMobPollFailed = false;
   lastMobSourceStats = null;
-}
-
-function createPlayerTile(player) {
-  const tile = document.createElement('div');
-  tile.className = 'player-tile';
-
-  const main = document.createElement('button');
-  main.type = 'button';
-  main.className = 'player-tile-main';
-  main.title = 'Move camera to player';
-  main.addEventListener('click', () => focusPlayer(player.uuid));
-
-  const avatar = document.createElement('span');
-  avatar.className = 'player-avatar';
-
-  const name = document.createElement('span');
-  name.className = 'player-name';
-  main.append(avatar, name);
-
-  const actions = document.createElement('div');
-  actions.className = 'player-actions';
-
-  const eyeButton = document.createElement('button');
-  eyeButton.type = 'button';
-  eyeButton.className = `player-icon-button${viewPlayerUuid === player.uuid ? ' active' : ''}`;
-  eyeButton.textContent = '\u{1F441}\uFE0F';
-  eyeButton.title = 'Attach camera to player view';
-  eyeButton.setAttribute('aria-label', 'Attach camera to player view');
-  eyeButton.setAttribute('aria-pressed', String(viewPlayerUuid === player.uuid));
-  eyeButton.addEventListener('click', (event) => {
-    event.stopPropagation();
-    setPlayerEyeView(viewPlayerUuid === player.uuid ? null : player.uuid);
-  });
-
-  const walkButton = document.createElement('button');
-  walkButton.type = 'button';
-  walkButton.className = `player-icon-button${followPlayerUuid === player.uuid ? ' active' : ''}`;
-  walkButton.textContent = '\u{1F6B6}';
-  walkButton.title = 'Follow player from isometric view';
-  walkButton.setAttribute('aria-label', 'Follow player from isometric view');
-  walkButton.setAttribute('aria-pressed', String(followPlayerUuid === player.uuid));
-  walkButton.addEventListener('click', (event) => {
-    event.stopPropagation();
-    setPlayerFollow(followPlayerUuid === player.uuid ? null : player.uuid);
-  });
-
-  actions.append(eyeButton, walkButton);
-  tile.append(main, actions);
-  return {
-    element: tile,
-    avatar,
-    avatarUrl: null,
-    avatarImage: null,
-    name,
-    eyeButton,
-    walkButton,
-  };
-}
-
-function updatePlayerTile(tile, player) {
-  const initials = playerInitials(player.name);
-  if (tile.avatar.firstChild?.nodeType === Node.TEXT_NODE) {
-    tile.avatar.firstChild.nodeValue = initials;
-  } else {
-    tile.avatar.prepend(document.createTextNode(initials));
-  }
-  const avatarUrl = player.avatarUrl ?? playerAvatarUrl(player);
-  if (avatarUrl && avatarUrl !== tile.avatarUrl) {
-    tile.avatarUrl = avatarUrl;
-    tile.avatar.classList.remove('loaded');
-    tile.avatarImage?.remove();
-    const image = document.createElement('img');
-    image.alt = '';
-    image.decoding = 'async';
-    image.loading = 'lazy';
-    image.src = avatarUrl;
-    image.addEventListener('load', () => tile.avatar.classList.add('loaded'));
-    image.addEventListener('error', () => {
-      image.remove();
-      if (tile.avatarImage === image) {
-        tile.avatarImage = null;
-      }
-      tile.avatar.classList.remove('loaded');
-    });
-    tile.avatarImage = image;
-    tile.avatar.append(image);
-  } else if (!avatarUrl && tile.avatarUrl) {
-    tile.avatarUrl = null;
-    tile.avatarImage?.remove();
-    tile.avatarImage = null;
-    tile.avatar.classList.remove('loaded');
-  }
-  tile.name.textContent = player.name;
-  tile.eyeButton.classList.toggle('active', viewPlayerUuid === player.uuid);
-  tile.eyeButton.setAttribute('aria-pressed', String(viewPlayerUuid === player.uuid));
-  tile.walkButton.classList.toggle('active', followPlayerUuid === player.uuid);
-  tile.walkButton.setAttribute('aria-pressed', String(followPlayerUuid === player.uuid));
-}
-
-function playerInitials(name) {
-  const parts = String(name ?? '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`.toUpperCase();
-}
-
-function playerAvatarUrl(player) {
-  if (!player?.uuid || !player?.name) return null;
-  return `/api/player-avatar/${encodeURIComponent(player.uuid)}.png?name=${encodeURIComponent(player.name)}`;
 }
 
 function focusPlayer(uuid) {
@@ -1806,11 +1513,7 @@ function exposeDebugState() {
       mobs: entityStreamMobs,
       available: 'EventSource' in window,
     }),
-    npcDetailsState: () => ({
-      loaded: npcDetailsLoaded,
-      entries: npcDetailsById.size,
-      aliases: npcDetailsAliases.size,
-    }),
+    npcDetailsState: () => npcCatalog.state(),
     loadGrid: (options = {}) => loadGrid(options),
     mapBackdropStats,
     terrainFormatVersion: () => terrainFormatVersion,
@@ -1844,7 +1547,7 @@ function exposeDebugState() {
       worldTime = time;
       mapTimeInput.checked = true;
       applyLighting();
-      updateTimeRibbon();
+      timeRibbon.update(worldTime);
     },
     flyLook: () => ({
       yaw: flyYaw,
@@ -2376,10 +2079,10 @@ infoCardHeadEl.addEventListener('keydown', (event) => {
 applyInitialParams();
 exposeDebugState();
 resize();
-updateTimeRibbon();
+timeRibbon.update(worldTime);
 animate();
 await loadWorlds();
-await loadNpcDetails();
+await npcCatalog.load();
 if (worldSelect.value) {
   hasStarted = true;
   const restoredCameraPose = restoreCameraPose();
