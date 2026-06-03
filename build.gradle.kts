@@ -34,6 +34,20 @@ tasks.test {
     systemProperty("java.util.logging.manager", "com.hypixel.hytale.logger.backend.HytaleLogManager")
 }
 
+val npmCommand = if (System.getProperty("os.name").lowercase().contains("windows")) "npm.cmd" else "npm"
+
+tasks.register<Exec>("buildWeb") {
+    group = "build"
+    description = "Builds the TypeScript browser app with webpack."
+    workingDir = projectDir
+    commandLine(npmCommand, "run", "build:web")
+}
+
+tasks.named<ProcessResources>("processResources") {
+    dependsOn("buildWeb")
+    exclude("web/src/**")
+}
+
 tasks.register<Jar>("fatJar") {
     archiveBaseName.set("SynthWorldview")
     archiveVersion.set(version.toString())

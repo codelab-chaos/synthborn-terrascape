@@ -886,7 +886,7 @@ public final class WorldviewWebServer {
 
         String resourcePath = switch (requestPath) {
             case "/", "/index.html" -> "/web/index.html";
-            case "/app.js" -> "/web/app.js";
+            case "/dist/worldview.js" -> "/web/dist/worldview.js";
             case "/styles.css" -> "/web/styles.css";
             case "/textures/waternormals.jpg" -> "/web/textures/waternormals.jpg";
             default -> moduleResourcePath(requestPath);
@@ -1016,10 +1016,7 @@ public final class WorldviewWebServer {
         if (requestPath.matches("/mob-icons/[A-Za-z0-9_.-]+\\.png")) {
             return "/web" + requestPath;
         }
-        if (!requestPath.matches("/[A-Za-z0-9_-]+\\.js")) {
-            return null;
-        }
-        return "/web" + requestPath;
+        return null;
     }
 
     private static TerrainRequest parseTerrainRequest(@Nonnull String path, boolean includeDetails) {
