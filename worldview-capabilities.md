@@ -94,10 +94,54 @@ regions and debug why an area has or lacks wildlife/hostiles.
 
 ### [ ] Viewer Can Show Live Mob Markers Reliably
 
-Mob markers are disabled for now. The first implementation proved the browser can render
-mob spheres and labels, but the server feed does not consistently see every nearby
-animal/NPC type. The feature should stay parked until the server-side entity source is
-correct and repeatable.
+Mob markers are available again as a development layer, but reliability still depends on
+which live entities the server-side Hytale query can observe. The viewer should keep the
+feed honest: show observed animals/NPCs/monsters, expose concise source diagnostics, and
+avoid smoothing, caching, or inventing missing mobs when the runtime source misses them.
+
+### [ ] Viewer Can Show Live Mob Icons On Loaded Map Areas
+
+The first reopened mob layer should show animals, NPCs, and monsters as compact map
+icons near their current world positions. The layer should be bounded to loaded or
+player-near chunks, default to a readable category icon when no creature-specific art is
+known, and avoid pretending spawn markers are live mobs. Clicking or hovering an icon can
+show the short mob type, category, and coordinates, but the first pass should prioritize
+spatial awareness over labels everywhere.
+
+### [ ] Worldview Streams Live Entity Snapshots
+
+Players and mobs should use one push-style browser connection for live position updates
+instead of independent high-frequency polling loops. Server-Sent Events are the preferred
+first transport because the embedded JDK HTTP server does not natively support WebSocket
+upgrades and the feed is server-to-browser only. The existing `/api/players/{world}` and
+`/api/mobs/{world}` routes remain useful fallback/debug endpoints.
+
+### [ ] Worldview Can Resolve Mob Types To Icon Categories
+
+Mob snapshots should include enough metadata for the browser to choose an icon without
+hard-coding every Hytale asset name. Useful first categories are `hostile`, `passive`,
+`npc`, `boss`, `critter`, `livestock`, `flying`, `swimming`, `unknown`, and
+`spawn-marker` as a separate overlay. Type-name rules can cover obvious families such as
+Skeleton, Zombie, Goblin, Outlander, Wolf, Cow, Rabbit, Duck, Frog, Mouse, and Kweebec
+until a richer asset metadata table exists.
+
+### [ ] Worldview Can Use Creature Headshot Icons
+
+The asset tree already contains generated creature/NPC icon PNGs under
+`_Assets/Common/Icons/ModelsGenerated`. This should be Worldview's primary icon source:
+copy or atlas selected PNGs into web resources, map runtime mob type ids to matching
+filenames, and fall back to category badges when no generated icon exists. A separate
+blockymodel/headshot renderer is still useful for gaps, but it should be a fallback
+pipeline rather than the first implementation.
+
+### [ ] Worldview Can Load Static NPC Detail Metadata
+
+Worldview should ship a generated `npc-details.json` lookup built from
+`_Assets/Server/NPC/Roles/**/*.json` and `_Assets/Common/Icons/ModelsGenerated/*.png`.
+The table should map runtime mob ids and common aliases to max health, attack metadata
+when safely discoverable, display label, category path, appearance id, drop list, flock
+members, and generated icon filename. Runtime mob cards can then fill HP/damage/icon
+slots from static data while live position data continues to come from the entity stream.
 
 ## Implemented Capabilities
 
@@ -292,11 +336,12 @@ Clicking a player in the HUD moves the camera target to that player's position a
 places the camera in a nearby inspection view. Playwright validation clicked an online
 player button when present and confirmed the coordinate readout changed after focus.
 
-### [x] Viewer Can Disable The Experimental Mob Layer
+### [x] Viewer Can Toggle The Experimental Mob Layer
 
-The unreliable mob layer is disabled in the MVP viewer. The HUD no longer exposes a
-`Mobs` toggle, the browser no longer polls `/api/mobs/{world}`, metrics no longer count
-mob markers, and the endpoint returns `410 mob_feed_disabled` for accidental callers.
+The HUD exposes a `Mobs` toggle. When enabled, the browser renders compact live mob icons
+from the entity stream and falls back to `/api/mobs/{world}` if streaming is unavailable.
+When disabled, the viewer hides mob markers and does not maintain a standalone mob polling
+loop.
 
 ### [x] Viewer Uses A Readable Sky And Reference Grid Palette
 
@@ -354,3 +399,9 @@ blocks that advertise top biome tint support.
 - Does `getChunkAsync()` load or generate chunks in ways that should be forbidden for
   public viewers?
 - What chunk retain radius keeps the browser smooth on a normal machine?
+- Which Hytale entity query reliably sees animals, NPCs, and monsters that are actually
+  loaded near players or loaded chunks?
+- Can mob snapshots be bounded to loaded chunks without forcing chunk/entity generation?
+- Which NPC asset metadata maps runtime mob type ids to `Common/NPC/.../Models` paths?
+- Is a generated icon atlas allowed to bundle cropped creature headshots from local
+  Hytale assets, or should the viewer start with code-drawn category icons only?

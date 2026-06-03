@@ -1076,6 +1076,202 @@ Validation:
 - Enable the spawn-marker overlay and confirm those markers appear in their own layer.
 - Compare marker positions with nearby observed wildlife/hostile spawns.
 
+### Epic 11: Live Mob Icons
+
+Status: Open
+
+Goal: show animals, NPCs, and monsters on the map as compact, readable icons wherever
+Worldview can honestly observe loaded live entities. The first pass should be useful
+operator radar: "what is near me or in my loaded view?" not a perfect full-world bestiary.
+
+Research notes:
+
+- Prior mob-feed work is parked but not wasted. The server still has dormant
+  `snapshotMobs(...)` logic that scans `NPCEntity` archetype chunks, fetches
+  `TransformComponent` by ref, filters by online-player radar radius, excludes players,
+  item/projectile/block entities, and skips spawn-marker types. The API feed has now
+  been reopened for development validation, and the browser HUD layer has a `Mobs`
+  toggle for live icon testing.
+- Historical validation reached real live mobs near player `Gigantomancer`: the feed
+  returned `Skeleton_Fighter_Wander`, multiple `Skeleton_Fighter` entries, and `Rabbit`
+  with a server log summary of `chunks=1 entities=6 accepted=6 outsideRadar=0
+  radar=500`. Earlier passes saw cows, deer, wolves, foxes, frogs, and mice, but entity
+  coverage was inconsistent enough that the layer was disabled.
+- Reopening the feature should keep the "honest feed" rule: do not smooth or cache
+  missing mobs to hide source inconsistency. If the server cannot currently observe a
+  mob, the map should not invent one.
+- `_Assets/Common/Icons/ModelsGenerated` appears to be the best first icon source. It
+  contains 255 generated PNG icons and uses names that closely match live/runtime mob
+  type identifiers. Current live-feed examples have direct matches including
+  `Tetrabird.png`, `Rabbit.png`, `Wolf_Black.png`, `Chicken.png`, `Cow.png`, `Pig.png`,
+  `Boar.png`, `Horse.png`, `Sheep.png`, and `Deer_Stag.png`.
+- The generated icon folder also covers many high-value hostile/NPC families:
+  `Skeleton_Fighter.png`, `Skeleton_Archer.png`, skeleton biome/role variants,
+  `Goblin_*`, `Outlander_*`, `Kweebec_*`, `Feran_*`, `Golem_Crystal_*`, wolves, foxes,
+  birds, livestock, fish, and critters. This likely avoids building a custom renderer
+  for the first atlas.
+- `_Assets/Common/NPC` still has useful fallback source material. There are about 171
+  `Model.blockymodel` NPC models, 368 NPC texture-ish PNGs, and 43 explicit
+  `Head_Texture.png` files. Nearly all sampled `.blockymodel` files include head-ish
+  node names, so an offline renderer/cropper remains viable for missing generated icons,
+  but it should be a later fallback rather than the MVP path.
+
+#### Story 11.1 - Reopen A Bounded Live Mob Feed
+
+Status: In Progress
+
+Acceptance:
+
+- `/api/mobs/{world}` can be enabled for development without reintroducing the HUD layer
+  by accident.
+- The feed only scans loaded/player-near live entities and does not force world or chunk
+  generation.
+- Snapshot includes stable id, type, label, category, position, optional yaw, optional
+  asset key, and whether the source is `NPCEntity`, transform-only fallback, or another
+  proven query path.
+- Spawn markers stay out of the live mob response and remain reserved for Epic 10.
+- Feed is capped and sorted by relevance to the current player/camera/radar area.
+
+Validation:
+
+- With a player online, `/api/players/default` returns at least one player and
+  `/api/mobs/default` returns `ok=true`, `max`, `mobs`, and `sourceStats`.
+- Field test near known animals and a known hostile confirms at least one passive and
+  one hostile type are visible in the response.
+- Server log includes a concise `[mob-feed]` summary with accepted/skipped/source counts.
+- `.\gradlew.bat build`, `.\gradlew.bat deploy`, server restart, and `npm.cmd test`
+  pass after the feed is re-enabled.
+
+Progress:
+
+- First pass re-enabled `GET /api/mobs/{world}` while keeping the browser `Mobs` layer
+  disabled. The response now includes `ok`, `world`, `max`, `radar`, `players`,
+  bounded `mobs`, and `sourceStats`.
+- Mob snapshots include `id`, `type`, `label`, `category`, `x/y/z`, `color`, and
+  `source`.
+- Build/deploy validation passed with `.\gradlew.bat build` and `.\gradlew.bat deploy`.
+  After restarting `synth-worldview-mvp`, `GET /api/mobs/default` returned
+  `ok=true`, `max=256`, `radar=500`, `players=0`, an empty bounded `mobs` array, and
+  `sourceStats.source=NPCEntity`. `npm.cmd test` passed against the deployed server.
+- Follow-up in progress: added `/api/entities/stream/{world}` as a Server-Sent Events
+  stream that pushes combined player and mob snapshots at a capped cadence. This avoids
+  independent high-frequency player/mob polling while keeping `/api/players/{world}` and
+  `/api/mobs/{world}` as fallback/debug endpoints. SSE is preferred over WebSocket for
+  the first pass because the embedded JDK HTTP server does not provide native WebSocket
+  upgrade handling and the feed is server-to-browser only.
+
+#### Story 11.2 - Classify Mob Types For Map Icons
+
+Status: Open
+
+Acceptance:
+
+- Server or browser maps mob type names into stable categories: `hostile`, `passive`,
+  `npc`, `boss`, `critter`, `livestock`, `flying`, `swimming`, and `unknown`.
+- Rule table handles obvious Hytale families found in the assets and prior validation:
+  Skeleton, Zombie, Ghoul, Goblin, Outlander, Kweebec, Feran, Trork, Wolf, Fox, Cow,
+  Rabbit, Duck, Frog, Mouse, Deer, and common livestock.
+- Unknown types remain visible with a neutral icon and short label.
+- Category is included in snapshots or computed deterministically in the browser.
+
+Validation:
+
+- Unit or browser fixture covers at least one hostile, passive wildlife, livestock,
+  intelligent NPC, flying creature, swimming creature, and unknown type.
+- Prior live examples `Skeleton_Fighter_Wander` and `Rabbit` classify as hostile and
+  passive/critter respectively.
+
+#### Story 11.3 - Render Mob Icons On The Map
+
+Status: In Progress
+
+Acceptance:
+
+- Viewer exposes a `Mobs` toggle for live validation.
+- Icons render at mob `x, y, z`, track updates, and dispose stale markers.
+- Icons are compact billboards or small ground-pinned sprites, not bulky spheres.
+- Icon color/shape makes hostile/passive/NPC readable at a glance.
+- Hover or click can reveal short type, category, and coordinates without filling the
+  scene with permanent labels.
+- Player markers remain visually distinct from mob markers.
+
+Validation:
+
+- Playwright fixtures a mob payload with a hostile and passive mob, verifies icons are
+  created, verifies the `Mobs` toggle hides/shows them, and verifies stale mobs are
+  removed.
+- Deployed browser validation on `synth-worldview-mvp` passes after restart.
+
+Progress:
+
+- Browser now creates compact billboard badges for mob snapshots, including a dedicated
+  `Chicken` path through the livestock/category icon fallback.
+- The viewer uses the combined entity stream when available and only starts the old
+  polling loops as a fallback.
+
+#### Story 11.4 - Bundle Generated Creature Icon Atlas
+
+Status: Open
+
+Acceptance:
+
+- Offline tool scans `_Assets/Common/Icons/ModelsGenerated` and writes a small
+  web-served icon atlas or copied icon set plus mapping JSON.
+- Mapping normalizes runtime mob type ids to generated icon filenames. Direct matches
+  such as `Tetrabird`, `Rabbit`, `Wolf_Black`, `Chicken`, `Cow`, `Pig`, `Boar`,
+  `Horse`, `Sheep`, `Deer_Stag`, and `Skeleton_Fighter` resolve without manual glue.
+- Alias rules handle common runtime suffixes/prefixes such as `_Wander`, role variants,
+  biome variants, and generic families when no exact file exists.
+- Viewer uses generated icons before category badges and still renders category badges
+  for missing entries.
+- Runtime viewer never depends on expensive icon generation or image processing.
+
+Validation:
+
+- Atlas or copied icon set contains live-feed examples: `Tetrabird`, `Rabbit`,
+  `Wolf_Black`, and at least one livestock mob.
+- Atlas includes at least one hostile skeleton variant and one intelligent NPC variant.
+- Browser renders generated icons for exact matches and category fallbacks for missing
+  entries.
+
+Notes:
+
+- `_Assets/Common/Icons/ModelsGenerated` currently contains 255 PNGs.
+- Keep `_Assets/Common/NPC` blockymodel/head-texture rendering as a future fallback for
+  missing generated icons, not the first implementation.
+
+#### Story 11.5 - Generate NPC Detail Lookup
+
+Status: In Progress
+
+Acceptance:
+
+- Node built-in-only script reads `_Assets/Server/NPC/Roles/**/*.json` and writes
+  `src/main/resources/web/npc-details.json`.
+- Script resolves simple role inheritance and `Parameters`/`Compute` values so variants
+  like `Skeleton_Fighter_Wander` inherit useful base metadata.
+- Lookup entries include display label, category path, reference, appearance, generated
+  icon filename, aliases, max health, attack id/range, safely discovered base attack
+  damage, movement/sensory ranges, drop list, flock members, tameability, and source
+  JSON path.
+- The embedded web server serves `/npc-details.json` as `application/json`.
+- Runtime cards can use lookup metadata but still tolerate missing/unknown values.
+
+Validation:
+
+- Generator writes a table with live-feed examples: `Tetrabird`, `Rabbit`,
+  `Wolf_Black`, `Chicken`, and `Skeleton_Fighter_Wander`.
+- `Wolf_Black` resolves max health, attack damage, attack id, and `Wolf_Black.png`.
+- Passive animals with no direct damage, such as `Rabbit` and `Chicken`, keep damage
+  absent rather than inventing a value.
+
+Progress:
+
+- Added `tools/generate-npc-details.js`.
+- First generated table found 974 role entries, 255 generated icons, 473 role/icon
+  matches, 781 entries with max health, and 94 entries with directly discoverable base
+  attack damage.
+
 ## MVP Closure Checklist
 
 - [x] Plugin loads and starts HTTP server.
