@@ -8,6 +8,7 @@ const MAP_BACKDROP_Y = 112.0;
 
 let activeBackdrop = null;
 let activeKey = null;
+let pendingKey = null;
 let activeGeometryKey = null;
 let activeSampler = null;
 let requestSerial = 0;
@@ -35,7 +36,10 @@ export function updateMapBackdrop(scene, renderer, options) {
     updateBackdropGeometry(geometryKey, centerX, centerZ, radius, innerRadius, coveredChunks);
     return;
   }
-  activeKey = key;
+  if (key === pendingKey) {
+    return;
+  }
+  pendingKey = key;
   activeStats = {
     loaded: 0,
     radius,
@@ -72,7 +76,6 @@ export function updateMapBackdrop(scene, renderer, options) {
         return;
       }
 
-      disposeActiveBackdrop(scene);
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy?.() ?? 1);
       texture.needsUpdate = true;
@@ -82,23 +85,9 @@ export function updateMapBackdrop(scene, renderer, options) {
       const minX = (centerX - radius) * CHUNK_SIZE;
       const minZ = (centerZ - radius) * CHUNK_SIZE;
       const geometry = createBackdropCoverageGeometry(minX, minZ, size, centerX, centerZ, radius, innerRadius, coveredChunks);
-      const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.98,
-        depthTest: true,
-        depthWrite: false,
-        fog: false,
-        toneMapped: false,
-      });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.name = 'worldview-map-backdrop';
-      mesh.renderOrder = -30;
-      mesh.frustumCulled = false;
-      mesh.userData.chunkCount = chunkCount;
-      mesh.userData.radius = radius;
-      activeBackdrop = mesh;
+      applyBackdropMesh(scene, geometry, texture, chunkCount, radius);
+      activeKey = key;
+      pendingKey = null;
       activeGeometryKey = geometryKey;
       activeSampler = createBackdropSampler(texture.image, minX, minZ, size);
       activeStats = {
@@ -109,7 +98,6 @@ export function updateMapBackdrop(scene, renderer, options) {
         loadMs,
         textureSize: texture.image ? `${texture.image.width}x${texture.image.height}` : '',
       };
-      scene.add(mesh);
       logClientEvent('map_backdrop_load', {
         world,
         centerX,
@@ -124,6 +112,7 @@ export function updateMapBackdrop(scene, renderer, options) {
     })
     .catch((error) => {
       if (serial === requestSerial) {
+        pendingKey = null;
         console.warn('Map backdrop load failed', error);
         logClientEvent('map_backdrop_failed', {
           world,
@@ -139,6 +128,7 @@ export function updateMapBackdrop(scene, renderer, options) {
 
 export function clearMapBackdrop(scene) {
   activeKey = null;
+  pendingKey = null;
   activeGeometryKey = null;
   requestSerial++;
   activeStats = {
@@ -162,6 +152,39 @@ function disposeActiveBackdrop(scene) {
   }
   activeBackdrop.material?.dispose();
   activeBackdrop = null;
+}
+
+function applyBackdropMesh(scene, geometry, texture, chunkCount, radius) {
+  if (!activeBackdrop) {
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.98,
+      depthTest: true,
+      depthWrite: false,
+      fog: false,
+      toneMapped: false,
+    });
+    activeBackdrop = new THREE.Mesh(geometry, material);
+    activeBackdrop.name = 'worldview-map-backdrop';
+    activeBackdrop.renderOrder = -30;
+    activeBackdrop.frustumCulled = false;
+    scene.add(activeBackdrop);
+  } else {
+    const previousGeometry = activeBackdrop.geometry;
+    const previousTexture = activeBackdrop.material?.map;
+    activeBackdrop.geometry = geometry;
+    activeBackdrop.material.map = texture;
+    activeBackdrop.material.needsUpdate = true;
+    previousGeometry?.dispose();
+    previousTexture?.dispose();
+    if (!activeBackdrop.parent) {
+      scene.add(activeBackdrop);
+    }
+  }
+  activeBackdrop.userData.chunkCount = chunkCount;
+  activeBackdrop.userData.radius = radius;
 }
 
 function updateBackdropGeometry(geometryKey, centerX, centerZ, radius, innerRadius, coveredChunks) {

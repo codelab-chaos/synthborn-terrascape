@@ -4,6 +4,11 @@ test('supports canvas-scoped FPS fly look, capped zoom, and sprint movement', as
   await page.goto('/?radius=0&chunkX=0&chunkZ=0&auto=true&mapTiles=false&players=false');
   await expect(page.locator('#status')).toHaveText('Loaded 1 chunks around 0, 0');
 
+  await page.locator('#player-update-rate').focus();
+  await expect(page.locator('#player-update-rate')).toBeFocused();
+  await page.locator('canvas').click({ position: { x: 120, y: 120 } });
+  await expect(page.locator('#player-update-rate')).not.toBeFocused();
+
   await page.evaluate(() => {
     window.__synthWorldviewDebug.setCameraPose({
       camera: { x: 16, y: 100, z: 16 },

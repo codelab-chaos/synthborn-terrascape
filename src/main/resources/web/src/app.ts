@@ -156,6 +156,12 @@ controls.touches = {
   ONE: THREE.TOUCH.PAN,
   TWO: THREE.TOUCH.DOLLY_ROTATE,
 };
+const FLY_MOUSE_BUTTONS = { ...controls.mouseButtons };
+const FOLLOW_MOUSE_BUTTONS = {
+  LEFT: THREE.MOUSE.ROTATE,
+  MIDDLE: THREE.MOUSE.PAN,
+  RIGHT: THREE.MOUSE.DOLLY,
+};
 
 const lightingRig = createLightingRig(scene, SKY_COLOR);
 const postProcessing = createPostProcessing(renderer, scene, camera);
@@ -710,7 +716,6 @@ function addChunkObject(world, chunkX, chunkZ, object) {
     debug,
     shade,
   });
-  updateMapTileLayer();
 }
 
 async function parseGltfBytes(arrayBuffer) {
@@ -781,7 +786,6 @@ function disposeChunk(id, entry) {
   disposalStats.materials += materials.size;
   disposalStats.textures += textures.size;
   loadedChunks.delete(id);
-  updateMapTileLayer();
   updateMetrics();
 }
 
@@ -1434,7 +1438,7 @@ function resetCameraModes() {
   cameraModeStack.length = 0;
   viewPlayerUuid = null;
   followPlayerUuid = null;
-  controls.enabled = false;
+  setFollowControlsEnabled(false);
 }
 
 function captureCameraModeState() {
@@ -1443,7 +1447,7 @@ function captureCameraModeState() {
     target: controls.target.clone(),
     viewPlayerUuid,
     followPlayerUuid,
-    controlsEnabled: false,
+    controlsEnabled: controls.enabled,
   };
 }
 
@@ -1456,7 +1460,7 @@ function restoreCameraModeState(state) {
   controls.target.copy(state.target);
   viewPlayerUuid = state.viewPlayerUuid;
   followPlayerUuid = state.followPlayerUuid;
-  controls.enabled = false;
+  setFollowControlsEnabled(Boolean(followPlayerUuid));
   controls.update();
   syncFlyLookFromCamera();
   saveViewState();
@@ -1466,7 +1470,18 @@ function restoreCameraModeState(state) {
 function applyCameraMode(mode, uuid) {
   viewPlayerUuid = mode === 'eye' ? uuid : null;
   followPlayerUuid = mode === 'follow' ? uuid : null;
-  controls.enabled = false;
+  setFollowControlsEnabled(mode === 'follow');
+  if (mode === 'follow') {
+    updateWalkFollowCamera(1);
+  }
+}
+
+function setFollowControlsEnabled(enabled) {
+  controls.enabled = enabled;
+  controls.enableRotate = enabled;
+  controls.enableZoom = enabled;
+  controls.enablePan = enabled;
+  controls.mouseButtons = enabled ? FOLLOW_MOUSE_BUTTONS : FLY_MOUSE_BUTTONS;
 }
 
 function updateDebugBounds() {
@@ -1932,6 +1947,12 @@ function isTypingInHud() {
     || active instanceof HTMLTextAreaElement;
 }
 
+function blurFocusedHudControl() {
+  if (isTypingInHud()) {
+    document.activeElement.blur();
+  }
+}
+
 function animate() {
   const deltaSeconds = Math.min(clock.getDelta(), 0.05);
   const elapsedSeconds = clock.elapsedTime;
@@ -1941,6 +1962,9 @@ function animate() {
   updatePlayerCameraMode(deltaSeconds);
   if (!viewPlayerUuid && !followPlayerUuid) {
     updateFlyTarget();
+  }
+  if (controls.enabled) {
+    controls.update();
   }
   positionSkyObjects(lightingRig, camera.position);
   updateEmptyGrid();
@@ -1980,13 +2004,14 @@ window.addEventListener('keyup', (event) => {
   pressedKeys.delete(event.code);
 });
 renderer.domElement.addEventListener('pointerdown', (event) => {
-  if (!viewPlayerUuid && shouldStartFlyLook(event)) {
+  blurFocusedHudControl();
+  if (!viewPlayerUuid && !followPlayerUuid && shouldStartFlyLook(event)) {
     event.preventDefault();
     renderer.domElement.requestPointerLock?.();
   }
 }, { capture: true });
 renderer.domElement.addEventListener('wheel', (event) => {
-  if (viewPlayerUuid) return;
+  if (viewPlayerUuid || followPlayerUuid) return;
   event.preventDefault();
   zoomFlyView(event.deltaY);
 }, { passive: false });
