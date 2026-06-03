@@ -52,6 +52,8 @@ import org.joml.Vector3d;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -102,11 +104,13 @@ public final class WorldviewWebServer {
     private static final int MAX_MEMORY_CACHE_ENTRIES = 128;
     private static final long MAX_MEMORY_CACHE_BYTES = 128L * 1024L * 1024L;
     private static final int MAP_REGION_TILE_SIZE = 32;
-    private static final int MAX_MAP_REGION_RADIUS = 36;
+    private static final int MAX_MAP_REGION_RADIUS = 108;
+    private static final int MAP_REGION_GENERATE_RADIUS = 20;
     private static final int MAX_MAP_REGION_MEMORY_CACHE_ENTRIES = 16;
     private static final long MAX_MAP_REGION_MEMORY_CACHE_BYTES = 64L * 1024L * 1024L;
+    private static final int MAX_MAP_TILE_MEMORY_CACHE_ENTRIES = 20_000;
     private static final String MAP_REGION_CACHE_CONTROL = "public, max-age=31536000, immutable";
-    private static final Duration MAP_REGION_TIMEOUT = Duration.ofSeconds(20);
+    private static final Duration MAP_REGION_TIMEOUT = Duration.ofSeconds(60);
     private static final int MAX_CLIENT_LOG_BYTES = 16 * 1024;
     private static final int MAX_MOB_SNAPSHOTS = 256;
     private static final int MAX_MOB_DEBUG_SUMMARY_ITEMS = 32;
@@ -137,10 +141,13 @@ public final class WorldviewWebServer {
     private final Semaphore generationPermits = new Semaphore(MAX_CONCURRENT_GENERATIONS);
     private final ConcurrentHashMap<String, CompletableFuture<TerrainResult>> pendingTerrain = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CompletableFuture<MapRegionResult>> pendingMapRegions = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CompletableFuture<BufferedImage>> pendingMapTiles = new ConcurrentHashMap<>();
     private final Object memoryCacheLock = new Object();
     private final LinkedHashMap<String, TerrainResult> memoryCache = new LinkedHashMap<>(32, 0.75f, true);
     private final Object mapRegionMemoryCacheLock = new Object();
     private final LinkedHashMap<String, byte[]> mapRegionMemoryCache = new LinkedHashMap<>(16, 0.75f, true);
+    private final Object mapTileMemoryCacheLock = new Object();
+    private final LinkedHashMap<String, BufferedImage> mapTileMemoryCache = new LinkedHashMap<>(1024, 0.75f, true);
     private long memoryCacheBytes;
     private long mapRegionMemoryCacheBytes;
     private final AtomicInteger activeGenerations = new AtomicInteger();
@@ -825,12 +832,14 @@ public final class WorldviewWebServer {
         }
 
         try {
-            byte[] generated = generateMapRegion(world, request).get(MAP_REGION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            if (generated.length > 0) {
-                putMapRegionMemoryCache(key, generated);
-                writeMapRegionDiskCache(request, generated);
+            MapRegionGeneration generated = generateMapRegion(world, request)
+                    .get(MAP_REGION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            byte[] bytes = generated.bytes();
+            if (bytes.length > 0 && generated.complete()) {
+                putMapRegionMemoryCache(key, bytes);
+                writeMapRegionDiskCache(request, bytes);
             }
-            MapRegionResult result = new MapRegionResult(generated, "generated");
+            MapRegionResult result = new MapRegionResult(bytes, generated.complete() ? "generated" : "generated-partial");
             future.complete(result);
             return result;
         } catch (Exception e) {
@@ -841,18 +850,19 @@ public final class WorldviewWebServer {
         }
     }
 
-    private CompletableFuture<byte[]> generateMapRegion(@Nonnull World world, @Nonnull MapRegionRequest request) {
+    private CompletableFuture<MapRegionGeneration> generateMapRegion(@Nonnull World world, @Nonnull MapRegionRequest request) {
         WorldMapManager mapManager = world.getWorldMapManager();
         if (mapManager == null || !mapManager.isWorldMapEnabled()) {
-            return CompletableFuture.completedFuture(new byte[0]);
+            return CompletableFuture.completedFuture(new MapRegionGeneration(new byte[0], true));
         }
 
         int chunkCount = request.radius() * 2 + 1;
         int outputSize = chunkCount * MAP_REGION_TILE_SIZE;
-        BufferedImage composite = new BufferedImage(outputSize, outputSize, BufferedImage.TYPE_INT_RGB);
+        BufferedImage composite = new BufferedImage(outputSize, outputSize, BufferedImage.TYPE_INT_ARGB);
         List<CompletableFuture<Void>> futures = new ArrayList<>(chunkCount * chunkCount);
         int minChunkX = request.centerX() - request.radius();
         int minChunkZ = request.centerZ() - request.radius();
+        AtomicInteger missingCacheOnlyTiles = new AtomicInteger();
 
         for (int dz = 0; dz < chunkCount; dz++) {
             for (int dx = 0; dx < chunkCount; dx++) {
@@ -860,16 +870,27 @@ public final class WorldviewWebServer {
                 int chunkZ = minChunkZ + dz;
                 int outputX = dx * MAP_REGION_TILE_SIZE;
                 int outputY = dz * MAP_REGION_TILE_SIZE;
-                futures.add(mapManager.getImageAsync(chunkX, chunkZ)
-                        .thenAccept(mapImage -> drawMapRegionTile(composite, mapImage, outputX, outputY)));
+                boolean allowGenerate = Math.max(
+                        Math.abs(chunkX - request.centerX()),
+                        Math.abs(chunkZ - request.centerZ())) <= MAP_REGION_GENERATE_RADIUS;
+                futures.add(getMapTileImage(mapManager, world.getName(), chunkX, chunkZ, allowGenerate)
+                        .thenAccept(tile -> {
+                            if (tile == null) {
+                                missingCacheOnlyTiles.incrementAndGet();
+                                return;
+                            }
+                            drawCachedMapRegionTile(composite, tile, outputX, outputY);
+                        }));
             }
         }
 
         return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
-                .thenApply(ignored -> MapTilePngEncoder.encode(composite))
+                .thenApply(ignored -> new MapRegionGeneration(
+                        MapTilePngEncoder.encode(composite),
+                        missingCacheOnlyTiles.get() == 0))
                 .exceptionally(e -> {
                     plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to generate map region " + request);
-                    return new byte[0];
+                    return new MapRegionGeneration(new byte[0], false);
                 });
     }
 
@@ -881,6 +902,21 @@ public final class WorldviewWebServer {
         }
         synchronized (composite) {
             MapTilePngEncoder.drawMapImage(composite, mapImage, outputX, outputY, MAP_REGION_TILE_SIZE);
+        }
+    }
+
+    private static void drawCachedMapRegionTile(@Nonnull BufferedImage composite, @Nullable BufferedImage tile,
+                                                int outputX, int outputY) {
+        if (tile == null) {
+            return;
+        }
+        synchronized (composite) {
+            Graphics2D graphics = composite.createGraphics();
+            try {
+                graphics.drawImage(tile, outputX, outputY, MAP_REGION_TILE_SIZE, MAP_REGION_TILE_SIZE, null);
+            } finally {
+                graphics.dispose();
+            }
         }
     }
 
@@ -1092,6 +1128,111 @@ public final class WorldviewWebServer {
             Files.write(path, bytes);
         } catch (IOException e) {
             plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to write map-region cache entry " + path);
+        }
+    }
+
+    private CompletableFuture<BufferedImage> getMapTileImage(
+            @Nonnull WorldMapManager mapManager,
+            @Nonnull String worldName,
+            int chunkX,
+            int chunkZ,
+            boolean allowGenerate) {
+        String key = mapTileKey(worldName, chunkX, chunkZ);
+        BufferedImage memoryCached = readMapTileMemoryCache(key);
+        if (memoryCached != null) {
+            return CompletableFuture.completedFuture(memoryCached);
+        }
+
+        BufferedImage diskCached = readMapTileDiskCache(worldName, chunkX, chunkZ);
+        if (diskCached != null) {
+            putMapTileMemoryCache(key, diskCached);
+            return CompletableFuture.completedFuture(diskCached);
+        }
+
+        if (!allowGenerate) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        CompletableFuture<BufferedImage> future = new CompletableFuture<>();
+        CompletableFuture<BufferedImage> existing = pendingMapTiles.putIfAbsent(key, future);
+        if (existing != null) {
+            return existing;
+        }
+
+        mapManager.getImageAsync(chunkX, chunkZ)
+                .whenComplete((mapImage, error) -> {
+                    try {
+                        if (error != null) {
+                            future.completeExceptionally(error);
+                            return;
+                        }
+                        BufferedImage tile = new BufferedImage(
+                                MAP_REGION_TILE_SIZE,
+                                MAP_REGION_TILE_SIZE,
+                                BufferedImage.TYPE_INT_RGB);
+                        drawMapRegionTile(tile, mapImage, 0, 0);
+                        putMapTileMemoryCache(key, tile);
+                        writeMapTileDiskCache(worldName, chunkX, chunkZ, tile);
+                        future.complete(tile);
+                    } catch (Exception e) {
+                        future.completeExceptionally(e);
+                    } finally {
+                        pendingMapTiles.remove(key, future);
+                    }
+                });
+        return future;
+    }
+
+    private static String mapTileKey(@Nonnull String worldName, int chunkX, int chunkZ) {
+        return worldName + ":" + MAP_REGION_TILE_SIZE + ":" + chunkX + ":" + chunkZ;
+    }
+
+    @Nullable
+    private BufferedImage readMapTileMemoryCache(@Nonnull String key) {
+        synchronized (mapTileMemoryCacheLock) {
+            return mapTileMemoryCache.get(key);
+        }
+    }
+
+    private void putMapTileMemoryCache(@Nonnull String key, @Nonnull BufferedImage tile) {
+        synchronized (mapTileMemoryCacheLock) {
+            mapTileMemoryCache.put(key, tile);
+            while (mapTileMemoryCache.size() > MAX_MAP_TILE_MEMORY_CACHE_ENTRIES && !mapTileMemoryCache.isEmpty()) {
+                String eldest = mapTileMemoryCache.keySet().iterator().next();
+                mapTileMemoryCache.remove(eldest);
+            }
+        }
+    }
+
+    private Path mapTileOutputPath(@Nonnull String worldName, int chunkX, int chunkZ) {
+        return plugin.worldviewDir()
+                .resolve("map-tile")
+                .resolve("tile-" + MAP_REGION_TILE_SIZE)
+                .resolve(safeName(worldName))
+                .resolve(chunkX + "_" + chunkZ + ".png");
+    }
+
+    @Nullable
+    private BufferedImage readMapTileDiskCache(@Nonnull String worldName, int chunkX, int chunkZ) {
+        Path path = mapTileOutputPath(worldName, chunkX, chunkZ);
+        if (!Files.isRegularFile(path)) {
+            return null;
+        }
+        try {
+            return ImageIO.read(path.toFile());
+        } catch (IOException e) {
+            plugin.getLogger().at(Level.FINE).log("Ignoring invalid map-tile cache entry " + path + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private void writeMapTileDiskCache(@Nonnull String worldName, int chunkX, int chunkZ, @Nonnull BufferedImage tile) {
+        Path path = mapTileOutputPath(worldName, chunkX, chunkZ);
+        try {
+            Files.createDirectories(path.getParent());
+            Files.write(path, MapTilePngEncoder.encode(tile));
+        } catch (IOException e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to write map-tile cache entry " + path);
         }
     }
 
@@ -2776,6 +2917,9 @@ public final class WorldviewWebServer {
         MapRegionResult withSource(@Nonnull String source) {
             return new MapRegionResult(bytes, source);
         }
+    }
+
+    private record MapRegionGeneration(byte[] bytes, boolean complete) {
     }
 
     private record BatchTerrainRequest(String worldName, List<ChunkCoord> chunks) {

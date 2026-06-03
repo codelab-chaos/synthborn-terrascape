@@ -165,6 +165,8 @@ let hasFocusedInitialGrid = false;
 let activeCenterId = null;
 let requestedCenterId = null;
 let scheduledCenterId = null;
+let mapTileLayerKey = null;
+let mapTileCoverageDirty = true;
 let streamTimer = null;
 let controlLoadTimer = null;
 let playerPollTimer = null;
@@ -448,7 +450,7 @@ async function loadGrid(options = {}) {
     }
     const needed = chunkKeys(centerX, centerZ, radius);
     retainOnly(world, needed);
-    updateMapTileLayer(centerX, centerZ, radius);
+    updateMapTileLayer({ force: true });
     updateMetrics();
     setStatus(`Loading ${needed.length} chunks around ${centerX}, ${centerZ}`);
     let completed = 0;
@@ -525,7 +527,7 @@ async function loadGrid(options = {}) {
     }
     activeCenterId = centerKey;
     requestedCenterId = null;
-    updateMapTileLayer(centerX, centerZ, radius);
+    updateMapTileLayer({ force: true });
     updateMetrics();
     setStatus(failed === 0
         ? `Loaded ${needed.length} chunks around ${centerX}, ${centerZ}`
@@ -683,6 +685,7 @@ function addChunkObject(world, chunkX, chunkZ, object) {
         debug,
         shade,
     });
+    markMapTileCoverageDirty();
 }
 async function parseGltfBytes(arrayBuffer) {
     return await loader.parseAsync(arrayBuffer, '');
@@ -754,6 +757,7 @@ function disposeChunk(id, entry) {
     disposalStats.materials += materials.size;
     disposalStats.textures += textures.size;
     loadedChunks.delete(id);
+    markMapTileCoverageDirty();
     updateMetrics();
 }
 function collectResourceStats() {
@@ -814,17 +818,36 @@ function applyMapWaterTint() {
         (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.sampleMapBackdropColor);
     }
 }
-function updateMapTileLayer(centerX = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkXInput.value, 10), centerZ = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkZInput.value, 10)) {
+function updateMapTileLayer(options = {}) {
     grid.visible = !_dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput.checked;
+    const center = cameraChunk();
+    const radius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value, 10), 0));
+    const layerKey = `${_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value}:${center.chunkX}:${center.chunkZ}:${radius}:${_dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput.checked}`;
+    if (!options.force && !mapTileCoverageDirty && layerKey === mapTileLayerKey) {
+        return;
+    }
+    mapTileLayerKey = layerKey;
     (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.updateMapBackdrop)(scene, renderer, {
         enabled: _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput.checked,
         world: _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value,
-        centerX,
-        centerZ,
-        meshRadius: Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value, 10), 0)),
+        centerX: center.chunkX,
+        centerZ: center.chunkZ,
+        meshRadius: radius,
         coveredChunks: mapCoveredChunks(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value),
     });
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput.checked || (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.mapBackdropStats)().loaded > 0) {
+        mapTileCoverageDirty = false;
+    }
     updateMetrics();
+}
+function markMapTileCoverageDirty() {
+    mapTileCoverageDirty = true;
+}
+function cameraChunk() {
+    return {
+        chunkX: Math.floor(camera.position.x / 32),
+        chunkZ: Math.floor(camera.position.z / 32),
+    };
 }
 function mapCoveredChunks(world) {
     const covered = new Set();
@@ -1640,13 +1663,12 @@ function playerChunk() {
 }
 function streamAnchorPosition() {
     const focusedMarker = playerMarkers.get(viewPlayerUuid) ?? playerMarkers.get(followPlayerUuid);
-    const playerMarker = focusedMarker ?? playerMarkers.values().next().value;
-    const targetPosition = playerMarker?.userData?.targetPosition;
+    const targetPosition = focusedMarker?.userData?.targetPosition;
     if (targetPosition) {
         return targetPosition;
     }
-    if (playerMarker?.position) {
-        return playerMarker.position;
+    if (focusedMarker?.position) {
+        return focusedMarker.position;
     }
     return camera.position;
 }
@@ -1873,6 +1895,7 @@ function animate() {
     }
     (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.positionSkyObjects)(lightingRig, camera.position);
     updateEmptyGrid();
+    updateMapTileLayer();
     (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_8__.updateFpsCounter)(fpsCounter, deltaSeconds);
     maybeAutoStream();
     updateCoordinates();
@@ -2971,8 +2994,8 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const CHUNK_SIZE = 32;
-const MAP_REGION_BONUS_RADIUS = 18;
-const MAP_REGION_MAX_RADIUS = 34;
+const MAP_REGION_BONUS_RADIUS = 54;
+const MAP_REGION_MAX_RADIUS = 102;
 const MAP_BACKDROP_Y = 112.0;
 let activeBackdrop = null;
 let activeKey = null;
@@ -2982,6 +3005,8 @@ let activeSampler = null;
 let requestSerial = 0;
 let activeStats = {
     loaded: 0,
+    centerX: 0,
+    centerZ: 0,
     radius: 0,
     chunks: 0,
     bytes: 0,
@@ -3008,6 +3033,8 @@ function updateMapBackdrop(scene, renderer, options) {
     pendingKey = key;
     activeStats = {
         loaded: 0,
+        centerX,
+        centerZ,
         radius,
         chunks: radius * 2 + 1,
         bytes: 0,
@@ -3055,6 +3082,8 @@ function updateMapBackdrop(scene, renderer, options) {
         activeSampler = createBackdropSampler(texture.image, minX, minZ, size);
         activeStats = {
             loaded: 1,
+            centerX,
+            centerZ,
             radius,
             chunks: chunkCount,
             bytes,
@@ -3084,7 +3113,9 @@ function updateMapBackdrop(scene, renderer, options) {
                 radius,
                 error: error?.message ?? error,
             });
-            clearMapBackdrop(scene);
+            if (!activeBackdrop) {
+                clearMapBackdrop(scene);
+            }
         }
     });
 }
@@ -3095,6 +3126,8 @@ function clearMapBackdrop(scene) {
     requestSerial++;
     activeStats = {
         loaded: 0,
+        centerX: 0,
+        centerZ: 0,
         radius: 0,
         chunks: 0,
         bytes: 0,

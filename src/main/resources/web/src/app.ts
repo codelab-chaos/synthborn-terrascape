@@ -201,6 +201,8 @@ let hasFocusedInitialGrid = false;
 let activeCenterId = null;
 let requestedCenterId = null;
 let scheduledCenterId = null;
+let mapTileLayerKey = null;
+let mapTileCoverageDirty = true;
 let streamTimer = null;
 let controlLoadTimer = null;
 let playerPollTimer = null;
@@ -487,7 +489,7 @@ async function loadGrid(options = {}) {
 
   const needed = chunkKeys(centerX, centerZ, radius);
   retainOnly(world, needed);
-  updateMapTileLayer(centerX, centerZ, radius);
+  updateMapTileLayer({ force: true });
   updateMetrics();
 
   setStatus(`Loading ${needed.length} chunks around ${centerX}, ${centerZ}`);
@@ -562,7 +564,7 @@ async function loadGrid(options = {}) {
 
   activeCenterId = centerKey;
   requestedCenterId = null;
-  updateMapTileLayer(centerX, centerZ, radius);
+  updateMapTileLayer({ force: true });
   updateMetrics();
   setStatus(failed === 0
     ? `Loaded ${needed.length} chunks around ${centerX}, ${centerZ}`
@@ -716,6 +718,7 @@ function addChunkObject(world, chunkX, chunkZ, object) {
     debug,
     shade,
   });
+  markMapTileCoverageDirty();
 }
 
 async function parseGltfBytes(arrayBuffer) {
@@ -786,6 +789,7 @@ function disposeChunk(id, entry) {
   disposalStats.materials += materials.size;
   disposalStats.textures += textures.size;
   loadedChunks.delete(id);
+  markMapTileCoverageDirty();
   updateMetrics();
 }
 
@@ -851,17 +855,38 @@ function applyMapWaterTint() {
   }
 }
 
-function updateMapTileLayer(centerX = Number.parseInt(chunkXInput.value, 10), centerZ = Number.parseInt(chunkZInput.value, 10)) {
+function updateMapTileLayer(options = {}) {
   grid.visible = !mapTilesInput.checked;
+  const center = cameraChunk();
+  const radius = Math.max(0, numberOr(Number.parseInt(radiusInput.value, 10), 0));
+  const layerKey = `${worldSelect.value}:${center.chunkX}:${center.chunkZ}:${radius}:${mapTilesInput.checked}`;
+  if (!options.force && !mapTileCoverageDirty && layerKey === mapTileLayerKey) {
+    return;
+  }
+  mapTileLayerKey = layerKey;
   updateMapBackdrop(scene, renderer, {
     enabled: mapTilesInput.checked,
     world: worldSelect.value,
-    centerX,
-    centerZ,
-    meshRadius: Math.max(0, numberOr(Number.parseInt(radiusInput.value, 10), 0)),
+    centerX: center.chunkX,
+    centerZ: center.chunkZ,
+    meshRadius: radius,
     coveredChunks: mapCoveredChunks(worldSelect.value),
   });
+  if (!mapTilesInput.checked || mapBackdropStats().loaded > 0) {
+    mapTileCoverageDirty = false;
+  }
   updateMetrics();
+}
+
+function markMapTileCoverageDirty() {
+  mapTileCoverageDirty = true;
+}
+
+function cameraChunk() {
+  return {
+    chunkX: Math.floor(camera.position.x / 32),
+    chunkZ: Math.floor(camera.position.z / 32),
+  };
 }
 
 function mapCoveredChunks(world) {
@@ -1716,13 +1741,12 @@ function playerChunk() {
 
 function streamAnchorPosition() {
   const focusedMarker = playerMarkers.get(viewPlayerUuid) ?? playerMarkers.get(followPlayerUuid);
-  const playerMarker = focusedMarker ?? playerMarkers.values().next().value;
-  const targetPosition = playerMarker?.userData?.targetPosition;
+  const targetPosition = focusedMarker?.userData?.targetPosition;
   if (targetPosition) {
     return targetPosition;
   }
-  if (playerMarker?.position) {
-    return playerMarker.position;
+  if (focusedMarker?.position) {
+    return focusedMarker.position;
   }
   return camera.position;
 }
@@ -1968,6 +1992,7 @@ function animate() {
   }
   positionSkyObjects(lightingRig, camera.position);
   updateEmptyGrid();
+  updateMapTileLayer();
   updateFpsCounter(fpsCounter, deltaSeconds);
   maybeAutoStream();
   updateCoordinates();

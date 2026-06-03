@@ -134,9 +134,23 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
     mapBackdrop = await page.evaluate(() => window.__synthWorldviewDebug.mapBackdropStats());
     return mapBackdrop.textureSize !== '';
   }).toBe(true);
-  expect(mapBackdrop.radius).toBeLessThanOrEqual(36);
+  expect(mapBackdrop.radius).toBeLessThanOrEqual(108);
+  expect(mapBackdrop.centerX).toBe(0);
+  expect(mapBackdrop.centerZ).toBe(0);
   expect(mapBackdrop.chunks).toBe(mapBackdrop.radius * 2 + 1);
   expect(mapBackdrop.textureSize).toBe(`${mapBackdrop.chunks * 32}x${mapBackdrop.chunks * 32}`);
+  await page.evaluate(() => {
+    window.__synthWorldviewDebug.setCameraPose({
+      camera: { x: 80, y: 180, z: -40 },
+      target: { x: 16, y: 122, z: 16 },
+      lookAt: { x: 16, y: 122, z: 16 },
+    });
+  });
+  await expect.poll(async () => page.evaluate(() => {
+    const stats = window.__synthWorldviewDebug.mapBackdropStats();
+    return `${stats.loaded}:${stats.centerX}:${stats.centerZ}`;
+  }), { timeout: 20000 }).toBe('1:2:-2');
+  await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 0, 0');
   await expect(page.locator('#shade-size')).toHaveValue('1.85');
   await expect(page.locator('#shade-size-value')).toHaveValue('1.85');
   await expect(page.locator('#shade-darkness')).toHaveValue('0.4');
@@ -375,8 +389,8 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('.player-name').first()).toHaveText('Avatar Tester');
   const streamAnchor = await page.evaluate(() => {
     window.__synthWorldviewDebug.setCameraPose({
-      camera: { x: 960, y: 180, z: 960 },
-      target: { x: 960, y: 120, z: 900 },
+      camera: { x: 976, y: 180, z: 976 },
+      target: { x: 976, y: 120, z: 916 },
     });
     window.__synthWorldviewDebug.updatePlayersForTest([{
       uuid: '00000000-0000-0000-0000-000000000001',
@@ -389,7 +403,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
     }]);
     return window.__synthWorldviewDebug.streamAnchorChunk();
   });
-  expect(streamAnchor).toEqual({ chunkX: 3, chunkZ: 2 });
+  expect(streamAnchor).toEqual({ chunkX: 30, chunkZ: 30 });
   const playerAvatarReuse = await page.evaluate(() => {
     const onePixelPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
     window.__synthWorldviewDebug.updatePlayersForTest([{
