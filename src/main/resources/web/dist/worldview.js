@@ -30,11 +30,17 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _client_log_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./client-log.js */ "./src/main/resources/web/src/client-log.ts");
 /* harmony import */ var _fps_counter_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./fps-counter.js */ "./src/main/resources/web/src/fps-counter.ts");
 /* harmony import */ var _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./map-backdrop.js */ "./src/main/resources/web/src/map-backdrop.ts");
-/* harmony import */ var _postprocessing_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./postprocessing.js */ "./src/main/resources/web/src/postprocessing.ts");
-/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./utils.js */ "./src/main/resources/web/src/utils.ts");
-/* harmony import */ var _view_state_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./view-state.js */ "./src/main/resources/web/src/view-state.ts");
-/* harmony import */ var _water_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./water.js */ "./src/main/resources/web/src/water.ts");
-/* harmony import */ var _mesh_cache_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./mesh-cache.js */ "./src/main/resources/web/src/mesh-cache.ts");
+/* harmony import */ var _npc_catalog_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./npc-catalog.js */ "./src/main/resources/web/src/npc-catalog.ts");
+/* harmony import */ var _player_tiles_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./player-tiles.js */ "./src/main/resources/web/src/player-tiles.ts");
+/* harmony import */ var _postprocessing_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./postprocessing.js */ "./src/main/resources/web/src/postprocessing.ts");
+/* harmony import */ var _time_ribbon_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./time-ribbon.js */ "./src/main/resources/web/src/time-ribbon.ts");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./utils.js */ "./src/main/resources/web/src/utils.ts");
+/* harmony import */ var _view_state_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./view-state.js */ "./src/main/resources/web/src/view-state.ts");
+/* harmony import */ var _water_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./water.js */ "./src/main/resources/web/src/water.ts");
+/* harmony import */ var _mesh_cache_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./mesh-cache.js */ "./src/main/resources/web/src/mesh-cache.ts");
+
+
+
 
 
 
@@ -118,8 +124,16 @@ controls.touches = {
     TWO: three__WEBPACK_IMPORTED_MODULE_0__.TOUCH.DOLLY_ROTATE,
 };
 const lightingRig = (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.createLightingRig)(scene, SKY_COLOR);
-const postProcessing = (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_10__.createPostProcessing)(renderer, scene, camera);
+const postProcessing = (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_12__.createPostProcessing)(renderer, scene, camera);
 const fpsCounter = (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_8__.createFpsCounter)(scene, camera, renderer);
+const npcCatalog = (0,_npc_catalog_js__WEBPACK_IMPORTED_MODULE_10__.createNpcCatalog)({ logClientEvent: _client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent });
+const timeRibbon = (0,_time_ribbon_js__WEBPACK_IMPORTED_MODULE_13__.createTimeRibbon)({
+    labelEl: _dom_js__WEBPACK_IMPORTED_MODULE_5__.timeCycleLabelEl,
+    sceneEl: _dom_js__WEBPACK_IMPORTED_MODULE_5__.skySceneEl,
+    sunEl: _dom_js__WEBPACK_IMPORTED_MODULE_5__.skySunEl,
+    moonEl: _dom_js__WEBPACK_IMPORTED_MODULE_5__.skyMoonEl,
+    starsEl: _dom_js__WEBPACK_IMPORTED_MODULE_5__.skyStarsEl,
+});
 const grid = new three__WEBPACK_IMPORTED_MODULE_0__.GridHelper(EMPTY_GRID_SIZE, EMPTY_GRID_DIVISIONS, GRID_AXIS_COLOR, GRID_LINE_COLOR);
 for (const material of Array.isArray(grid.material) ? grid.material : [grid.material]) {
     material.transparent = true;
@@ -160,7 +174,7 @@ const clock = new three__WEBPACK_IMPORTED_MODULE_0__.Clock();
 const initialParams = new URLSearchParams(window.location.search);
 let experimentalDetailsEnabled = false;
 let terrainFormatVersion = 'unknown';
-let storedViewState = (0,_view_state_js__WEBPACK_IMPORTED_MODULE_12__.loadStoredViewState)();
+let storedViewState = (0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.loadStoredViewState)();
 let hasRestoredCameraPose = false;
 let hasStarted = false;
 let lastViewStateSave = 0;
@@ -179,9 +193,6 @@ let lastMobCount = 0;
 let lastMobPollFailed = false;
 let entityStreamConnected = false;
 let lastMobSourceStats = null;
-let npcDetailsLoaded = false;
-const npcDetailsById = new Map();
-const npcDetailsAliases = new Map();
 const tempPlayerTarget = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempMobTarget = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempPlayerCamera = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
@@ -216,7 +227,7 @@ function updateMetrics() {
     _dom_js__WEBPACK_IMPORTED_MODULE_5__.metricLoadedEl.textContent = `${loaded} chunk${loaded === 1 ? '' : 's'}`
         + (mapBackdrop.loaded > 0
             ? ` · map backdrop ${mapBackdrop.chunks}x${mapBackdrop.chunks}`
-                + (mapBackdrop.bytes > 0 ? ` ${formatBytes(mapBackdrop.bytes)}` : '')
+                + (mapBackdrop.bytes > 0 ? ` ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatBytes)(mapBackdrop.bytes)}` : '')
                 + (mapBackdrop.loadMs > 0 ? ` ${Math.round(mapBackdrop.loadMs)}ms` : '')
             : '');
     _dom_js__WEBPACK_IMPORTED_MODULE_5__.metricMeshesEl.textContent = `${resources.meshes}`;
@@ -245,111 +256,6 @@ function summarizeMobTypes() {
         .slice(0, 4)
         .map(([type, count]) => `${type} ${count}`)
         .join(' · ');
-}
-async function loadNpcDetails() {
-    try {
-        const response = await fetch('/npc-details.json');
-        if (!response.ok) {
-            throw new Error(`NPC details request failed: ${response.status}`);
-        }
-        const data = await response.json();
-        npcDetailsById.clear();
-        npcDetailsAliases.clear();
-        for (const entry of Object.values(data.entries ?? {})) {
-            if (!entry?.id)
-                continue;
-            npcDetailsById.set(entry.id, entry);
-            for (const alias of entry.aliases ?? []) {
-                npcDetailsAliases.set(normalizeNpcKey(alias), entry);
-            }
-            npcDetailsAliases.set(normalizeNpcKey(entry.id), entry);
-            npcDetailsAliases.set(normalizeNpcKey(entry.label), entry);
-            npcDetailsAliases.set(normalizeNpcKey(entry.appearance), entry);
-        }
-        npcDetailsLoaded = true;
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent)('npc_details_loaded', {
-            roles: npcDetailsById.size,
-            aliases: npcDetailsAliases.size,
-        });
-    }
-    catch (error) {
-        npcDetailsLoaded = false;
-        console.warn('NPC details lookup failed', error);
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent)('npc_details_failed', { error: error?.message ?? error });
-    }
-}
-function enrichMob(mob, id) {
-    const details = resolveNpcDetails(mob);
-    const category = String(mob.category ?? details?.categoryPath ?? '').toLowerCase();
-    const maxHealth = firstFiniteNumber(mob.maxHealth, mob.maxHp, details?.maxHealth, mob.hp, mob.health);
-    const rawAttackDamage = firstFiniteNumber(mob.attackDamage, mob.damage, details?.attackDamage);
-    const passiveCard = isPassiveMobCategory(category, rawAttackDamage);
-    const attackDamage = passiveCard ? 0 : rawAttackDamage;
-    return {
-        ...mob,
-        id,
-        details,
-        label: details?.label ?? mob.label ?? mob.type ?? id,
-        maxHealth,
-        hp: firstFiniteNumber(mob.health, mob.hp, maxHealth),
-        attackDamage,
-        iconUrl: details?.icon ? `/${details.icon}` : mob.iconUrl,
-        passiveCard,
-    };
-}
-function resolveNpcDetails(mob) {
-    const candidates = [
-        mob.id,
-        mob.type,
-        mob.label,
-        mob.role,
-        mob.appearance,
-        stripRuntimeSuffix(mob.type),
-        stripRuntimeSuffix(mob.label),
-    ].filter(Boolean);
-    for (const candidate of candidates) {
-        const exact = npcDetailsById.get(candidate);
-        if (exact)
-            return exact;
-        const alias = npcDetailsAliases.get(normalizeNpcKey(candidate));
-        if (alias)
-            return alias;
-    }
-    return null;
-}
-function isPassiveMobCategory(category, attackDamage) {
-    if (typeof attackDamage === 'number' && attackDamage > 0) {
-        return false;
-    }
-    if (['passive', 'livestock', 'critter', 'flying', 'swimming'].some((value) => category.includes(value))) {
-        return true;
-    }
-    return attackDamage === null && ['creature', 'avian', 'fish'].some((value) => category.includes(value));
-}
-function normalizeNpcKey(value) {
-    return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-}
-function stripRuntimeSuffix(value) {
-    if (typeof value !== 'string')
-        return null;
-    return value.replace(/_(Wander|Patrol|Fighter|Archer|Scout|Soldier)$/i, '');
-}
-function firstFiniteNumber(...values) {
-    for (const value of values) {
-        if (typeof value === 'number' && Number.isFinite(value))
-            return value;
-    }
-    return null;
-}
-function clamp(value, min, max) {
-    return Math.min(max, Math.max(min, value));
-}
-function formatBytes(bytes) {
-    if (!Number.isFinite(bytes) || bytes <= 0)
-        return '';
-    if (bytes < 1024 * 1024)
-        return `${Math.round(bytes / 1024)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 async function loadWorlds() {
     setStatus('Loading worlds');
@@ -390,7 +296,7 @@ function applyInitialParams() {
     applySelectParam('water', _dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput);
     applySelectParam('shader', _dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput);
     applySelectParam('playerRate', _dom_js__WEBPACK_IMPORTED_MODULE_5__.playerUpdateRateInput);
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_10__.setShaderEffect)(postProcessing, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput.value);
+    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_12__.setShaderEffect)(postProcessing, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput.value);
     applyLighting();
 }
 function applyStoredInputs() {
@@ -518,14 +424,14 @@ async function loadGrid(options = {}) {
     const world = _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value;
     const centerX = options.centerX ?? Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkXInput.value, 10);
     const centerZ = options.centerZ ?? Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkZInput.value, 10);
-    const radius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value, 10), 0));
+    const radius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value, 10), 0));
     _dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value = radius;
     if (!world || Number.isNaN(centerX) || Number.isNaN(centerZ)) {
         setStatus('Choose a world and integer chunk coordinates');
         return;
     }
     const generation = ++loadGeneration;
-    const centerKey = (0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.centerId)(world, centerX, centerZ);
+    const centerKey = (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.centerId)(world, centerX, centerZ);
     requestedCenterId = centerKey;
     scheduledCenterId = null;
     _dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkXInput.value = centerX;
@@ -562,7 +468,7 @@ async function loadGrid(options = {}) {
         if (generation !== loadGeneration)
             return;
         const cacheKey = terrainCacheKey(world, key.chunkX, key.chunkZ);
-        const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_14__.readTerrainCache)(cacheKey);
+        const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_17__.readTerrainCache)(cacheKey);
         if (!cached?.bytes) {
             cacheMisses++;
             networkMissing.push(key);
@@ -684,10 +590,10 @@ async function loadChunkBatch(world, keys, generation) {
                 }
                 base64Bytes += chunk.base64.length;
                 const decodeStarted = performance.now();
-                const bytes = (0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.base64ToArrayBuffer)(chunk.base64);
+                const bytes = (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.base64ToArrayBuffer)(chunk.base64);
                 decodeMs += performance.now() - decodeStarted;
                 cacheWriteAttempts++;
-                (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_14__.writeTerrainCache)(terrainCacheKey(world, chunk.chunkX, chunk.chunkZ), bytes.slice(0), {
+                (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_17__.writeTerrainCache)(terrainCacheKey(world, chunk.chunkX, chunk.chunkZ), bytes.slice(0), {
                     source,
                     columns: chunk.columns,
                     vertices: chunk.vertices,
@@ -750,9 +656,9 @@ async function loadChunkBatch(world, keys, generation) {
 }
 function addChunkObject(world, chunkX, chunkZ, object) {
     object.position.set(chunkX * 32, 0, chunkZ * 32);
-    (0,_water_js__WEBPACK_IMPORTED_MODULE_13__.prepareWaterMaterials)(object);
-    (0,_water_js__WEBPACK_IMPORTED_MODULE_13__.tintWaterMaterialsFromMap)(object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.sampleMapBackdropColor);
-    (0,_water_js__WEBPACK_IMPORTED_MODULE_13__.applyWaterModeToObject)(object, _dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput.value);
+    (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.prepareWaterMaterials)(object);
+    (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.tintWaterMaterialsFromMap)(object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.sampleMapBackdropColor);
+    (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.applyWaterModeToObject)(object, _dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput.value);
     const lightingOptions = currentLightingOptions();
     (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.applyLightingToObject)(object, lightingOptions);
     const shade = (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.createTreeShadeObject)(object, lightingOptions);
@@ -763,7 +669,7 @@ function addChunkObject(world, chunkX, chunkZ, object) {
     debug.visible = _dom_js__WEBPACK_IMPORTED_MODULE_5__.debugBoundsInput.checked;
     object.add(debug);
     scene.add(object);
-    loadedChunks.set((0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.chunkId)(world, chunkX, chunkZ), {
+    loadedChunks.set((0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.chunkId)(world, chunkX, chunkZ), {
         world,
         chunkX,
         chunkZ,
@@ -784,7 +690,7 @@ async function loadGltfWithRetry(url) {
         }
         catch (error) {
             lastError = error;
-            await (0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.delay)(150 * attempt);
+            await (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.delay)(150 * attempt);
         }
     }
     throw lastError;
@@ -799,7 +705,7 @@ function chunkKeys(centerX, centerZ, radius) {
                 chunkX,
                 chunkZ,
                 distance: Math.abs(dx) + Math.abs(dz),
-                id: (0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.chunkId)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value, chunkX, chunkZ),
+                id: (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.chunkId)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value, chunkX, chunkZ),
             });
         }
     }
@@ -886,12 +792,12 @@ function collectResourceStats() {
 }
 function applyWaterMode() {
     for (const entry of loadedChunks.values()) {
-        (0,_water_js__WEBPACK_IMPORTED_MODULE_13__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.sampleMapBackdropColor);
-        (0,_water_js__WEBPACK_IMPORTED_MODULE_13__.applyWaterModeToObject)(entry.object, _dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput.value);
+        (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.sampleMapBackdropColor);
+        (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.applyWaterModeToObject)(entry.object, _dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput.value);
     }
 }
 function terrainCacheKey(world, chunkX, chunkZ) {
-    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_14__.makeTerrainCacheKey)({
+    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_17__.makeTerrainCacheKey)({
         world,
         chunkX,
         chunkZ,
@@ -901,7 +807,7 @@ function terrainCacheKey(world, chunkX, chunkZ) {
 }
 function applyMapWaterTint() {
     for (const entry of loadedChunks.values()) {
-        (0,_water_js__WEBPACK_IMPORTED_MODULE_13__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.sampleMapBackdropColor);
+        (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.sampleMapBackdropColor);
     }
 }
 function updateMapTileLayer(centerX = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkXInput.value, 10), centerZ = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkZInput.value, 10)) {
@@ -911,7 +817,7 @@ function updateMapTileLayer(centerX = Number.parseInt(_dom_js__WEBPACK_IMPORTED_
         world: _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value,
         centerX,
         centerZ,
-        meshRadius: Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value, 10), 0)),
+        meshRadius: Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value, 10), 0)),
         coveredChunks: mapCoveredChunks(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value),
     });
     updateMetrics();
@@ -933,87 +839,6 @@ function applyLighting() {
         (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.updateTreeShadeObject)(entry.shade, options);
     }
 }
-function updateTimeRibbon() {
-    if (!worldTime) {
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.timeCycleLabelEl.value = '--:--';
-        renderSky(0.5);
-        return;
-    }
-    const progress = normalizedProgress(worldTime.dayProgress);
-    const totalMinutes = Math.floor(progress * 24 * 60);
-    const hour = Math.floor(totalMinutes / 60) % 24;
-    const minute = totalMinutes % 60;
-    const phase = typeof worldTime.phase === 'string' && worldTime.phase.length > 0
-        ? worldTime.phase.replace(/_/g, ' ')
-        : 'cycle';
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.timeCycleLabelEl.value = `${pad2(hour)}:${pad2(minute)} ${phase}`;
-    renderSky(progress);
-}
-// Sky palette keyframes sampled from the in-game references (deep-navy night, peach dawn,
-// vivid teal-blue noon, fiery dusk). Each entry is [progress, topRGB, bottomRGB].
-const SKY_KEYFRAMES = [
-    { p: 0.00, top: [12, 18, 46], bottom: [26, 32, 70] },
-    { p: 0.20, top: [40, 54, 110], bottom: [120, 80, 120] },
-    { p: 0.27, top: [70, 96, 175], bottom: [243, 170, 135] },
-    { p: 0.34, top: [78, 152, 212], bottom: [205, 234, 240] },
-    { p: 0.50, top: [46, 142, 216], bottom: [208, 240, 244] },
-    { p: 0.66, top: [78, 152, 212], bottom: [205, 234, 240] },
-    { p: 0.73, top: [86, 70, 150], bottom: [240, 118, 64] },
-    { p: 0.80, top: [44, 42, 104], bottom: [120, 70, 120] },
-    { p: 0.90, top: [16, 22, 54], bottom: [30, 36, 76] },
-    { p: 1.00, top: [12, 18, 46], bottom: [26, 32, 70] },
-];
-function renderSky(progress) {
-    const { top, bottom } = skyColors(progress);
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.skySceneEl.style.background = `linear-gradient(180deg, ${top} 0%, ${bottom} 100%)`;
-    const day = dayFactor(progress);
-    placeSkyBody(_dom_js__WEBPACK_IMPORTED_MODULE_5__.skySunEl, (progress - 0.25) / 0.5, day);
-    const moonProgress = progress >= 0.5 ? progress : progress + 1;
-    placeSkyBody(_dom_js__WEBPACK_IMPORTED_MODULE_5__.skyMoonEl, (moonProgress - 0.75) / 0.5, 1 - day);
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.skyStarsEl.style.opacity = (1 - day).toFixed(3);
-}
-function skyColors(progress) {
-    let lo = SKY_KEYFRAMES[0];
-    let hi = SKY_KEYFRAMES[SKY_KEYFRAMES.length - 1];
-    for (let i = 0; i < SKY_KEYFRAMES.length - 1; i++) {
-        if (progress >= SKY_KEYFRAMES[i].p && progress <= SKY_KEYFRAMES[i + 1].p) {
-            lo = SKY_KEYFRAMES[i];
-            hi = SKY_KEYFRAMES[i + 1];
-            break;
-        }
-    }
-    const t = (progress - lo.p) / (hi.p - lo.p || 1);
-    return { top: lerpColor(lo.top, hi.top, t), bottom: lerpColor(lo.bottom, hi.bottom, t) };
-}
-// Position a celestial body along its horizon-to-horizon arc; t in [0,1], clamped.
-function placeSkyBody(el, t, opacity) {
-    const clamped = Math.max(0, Math.min(1, t));
-    const arc = Math.sin(clamped * Math.PI);
-    el.style.left = `${6 + clamped * 88}%`;
-    el.style.top = `${78 - arc * 62}%`;
-    el.style.opacity = opacity.toFixed(3);
-}
-// 0 at night, 1 in full day, smooth across dawn (~0.25) and dusk (~0.75).
-function dayFactor(progress) {
-    return Math.min(smoothstep(0.21, 0.30, progress), 1 - smoothstep(0.70, 0.79, progress));
-}
-function smoothstep(edge0, edge1, x) {
-    const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
-    return t * t * (3 - 2 * t);
-}
-function lerpColor(a, b, t) {
-    const channel = (i) => Math.round(a[i] + (b[i] - a[i]) * t);
-    return `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
-}
-function normalizedProgress(value) {
-    if (!Number.isFinite(value)) {
-        return 0;
-    }
-    return ((value % 1) + 1) % 1;
-}
-function pad2(value) {
-    return Math.max(0, Math.min(99, Math.floor(value))).toString().padStart(2, '0');
-}
 async function refreshWorldTime() {
     if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value) {
         return;
@@ -1027,7 +852,7 @@ async function refreshWorldTime() {
         if (data.ok) {
             worldTime = data;
             applyLighting();
-            updateTimeRibbon();
+            timeRibbon.update(worldTime);
         }
     }
     catch (error) {
@@ -1280,11 +1105,11 @@ function updatePlayers(players) {
         if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.checked) {
             continue;
         }
-        const tile = playerTiles.get(player.uuid) ?? createPlayerTile(player);
+        const tile = playerTiles.get(player.uuid) ?? (0,_player_tiles_js__WEBPACK_IMPORTED_MODULE_11__.createPlayerTile)(player, playerTileContext());
         if (!playerTiles.has(player.uuid)) {
             playerTiles.set(player.uuid, tile);
         }
-        updatePlayerTile(tile, player);
+        (0,_player_tiles_js__WEBPACK_IMPORTED_MODULE_11__.updatePlayerTile)(tile, player, playerTileContext());
         ensurePlayerTileOrder(tile.element, tileIndex++);
     }
     for (const [uuid, marker] of playerMarkers) {
@@ -1303,6 +1128,15 @@ function updatePlayers(players) {
         }
     }
     updateEntityVisibility();
+}
+function playerTileContext() {
+    return {
+        activeViewUuid: viewPlayerUuid,
+        activeFollowUuid: followPlayerUuid,
+        onFocus: focusPlayer,
+        onToggleEyeView: (uuid) => setPlayerEyeView(viewPlayerUuid === uuid ? null : uuid),
+        onToggleFollow: (uuid) => setPlayerFollow(followPlayerUuid === uuid ? null : uuid),
+    };
 }
 function ensurePlayerTileOrder(tileElement, index) {
     const current = _dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl.children[index] ?? null;
@@ -1441,7 +1275,7 @@ function updateMobs(mobs) {
     const seen = new Set();
     for (const mob of mobs) {
         const id = String(mob.id ?? `${mob.type}:${mob.x}:${mob.y}:${mob.z}`);
-        const enrichedMob = enrichMob(mob, id);
+        const enrichedMob = npcCatalog.enrich(mob, id);
         seen.add(id);
         const marker = mobMarkers.get(id) ?? (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.createMobMarker)(enrichedMob);
         if (!mobMarkers.has(id)) {
@@ -1470,112 +1304,6 @@ function clearMobs() {
     updateMobs([]);
     lastMobPollFailed = false;
     lastMobSourceStats = null;
-}
-function createPlayerTile(player) {
-    const tile = document.createElement('div');
-    tile.className = 'player-tile';
-    const main = document.createElement('button');
-    main.type = 'button';
-    main.className = 'player-tile-main';
-    main.title = 'Move camera to player';
-    main.addEventListener('click', () => focusPlayer(player.uuid));
-    const avatar = document.createElement('span');
-    avatar.className = 'player-avatar';
-    const name = document.createElement('span');
-    name.className = 'player-name';
-    main.append(avatar, name);
-    const actions = document.createElement('div');
-    actions.className = 'player-actions';
-    const eyeButton = document.createElement('button');
-    eyeButton.type = 'button';
-    eyeButton.className = `player-icon-button${viewPlayerUuid === player.uuid ? ' active' : ''}`;
-    eyeButton.textContent = '\u{1F441}\uFE0F';
-    eyeButton.title = 'Attach camera to player view';
-    eyeButton.setAttribute('aria-label', 'Attach camera to player view');
-    eyeButton.setAttribute('aria-pressed', String(viewPlayerUuid === player.uuid));
-    eyeButton.addEventListener('click', (event) => {
-        event.stopPropagation();
-        setPlayerEyeView(viewPlayerUuid === player.uuid ? null : player.uuid);
-    });
-    const walkButton = document.createElement('button');
-    walkButton.type = 'button';
-    walkButton.className = `player-icon-button${followPlayerUuid === player.uuid ? ' active' : ''}`;
-    walkButton.textContent = '\u{1F6B6}';
-    walkButton.title = 'Follow player from isometric view';
-    walkButton.setAttribute('aria-label', 'Follow player from isometric view');
-    walkButton.setAttribute('aria-pressed', String(followPlayerUuid === player.uuid));
-    walkButton.addEventListener('click', (event) => {
-        event.stopPropagation();
-        setPlayerFollow(followPlayerUuid === player.uuid ? null : player.uuid);
-    });
-    actions.append(eyeButton, walkButton);
-    tile.append(main, actions);
-    return {
-        element: tile,
-        avatar,
-        avatarUrl: null,
-        avatarImage: null,
-        name,
-        eyeButton,
-        walkButton,
-    };
-}
-function updatePlayerTile(tile, player) {
-    const initials = playerInitials(player.name);
-    if (tile.avatar.firstChild?.nodeType === Node.TEXT_NODE) {
-        tile.avatar.firstChild.nodeValue = initials;
-    }
-    else {
-        tile.avatar.prepend(document.createTextNode(initials));
-    }
-    const avatarUrl = player.avatarUrl ?? playerAvatarUrl(player);
-    if (avatarUrl && avatarUrl !== tile.avatarUrl) {
-        tile.avatarUrl = avatarUrl;
-        tile.avatar.classList.remove('loaded');
-        tile.avatarImage?.remove();
-        const image = document.createElement('img');
-        image.alt = '';
-        image.decoding = 'async';
-        image.loading = 'lazy';
-        image.src = avatarUrl;
-        image.addEventListener('load', () => tile.avatar.classList.add('loaded'));
-        image.addEventListener('error', () => {
-            image.remove();
-            if (tile.avatarImage === image) {
-                tile.avatarImage = null;
-            }
-            tile.avatar.classList.remove('loaded');
-        });
-        tile.avatarImage = image;
-        tile.avatar.append(image);
-    }
-    else if (!avatarUrl && tile.avatarUrl) {
-        tile.avatarUrl = null;
-        tile.avatarImage?.remove();
-        tile.avatarImage = null;
-        tile.avatar.classList.remove('loaded');
-    }
-    tile.name.textContent = player.name;
-    tile.eyeButton.classList.toggle('active', viewPlayerUuid === player.uuid);
-    tile.eyeButton.setAttribute('aria-pressed', String(viewPlayerUuid === player.uuid));
-    tile.walkButton.classList.toggle('active', followPlayerUuid === player.uuid);
-    tile.walkButton.setAttribute('aria-pressed', String(followPlayerUuid === player.uuid));
-}
-function playerInitials(name) {
-    const parts = String(name ?? '')
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean);
-    if (parts.length === 0)
-        return '?';
-    if (parts.length === 1)
-        return parts[0].slice(0, 2).toUpperCase();
-    return `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`.toUpperCase();
-}
-function playerAvatarUrl(player) {
-    if (!player?.uuid || !player?.name)
-        return null;
-    return `/api/player-avatar/${encodeURIComponent(player.uuid)}.png?name=${encodeURIComponent(player.name)}`;
 }
 function focusPlayer(uuid) {
     const marker = playerMarkers.get(uuid);
@@ -1715,11 +1443,7 @@ function exposeDebugState() {
             mobs: entityStreamMobs,
             available: 'EventSource' in window,
         }),
-        npcDetailsState: () => ({
-            loaded: npcDetailsLoaded,
-            entries: npcDetailsById.size,
-            aliases: npcDetailsAliases.size,
-        }),
+        npcDetailsState: () => npcCatalog.state(),
         loadGrid: (options = {}) => loadGrid(options),
         mapBackdropStats: _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.mapBackdropStats,
         terrainFormatVersion: () => terrainFormatVersion,
@@ -1729,8 +1453,8 @@ function exposeDebugState() {
         updateMobsForTest: (mobs) => updateMobs(mobs),
         waterMaterialSummary: () => waterMaterialSummary(),
         cameraPose: () => ({
-            camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_12__.vectorState)(camera.position),
-            target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_12__.vectorState)(controls.target),
+            camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.vectorState)(camera.position),
+            target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.vectorState)(controls.target),
             fov: camera.fov,
         }),
         streamAnchorChunk: () => playerChunk(),
@@ -1753,7 +1477,7 @@ function exposeDebugState() {
             worldTime = time;
             _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTimeInput.checked = true;
             applyLighting();
-            updateTimeRibbon();
+            timeRibbon.update(worldTime);
         },
         flyLook: () => ({
             yaw: flyYaw,
@@ -1769,14 +1493,14 @@ function exposeDebugState() {
             zoomFlyView(Number(deltaY));
         },
         setCameraPose: ({ camera: cameraState, target: targetState, lookAt }) => {
-            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_12__.isVectorState)(cameraState)) {
+            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.isVectorState)(cameraState)) {
                 camera.position.set(cameraState.x, cameraState.y, cameraState.z);
             }
-            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_12__.isVectorState)(targetState)) {
+            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.isVectorState)(targetState)) {
                 controls.target.set(targetState.x, targetState.y, targetState.z);
             }
             controls.update();
-            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_12__.isVectorState)(lookAt)) {
+            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.isVectorState)(lookAt)) {
                 camera.lookAt(lookAt.x, lookAt.y, lookAt.z);
             }
             syncFlyLookFromCamera();
@@ -1839,7 +1563,7 @@ function restoreCameraPose() {
     }
     const cameraState = storedViewState.camera;
     const targetState = storedViewState.target;
-    if (!(0,_view_state_js__WEBPACK_IMPORTED_MODULE_12__.isVectorState)(cameraState) || !(0,_view_state_js__WEBPACK_IMPORTED_MODULE_12__.isVectorState)(targetState)) {
+    if (!(0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.isVectorState)(cameraState) || !(0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.isVectorState)(targetState)) {
         return false;
     }
     camera.position.set(cameraState.x, cameraState.y, cameraState.z);
@@ -1877,10 +1601,10 @@ function saveViewState() {
         water: _dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput.value,
         shader: _dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput.value,
         playerRate: _dom_js__WEBPACK_IMPORTED_MODULE_5__.playerUpdateRateInput.value,
-        camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_12__.vectorState)(camera.position),
-        target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_12__.vectorState)(target),
+        camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.vectorState)(camera.position),
+        target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.vectorState)(target),
     };
-    if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_12__.saveStoredViewState)(state)) {
+    if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.saveStoredViewState)(state)) {
         storedViewState = state;
     }
 }
@@ -1915,9 +1639,9 @@ function streamAnchorPosition() {
 function updateCoordinates() {
     const target = controls.target;
     const chunk = playerChunk();
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.coordTargetEl.textContent = `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.formatCoord)(target.x)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.formatCoord)(target.y)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.formatCoord)(target.z)}`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.coordTargetEl.textContent = `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatCoord)(target.x)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatCoord)(target.y)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatCoord)(target.z)}`;
     _dom_js__WEBPACK_IMPORTED_MODULE_5__.coordChunkEl.textContent = `${chunk.chunkX}, ${chunk.chunkZ}`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.coordCameraEl.textContent = `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.formatCoord)(camera.position.x)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.formatCoord)(camera.position.y)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.formatCoord)(camera.position.z)}`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.coordCameraEl.textContent = `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatCoord)(camera.position.x)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatCoord)(camera.position.y)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatCoord)(camera.position.z)}`;
 }
 function updateEmptyGrid() {
     grid.position.set(Math.round(camera.position.x / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP, EMPTY_GRID_Y, Math.round(camera.position.z / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP);
@@ -1965,7 +1689,7 @@ function maybeAutoStream() {
     if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.autoStreamInput.checked || !hasFocusedInitialGrid || !_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value)
         return;
     const player = playerChunk();
-    const playerId = (0,_utils_js__WEBPACK_IMPORTED_MODULE_11__.centerId)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value, player.chunkX, player.chunkZ);
+    const playerId = (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.centerId)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value, player.chunkX, player.chunkZ);
     if (playerId === activeCenterId || playerId === requestedCenterId || playerId === scheduledCenterId)
         return;
     clearTimeout(streamTimer);
@@ -1988,7 +1712,7 @@ function resize() {
     const width = window.innerWidth;
     const height = window.innerHeight;
     renderer.setSize(width, height, false);
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_10__.resizePostProcessing)(postProcessing, width, height, rendererPixelRatio);
+    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_12__.resizePostProcessing)(postProcessing, width, height, rendererPixelRatio);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_8__.positionFpsCounter)(fpsCounter);
@@ -2060,7 +1784,7 @@ function updateMobMarkers(deltaSeconds, elapsedSeconds) {
             tempMobTarget.copy(targetPosition);
             tempMobTarget.y += 0.25 + Math.sin(elapsedSeconds * 3.2 + marker.name.length) * 0.08;
             marker.position.lerp(tempMobTarget, alpha);
-            const cardHeight = clamp(desiredWorldY - targetPosition.y, MOB_CARD_MIN_HEIGHT, MOB_CARD_TREE_TOP_HEIGHT);
+            const cardHeight = (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.clamp)(desiredWorldY - targetPosition.y, MOB_CARD_MIN_HEIGHT, MOB_CARD_TREE_TOP_HEIGHT);
             (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updateMobMarkerHeight)(marker, cardHeight);
         }
         const badge = marker.userData.badge;
@@ -2130,8 +1854,8 @@ function animate() {
     (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_8__.updateFpsCounter)(fpsCounter, deltaSeconds);
     maybeAutoStream();
     updateCoordinates();
-    (0,_water_js__WEBPACK_IMPORTED_MODULE_13__.updateWaterMaterials)(scene, renderer, elapsedSeconds, camera);
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_10__.renderPostProcessing)(postProcessing, renderer, scene, camera, deltaSeconds, elapsedSeconds);
+    (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.updateWaterMaterials)(scene, renderer, elapsedSeconds, camera);
+    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_12__.renderPostProcessing)(postProcessing, renderer, scene, camera, deltaSeconds, elapsedSeconds);
     updateMetrics();
     maybeSaveViewState();
     requestAnimationFrame(animate);
@@ -2212,7 +1936,7 @@ _dom_js__WEBPACK_IMPORTED_MODULE_5__.playerUpdateRateInput.addEventListener('cha
     saveViewState();
 });
 _dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput.addEventListener('change', () => {
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_10__.setShaderEffect)(postProcessing, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput.value);
+    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_12__.setShaderEffect)(postProcessing, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput.value);
     saveViewState();
 });
 for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_5__.sunLightingInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.treeShadeInput]) {
@@ -2265,10 +1989,10 @@ _dom_js__WEBPACK_IMPORTED_MODULE_5__.infoCardHeadEl.addEventListener('keydown', 
 applyInitialParams();
 exposeDebugState();
 resize();
-updateTimeRibbon();
+timeRibbon.update(worldTime);
 animate();
 await loadWorlds();
-await loadNpcDetails();
+await npcCatalog.load();
 if (_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value) {
     hasStarted = true;
     const restoredCameraPose = restoreCameraPose();
@@ -3560,194 +3284,19 @@ function requestPromise(request) {
 
 /***/ },
 
-/***/ "./src/main/resources/web/src/players.ts"
-/*!***********************************************!*\
-  !*** ./src/main/resources/web/src/players.ts ***!
-  \***********************************************/
+/***/ "./src/main/resources/web/src/mob-card.ts"
+/*!************************************************!*\
+  !*** ./src/main/resources/web/src/mob-card.ts ***!
+  \************************************************/
 (__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   createMobMarker: () => (/* binding */ createMobMarker),
-/* harmony export */   createPlayerMarker: () => (/* binding */ createPlayerMarker),
-/* harmony export */   disposeObject: () => (/* binding */ disposeObject),
-/* harmony export */   updateMobMarkerCard: () => (/* binding */ updateMobMarkerCard),
-/* harmony export */   updateMobMarkerHeight: () => (/* binding */ updateMobMarkerHeight),
-/* harmony export */   updatePlayerMarkerCard: () => (/* binding */ updatePlayerMarkerCard),
-/* harmony export */   updatePlayerMarkerCardHeight: () => (/* binding */ updatePlayerMarkerCardHeight)
+/* harmony export */   createMobBadge: () => (/* binding */ createMobBadge),
+/* harmony export */   updateMobBadge: () => (/* binding */ updateMobBadge)
 /* harmony export */ });
 /* harmony import */ var three__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! three */ "three");
 
-const PLAYER_HEAD_TOP_Y = 2.8;
-const PLAYER_CARD_POINTER_MIN_LENGTH = 0.9;
-const CARD_POINTER_CARD_OVERLAP = 0.08;
-const MOB_POINTER_ANCHOR_Y = 0.65;
-const PLAYER_CARD_COLOR = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x5ef1b5);
-function createPlayerMarker(player) {
-    const group = new three__WEBPACK_IMPORTED_MODULE_0__.Group();
-    group.name = `player:${player.uuid}`;
-    const avatar = new three__WEBPACK_IMPORTED_MODULE_0__.Group();
-    avatar.name = 'player-facing-avatar';
-    group.userData.avatar = avatar;
-    group.add(avatar);
-    const legs = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.BoxGeometry(0.54, 1.28, 0.42), new three__WEBPACK_IMPORTED_MODULE_0__.MeshStandardMaterial({
-        color: 0x5f666b,
-        emissive: 0x15181a,
-        roughness: 0.72,
-    }));
-    legs.name = 'player-legs';
-    legs.position.y = 0.68;
-    avatar.add(legs);
-    const body = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.BoxGeometry(0.78, 0.78, 0.52), new three__WEBPACK_IMPORTED_MODULE_0__.MeshStandardMaterial({
-        color: 0x9da5aa,
-        emissive: 0x24282b,
-        roughness: 0.65,
-    }));
-    body.name = 'player-body';
-    body.position.y = 1.68;
-    avatar.add(body);
-    const head = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.SphereGeometry(0.36, 24, 16), new three__WEBPACK_IMPORTED_MODULE_0__.MeshStandardMaterial({
-        color: 0xf5f7f7,
-        emissive: 0x34393a,
-        roughness: 0.58,
-    }));
-    head.name = 'player-head';
-    head.position.y = 2.43;
-    avatar.add(head);
-    const faceGlow = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.CircleGeometry(0.16, 24), new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
-        color: 0x5bbdff,
-        transparent: true,
-        opacity: 0.92,
-        side: three__WEBPACK_IMPORTED_MODULE_0__.DoubleSide,
-        depthWrite: false,
-    }));
-    faceGlow.name = 'player-face-glow';
-    faceGlow.position.set(0, 2.43, -0.365);
-    avatar.add(faceGlow);
-    const lookLight = new three__WEBPACK_IMPORTED_MODULE_0__.SpotLight(0x66cfff, 4.8, 24, Math.PI * 0.18, 0.72, 1.2);
-    lookLight.name = 'player-look-light';
-    lookLight.position.set(0, 2.39, -0.38);
-    lookLight.castShadow = false;
-    avatar.add(lookLight);
-    const lookTarget = new three__WEBPACK_IMPORTED_MODULE_0__.Object3D();
-    lookTarget.name = 'player-look-light-target';
-    lookTarget.position.set(0, 2.31, -8);
-    avatar.add(lookTarget);
-    lookLight.target = lookTarget;
-    const pointer = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.CylinderGeometry(0.035, 0.09, 1, 12), new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
-        color: PLAYER_CARD_COLOR,
-        transparent: true,
-        opacity: 0.92,
-        depthTest: false,
-        depthWrite: false,
-    }));
-    pointer.name = 'player-card-pointer';
-    pointer.renderOrder = 36;
-    group.userData.pointer = pointer;
-    group.userData.cardPointer = pointer;
-    group.userData.cardAnchorY = PLAYER_HEAD_TOP_Y;
-    group.userData.minCardPointerLength = PLAYER_CARD_POINTER_MIN_LENGTH;
-    group.userData.pointerConnectsToCardBottom = true;
-    group.add(pointer);
-    const card = createMobBadge(playerCardData(player), PLAYER_CARD_COLOR);
-    card.name = 'player-card';
-    card.renderOrder = 38;
-    group.userData.badge = card;
-    group.userData.card = card;
-    group.add(card);
-    updatePlayerMarkerCard(group, player);
-    updatePlayerMarkerCardHeight(group, 4.35);
-    return group;
-}
-function updatePlayerMarkerCard(marker, player) {
-    if (!marker?.userData?.badge)
-        return;
-    updateMobBadge(marker.userData.badge, playerCardData(player));
-}
-function updatePlayerMarkerCardHeight(marker, cardHeight) {
-    updateMarkerCardHeight(marker, cardHeight);
-}
-function playerCardData(player) {
-    return {
-        id: player?.uuid ?? 'player',
-        type: 'Player',
-        label: player?.name ?? 'Player',
-        iconUrl: typeof player?.avatarUrl === 'string' ? player.avatarUrl : '',
-        color: `#${PLAYER_CARD_COLOR.getHexString()}`,
-        playerCard: true,
-        hideStats: true,
-    };
-}
-function updateMarkerCardHeight(marker, cardHeight) {
-    const pointer = marker?.userData?.pointer;
-    const card = marker?.userData?.badge;
-    if (!pointer || !card)
-        return;
-    const cardHalfHeight = Math.max(0, card.scale?.y ?? 0) / 2;
-    const anchorY = Number.isFinite(marker.userData.cardAnchorY)
-        ? marker.userData.cardAnchorY
-        : MOB_POINTER_ANCHOR_Y;
-    const minPointerLength = Number.isFinite(marker.userData.minCardPointerLength)
-        ? marker.userData.minCardPointerLength
-        : 0.8;
-    const connectsToCardBottom = marker.userData.pointerConnectsToCardBottom === true;
-    const minimumHeight = connectsToCardBottom
-        ? anchorY + minPointerLength + cardHalfHeight
-        : anchorY + minPointerLength;
-    const height = clamp(Math.max(cardHeight, minimumHeight), 2.8, 24);
-    const pointerTopY = connectsToCardBottom
-        ? height - cardHalfHeight + CARD_POINTER_CARD_OVERLAP
-        : height;
-    const pointerLength = Math.max(minPointerLength, pointerTopY - anchorY);
-    pointer.scale.y = pointerLength;
-    pointer.position.y = anchorY + pointerLength / 2;
-    card.position.y = height;
-}
-function createMobMarker(mob) {
-    const group = new three__WEBPACK_IMPORTED_MODULE_0__.Group();
-    group.name = `mob:${mob.id}`;
-    const color = new three__WEBPACK_IMPORTED_MODULE_0__.Color(mob.color || '#ff6f91');
-    const shadow = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.CircleGeometry(2.25, 36), new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.22,
-        depthWrite: false,
-    }));
-    shadow.name = 'mob-ground-glow';
-    shadow.rotation.x = -Math.PI / 2;
-    shadow.position.y = 0.04;
-    shadow.renderOrder = 18;
-    group.add(shadow);
-    const contact = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.CircleGeometry(0.72, 28), new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
-        color: 0x07100c,
-        transparent: true,
-        opacity: 0.42,
-        depthWrite: false,
-    }));
-    contact.name = 'mob-ground-shadow';
-    contact.rotation.x = -Math.PI / 2;
-    contact.position.y = 0.055;
-    contact.renderOrder = 19;
-    group.add(contact);
-    const stem = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.CylinderGeometry(0.035, 0.09, 1, 12), new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.92,
-        depthTest: false,
-        depthWrite: false,
-    }));
-    stem.name = 'mob-pointer';
-    stem.renderOrder = 32;
-    group.userData.pointer = stem;
-    group.add(stem);
-    const badge = createMobBadge(mob, color);
-    badge.name = 'mob-card';
-    badge.renderOrder = 35;
-    group.userData.badge = badge;
-    group.add(badge);
-    updateMobMarkerHeight(group, 3.4);
-    return group;
-}
 function createMobBadge(mob, color) {
     const canvas = document.createElement('canvas');
     canvas.width = 192;
@@ -3770,21 +3319,13 @@ function createMobBadge(mob, color) {
     updateMobBadge(sprite, mob);
     return sprite;
 }
-function updateMobMarkerCard(marker, mob) {
-    if (!marker?.userData?.badge)
-        return;
-    updateMobBadge(marker.userData.badge, mob);
-}
-function updateMobMarkerHeight(marker, cardHeight) {
-    updateMarkerCardHeight(marker, cardHeight);
-}
 function updateMobBadge(sprite, mob) {
     const key = mobCardKey(mob);
     if (sprite.userData.cardKey === key)
         return;
     sprite.userData.cardKey = key;
     sprite.userData.mob = { ...mob };
-    configureMobBadgeScale(sprite, mob);
+    configureMobBadgeScale(sprite);
     const iconUrl = typeof mob.iconUrl === 'string' ? mob.iconUrl : '';
     if (!iconUrl) {
         sprite.userData.iconUrl = '';
@@ -3907,7 +3448,7 @@ function drawMobBadge(sprite, mob, image = null) {
     ctx.fillText(label, cardX + cardWidth / 2, labelY + labelHeight / 2);
     texture.needsUpdate = true;
 }
-function configureMobBadgeScale(sprite, mob) {
+function configureMobBadgeScale(sprite) {
     sprite.scale.set(4.8, 6.4, 1);
 }
 function drawSlateCardBackground(ctx, x, y, width, height, radius) {
@@ -4053,39 +3594,6 @@ function shortMobLabel(text) {
         .trim()
         .slice(0, 18) || 'Mob';
 }
-function createTextLabel(text, color) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 64;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = '800 32px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.lineJoin = 'round';
-    const measured = ctx.measureText(text);
-    const backgroundWidth = Math.min(canvas.width - 12, measured.width + 30);
-    ctx.fillStyle = 'rgba(8, 12, 16, 0.72)';
-    roundRect(ctx, (canvas.width - backgroundWidth) / 2, 10, backgroundWidth, 44, 10);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(8, 12, 16, 0.95)';
-    ctx.lineWidth = 5;
-    ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
-    ctx.fillStyle = `#${color.getHexString()}`;
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-    const texture = new three__WEBPACK_IMPORTED_MODULE_0__.CanvasTexture(canvas);
-    texture.colorSpace = three__WEBPACK_IMPORTED_MODULE_0__.SRGBColorSpace;
-    const material = new three__WEBPACK_IMPORTED_MODULE_0__.SpriteMaterial({
-        map: texture,
-        transparent: true,
-        depthTest: false,
-        depthWrite: false,
-    });
-    const sprite = new three__WEBPACK_IMPORTED_MODULE_0__.Sprite(material);
-    sprite.scale.set(12, 3, 1);
-    sprite.renderOrder = 30;
-    return sprite;
-}
 function roundRect(ctx, x, y, width, height, radius) {
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
@@ -4099,8 +3607,458 @@ function roundRect(ctx, x, y, width, height, radius) {
     ctx.quadraticCurveTo(x, y, x + radius, y);
     ctx.closePath();
 }
-function clamp(value, min, max) {
-    return Math.min(max, Math.max(min, value));
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/npc-catalog.ts"
+/*!***************************************************!*\
+  !*** ./src/main/resources/web/src/npc-catalog.ts ***!
+  \***************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   createNpcCatalog: () => (/* binding */ createNpcCatalog)
+/* harmony export */ });
+function normalizeNpcKey(value) {
+    return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+function stripRuntimeSuffix(value) {
+    if (typeof value !== 'string')
+        return null;
+    return value.replace(/_(Wander|Patrol|Fighter|Archer|Scout|Soldier)$/i, '');
+}
+function firstFiniteNumber(...values) {
+    for (const value of values) {
+        if (typeof value === 'number' && Number.isFinite(value))
+            return value;
+    }
+    return null;
+}
+function isPassiveMobCategory(category, attackDamage) {
+    if (typeof attackDamage === 'number' && attackDamage > 0) {
+        return false;
+    }
+    if (['passive', 'livestock', 'critter', 'flying', 'swimming'].some((value) => category.includes(value))) {
+        return true;
+    }
+    return attackDamage === null && ['creature', 'avian', 'fish'].some((value) => category.includes(value));
+}
+function createNpcCatalog({ logClientEvent }) {
+    let loaded = false;
+    const detailsById = new Map();
+    const aliases = new Map();
+    async function load() {
+        try {
+            const response = await fetch('/npc-details.json');
+            if (!response.ok) {
+                throw new Error(`NPC details request failed: ${response.status}`);
+            }
+            const data = await response.json();
+            detailsById.clear();
+            aliases.clear();
+            for (const entry of Object.values(data.entries ?? {})) {
+                if (!entry?.id)
+                    continue;
+                detailsById.set(entry.id, entry);
+                for (const alias of entry.aliases ?? []) {
+                    aliases.set(normalizeNpcKey(alias), entry);
+                }
+                aliases.set(normalizeNpcKey(entry.id), entry);
+                aliases.set(normalizeNpcKey(entry.label), entry);
+                aliases.set(normalizeNpcKey(entry.appearance), entry);
+            }
+            loaded = true;
+            logClientEvent('npc_details_loaded', {
+                roles: detailsById.size,
+                aliases: aliases.size,
+            });
+        }
+        catch (error) {
+            loaded = false;
+            console.warn('NPC details lookup failed', error);
+            logClientEvent('npc_details_failed', { error: error?.message ?? error });
+        }
+    }
+    function enrich(mob, id) {
+        const details = resolve(mob);
+        const category = String(mob.category ?? details?.categoryPath ?? '').toLowerCase();
+        const maxHealth = firstFiniteNumber(mob.maxHealth, mob.maxHp, details?.maxHealth, mob.hp, mob.health);
+        const rawAttackDamage = firstFiniteNumber(mob.attackDamage, mob.damage, details?.attackDamage);
+        const passiveCard = isPassiveMobCategory(category, rawAttackDamage);
+        const attackDamage = passiveCard ? 0 : rawAttackDamage;
+        return {
+            ...mob,
+            id,
+            details,
+            label: details?.label ?? mob.label ?? mob.type ?? id,
+            maxHealth,
+            hp: firstFiniteNumber(mob.health, mob.hp, maxHealth),
+            attackDamage,
+            iconUrl: details?.icon ? `/${details.icon}` : mob.iconUrl,
+            passiveCard,
+        };
+    }
+    function resolve(mob) {
+        const candidates = [
+            mob.id,
+            mob.type,
+            mob.label,
+            mob.role,
+            mob.appearance,
+            stripRuntimeSuffix(mob.type),
+            stripRuntimeSuffix(mob.label),
+        ].filter(Boolean);
+        for (const candidate of candidates) {
+            const exact = detailsById.get(candidate);
+            if (exact)
+                return exact;
+            const alias = aliases.get(normalizeNpcKey(candidate));
+            if (alias)
+                return alias;
+        }
+        return null;
+    }
+    function state() {
+        return {
+            loaded,
+            entries: detailsById.size,
+            aliases: aliases.size,
+        };
+    }
+    return { load, enrich, state };
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/player-tiles.ts"
+/*!****************************************************!*\
+  !*** ./src/main/resources/web/src/player-tiles.ts ***!
+  \****************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   createPlayerTile: () => (/* binding */ createPlayerTile),
+/* harmony export */   updatePlayerTile: () => (/* binding */ updatePlayerTile)
+/* harmony export */ });
+function playerInitials(name) {
+    const parts = String(name ?? '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+    if (parts.length === 0)
+        return '?';
+    if (parts.length === 1)
+        return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`.toUpperCase();
+}
+function playerAvatarUrl(player) {
+    if (!player?.uuid || !player?.name)
+        return null;
+    return `/api/player-avatar/${encodeURIComponent(player.uuid)}.png?name=${encodeURIComponent(player.name)}`;
+}
+function createPlayerTile(player, { activeViewUuid, activeFollowUuid, onFocus, onToggleEyeView, onToggleFollow }) {
+    const tile = document.createElement('div');
+    tile.className = 'player-tile';
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'player-tile-main';
+    main.title = 'Move camera to player';
+    main.addEventListener('click', () => onFocus(player.uuid));
+    const avatar = document.createElement('span');
+    avatar.className = 'player-avatar';
+    const name = document.createElement('span');
+    name.className = 'player-name';
+    main.append(avatar, name);
+    const actions = document.createElement('div');
+    actions.className = 'player-actions';
+    const eyeButton = document.createElement('button');
+    eyeButton.type = 'button';
+    eyeButton.className = `player-icon-button${activeViewUuid === player.uuid ? ' active' : ''}`;
+    eyeButton.textContent = '\u{1F441}\uFE0F';
+    eyeButton.title = 'Attach camera to player view';
+    eyeButton.setAttribute('aria-label', 'Attach camera to player view');
+    eyeButton.setAttribute('aria-pressed', String(activeViewUuid === player.uuid));
+    eyeButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        onToggleEyeView(player.uuid);
+    });
+    const walkButton = document.createElement('button');
+    walkButton.type = 'button';
+    walkButton.className = `player-icon-button${activeFollowUuid === player.uuid ? ' active' : ''}`;
+    walkButton.textContent = '\u{1F6B6}';
+    walkButton.title = 'Follow player from isometric view';
+    walkButton.setAttribute('aria-label', 'Follow player from isometric view');
+    walkButton.setAttribute('aria-pressed', String(activeFollowUuid === player.uuid));
+    walkButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        onToggleFollow(player.uuid);
+    });
+    actions.append(eyeButton, walkButton);
+    tile.append(main, actions);
+    return {
+        element: tile,
+        avatar,
+        avatarUrl: null,
+        avatarImage: null,
+        name,
+        eyeButton,
+        walkButton,
+    };
+}
+function updatePlayerTile(tile, player, { activeViewUuid, activeFollowUuid }) {
+    const initials = playerInitials(player.name);
+    if (tile.avatar.firstChild?.nodeType === Node.TEXT_NODE) {
+        tile.avatar.firstChild.nodeValue = initials;
+    }
+    else {
+        tile.avatar.prepend(document.createTextNode(initials));
+    }
+    const avatarUrl = player.avatarUrl ?? playerAvatarUrl(player);
+    if (avatarUrl && avatarUrl !== tile.avatarUrl) {
+        tile.avatarUrl = avatarUrl;
+        tile.avatar.classList.remove('loaded');
+        tile.avatarImage?.remove();
+        const image = document.createElement('img');
+        image.alt = '';
+        image.decoding = 'async';
+        image.loading = 'lazy';
+        image.src = avatarUrl;
+        image.addEventListener('load', () => tile.avatar.classList.add('loaded'));
+        image.addEventListener('error', () => {
+            image.remove();
+            if (tile.avatarImage === image) {
+                tile.avatarImage = null;
+            }
+            tile.avatar.classList.remove('loaded');
+        });
+        tile.avatarImage = image;
+        tile.avatar.append(image);
+    }
+    else if (!avatarUrl && tile.avatarUrl) {
+        tile.avatarUrl = null;
+        tile.avatarImage?.remove();
+        tile.avatarImage = null;
+        tile.avatar.classList.remove('loaded');
+    }
+    tile.name.textContent = player.name;
+    tile.eyeButton.classList.toggle('active', activeViewUuid === player.uuid);
+    tile.eyeButton.setAttribute('aria-pressed', String(activeViewUuid === player.uuid));
+    tile.walkButton.classList.toggle('active', activeFollowUuid === player.uuid);
+    tile.walkButton.setAttribute('aria-pressed', String(activeFollowUuid === player.uuid));
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/players.ts"
+/*!***********************************************!*\
+  !*** ./src/main/resources/web/src/players.ts ***!
+  \***********************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   createMobMarker: () => (/* binding */ createMobMarker),
+/* harmony export */   createPlayerMarker: () => (/* binding */ createPlayerMarker),
+/* harmony export */   disposeObject: () => (/* binding */ disposeObject),
+/* harmony export */   updateMobMarkerCard: () => (/* binding */ updateMobMarkerCard),
+/* harmony export */   updateMobMarkerHeight: () => (/* binding */ updateMobMarkerHeight),
+/* harmony export */   updatePlayerMarkerCard: () => (/* binding */ updatePlayerMarkerCard),
+/* harmony export */   updatePlayerMarkerCardHeight: () => (/* binding */ updatePlayerMarkerCardHeight)
+/* harmony export */ });
+/* harmony import */ var three__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! three */ "three");
+/* harmony import */ var _mob_card_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./mob-card.js */ "./src/main/resources/web/src/mob-card.ts");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./utils.js */ "./src/main/resources/web/src/utils.ts");
+
+
+
+const PLAYER_HEAD_TOP_Y = 2.8;
+const PLAYER_CARD_POINTER_MIN_LENGTH = 0.9;
+const CARD_POINTER_CARD_OVERLAP = 0.08;
+const MOB_POINTER_ANCHOR_Y = 0.65;
+const PLAYER_CARD_COLOR = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x5ef1b5);
+function createPlayerMarker(player) {
+    const group = new three__WEBPACK_IMPORTED_MODULE_0__.Group();
+    group.name = `player:${player.uuid}`;
+    const avatar = createPlayerAvatar();
+    group.userData.avatar = avatar;
+    group.add(avatar);
+    const pointer = createPointer(PLAYER_CARD_COLOR, 'player-card-pointer', 36);
+    group.userData.pointer = pointer;
+    group.userData.cardPointer = pointer;
+    group.userData.cardAnchorY = PLAYER_HEAD_TOP_Y;
+    group.userData.minCardPointerLength = PLAYER_CARD_POINTER_MIN_LENGTH;
+    group.userData.pointerConnectsToCardBottom = true;
+    group.add(pointer);
+    const card = (0,_mob_card_js__WEBPACK_IMPORTED_MODULE_1__.createMobBadge)(playerCardData(player), PLAYER_CARD_COLOR);
+    card.name = 'player-card';
+    card.renderOrder = 38;
+    group.userData.badge = card;
+    group.userData.card = card;
+    group.add(card);
+    updatePlayerMarkerCard(group, player);
+    updatePlayerMarkerCardHeight(group, 4.35);
+    return group;
+}
+function updatePlayerMarkerCard(marker, player) {
+    if (!marker?.userData?.badge)
+        return;
+    (0,_mob_card_js__WEBPACK_IMPORTED_MODULE_1__.updateMobBadge)(marker.userData.badge, playerCardData(player));
+}
+function updatePlayerMarkerCardHeight(marker, cardHeight) {
+    updateMarkerCardHeight(marker, cardHeight);
+}
+function createMobMarker(mob) {
+    const group = new three__WEBPACK_IMPORTED_MODULE_0__.Group();
+    group.name = `mob:${mob.id}`;
+    const color = new three__WEBPACK_IMPORTED_MODULE_0__.Color(mob.color || '#ff6f91');
+    group.add(createGroundGlow(color));
+    group.add(createGroundShadow());
+    const stem = createPointer(color, 'mob-pointer', 32);
+    group.userData.pointer = stem;
+    group.add(stem);
+    const badge = (0,_mob_card_js__WEBPACK_IMPORTED_MODULE_1__.createMobBadge)(mob, color);
+    badge.name = 'mob-card';
+    badge.renderOrder = 35;
+    group.userData.badge = badge;
+    group.add(badge);
+    updateMobMarkerHeight(group, 3.4);
+    return group;
+}
+function updateMobMarkerCard(marker, mob) {
+    if (!marker?.userData?.badge)
+        return;
+    (0,_mob_card_js__WEBPACK_IMPORTED_MODULE_1__.updateMobBadge)(marker.userData.badge, mob);
+}
+function updateMobMarkerHeight(marker, cardHeight) {
+    updateMarkerCardHeight(marker, cardHeight);
+}
+function createPlayerAvatar() {
+    const avatar = new three__WEBPACK_IMPORTED_MODULE_0__.Group();
+    avatar.name = 'player-facing-avatar';
+    const legs = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.BoxGeometry(0.54, 1.28, 0.42), new three__WEBPACK_IMPORTED_MODULE_0__.MeshStandardMaterial({
+        color: 0x5f666b,
+        emissive: 0x15181a,
+        roughness: 0.72,
+    }));
+    legs.name = 'player-legs';
+    legs.position.y = 0.68;
+    avatar.add(legs);
+    const body = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.BoxGeometry(0.78, 0.78, 0.52), new three__WEBPACK_IMPORTED_MODULE_0__.MeshStandardMaterial({
+        color: 0x9da5aa,
+        emissive: 0x24282b,
+        roughness: 0.65,
+    }));
+    body.name = 'player-body';
+    body.position.y = 1.68;
+    avatar.add(body);
+    const head = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.SphereGeometry(0.36, 24, 16), new three__WEBPACK_IMPORTED_MODULE_0__.MeshStandardMaterial({
+        color: 0xf5f7f7,
+        emissive: 0x34393a,
+        roughness: 0.58,
+    }));
+    head.name = 'player-head';
+    head.position.y = 2.43;
+    avatar.add(head);
+    const faceGlow = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.CircleGeometry(0.16, 24), new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
+        color: 0x5bbdff,
+        transparent: true,
+        opacity: 0.92,
+        side: three__WEBPACK_IMPORTED_MODULE_0__.DoubleSide,
+        depthWrite: false,
+    }));
+    faceGlow.name = 'player-face-glow';
+    faceGlow.position.set(0, 2.43, -0.365);
+    avatar.add(faceGlow);
+    const lookLight = new three__WEBPACK_IMPORTED_MODULE_0__.SpotLight(0x66cfff, 4.8, 24, Math.PI * 0.18, 0.72, 1.2);
+    lookLight.name = 'player-look-light';
+    lookLight.position.set(0, 2.39, -0.38);
+    lookLight.castShadow = false;
+    avatar.add(lookLight);
+    const lookTarget = new three__WEBPACK_IMPORTED_MODULE_0__.Object3D();
+    lookTarget.name = 'player-look-light-target';
+    lookTarget.position.set(0, 2.31, -8);
+    avatar.add(lookTarget);
+    lookLight.target = lookTarget;
+    return avatar;
+}
+function createGroundGlow(color) {
+    const shadow = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.CircleGeometry(2.25, 36), new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.22,
+        depthWrite: false,
+    }));
+    shadow.name = 'mob-ground-glow';
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.04;
+    shadow.renderOrder = 18;
+    return shadow;
+}
+function createGroundShadow() {
+    const contact = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.CircleGeometry(0.72, 28), new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
+        color: 0x07100c,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false,
+    }));
+    contact.name = 'mob-ground-shadow';
+    contact.rotation.x = -Math.PI / 2;
+    contact.position.y = 0.055;
+    contact.renderOrder = 19;
+    return contact;
+}
+function createPointer(color, name, renderOrder) {
+    const pointer = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.CylinderGeometry(0.035, 0.09, 1, 12), new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.92,
+        depthTest: false,
+        depthWrite: false,
+    }));
+    pointer.name = name;
+    pointer.renderOrder = renderOrder;
+    return pointer;
+}
+function playerCardData(player) {
+    return {
+        id: player?.uuid ?? 'player',
+        type: 'Player',
+        label: player?.name ?? 'Player',
+        iconUrl: typeof player?.avatarUrl === 'string' ? player.avatarUrl : '',
+        color: `#${PLAYER_CARD_COLOR.getHexString()}`,
+        playerCard: true,
+        hideStats: true,
+    };
+}
+function updateMarkerCardHeight(marker, cardHeight) {
+    const pointer = marker?.userData?.pointer;
+    const card = marker?.userData?.badge;
+    if (!pointer || !card)
+        return;
+    const cardHalfHeight = Math.max(0, card.scale?.y ?? 0) / 2;
+    const anchorY = Number.isFinite(marker.userData.cardAnchorY)
+        ? marker.userData.cardAnchorY
+        : MOB_POINTER_ANCHOR_Y;
+    const minPointerLength = Number.isFinite(marker.userData.minCardPointerLength)
+        ? marker.userData.minCardPointerLength
+        : 0.8;
+    const connectsToCardBottom = marker.userData.pointerConnectsToCardBottom === true;
+    const minimumHeight = connectsToCardBottom
+        ? anchorY + minPointerLength + cardHalfHeight
+        : anchorY + minPointerLength;
+    const height = (0,_utils_js__WEBPACK_IMPORTED_MODULE_2__.clamp)(Math.max(cardHeight, minimumHeight), 2.8, 24);
+    const pointerTopY = connectsToCardBottom
+        ? height - cardHalfHeight + CARD_POINTER_CARD_OVERLAP
+        : height;
+    const pointerLength = Math.max(minPointerLength, pointerTopY - anchorY);
+    pointer.scale.y = pointerLength;
+    pointer.position.y = anchorY + pointerLength / 2;
+    card.position.y = height;
 }
 function disposeObject(root) {
     root.traverse((object) => {
@@ -4297,6 +4255,100 @@ function renderPostProcessing(post, renderer, scene, camera, deltaSeconds, elaps
 
 /***/ },
 
+/***/ "./src/main/resources/web/src/time-ribbon.ts"
+/*!***************************************************!*\
+  !*** ./src/main/resources/web/src/time-ribbon.ts ***!
+  \***************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   createTimeRibbon: () => (/* binding */ createTimeRibbon)
+/* harmony export */ });
+const SKY_KEYFRAMES = [
+    { p: 0.00, top: [12, 18, 46], bottom: [26, 32, 70] },
+    { p: 0.20, top: [40, 54, 110], bottom: [120, 80, 120] },
+    { p: 0.27, top: [70, 96, 175], bottom: [243, 170, 135] },
+    { p: 0.34, top: [78, 152, 212], bottom: [205, 234, 240] },
+    { p: 0.50, top: [46, 142, 216], bottom: [208, 240, 244] },
+    { p: 0.66, top: [78, 152, 212], bottom: [205, 234, 240] },
+    { p: 0.73, top: [86, 70, 150], bottom: [240, 118, 64] },
+    { p: 0.80, top: [44, 42, 104], bottom: [120, 70, 120] },
+    { p: 0.90, top: [16, 22, 54], bottom: [30, 36, 76] },
+    { p: 1.00, top: [12, 18, 46], bottom: [26, 32, 70] },
+];
+function createTimeRibbon({ labelEl, sceneEl, sunEl, moonEl, starsEl }) {
+    function update(worldTime) {
+        if (!worldTime) {
+            labelEl.value = '--:--';
+            renderSky(0.5);
+            return;
+        }
+        const progress = normalizedProgress(worldTime.dayProgress);
+        const totalMinutes = Math.floor(progress * 24 * 60);
+        const hour = Math.floor(totalMinutes / 60) % 24;
+        const minute = totalMinutes % 60;
+        const phase = typeof worldTime.phase === 'string' && worldTime.phase.length > 0
+            ? worldTime.phase.replace(/_/g, ' ')
+            : 'cycle';
+        labelEl.value = `${pad2(hour)}:${pad2(minute)} ${phase}`;
+        renderSky(progress);
+    }
+    function renderSky(progress) {
+        const { top, bottom } = skyColors(progress);
+        sceneEl.style.background = `linear-gradient(180deg, ${top} 0%, ${bottom} 100%)`;
+        const day = dayFactor(progress);
+        placeSkyBody(sunEl, (progress - 0.25) / 0.5, day);
+        const moonProgress = progress >= 0.5 ? progress : progress + 1;
+        placeSkyBody(moonEl, (moonProgress - 0.75) / 0.5, 1 - day);
+        starsEl.style.opacity = (1 - day).toFixed(3);
+    }
+    return { update };
+}
+function skyColors(progress) {
+    let lo = SKY_KEYFRAMES[0];
+    let hi = SKY_KEYFRAMES[SKY_KEYFRAMES.length - 1];
+    for (let i = 0; i < SKY_KEYFRAMES.length - 1; i++) {
+        if (progress >= SKY_KEYFRAMES[i].p && progress <= SKY_KEYFRAMES[i + 1].p) {
+            lo = SKY_KEYFRAMES[i];
+            hi = SKY_KEYFRAMES[i + 1];
+            break;
+        }
+    }
+    const t = (progress - lo.p) / (hi.p - lo.p || 1);
+    return { top: lerpColor(lo.top, hi.top, t), bottom: lerpColor(lo.bottom, hi.bottom, t) };
+}
+function placeSkyBody(el, t, opacity) {
+    const clamped = Math.max(0, Math.min(1, t));
+    const arc = Math.sin(clamped * Math.PI);
+    el.style.left = `${6 + clamped * 88}%`;
+    el.style.top = `${78 - arc * 62}%`;
+    el.style.opacity = opacity.toFixed(3);
+}
+function dayFactor(progress) {
+    return Math.min(smoothstep(0.21, 0.30, progress), 1 - smoothstep(0.70, 0.79, progress));
+}
+function smoothstep(edge0, edge1, x) {
+    const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+    return t * t * (3 - 2 * t);
+}
+function lerpColor(a, b, t) {
+    const channel = (i) => Math.round(a[i] + (b[i] - a[i]) * t);
+    return `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
+}
+function normalizedProgress(value) {
+    if (!Number.isFinite(value)) {
+        return 0;
+    }
+    return ((value % 1) + 1) % 1;
+}
+function pad2(value) {
+    return Math.max(0, Math.min(99, Math.floor(value))).toString().padStart(2, '0');
+}
+
+
+/***/ },
+
 /***/ "./src/main/resources/web/src/utils.ts"
 /*!*********************************************!*\
   !*** ./src/main/resources/web/src/utils.ts ***!
@@ -4308,7 +4360,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   base64ToArrayBuffer: () => (/* binding */ base64ToArrayBuffer),
 /* harmony export */   centerId: () => (/* binding */ centerId),
 /* harmony export */   chunkId: () => (/* binding */ chunkId),
+/* harmony export */   clamp: () => (/* binding */ clamp),
 /* harmony export */   delay: () => (/* binding */ delay),
+/* harmony export */   formatBytes: () => (/* binding */ formatBytes),
 /* harmony export */   formatCoord: () => (/* binding */ formatCoord),
 /* harmony export */   numberOr: () => (/* binding */ numberOr)
 /* harmony export */ });
@@ -4334,6 +4388,16 @@ function base64ToArrayBuffer(base64) {
         bytes[i] = binary.charCodeAt(i);
     }
     return bytes.buffer;
+}
+function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+}
+function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0)
+        return '';
+    if (bytes < 1024 * 1024)
+        return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 
