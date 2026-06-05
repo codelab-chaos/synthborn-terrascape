@@ -5,6 +5,8 @@ const MAP_TILE_STORE = 'mapTileTextures';
 const MAX_RECORD_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 let dbPromise = null;
+const mapTileWriteQueue = new Map();
+let mapTileWriteWorker = null;
 
 export function makeTerrainCacheKey({ world, chunkX, chunkZ, formatVersion, detailsEnabled }) {
   const details = detailsEnabled ? 'details' : 'surface';
@@ -43,15 +45,35 @@ export async function readMapTileCache(key) {
 
 export async function writeMapTileCache(key, bytes, meta = {}) {
   if (!bytes?.byteLength) return false;
+  mapTileWriteQueue.set(key, { key, bytes, meta, updatedAt: Date.now() });
+  if (!mapTileWriteWorker) {
+    mapTileWriteWorker = drainMapTileWriteQueue().finally(() => {
+      mapTileWriteWorker = null;
+      if (mapTileWriteQueue.size > 0) {
+        mapTileWriteWorker = drainMapTileWriteQueue().finally(() => {
+          mapTileWriteWorker = null;
+        });
+      }
+    });
+  }
+  return true;
+}
+
+async function drainMapTileWriteQueue() {
   try {
     const db = await openDb();
-    await requestPromise(db.transaction(MAP_TILE_STORE, 'readwrite').objectStore(MAP_TILE_STORE).put({
-      key,
-      bytes,
-      meta,
-      updatedAt: Date.now(),
-    }));
-    return true;
+    while (mapTileWriteQueue.size > 0) {
+      const records = [...mapTileWriteQueue.values()].slice(0, 64);
+      for (const record of records) {
+        mapTileWriteQueue.delete(record.key);
+      }
+      const transaction = db.transaction(MAP_TILE_STORE, 'readwrite');
+      const store = transaction.objectStore(MAP_TILE_STORE);
+      for (const record of records) {
+        store.put(record);
+      }
+      await transactionPromise(transaction);
+    }
   } catch {
     return false;
   }
@@ -102,5 +124,13 @@ function requestPromise(request) {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
+  });
+}
+
+function transactionPromise(transaction) {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve(true);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
   });
 }

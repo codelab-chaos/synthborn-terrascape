@@ -113,6 +113,10 @@ const EMPTY_GRID_CHUNK_SNAP = 32;
 const EMPTY_GRID_Y = 96;
 const AUTO_STREAM_DEBOUNCE_MS = 250;
 const AUTO_STREAM_RETAIN_MARGIN = 1;
+const TERRAIN_LOAD_CONCURRENCY = 4;
+const TERRAIN_PROMOTION_BUDGET_MS = 4;
+const TERRAIN_PROMOTIONS_PER_FRAME = 2;
+const METRICS_UPDATE_INTERVAL_MS = 250;
 
 function yieldToMain() {
   return new Promise((resolve) => {
@@ -247,6 +251,7 @@ let entityStreamPlayers = null;
 let entityStreamMobs = null;
 let entityStreamFallbackTimer = null;
 let playerConnectMobSampleTimer = null;
+let lastMetricsUpdate = 0;
 const pressedKeys = new Set();
 const clock = new THREE.Clock();
 const initialParams = new URLSearchParams(window.location.search);
@@ -307,6 +312,7 @@ function mapTileRetainRadius(terrainRadius, streamLoad = false) {
 }
 
 function updateMetrics() {
+  lastMetricsUpdate = performance.now();
   const loaded = loadedChunks.size;
   const center = activeCenterId ? activeCenterId.split(':').slice(1).join(', ') : 'pending';
   const resources = collectResourceStats();
@@ -324,6 +330,14 @@ function updateMetrics() {
   metricDisposedEl.textContent = `${disposalStats.chunks}c · ${disposalStats.geometries}g · ${disposalStats.materials}m · ${disposalStats.textures}t`;
   metricMobsEl.textContent = mobMetricText();
   metricCenterEl.textContent = center;
+}
+
+function maybeUpdateMetrics(force = false) {
+  const now = performance.now();
+  if (!force && now - lastMetricsUpdate < METRICS_UPDATE_INTERVAL_MS) {
+    return;
+  }
+  updateMetrics();
 }
 
 function mobMetricText() {
@@ -547,7 +561,7 @@ async function loadGrid(options = {}) {
       void loadMapTilesForKeys(
         world,
         sortChunkKeysByPlayerDistance(horizonMapKeys, streamAnchor.chunkX, streamAnchor.chunkZ),
-        { immediate: true },
+        { immediate: true, replace: true },
       );
     }
   }
@@ -575,68 +589,79 @@ async function loadGrid(options = {}) {
     missing.splice(0, missing.length, ...sortChunkKeysByPlayerDistance(missing, streamAnchor.chunkX, streamAnchor.chunkZ));
   }
   try {
-  let networkChunks = 0;
-  for (const key of missing) {
-    if (generation !== loadGeneration) return;
-    const cacheKey = terrainCacheKey(world, key.chunkX, key.chunkZ);
-    const readStarted = performance.now();
-    const cached = await readTerrainCache(cacheKey);
-    cacheReadMs += performance.now() - readStarted;
+    let networkChunks = 0;
+    const promotionQueue = [];
+    let nextMissing = 0;
+    const inFlight = new Set();
 
-    let loaded = false;
-    if (cached?.bytes) {
-      try {
-        const parseStarted = performance.now();
-        const gltf = await parseGltfBytes(cached.bytes);
-        cacheParseMs += performance.now() - parseStarted;
-        if (generation !== loadGeneration) return;
-        addChunkObject(world, key.chunkX, key.chunkZ, gltf.scene);
-        cacheHits++;
-        completed++;
-        loaded = true;
-      } catch (error) {
-        console.warn(`Cached terrain parse failed for ${key.chunkX},${key.chunkZ}`, error);
-        logClientEvent('terrain_cache_parse_failed', {
-          chunkX: key.chunkX,
-          chunkZ: key.chunkZ,
-          error: error?.message ?? error,
+    const enqueueNext = () => {
+      if (nextMissing >= missing.length || generation !== loadGeneration) return;
+      const key = missing[nextMissing++];
+      const task = loadTerrainChunkData(world, key, generation)
+        .then((result) => {
+          if (result.cacheReadMs) cacheReadMs += result.cacheReadMs;
+          if (result.cacheParseMs) cacheParseMs += result.cacheParseMs;
+          if (result.cacheHit) cacheHits++;
+          if (result.cacheMiss) cacheMisses++;
+          if (result.network) networkChunks++;
+          promotionQueue.push(result);
+        })
+        .catch((error) => {
+          promotionQueue.push({
+            ok: false,
+            key,
+            error,
+            cacheReadMs: 0,
+            cacheParseMs: 0,
+            cacheHit: false,
+            cacheMiss: true,
+            network: false,
+          });
+        })
+        .finally(() => {
+          inFlight.delete(task);
         });
-      }
+      inFlight.add(task);
+    };
+
+    while (inFlight.size < TERRAIN_LOAD_CONCURRENCY && nextMissing < missing.length) {
+      enqueueNext();
     }
 
-    if (!loaded) {
-      cacheMisses++;
-      networkChunks++;
-      try {
-        loaded = await loadChunk(world, key.chunkX, key.chunkZ, generation);
-        completed++;
-        if (!loaded) {
-          failed++;
+    while ((inFlight.size > 0 || promotionQueue.length > 0) && generation === loadGeneration) {
+      while (inFlight.size < TERRAIN_LOAD_CONCURRENCY && nextMissing < missing.length) {
+        enqueueNext();
+      }
+
+      const promoted = promoteTerrainResults(promotionQueue, generation);
+      completed += promoted.completed;
+      failed += promoted.failed;
+      if (promoted.completed > 0 || promoted.failed > 0) {
+        setStatus(`Loaded ${completed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
+        maybeUpdateMetrics(true);
+        if (promoted.yielded) {
+          await yieldToMain();
+          continue;
         }
-      } catch (error) {
-        failed++;
-        console.warn(`Failed to load chunk ${key.chunkX},${key.chunkZ}`, error);
-        logClientEvent('terrain_stream_chunk_failed', {
-          world,
-          chunkX: key.chunkX,
-          chunkZ: key.chunkZ,
-          error: error?.message ?? error,
-        });
       }
-    } else if (mapTilesInput.checked) {
-      void loadMapTilesForKeys(world, [key], { immediate: true });
+
+      if (promotionQueue.length === 0 && inFlight.size > 0) {
+        await Promise.race([...inFlight]);
+      } else if (promotionQueue.length > 0) {
+        await yieldToMain();
+      }
     }
 
-    setStatus(`Loaded ${completed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
-    updateMetrics();
-    await yieldToMain();
-  }
+    if (generation !== loadGeneration) return;
 
   if (generation !== loadGeneration) return;
   retainOnly(world, retainKeys);
   activeCenterId = centerKey;
   requestedCenterId = null;
   syncMapTileLayer(mapRetainKeys);
+  if (mapTilesInput.checked) {
+    await loadMapTilesForKeys(world, needed, { immediate: true });
+  }
   updateMetrics();
   setStatus(failed === 0
     ? `Loaded ${needed.length} chunks around ${centerX}, ${centerZ}`
@@ -685,6 +710,118 @@ async function loadChunk(world, chunkX, chunkZ, generation) {
   addChunkObject(world, chunkX, chunkZ, gltf.scene);
   logClientTiming('terrain_single_load', started, { world, chunkX, chunkZ });
   return true;
+}
+
+async function loadTerrainChunkData(world, key, generation) {
+  const cacheKey = terrainCacheKey(world, key.chunkX, key.chunkZ);
+  const readStarted = performance.now();
+  const cached = await readTerrainCache(cacheKey);
+  const cacheReadMs = performance.now() - readStarted;
+
+  if (generation !== loadGeneration) {
+    return { ok: false, key, stale: true, cacheReadMs, cacheParseMs: 0, cacheHit: false, cacheMiss: false, network: false };
+  }
+
+  if (cached?.bytes) {
+    try {
+      const parseStarted = performance.now();
+      const gltf = await parseGltfBytes(cached.bytes);
+      return {
+        ok: true,
+        world,
+        key,
+        gltf,
+        source: 'cache',
+        cacheReadMs,
+        cacheParseMs: performance.now() - parseStarted,
+        cacheHit: true,
+        cacheMiss: false,
+        network: false,
+      };
+    } catch (error) {
+      console.warn(`Cached terrain parse failed for ${key.chunkX},${key.chunkZ}`, error);
+      logClientEvent('terrain_cache_parse_failed', {
+        chunkX: key.chunkX,
+        chunkZ: key.chunkZ,
+        error: error?.message ?? error,
+      });
+    }
+  }
+
+  const url = `/api/terrain/${encodeURIComponent(world)}/${key.chunkX}/${key.chunkZ}.glb`;
+  const started = performance.now();
+  const bytes = await fetchArrayBufferWithRetry(url);
+  const parseStarted = performance.now();
+    const gltf = await parseGltfBytes(bytes);
+  logClientTiming('terrain_single_load', started, { world, chunkX: key.chunkX, chunkZ: key.chunkZ });
+  return {
+    ok: true,
+    world,
+    key,
+    gltf,
+    bytes,
+    source: 'network',
+    cacheReadMs,
+    cacheParseMs: performance.now() - parseStarted,
+    cacheHit: false,
+    cacheMiss: true,
+    network: true,
+  };
+}
+
+function promoteTerrainResults(queue, generation) {
+  const started = performance.now();
+  let completed = 0;
+  let failed = 0;
+  let promoted = 0;
+
+  while (queue.length > 0 && generation === loadGeneration) {
+    if (
+      promoted >= TERRAIN_PROMOTIONS_PER_FRAME
+      || (promoted > 0 && performance.now() - started >= TERRAIN_PROMOTION_BUDGET_MS)
+    ) {
+      break;
+    }
+
+    const result = queue.shift();
+    if (result.stale) {
+      continue;
+    }
+    if (!result.ok) {
+      failed++;
+      console.warn(`Failed to load chunk ${result.key.chunkX},${result.key.chunkZ}`, result.error);
+      logClientEvent('terrain_stream_chunk_failed', {
+        world: worldSelect.value,
+        chunkX: result.key.chunkX,
+        chunkZ: result.key.chunkZ,
+        error: result.error?.message ?? result.error,
+      });
+      continue;
+    }
+
+    if (generation !== loadGeneration) {
+      break;
+    }
+    const resultWorld = result.world ?? worldSelect.value;
+    const id = chunkId(resultWorld, result.key.chunkX, result.key.chunkZ);
+    if (!loadedChunks.has(id)) {
+      addChunkObject(resultWorld, result.key.chunkX, result.key.chunkZ, result.gltf.scene);
+      if (result.bytes) {
+        writeTerrainCache(terrainCacheKey(resultWorld, result.key.chunkX, result.key.chunkZ), result.bytes.slice(0), { source: 'single' });
+      }
+      if (mapTilesInput.checked) {
+        void loadMapTilesForKeys(resultWorld, [result.key], { immediate: true });
+      }
+      promoted++;
+    }
+    completed++;
+  }
+
+  return {
+    completed,
+    failed,
+    yielded: queue.length > 0 && (completed > 0 || failed > 0),
+  };
 }
 
 function chunkWrapperName(chunkX, chunkZ) {
@@ -1027,7 +1164,7 @@ function updateMapTileLayer(options = {}) {
     void loadMapTilesForKeys(
       worldSelect.value,
       sortChunkKeysByPlayerDistance(keys, anchor.chunkX, anchor.chunkZ),
-      { immediate: true },
+      { immediate: true, replace: true },
     );
   }
 }
@@ -2225,7 +2362,7 @@ function animate() {
   updateCoordinates();
   updateWaterMaterials(scene, renderer, elapsedSeconds, camera);
   renderPostProcessing(postProcessing, renderer, scene, camera, deltaSeconds, elapsedSeconds);
-  updateMetrics();
+  maybeUpdateMetrics();
   maybeSaveViewState();
   requestAnimationFrame(animate);
 }
