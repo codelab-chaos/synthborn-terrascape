@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "defaults": {
+    "centerX": 0,
+    "centerZ": 0,
+    "modes": ["wet"],
+    "stepSettleMs": 250,
+    "world": "default"
+  },
+  "thresholds": {},
+  "serverMeshProbe": { "enabled": false },
+  "scenarios": [
+    {
+      "id": "map-tiles-focus",
+      "label": "Map region pan benchmark",
+      "features": {
+        "mapTiles": true,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "auto": false
+      },
+      "radius": 1,
+      "steps": 4,
+      "modes": ["wet"]
+    }
+  ]
+}
