@@ -1,6 +1,7 @@
 const { defineConfig, devices } = require('@playwright/test');
+const { resolveWorldviewUrl } = require('../../tools/library/remote-host');
 
-const baseURL = process.env.WORLDVIEW_URL || 'http://127.0.0.1:5960';
+const baseURL = resolveWorldviewUrl();
 
 module.exports = defineConfig({
   testDir: './tests',

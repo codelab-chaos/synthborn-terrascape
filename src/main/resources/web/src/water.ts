@@ -318,6 +318,13 @@ function updateWaterReflection(scene, renderer, camera) {
   }
 }
 
+/** Fixed Y where per-chunk map tiles meet the voxel water surface (pre-instancer value). */
+export const MAP_BACKDROP_Y = 112;
+
+export function resolveMapBackdropY() {
+  return MAP_BACKDROP_Y;
+}
+
 function estimateWaterY() {
   let y = 0;
   let count = 0;

@@ -9,9 +9,12 @@ const {
   runMeshProbe,
   readReportFile,
   compareRuns,
+  analyzeFeatureIsolation,
   printRunSummary,
   printRunComparison,
+  printFeatureIsolation,
 } = require('./library/perf-suite');
+const { resolveWorldviewUrl } = require('../../../tools/library/remote-host');
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const projectRoot = path.resolve(__dirname, '..');
@@ -32,6 +35,8 @@ const options = {
   centerZ: null,
   radius: null,
   steps: null,
+  flyChunks: null,
+  flySampleMs: null,
   configPath: DEFAULT_CONFIG_PATH,
   reportDir: path.join(projectRoot, 'perf-history'),
 };
@@ -56,6 +61,9 @@ for (let i = 0; i < args.length; i++) {
       break;
     case '--extensive':
       options.suite = 'extensive';
+      break;
+    case '--quick':
+      options.suite = 'quick';
       break;
     case '--runs':
       options.runs = Math.max(1, Number.parseInt(args[++i] ?? '1', 10) || 1);
@@ -100,6 +108,12 @@ for (let i = 0; i < args.length; i++) {
     case '--steps':
       options.steps = args[++i] ?? null;
       break;
+    case '--fly-chunks':
+      options.flyChunks = args[++i] ?? null;
+      break;
+    case '--fly-sample-ms':
+      options.flySampleMs = args[++i] ?? null;
+      break;
     case '--help':
       usage(0);
       break;
@@ -114,15 +128,18 @@ if (!['wet', 'dry', 'both'].includes(options.mode)) {
   usage(1);
 }
 
-const isExtensive = options.suite === 'extensive';
+const isSuiteRun = options.suite === 'extensive' || options.suite === 'quick';
 let suiteConfig = null;
 let scenariosPayload = null;
 
-if (isExtensive) {
-  const loaded = loadPerfSuiteConfig(options.configPath);
+if (isSuiteRun) {
+  const configPath = options.suite === 'quick'
+    ? path.join(projectRoot, 'tools', 'perf-suite-smoothness-gate.json')
+    : options.configPath;
+  const loaded = loadPerfSuiteConfig(configPath);
   suiteConfig = loaded.config;
-  scenariosPayload = buildScenariosPayload(suiteConfig);
-  console.log(`Perf suite: extensive (${scenariosPayload.length} scenarios from ${loaded.configPath})`);
+  scenariosPayload = applyFlyOverrides(buildScenariosPayload(suiteConfig), options);
+  console.log(`Perf suite: ${options.suite} (${scenariosPayload.length} scenarios from ${loaded.configPath})`);
 } else {
   console.log('Perf suite: default (legacy single scenario)');
 }
@@ -134,7 +151,7 @@ if (options.deploy) {
   run(isWindows ? '.\\gradlew.bat' : './gradlew', ['deploy'], projectRoot);
 }
 
-const baseUrl = process.env.WORLDVIEW_URL ?? 'http://127.0.0.1:5960';
+const baseUrl = resolveWorldviewUrl();
 const runReports = [];
 
 for (let runIndex = 1; runIndex <= options.runs; runIndex++) {
@@ -147,7 +164,7 @@ for (let runIndex = 1; runIndex <= options.runs; runIndex++) {
   }
 
   let meshProbe = null;
-  if (isExtensive && suiteConfig?.serverMeshProbe?.enabled) {
+  if (isSuiteRun && suiteConfig?.serverMeshProbe?.enabled) {
     const probe = suiteConfig.serverMeshProbe;
     if (probe.clearCacheBefore) {
       clearServerCache();
@@ -164,7 +181,7 @@ for (let runIndex = 1; runIndex <= options.runs; runIndex++) {
     });
   }
 
-  console.log(`\n== browser perf ${runId}`);
+  console.log(`\n== browser perf ${runId} (${baseUrl})`);
   runPlaywright({
     runId,
     reportFile,
@@ -179,6 +196,13 @@ for (let runIndex = 1; runIndex <= options.runs; runIndex++) {
   runReports.push(report);
   if (suiteConfig) {
     printRunSummary(report, suiteConfig);
+    if (suiteConfig.featureIsolation) {
+      const analysis = analyzeFeatureIsolation(report, suiteConfig);
+      printFeatureIsolation(analysis);
+      const analysisFile = path.join(options.reportDir, 'feature-isolation-analysis.json');
+      fs.writeFileSync(analysisFile, `${JSON.stringify(analysis, null, 2)}\n`, 'utf8');
+      console.log(`\nFeature analysis written: ${analysisFile}`);
+    }
   } else {
     printRunSummary(report, { thresholds: {} });
   }
@@ -208,6 +232,7 @@ function runPlaywright({ runId, reportFile, scenariosPayload }) {
 
   const env = {
     ...process.env,
+    WORLDVIEW_URL: baseUrl,
     WORLDVIEW_PERF_MODE: options.mode,
     WORLDVIEW_PERF_ENFORCE: options.enforce ? '1' : (process.env.WORLDVIEW_PERF_ENFORCE ?? ''),
     WORLDVIEW_PERF_RUN_ID: runId,
@@ -218,11 +243,26 @@ function runPlaywright({ runId, reportFile, scenariosPayload }) {
   if (options.centerZ) env.WORLDVIEW_PERF_CENTER_Z = options.centerZ;
   if (options.radius) env.WORLDVIEW_PERF_RADIUS = options.radius;
   if (options.steps) env.WORLDVIEW_PERF_STEPS = options.steps;
+  if (options.flyChunks) env.WORLDVIEW_PERF_FLY_CHUNKS = options.flyChunks;
+  if (options.flySampleMs) env.WORLDVIEW_PERF_FLY_SAMPLE_MS = options.flySampleMs;
   if (scenariosPayload) {
     env.WORLDVIEW_PERF_SCENARIOS = JSON.stringify(scenariosPayload);
   }
 
   run(playwright, playwrightArgs, projectRoot, env);
+}
+
+function applyFlyOverrides(scenarios, opts) {
+  const flyChunks = opts.flyChunks != null ? Number.parseInt(opts.flyChunks, 10) : null;
+  const flySampleMs = opts.flySampleMs != null ? Number.parseInt(opts.flySampleMs, 10) : null;
+  if (!Number.isFinite(flyChunks) && !Number.isFinite(flySampleMs)) {
+    return scenarios;
+  }
+  return scenarios.map((scenario) => ({
+    ...scenario,
+    ...(Number.isFinite(flyChunks) ? { flyChunks } : {}),
+    ...(Number.isFinite(flySampleMs) ? { flySampleMs } : {}),
+  }));
 }
 
 function clearServerCache() {
@@ -261,6 +301,8 @@ Options:
   --suite default        Legacy single-scenario route. Default.
   --suite extensive      Run the scenario matrix from tools/perf-suite-config.json.
   --extensive            Alias for --suite extensive.
+  --quick                One fast dry pass at default settings (smoothness-gate).
+  --suite quick          Same as --quick.
   --runs N               Repeat the suite N times and compare (default 1).
   --config PATH          Perf suite config JSON (default tools/perf-suite-config.json).
   --report-dir PATH      Where run JSON reports are written (default perf-history/).
@@ -275,6 +317,9 @@ Options:
   --center-z N           Legacy route center chunk Z. Default 0.
   --radius N             Legacy mesh radius. Default 10.
   --steps N              Legacy chunks to navigate in each direction. Default 4.
+  Fly movement (also in perf-suite-config.json defaults):
+  --fly-chunks N         WASD fly distance per leg. Default 6 chunks.
+  --fly-sample-ms N      FPS poll interval during fly legs. Default 100.
 
 Thresholds and scenario matrix live in tools/perf-suite-config.json.
 Edit regressionFactor per scenario and thresholds.totalMs / minFps / mapBackdropLoadMs there.

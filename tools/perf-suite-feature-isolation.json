@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "featureIsolation": {
+    "baselineId": "minimum",
+    "referenceId": "full-default",
+    "mode": "dry"
+  },
+  "defaults": {
+    "centerX": 0,
+    "centerZ": 0,
+    "radius": 3,
+    "steps": 0,
+    "modes": ["dry"],
+    "flyChunks": 6,
+    "flyLegs": true,
+    "flyDirections": "east-west",
+    "flySprint": false,
+    "flySampleMs": 100,
+    "stepSettleMs": 100,
+    "world": "default",
+    "features": {
+      "mapTiles": false,
+      "players": false,
+      "mobs": false,
+      "sun": false,
+      "shade": false,
+      "mapTime": false,
+      "bounds": false,
+      "water": "hidden",
+      "shader": "none",
+      "auto": false
+    }
+  },
+  "thresholds": {},
+  "serverMeshProbe": { "enabled": false },
+  "scenarios": [
+    {
+      "id": "minimum",
+      "label": "Bare mesh (all visual features off)"
+    },
+    {
+      "id": "plus-map-tiles",
+      "label": "Minimum + map tiles",
+      "features": { "mapTiles": true, "water": "solid" }
+    },
+    {
+      "id": "plus-shade",
+      "label": "Minimum + tree shade",
+      "features": { "shade": true, "water": "solid" }
+    },
+    {
+      "id": "plus-sun",
+      "label": "Minimum + sun lighting",
+      "features": { "sun": true, "water": "solid" }
+    },
+    {
+      "id": "plus-water-shader",
+      "label": "Minimum + water shader",
+      "features": { "water": "shader" }
+    },
+    {
+      "id": "plus-post-shader",
+      "label": "Minimum + vignette post-shader",
+      "features": { "shader": "vignette", "water": "solid" }
+    },
+    {
+      "id": "full-default",
+      "label": "Full default visuals",
+      "features": {
+        "mapTiles": true,
+        "sun": true,
+        "shade": true,
+        "water": "solid",
+        "shader": "none"
+      }
+    },
+    {
+      "id": "full-no-map",
+      "label": "Full default minus map tiles",
+      "features": {
+        "mapTiles": false,
+        "sun": true,
+        "shade": true,
+        "water": "solid",
+        "shader": "none"
+      }
+    },
+    {
+      "id": "full-no-shade",
+      "label": "Full default minus tree shade",
+      "features": {
+        "mapTiles": true,
+        "sun": true,
+        "shade": false,
+        "water": "solid",
+        "shader": "none"
+      }
+    },
+    {
+      "id": "full-no-sun",
+      "label": "Full default minus sun lighting",
+      "features": {
+        "mapTiles": true,
+        "sun": false,
+        "shade": true,
+        "water": "solid",
+        "shader": "none"
+      }
+    }
+  ]
+}

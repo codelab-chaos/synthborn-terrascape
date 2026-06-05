@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "defaults": {
+    "centerX": 0,
+    "centerZ": 0,
+    "modes": ["wet"],
+    "stepSettleMs": 100,
+    "flyChunks": 6,
+    "flyLegs": true,
+    "flySprint": false,
+    "flySampleMs": 100,
+    "world": "default"
+  },
+  "thresholds": {},
+  "serverMeshProbe": { "enabled": false },
+  "scenarios": [
+    {
+      "id": "fly-mesh",
+      "label": "Fly movement terrain stream (radius 3, no map tiles)",
+      "features": {
+        "mapTiles": false,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "auto": false
+      },
+      "radius": 3,
+      "steps": 1,
+      "modes": ["wet"]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "defaults": {
+    "centerX": 0,
+    "centerZ": 0,
+    "modes": ["dry"],
+    "stepSettleMs": 100,
+    "flyChunks": 6,
+    "flyLegs": true,
+    "world": "default"
+  },
+  "thresholds": {},
+  "serverMeshProbe": { "enabled": false },
+  "scenarios": [
+    {
+      "id": "fly-mesh",
+      "label": "Fly movement warm cache (radius 3)",
+      "features": {
+        "mapTiles": false,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "auto": false
+      },
+      "radius": 3,
+      "steps": 1,
+      "modes": ["dry"]
+    }
+  ]
+}

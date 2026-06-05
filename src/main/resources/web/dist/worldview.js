@@ -25,19 +25,25 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var three_addons_controls_OrbitControls_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! three/addons/controls/OrbitControls.js */ "three/addons/controls/OrbitControls.js");
 /* harmony import */ var three_addons_loaders_GLTFLoader_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! three/addons/loaders/GLTFLoader.js */ "three/addons/loaders/GLTFLoader.js");
 /* harmony import */ var _chunk_debug_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./chunk-debug.js */ "./src/main/resources/web/src/chunk-debug.ts");
-/* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/dom.ts");
-/* harmony import */ var _lighting_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./lighting.js */ "./src/main/resources/web/src/lighting.ts");
-/* harmony import */ var _client_log_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./client-log.js */ "./src/main/resources/web/src/client-log.ts");
-/* harmony import */ var _fps_counter_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./fps-counter.js */ "./src/main/resources/web/src/fps-counter.ts");
-/* harmony import */ var _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./map-backdrop.js */ "./src/main/resources/web/src/map-backdrop.ts");
-/* harmony import */ var _npc_catalog_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./npc-catalog.js */ "./src/main/resources/web/src/npc-catalog.ts");
-/* harmony import */ var _player_tiles_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./player-tiles.js */ "./src/main/resources/web/src/player-tiles.ts");
-/* harmony import */ var _postprocessing_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./postprocessing.js */ "./src/main/resources/web/src/postprocessing.ts");
-/* harmony import */ var _time_ribbon_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./time-ribbon.js */ "./src/main/resources/web/src/time-ribbon.ts");
-/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./utils.js */ "./src/main/resources/web/src/utils.ts");
-/* harmony import */ var _view_state_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./view-state.js */ "./src/main/resources/web/src/view-state.ts");
-/* harmony import */ var _water_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./water.js */ "./src/main/resources/web/src/water.ts");
-/* harmony import */ var _mesh_cache_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./mesh-cache.js */ "./src/main/resources/web/src/mesh-cache.ts");
+/* harmony import */ var _chunk_placeholder_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./chunk-placeholder.js */ "./src/main/resources/web/src/chunk-placeholder.ts");
+/* harmony import */ var _library_chunk_land_motion_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./library/chunk-land-motion.js */ "./src/main/resources/web/src/library/chunk-land-motion.ts");
+/* harmony import */ var _frame_jank_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./frame-jank.js */ "./src/main/resources/web/src/frame-jank.ts");
+/* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/dom.ts");
+/* harmony import */ var _lighting_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./lighting.js */ "./src/main/resources/web/src/lighting.ts");
+/* harmony import */ var _client_log_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./client-log.js */ "./src/main/resources/web/src/client-log.ts");
+/* harmony import */ var _fps_counter_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./fps-counter.js */ "./src/main/resources/web/src/fps-counter.ts");
+/* harmony import */ var _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./map-backdrop.js */ "./src/main/resources/web/src/map-backdrop.ts");
+/* harmony import */ var _npc_catalog_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./npc-catalog.js */ "./src/main/resources/web/src/npc-catalog.ts");
+/* harmony import */ var _player_tiles_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./player-tiles.js */ "./src/main/resources/web/src/player-tiles.ts");
+/* harmony import */ var _postprocessing_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./postprocessing.js */ "./src/main/resources/web/src/postprocessing.ts");
+/* harmony import */ var _time_ribbon_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./time-ribbon.js */ "./src/main/resources/web/src/time-ribbon.ts");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./utils.js */ "./src/main/resources/web/src/utils.ts");
+/* harmony import */ var _view_state_js__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./view-state.js */ "./src/main/resources/web/src/view-state.ts");
+/* harmony import */ var _water_js__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./water.js */ "./src/main/resources/web/src/water.ts");
+/* harmony import */ var _mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./mesh-cache.js */ "./src/main/resources/web/src/mesh-cache.ts");
+
+
+
 
 
 
@@ -58,13 +64,24 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const SKY_COLOR = 0x173454;
-const GRID_AXIS_COLOR = 0x58616a;
-const GRID_LINE_COLOR = 0x343b42;
+const EMPTY_GRID_AXIS_COLOR = 0x1faa6a;
+const EMPTY_GRID_LINE_COLOR = 0x15965a;
 const EMPTY_GRID_SIZE = 1024;
 const EMPTY_GRID_DIVISIONS = 128;
 const EMPTY_GRID_CHUNK_SNAP = 32;
 const EMPTY_GRID_Y = 96;
-const TERRAIN_BATCH_SIZE = 16;
+const AUTO_STREAM_DEBOUNCE_MS = 250;
+const AUTO_STREAM_RETAIN_MARGIN = 1;
+function yieldToMain() {
+    return new Promise((resolve) => {
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => resolve());
+        }
+        else {
+            setTimeout(resolve, 0);
+        }
+    });
+}
 const DEFAULT_PLAYER_UPDATE_RATE_MS = 1000;
 const FOCUSED_PLAYER_POLL_MIN_MS = 1000;
 const EMPTY_PLAYER_POLL_MS = 15000;
@@ -95,7 +112,7 @@ const NOON_LIGHTING_TIME = {
     phase: 'noon',
     sunDirection: { x: 0.2, y: -1, z: 0.25 },
 };
-const renderer = new three__WEBPACK_IMPORTED_MODULE_0__.WebGLRenderer({ canvas: _dom_js__WEBPACK_IMPORTED_MODULE_5__.canvas, antialias: true });
+const renderer = new three__WEBPACK_IMPORTED_MODULE_0__.WebGLRenderer({ canvas: _dom_js__WEBPACK_IMPORTED_MODULE_8__.canvas, antialias: true });
 const rendererPixelRatio = Math.min(window.devicePixelRatio, 2);
 renderer.setPixelRatio(rendererPixelRatio);
 renderer.setClearColor(SKY_COLOR, 1);
@@ -129,18 +146,18 @@ const FOLLOW_MOUSE_BUTTONS = {
     MIDDLE: three__WEBPACK_IMPORTED_MODULE_0__.MOUSE.PAN,
     RIGHT: three__WEBPACK_IMPORTED_MODULE_0__.MOUSE.DOLLY,
 };
-const lightingRig = (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.createLightingRig)(scene, SKY_COLOR);
-const postProcessing = (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_12__.createPostProcessing)(renderer, scene, camera);
-const fpsCounter = (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_8__.createFpsCounter)(scene, camera, renderer);
-const npcCatalog = (0,_npc_catalog_js__WEBPACK_IMPORTED_MODULE_10__.createNpcCatalog)({ logClientEvent: _client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent });
-const timeRibbon = (0,_time_ribbon_js__WEBPACK_IMPORTED_MODULE_13__.createTimeRibbon)({
-    labelEl: _dom_js__WEBPACK_IMPORTED_MODULE_5__.timeCycleLabelEl,
-    sceneEl: _dom_js__WEBPACK_IMPORTED_MODULE_5__.skySceneEl,
-    sunEl: _dom_js__WEBPACK_IMPORTED_MODULE_5__.skySunEl,
-    moonEl: _dom_js__WEBPACK_IMPORTED_MODULE_5__.skyMoonEl,
-    starsEl: _dom_js__WEBPACK_IMPORTED_MODULE_5__.skyStarsEl,
+const lightingRig = (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.createLightingRig)(scene, SKY_COLOR);
+const postProcessing = (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.createPostProcessing)(renderer, scene, camera);
+const fpsCounter = (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_11__.createFpsCounter)(scene, camera, renderer);
+const npcCatalog = (0,_npc_catalog_js__WEBPACK_IMPORTED_MODULE_13__.createNpcCatalog)({ logClientEvent: _client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent });
+const timeRibbon = (0,_time_ribbon_js__WEBPACK_IMPORTED_MODULE_16__.createTimeRibbon)({
+    labelEl: _dom_js__WEBPACK_IMPORTED_MODULE_8__.timeCycleLabelEl,
+    sceneEl: _dom_js__WEBPACK_IMPORTED_MODULE_8__.skySceneEl,
+    sunEl: _dom_js__WEBPACK_IMPORTED_MODULE_8__.skySunEl,
+    moonEl: _dom_js__WEBPACK_IMPORTED_MODULE_8__.skyMoonEl,
+    starsEl: _dom_js__WEBPACK_IMPORTED_MODULE_8__.skyStarsEl,
 });
-const grid = new three__WEBPACK_IMPORTED_MODULE_0__.GridHelper(EMPTY_GRID_SIZE, EMPTY_GRID_DIVISIONS, GRID_AXIS_COLOR, GRID_LINE_COLOR);
+const grid = new three__WEBPACK_IMPORTED_MODULE_0__.GridHelper(EMPTY_GRID_SIZE, EMPTY_GRID_DIVISIONS, EMPTY_GRID_AXIS_COLOR, EMPTY_GRID_LINE_COLOR);
 for (const material of Array.isArray(grid.material) ? grid.material : [grid.material]) {
     material.transparent = true;
     material.opacity = 0.42;
@@ -150,6 +167,9 @@ for (const material of Array.isArray(grid.material) ? grid.material : [grid.mate
 grid.renderOrder = -50;
 scene.add(grid);
 const loader = new three_addons_loaders_GLTFLoader_js__WEBPACK_IMPORTED_MODULE_3__.GLTFLoader();
+const chunkPlaceholderManager = (0,_chunk_placeholder_js__WEBPACK_IMPORTED_MODULE_5__.createChunkPlaceholderManager)(scene);
+const chunkLandMotion = (0,_library_chunk_land_motion_js__WEBPACK_IMPORTED_MODULE_6__.createChunkLandMotion)();
+const frameJank = (0,_frame_jank_js__WEBPACK_IMPORTED_MODULE_7__.createFrameJankRecorder)();
 const loadedChunks = new Map();
 const playerMarkers = new Map();
 const playerTiles = new Map();
@@ -161,13 +181,15 @@ const disposalStats = {
     textures: 0,
 };
 let loadGeneration = 0;
+let lastGridLoadTiming = null;
+let lastTerrainStreamTiming = null;
 let hasFocusedInitialGrid = false;
 let activeCenterId = null;
 let requestedCenterId = null;
 let scheduledCenterId = null;
 let mapTileLayerKey = null;
-let mapTileCoverageDirty = true;
 let streamTimer = null;
+let gridLoadCount = 0;
 let controlLoadTimer = null;
 let playerPollTimer = null;
 let mobPollTimer = null;
@@ -182,7 +204,7 @@ const clock = new three__WEBPACK_IMPORTED_MODULE_0__.Clock();
 const initialParams = new URLSearchParams(window.location.search);
 let experimentalDetailsEnabled = false;
 let terrainFormatVersion = 'unknown';
-let storedViewState = (0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.loadStoredViewState)();
+let storedViewState = (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.loadStoredViewState)();
 let hasRestoredCameraPose = false;
 let hasStarted = false;
 let lastViewStateSave = 0;
@@ -215,38 +237,43 @@ const tempFlyMove = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempFlyZoom = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempFlyEuler = new three__WEBPACK_IMPORTED_MODULE_0__.Euler(0, 0, 0, 'YXZ');
 function currentLightingOptions() {
-    return (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.lightingOptionsFromInputs)({
-        sunLightingInput: _dom_js__WEBPACK_IMPORTED_MODULE_5__.sunLightingInput,
-        treeShadeInput: _dom_js__WEBPACK_IMPORTED_MODULE_5__.treeShadeInput,
-        shadeSizeInput: _dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeSizeValueInput,
-        shadeDarknessInput: _dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeDarknessValueInput,
-        time: _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTimeInput.checked ? worldTime : NOON_LIGHTING_TIME,
+    return (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.lightingOptionsFromInputs)({
+        sunLightingInput: _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput,
+        treeShadeInput: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput,
+        shadeSizeInput: _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput,
+        shadeDarknessInput: _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput,
+        time: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked ? worldTime : NOON_LIGHTING_TIME,
     });
 }
 function setStatus(text) {
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.statusEl.textContent = text;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.statusEl.textContent = text;
+}
+function mapTileRetainRadius(terrainRadius, streamLoad = false) {
+    return streamLoad
+        ? terrainRadius + AUTO_STREAM_RETAIN_MARGIN + _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.MAP_HORIZON_MARGIN
+        : terrainRadius + _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.MAP_HORIZON_MARGIN;
 }
 function updateMetrics() {
     const loaded = loadedChunks.size;
     const center = activeCenterId ? activeCenterId.split(':').slice(1).join(', ') : 'pending';
     const resources = collectResourceStats();
     const rendererMemory = renderer.info.memory;
-    const mapBackdrop = (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.mapBackdropStats)();
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.metricLoadedEl.textContent = `${loaded} chunk${loaded === 1 ? '' : 's'}`
-        + (mapBackdrop.loaded > 0
-            ? ` · map backdrop ${mapBackdrop.chunks}x${mapBackdrop.chunks}`
-                + (mapBackdrop.bytes > 0 ? ` ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatBytes)(mapBackdrop.bytes)}` : '')
-                + (mapBackdrop.loadMs > 0 ? ` ${Math.round(mapBackdrop.loadMs)}ms` : '')
+    const mapBackdrop = (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapBackdropStats)();
+    const mapTiles = (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapTileSceneStats)();
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricLoadedEl.textContent = `${loaded} chunk${loaded === 1 ? '' : 's'}`
+        + (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked && mapTiles.meshCount > 0
+            ? ` · map ${mapTiles.visibleCount}/${mapTiles.meshCount}`
+                + (mapTiles.bytes > 0 ? ` ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatBytes)(mapTiles.bytes)}` : '')
             : '');
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.metricMeshesEl.textContent = `${resources.meshes}`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.metricResourcesEl.textContent = `${resources.geometries} geo · ${resources.materials} mat · ${resources.textures} tex`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.metricGpuEl.textContent = `${rendererMemory.geometries} geo · ${rendererMemory.textures} tex`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.metricDisposedEl.textContent = `${disposalStats.chunks}c · ${disposalStats.geometries}g · ${disposalStats.materials}m · ${disposalStats.textures}t`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.metricMobsEl.textContent = mobMetricText();
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.metricCenterEl.textContent = center;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricMeshesEl.textContent = `${resources.meshes}`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricResourcesEl.textContent = `${resources.geometries} geo · ${resources.materials} mat · ${resources.textures} tex`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricGpuEl.textContent = `${rendererMemory.geometries} geo · ${rendererMemory.textures} tex`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricDisposedEl.textContent = `${disposalStats.chunks}c · ${disposalStats.geometries}g · ${disposalStats.materials}m · ${disposalStats.textures}t`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricMobsEl.textContent = mobMetricText();
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricCenterEl.textContent = center;
 }
 function mobMetricText() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
         return 'hidden';
     }
     const summary = summarizeMobTypes();
@@ -271,90 +298,93 @@ async function loadWorlds() {
     const data = await response.json();
     experimentalDetailsEnabled = data.features?.experimentalDetails === true;
     terrainFormatVersion = data.features?.terrainFormatVersion ?? terrainFormatVersion;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.experimentalDetailsStateEl.textContent = experimentalDetailsEnabled
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.experimentalDetailsStateEl.textContent = experimentalDetailsEnabled
         ? 'Detailed trees: server on'
         : 'Detailed trees: server off';
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.experimentalDetailsStateEl.classList.toggle('enabled', experimentalDetailsEnabled);
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.replaceChildren();
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.experimentalDetailsStateEl.classList.toggle('enabled', experimentalDetailsEnabled);
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.replaceChildren();
     for (const world of data.worlds ?? []) {
         const option = document.createElement('option');
         option.value = world.name;
         option.textContent = world.name;
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.append(option);
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.append(option);
     }
     applyStoredWorld();
     applyInitialWorldParam();
-    setStatus(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value ? 'Ready' : 'No worlds found');
+    setStatus(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value ? 'Ready' : 'No worlds found');
 }
 function applyInitialParams() {
     applyStoredInputs();
-    applyNumberParam('chunkX', _dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkXInput);
-    applyNumberParam('chunkZ', _dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkZInput);
-    applyNumberParam('radius', _dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput);
-    applyBooleanParam('auto', _dom_js__WEBPACK_IMPORTED_MODULE_5__.autoStreamInput);
-    applyBooleanParam('bounds', _dom_js__WEBPACK_IMPORTED_MODULE_5__.debugBoundsInput);
-    applyBooleanParam('players', _dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput);
-    applyBooleanParam('mobs', _dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput);
-    applyBooleanParam('sun', _dom_js__WEBPACK_IMPORTED_MODULE_5__.sunLightingInput);
-    applyBooleanParam('shade', _dom_js__WEBPACK_IMPORTED_MODULE_5__.treeShadeInput);
-    applyBooleanParam('mapTiles', _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput);
-    applyBooleanParam('mapTime', _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTimeInput);
-    applyFloatParam('shadeSize', _dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeSizeValueInput);
-    applyFloatParam('shadeDarkness', _dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeDarknessValueInput);
-    applySelectParam('water', _dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput);
-    applySelectParam('shader', _dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput);
-    applySelectParam('playerRate', _dom_js__WEBPACK_IMPORTED_MODULE_5__.playerUpdateRateInput);
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_12__.setShaderEffect)(postProcessing, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput.value);
+    applyNumberParam('chunkX', _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput);
+    applyNumberParam('chunkZ', _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput);
+    applyNumberParam('radius', _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput);
+    applyBooleanParam('auto', _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput);
+    applyBooleanParam('bounds', _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput);
+    applyBooleanParam('players', _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput);
+    applyBooleanParam('mobs', _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput);
+    applyBooleanParam('sun', _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput);
+    applyBooleanParam('shade', _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput);
+    applyBooleanParam('mapTiles', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput);
+    applyBooleanParam('landMotion', _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput);
+    applyBooleanParam('mapTime', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput);
+    applyFloatParam('shadeSize', _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput);
+    applyFloatParam('shadeDarkness', _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput);
+    applySelectParam('water', _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput);
+    applySelectParam('shader', _dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput);
+    applySelectParam('playerRate', _dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput);
+    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.setShaderEffect)(postProcessing, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput.value);
     applyLighting();
 }
 function applyStoredInputs() {
     if (!storedViewState)
         return;
-    setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkXInput, storedViewState.chunkX);
-    setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkZInput, storedViewState.chunkZ);
-    setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput, storedViewState.radius);
+    setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput, storedViewState.chunkX);
+    setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput, storedViewState.chunkZ);
+    setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput, storedViewState.radius);
     if (typeof storedViewState.auto === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.autoStreamInput.checked = storedViewState.auto;
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked = storedViewState.auto;
     if (typeof storedViewState.bounds === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.debugBoundsInput.checked = storedViewState.bounds;
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked = storedViewState.bounds;
     if (typeof storedViewState.players === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.checked = storedViewState.players;
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked = storedViewState.players;
     if (typeof storedViewState.mobs === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked = storedViewState.mobs;
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked = storedViewState.mobs;
     if (typeof storedViewState.sun === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.sunLightingInput.checked = storedViewState.sun;
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput.checked = storedViewState.sun;
     if (typeof storedViewState.shade === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.treeShadeInput.checked = storedViewState.shade;
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked = storedViewState.shade;
     if (typeof storedViewState.mapTime === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTimeInput.checked = storedViewState.mapTime;
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked = storedViewState.mapTime;
     if (typeof storedViewState.mapTiles === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput.checked = storedViewState.mapTiles;
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked = storedViewState.mapTiles;
+    if (typeof storedViewState.landMotion === 'boolean')
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked = storedViewState.landMotion;
     if (typeof storedViewState.renderDetails === 'boolean')
         setRenderDetailsOpen(storedViewState.renderDetails);
-    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeSizeValueInput, storedViewState.shadeSize);
-    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeDarknessValueInput, storedViewState.shadeDarkness);
+    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput, storedViewState.shadeSize);
+    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput, storedViewState.shadeDarkness);
     if (typeof storedViewState.water === 'string') {
-        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput, storedViewState.water);
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput, storedViewState.water);
     }
     if (typeof storedViewState.shader === 'string') {
-        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput, storedViewState.shader);
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput, storedViewState.shader);
     }
     if (typeof storedViewState.playerRate === 'string') {
-        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.playerUpdateRateInput, storedViewState.playerRate);
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput, storedViewState.playerRate);
     }
 }
 function applyStoredWorld() {
     if (!storedViewState?.world)
         return;
-    applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect, storedViewState.world);
+    applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect, storedViewState.world);
 }
 function applyInitialWorldParam() {
     const world = initialParams.get('world');
     if (!world)
         return;
-    for (const option of _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.options) {
+    for (const option of _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.options) {
         if (option.value === world) {
-            _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value = world;
+            _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value = world;
             return;
         }
     }
@@ -428,29 +458,44 @@ function normalizePairedValue(input, value) {
     return Number.parseFloat(normalized.toFixed(4));
 }
 async function loadGrid(options = {}) {
+    gridLoadCount++;
     const gridStarted = performance.now();
-    const world = _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value;
-    const centerX = options.centerX ?? Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkXInput.value, 10);
-    const centerZ = options.centerZ ?? Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkZInput.value, 10);
-    const radius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value, 10), 0));
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value = radius;
+    const world = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
+    const centerX = options.centerX ?? Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10);
+    const centerZ = options.centerZ ?? Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10);
+    const radius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10), 0));
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value = radius;
     if (!world || Number.isNaN(centerX) || Number.isNaN(centerZ)) {
         setStatus('Choose a world and integer chunk coordinates');
         return;
     }
     const generation = ++loadGeneration;
-    const centerKey = (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.centerId)(world, centerX, centerZ);
+    pruneOrphanChunkWrappers();
+    const centerKey = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.centerId)(world, centerX, centerZ);
     requestedCenterId = centerKey;
     scheduledCenterId = null;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkXInput.value = centerX;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkZInput.value = centerZ;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value = centerX;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value = centerZ;
     if (options.focus === true && !hasFocusedInitialGrid) {
         focusGrid(centerX, centerZ, radius);
         hasFocusedInitialGrid = true;
     }
     const needed = chunkKeys(centerX, centerZ, radius);
-    retainOnly(world, needed);
-    updateMapTileLayer({ force: true });
+    const retainKeys = options.streamLoad === true
+        ? chunkKeys(centerX, centerZ, radius + AUTO_STREAM_RETAIN_MARGIN)
+        : needed;
+    const mapRetainRadius = mapTileRetainRadius(radius, options.streamLoad === true);
+    const mapRetainKeys = chunkKeys(centerX, centerZ, mapRetainRadius);
+    const streamAnchor = playerChunk();
+    retainOnly(world, retainKeys);
+    syncMapTileLayer(mapRetainKeys);
+    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
+        const neededKeySet = new Set(needed.map((key) => `${key.chunkX}:${key.chunkZ}`));
+        const horizonMapKeys = mapRetainKeys.filter((key) => !neededKeySet.has(`${key.chunkX}:${key.chunkZ}`));
+        if (horizonMapKeys.length > 0) {
+            void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(world, sortChunkKeysByPlayerDistance(horizonMapKeys, streamAnchor.chunkX, streamAnchor.chunkZ), { immediate: true });
+        }
+    }
     updateMetrics();
     setStatus(`Loading ${needed.length} chunks around ${centerX}, ${centerZ}`);
     let completed = 0;
@@ -470,273 +515,140 @@ async function loadGrid(options = {}) {
             missing.push(key);
         }
     }
-    const networkMissing = [];
-    const cacheReadStarted = performance.now();
-    for (const key of missing) {
-        if (generation !== loadGeneration)
-            return;
-        const cacheKey = terrainCacheKey(world, key.chunkX, key.chunkZ);
-        const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_17__.readTerrainCache)(cacheKey);
-        if (!cached?.bytes) {
-            cacheMisses++;
-            networkMissing.push(key);
-            continue;
-        }
-        try {
-            const parseStarted = performance.now();
-            const gltf = await parseGltfBytes(cached.bytes);
-            cacheParseMs += performance.now() - parseStarted;
+    chunkPlaceholderManager.sync(world, needed, new Set(loadedChunks.keys()));
+    frameJank.setActiveLoadKind('grid');
+    if (missing.length > 1) {
+        missing.splice(0, missing.length, ...sortChunkKeysByPlayerDistance(missing, streamAnchor.chunkX, streamAnchor.chunkZ));
+    }
+    try {
+        let networkChunks = 0;
+        for (const key of missing) {
             if (generation !== loadGeneration)
                 return;
-            addChunkObject(world, key.chunkX, key.chunkZ, gltf.scene);
-            cacheHits++;
-            completed++;
-        }
-        catch (error) {
-            console.warn(`Cached terrain parse failed for ${key.chunkX},${key.chunkZ}`, error);
-            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent)('terrain_cache_parse_failed', {
-                chunkX: key.chunkX,
-                chunkZ: key.chunkZ,
-                error: error?.message ?? error,
-            });
-            cacheMisses++;
-            networkMissing.push(key);
-        }
-    }
-    cacheReadMs = performance.now() - cacheReadStarted - cacheParseMs;
-    if (cacheHits > 0) {
-        setStatus(`Loaded ${completed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
-        updateMetrics();
-    }
-    for (let i = 0; i < networkMissing.length;) {
-        if (generation !== loadGeneration)
-            return;
-        const batch = networkMissing.slice(i, i + TERRAIN_BATCH_SIZE);
-        i += batch.length;
-        const results = await loadChunkBatch(world, batch, generation);
-        for (const result of results) {
-            if (generation !== loadGeneration)
-                return;
-            completed++;
-            if (!result.ok) {
-                failed++;
+            const cacheKey = terrainCacheKey(world, key.chunkX, key.chunkZ);
+            const readStarted = performance.now();
+            const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.readTerrainCache)(cacheKey);
+            cacheReadMs += performance.now() - readStarted;
+            let loaded = false;
+            if (cached?.bytes) {
+                try {
+                    const parseStarted = performance.now();
+                    const gltf = await parseGltfBytes(cached.bytes);
+                    cacheParseMs += performance.now() - parseStarted;
+                    if (generation !== loadGeneration)
+                        return;
+                    addChunkObject(world, key.chunkX, key.chunkZ, gltf.scene);
+                    cacheHits++;
+                    completed++;
+                    loaded = true;
+                }
+                catch (error) {
+                    console.warn(`Cached terrain parse failed for ${key.chunkX},${key.chunkZ}`, error);
+                    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_cache_parse_failed', {
+                        chunkX: key.chunkX,
+                        chunkZ: key.chunkZ,
+                        error: error?.message ?? error,
+                    });
+                }
             }
+            if (!loaded) {
+                cacheMisses++;
+                networkChunks++;
+                try {
+                    loaded = await loadChunk(world, key.chunkX, key.chunkZ, generation);
+                    completed++;
+                    if (!loaded) {
+                        failed++;
+                    }
+                }
+                catch (error) {
+                    failed++;
+                    console.warn(`Failed to load chunk ${key.chunkX},${key.chunkZ}`, error);
+                    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_stream_chunk_failed', {
+                        world,
+                        chunkX: key.chunkX,
+                        chunkZ: key.chunkZ,
+                        error: error?.message ?? error,
+                    });
+                }
+            }
+            else if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
+                void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(world, [key], { immediate: true });
+            }
+            setStatus(`Loaded ${completed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
+            updateMetrics();
+            await yieldToMain();
         }
-        setStatus(`Loaded ${completed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
+        if (generation !== loadGeneration)
+            return;
+        retainOnly(world, retainKeys);
+        activeCenterId = centerKey;
+        requestedCenterId = null;
+        syncMapTileLayer(mapRetainKeys);
         updateMetrics();
+        setStatus(failed === 0
+            ? `Loaded ${needed.length} chunks around ${centerX}, ${centerZ}`
+            : `Loaded ${needed.length - failed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
+        const gridLoadTiming = {
+            world,
+            centerX,
+            centerZ,
+            radius,
+            needed: needed.length,
+            alreadyLoaded: needed.length - missing.length,
+            cacheHits,
+            cacheMisses,
+            networkChunks,
+            failed,
+            cacheReadMs: Math.round(cacheReadMs),
+            cacheParseMs: Math.round(cacheParseMs),
+            streamAnchorX: streamAnchor.chunkX,
+            streamAnchorZ: streamAnchor.chunkZ,
+            ms: Math.round(performance.now() - gridStarted),
+        };
+        lastGridLoadTiming = gridLoadTiming;
+        lastTerrainStreamTiming = gridLoadTiming;
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientTiming)('grid_load', gridStarted, gridLoadTiming);
     }
-    activeCenterId = centerKey;
-    requestedCenterId = null;
-    updateMapTileLayer({ force: true });
-    updateMetrics();
-    setStatus(failed === 0
-        ? `Loaded ${needed.length} chunks around ${centerX}, ${centerZ}`
-        : `Loaded ${needed.length - failed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
-    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientTiming)('grid_load', gridStarted, {
-        world,
-        centerX,
-        centerZ,
-        radius,
-        needed: needed.length,
-        alreadyLoaded: needed.length - missing.length,
-        cacheHits,
-        cacheMisses,
-        networkChunks: networkMissing.length,
-        failed,
-        cacheReadMs: Math.round(cacheReadMs),
-        cacheParseMs: Math.round(cacheParseMs),
-    });
+    finally {
+        if (generation === loadGeneration) {
+            frameJank.setActiveLoadKind('none');
+        }
+    }
 }
 async function loadChunk(world, chunkX, chunkZ, generation) {
+    const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.chunkId)(world, chunkX, chunkZ);
+    if (loadedChunks.has(id))
+        return true;
     const url = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
     const started = performance.now();
-    const gltf = await loadGltfWithRetry(url);
+    const mapTilePromise = _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked
+        ? (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(world, [{ chunkX, chunkZ }], { immediate: true })
+        : Promise.resolve();
+    const bytes = await fetchArrayBufferWithRetry(url);
+    const gltf = await parseGltfBytes(bytes);
+    await mapTilePromise;
     if (generation !== loadGeneration)
         return false;
+    if (loadedChunks.has(id))
+        return true;
+    (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.writeTerrainCache)(terrainCacheKey(world, chunkX, chunkZ), bytes.slice(0), { source: 'single' });
     addChunkObject(world, chunkX, chunkZ, gltf.scene);
-    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientTiming)('terrain_single_load', started, { world, chunkX, chunkZ });
+    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientTiming)('terrain_single_load', started, { world, chunkX, chunkZ });
     return true;
 }
-async function loadChunkBatch(world, keys, generation) {
-    if (keys.length === 0)
-        return [];
-    const started = performance.now();
-    let fetchMs = 0;
-    let jsonMs = 0;
-    let decodeMs = 0;
-    let parseMs = 0;
-    let cacheWriteAttempts = 0;
-    let base64Bytes = 0;
-    try {
-        const response = await fetch('/api/terrain/batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                world,
-                chunks: keys.map((key) => ({ chunkX: key.chunkX, chunkZ: key.chunkZ })),
-            }),
-        });
-        fetchMs = performance.now() - started;
-        if (!response.ok) {
-            throw new Error(`Batch terrain request failed: ${response.status}`);
-        }
-        const jsonStarted = performance.now();
-        const data = await response.json();
-        jsonMs = performance.now() - jsonStarted;
-        const results = [];
-        const cacheSummary = { generated: 0, disk: 0, memory: 0, other: 0 };
-        for (const chunk of data.chunks ?? []) {
-            if (generation !== loadGeneration)
-                return results;
-            if (chunk.ok && chunk.base64) {
-                const source = chunk.cache ?? 'other';
-                if (source in cacheSummary) {
-                    cacheSummary[source]++;
-                }
-                else {
-                    cacheSummary.other++;
-                }
-                base64Bytes += chunk.base64.length;
-                const decodeStarted = performance.now();
-                const bytes = (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.base64ToArrayBuffer)(chunk.base64);
-                decodeMs += performance.now() - decodeStarted;
-                cacheWriteAttempts++;
-                (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_17__.writeTerrainCache)(terrainCacheKey(world, chunk.chunkX, chunk.chunkZ), bytes.slice(0), {
-                    source,
-                    columns: chunk.columns,
-                    vertices: chunk.vertices,
-                    triangles: chunk.triangles,
-                    details: chunk.details,
-                });
-                const parseStarted = performance.now();
-                const gltf = await parseGltfBytes(bytes);
-                parseMs += performance.now() - parseStarted;
-                if (generation !== loadGeneration)
-                    return results;
-                addChunkObject(world, chunk.chunkX, chunk.chunkZ, gltf.scene);
-                results.push({ ok: true, chunkX: chunk.chunkX, chunkZ: chunk.chunkZ });
-            }
-            else {
-                console.warn(`Failed to load chunk ${chunk.chunkX},${chunk.chunkZ}: ${chunk.error ?? 'unknown error'}`);
-                results.push({ ok: false, chunkX: chunk.chunkX, chunkZ: chunk.chunkZ });
-            }
-        }
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientTiming)('terrain_batch_load', started, {
-            world,
-            requested: keys.length,
-            ok: results.filter((result) => result.ok).length,
-            failed: results.filter((result) => !result.ok).length,
-            fetchMs: Math.round(fetchMs),
-            jsonMs: Math.round(jsonMs),
-            decodeMs: Math.round(decodeMs),
-            parseMs: Math.round(parseMs),
-            payloadKB: Math.round(base64Bytes / 1024),
-            generated: cacheSummary.generated,
-            disk: cacheSummary.disk,
-            memory: cacheSummary.memory,
-            cacheWrites: cacheWriteAttempts,
-        });
-        return results;
-    }
-    catch (error) {
-        console.warn('Batch terrain request failed, falling back to single chunk requests', error);
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent)('terrain_batch_failed', {
-            world,
-            requested: keys.length,
-            fetchMs: Math.round(fetchMs),
-            jsonMs: Math.round(jsonMs),
-            error: error?.message ?? error,
-        });
-        return await Promise.all(keys.map(async (key) => {
-            try {
-                return {
-                    ok: await loadChunk(world, key.chunkX, key.chunkZ, generation),
-                    chunkX: key.chunkX,
-                    chunkZ: key.chunkZ,
-                };
-            }
-            catch (chunkError) {
-                console.warn(`Failed to load chunk ${key.chunkX},${key.chunkZ}`, chunkError);
-                return { ok: false, chunkX: key.chunkX, chunkZ: key.chunkZ };
-            }
-        }));
-    }
+function chunkWrapperName(chunkX, chunkZ) {
+    return `chunk:${chunkX}:${chunkZ}`;
 }
-function addChunkObject(world, chunkX, chunkZ, object) {
-    object.position.set(chunkX * 32, 0, chunkZ * 32);
-    (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.prepareWaterMaterials)(object);
-    (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.tintWaterMaterialsFromMap)(object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.sampleMapBackdropColor);
-    (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.applyWaterModeToObject)(object, _dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput.value);
-    const lightingOptions = currentLightingOptions();
-    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.applyLightingToObject)(object, lightingOptions);
-    const shade = (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.createTreeShadeObject)(object, lightingOptions);
-    if (shade) {
-        object.add(shade);
-    }
-    const debug = (0,_chunk_debug_js__WEBPACK_IMPORTED_MODULE_4__.createChunkDebug)(chunkX, chunkZ, object);
-    debug.visible = _dom_js__WEBPACK_IMPORTED_MODULE_5__.debugBoundsInput.checked;
-    object.add(debug);
-    scene.add(object);
-    loadedChunks.set((0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.chunkId)(world, chunkX, chunkZ), {
-        world,
-        chunkX,
-        chunkZ,
-        object,
-        debug,
-        shade,
-    });
-    markMapTileCoverageDirty();
-}
-async function parseGltfBytes(arrayBuffer) {
-    return await loader.parseAsync(arrayBuffer, '');
-}
-async function loadGltfWithRetry(url) {
-    let lastError;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-            return await loader.loadAsync(url);
-        }
-        catch (error) {
-            lastError = error;
-            await (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.delay)(150 * attempt);
-        }
-    }
-    throw lastError;
-}
-function chunkKeys(centerX, centerZ, radius) {
-    const keys = [];
-    for (let dz = -radius; dz <= radius; dz++) {
-        for (let dx = -radius; dx <= radius; dx++) {
-            const chunkX = centerX + dx;
-            const chunkZ = centerZ + dz;
-            keys.push({
-                chunkX,
-                chunkZ,
-                distance: Math.abs(dx) + Math.abs(dz),
-                id: (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.chunkId)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value, chunkX, chunkZ),
-            });
-        }
-    }
-    return keys.sort((a, b) => a.distance - b.distance || a.chunkZ - b.chunkZ || a.chunkX - b.chunkX);
-}
-function retainOnly(world, needed) {
-    const keep = new Set(needed.map((key) => key.id));
-    for (const [id, entry] of loadedChunks) {
-        if (entry.world !== world || !keep.has(id)) {
-            disposeChunk(id, entry);
-        }
-    }
-}
-function disposeChunk(id, entry) {
-    scene.remove(entry.object);
+function disposeObjectTree(object) {
     const geometries = new Set();
     const materials = new Set();
     const textures = new Set();
-    entry.object.traverse((object) => {
-        if (object.geometry)
-            geometries.add(object.geometry);
-        if (object.material) {
-            const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
+    object.traverse((node) => {
+        if (node.geometry)
+            geometries.add(node.geometry);
+        if (node.material) {
+            const objectMaterials = Array.isArray(node.material) ? node.material : [node.material];
             for (const material of objectMaterials) {
                 materials.add(material);
                 for (const value of Object.values(material)) {
@@ -752,12 +664,185 @@ function disposeChunk(id, entry) {
         material.dispose();
     for (const geometry of geometries)
         geometry.dispose();
+    return {
+        geometries: geometries.size,
+        materials: materials.size,
+        textures: textures.size,
+    };
+}
+function countOrphanChunkWrappers(extraKeep = null) {
+    const tracked = new Set();
+    for (const entry of loadedChunks.values()) {
+        tracked.add(entry.object);
+    }
+    if (extraKeep)
+        tracked.add(extraKeep);
+    let count = 0;
+    for (const child of scene.children) {
+        if (!child.name?.startsWith('chunk:'))
+            continue;
+        if (tracked.has(child))
+            continue;
+        count += 1;
+    }
+    return count;
+}
+function pruneOrphanChunkWrappers(extraKeep = null) {
+    const tracked = new Set();
+    for (const entry of loadedChunks.values()) {
+        tracked.add(entry.object);
+    }
+    if (extraKeep)
+        tracked.add(extraKeep);
+    const removals = [];
+    for (const child of scene.children) {
+        if (!child.name?.startsWith('chunk:'))
+            continue;
+        if (tracked.has(child))
+            continue;
+        removals.push(child);
+    }
+    for (const child of removals) {
+        scene.remove(child);
+        const stats = disposeObjectTree(child);
+        disposalStats.chunks += 1;
+        disposalStats.geometries += stats.geometries;
+        disposalStats.materials += stats.materials;
+        disposalStats.textures += stats.textures;
+    }
+    return removals.length;
+}
+function addChunkObject(world, chunkX, chunkZ, object) {
+    const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.chunkId)(world, chunkX, chunkZ);
+    const existing = loadedChunks.get(id);
+    if (existing) {
+        finishDisposeChunk(id, existing);
+    }
+    pruneOrphanChunkWrappers();
+    chunkPlaceholderManager.resolve(world, chunkX, chunkZ);
+    const wrapper = new three__WEBPACK_IMPORTED_MODULE_0__.Group();
+    wrapper.name = chunkWrapperName(chunkX, chunkZ);
+    wrapper.position.set(chunkX * 32, 0, chunkZ * 32);
+    object.position.set(0, 0, 0);
+    object.rotation.set(0, 0, 0);
+    object.scale.set(1, 1, 1);
+    (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.prepareWaterMaterials)(object);
+    (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.tintWaterMaterialsFromMap)(object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.sampleMapBackdropColor);
+    (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.applyWaterModeToObject)(object, _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value);
+    const lightingOptions = currentLightingOptions();
+    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.applyLightingToObject)(object, lightingOptions);
+    const shade = (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.createTreeShadeObject)(object, lightingOptions);
+    if (shade) {
+        object.add(shade);
+    }
+    const debug = (0,_chunk_debug_js__WEBPACK_IMPORTED_MODULE_4__.createChunkDebug)(chunkX, chunkZ, object);
+    debug.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked;
+    object.add(debug);
+    wrapper.add(object);
+    scene.add(wrapper);
+    const entry = {
+        world,
+        chunkX,
+        chunkZ,
+        object: wrapper,
+        mesh: object,
+        debug,
+        shade,
+        landState: 'settled',
+        landStartedAt: 0,
+        landDurationMs: 0,
+        landStartY: 0,
+        landTargetY: 0,
+        onLandComplete: null,
+        pendingUnload: null,
+    };
+    chunkLandMotion.beginLoad(entry, landMotionEnabled());
+    loadedChunks.set(id, entry);
+    pruneOrphanChunkWrappers(wrapper);
+}
+async function parseGltfBytes(arrayBuffer) {
+    return await loader.parseAsync(arrayBuffer, '');
+}
+async function fetchArrayBufferWithRetry(url) {
+    let lastError;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Terrain request failed: ${response.status}`);
+            }
+            return await response.arrayBuffer();
+        }
+        catch (error) {
+            lastError = error;
+            await (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.delay)(150 * attempt);
+        }
+    }
+    throw lastError;
+}
+function chunkKeys(centerX, centerZ, radius) {
+    const keys = [];
+    for (let dz = -radius; dz <= radius; dz++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+            const chunkX = centerX + dx;
+            const chunkZ = centerZ + dz;
+            keys.push({
+                chunkX,
+                chunkZ,
+                id: (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.chunkId)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value, chunkX, chunkZ),
+            });
+        }
+    }
+    return keys;
+}
+function sortChunkKeysByPlayerDistance(keys, playerChunkX, playerChunkZ) {
+    return [...keys].sort((left, right) => {
+        const leftDistance = chunkDistanceSq(left.chunkX, left.chunkZ, playerChunkX, playerChunkZ);
+        const rightDistance = chunkDistanceSq(right.chunkX, right.chunkZ, playerChunkX, playerChunkZ);
+        if (leftDistance !== rightDistance)
+            return leftDistance - rightDistance;
+        return left.chunkZ - right.chunkZ || left.chunkX - right.chunkX;
+    });
+}
+function chunkDistanceSq(chunkX, chunkZ, centerX, centerZ) {
+    const dx = chunkX - centerX;
+    const dz = chunkZ - centerZ;
+    return dx * dx + dz * dz;
+}
+function retainOnly(world, needed) {
+    const keep = new Set(needed.map((key) => key.id));
+    for (const [id, entry] of loadedChunks) {
+        if (chunkLandMotion.isAnimating(entry)) {
+            continue;
+        }
+        if (entry.world !== world || !keep.has(id)) {
+            requestChunkUnload(id, entry);
+        }
+    }
+}
+function landMotionEnabled() {
+    return _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput?.checked !== false;
+}
+function requestChunkUnload(id, entry) {
+    const deferred = chunkLandMotion.beginUnload(entry, landMotionEnabled(), () => {
+        finishDisposeChunk(id, entry);
+    });
+    if (!deferred) {
+        finishDisposeChunk(id, entry);
+    }
+}
+function finishDisposeChunk(id, entry) {
+    chunkLandMotion.cancel(entry);
+    if (!loadedChunks.has(id)) {
+        return;
+    }
+    scene.remove(entry.object);
+    const stats = disposeObjectTree(entry.object);
     disposalStats.chunks++;
-    disposalStats.geometries += geometries.size;
-    disposalStats.materials += materials.size;
-    disposalStats.textures += textures.size;
+    disposalStats.geometries += stats.geometries;
+    disposalStats.materials += stats.materials;
+    disposalStats.textures += stats.textures;
     loadedChunks.delete(id);
-    markMapTileCoverageDirty();
     updateMetrics();
 }
 function collectResourceStats() {
@@ -800,12 +885,12 @@ function collectResourceStats() {
 }
 function applyWaterMode() {
     for (const entry of loadedChunks.values()) {
-        (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.sampleMapBackdropColor);
-        (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.applyWaterModeToObject)(entry.object, _dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput.value);
+        (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.sampleMapBackdropColor);
+        (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.applyWaterModeToObject)(entry.object, _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value);
     }
 }
 function terrainCacheKey(world, chunkX, chunkZ) {
-    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_17__.makeTerrainCacheKey)({
+    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.makeTerrainCacheKey)({
         world,
         chunkX,
         chunkZ,
@@ -815,46 +900,67 @@ function terrainCacheKey(world, chunkX, chunkZ) {
 }
 function applyMapWaterTint() {
     for (const entry of loadedChunks.values()) {
-        (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.sampleMapBackdropColor);
+        (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.sampleMapBackdropColor);
     }
 }
 function mapBackdropCenter() {
-    const gridX = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkXInput.value, 10);
-    const gridZ = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkZInput.value, 10);
-    if (activeCenterId && Number.isFinite(gridX) && Number.isFinite(gridZ)) {
+    if (activeCenterId) {
         const parts = activeCenterId.split(':');
-        const activeX = Number.parseInt(parts[parts.length - 2], 10);
-        const activeZ = Number.parseInt(parts[parts.length - 1], 10);
-        if (gridX === activeX && gridZ === activeZ) {
-            return { chunkX: gridX, chunkZ: gridZ };
+        const chunkX = Number.parseInt(parts[parts.length - 2], 10);
+        const chunkZ = Number.parseInt(parts[parts.length - 1], 10);
+        if (Number.isFinite(chunkX) && Number.isFinite(chunkZ)) {
+            return { chunkX, chunkZ };
         }
     }
-    return cameraChunk();
+    const gridX = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10);
+    const gridZ = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10);
+    if (Number.isFinite(gridX) && Number.isFinite(gridZ)) {
+        return { chunkX: gridX, chunkZ: gridZ };
+    }
+    return { chunkX: 0, chunkZ: 0 };
+}
+function syncMapTileLayer(retainKeys = null) {
+    grid.visible = !_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked;
+    (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.configureMapBackdrop)(scene, renderer, {
+        enabled: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
+        formatVersion: terrainFormatVersion,
+        motionEnabled: landMotionEnabled(),
+    });
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
+        updateMetrics();
+        return;
+    }
+    const world = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
+    const keys = retainKeys ?? chunkKeys(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10), Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10), Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10), 0)));
+    const retainIds = new Set(keys.map((key) => key.id));
+    (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.pruneMapTiles)(world, retainIds);
+    const center = mapBackdropCenter();
+    const terrainRadius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10), 0));
+    const mapRadius = mapTileRetainRadius(terrainRadius, _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked);
+    const stats = (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapBackdropStats)();
+    stats.centerX = center.chunkX;
+    stats.centerZ = center.chunkZ;
+    stats.radius = mapRadius;
+    stats.chunks = mapRadius * 2 + 1;
+    stats.anchorX = center.chunkX;
+    stats.anchorZ = center.chunkZ;
+    updateMetrics();
 }
 function updateMapTileLayer(options = {}) {
-    grid.visible = !_dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput.checked;
     const center = mapBackdropCenter();
-    const radius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value, 10), 0));
-    const layerKey = `${_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value}:${center.chunkX}:${center.chunkZ}:${radius}:${_dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput.checked}`;
-    if (!options.force && !mapTileCoverageDirty && layerKey === mapTileLayerKey) {
+    const radius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10), 0));
+    const mapRadius = mapTileRetainRadius(radius, _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked);
+    const layerKey = `${_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value}:${center.chunkX}:${center.chunkZ}:${mapRadius}:${_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked}`;
+    if (!options.force && layerKey === mapTileLayerKey) {
         return;
     }
     mapTileLayerKey = layerKey;
-    (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.updateMapBackdrop)(scene, renderer, {
-        enabled: _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput.checked,
-        world: _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value,
-        centerX: center.chunkX,
-        centerZ: center.chunkZ,
-        meshRadius: radius,
-        coveredChunks: mapCoveredChunks(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value),
-    });
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput.checked || (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.mapBackdropStats)().loaded > 0) {
-        mapTileCoverageDirty = false;
+    const keys = chunkKeys(center.chunkX, center.chunkZ, mapRadius);
+    syncMapTileLayer(keys);
+    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
+        const anchor = playerChunk();
+        void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value, sortChunkKeysByPlayerDistance(keys, anchor.chunkX, anchor.chunkZ), { immediate: true });
     }
-    updateMetrics();
-}
-function markMapTileCoverageDirty() {
-    mapTileCoverageDirty = true;
 }
 function cameraChunk() {
     return {
@@ -862,29 +968,20 @@ function cameraChunk() {
         chunkZ: Math.floor(camera.position.z / 32),
     };
 }
-function mapCoveredChunks(world) {
-    const covered = new Set();
-    for (const entry of loadedChunks.values()) {
-        if (entry.world === world && entry.object?.parent === scene) {
-            covered.add(`${entry.chunkX}:${entry.chunkZ}`);
-        }
-    }
-    return covered;
-}
 function applyLighting() {
     const options = currentLightingOptions();
-    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.applyLightingEnvironment)(scene, renderer, lightingRig, options);
+    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.applyLightingEnvironment)(scene, renderer, lightingRig, options);
     for (const entry of loadedChunks.values()) {
-        (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.applyLightingToObject)(entry.object, options);
-        (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.updateTreeShadeObject)(entry.shade, options);
+        (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.applyLightingToObject)(entry.object, options);
+        (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.updateTreeShadeObject)(entry.shade, options);
     }
 }
 async function refreshWorldTime() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value) {
         return;
     }
     try {
-        const response = await fetch(`/api/time/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value)}`);
+        const response = await fetch(`/api/time/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)}`);
         if (!response.ok) {
             throw new Error(`Time request failed: ${response.status}`);
         }
@@ -897,11 +994,11 @@ async function refreshWorldTime() {
     }
     catch (error) {
         console.warn('World time refresh failed', error);
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent)('world_time_refresh_failed', { error: error?.message ?? error });
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('world_time_refresh_failed', { error: error?.message ?? error });
     }
 }
 function worldTimePollDelayMs() {
-    if (_dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTimeInput.checked) {
+    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked) {
         return MAP_TIME_ACTIVE_POLL_MS;
     }
     return lastPlayerCount > 0 ? MAP_TIME_VISIBLE_POLL_MS : MAP_TIME_IDLE_POLL_MS;
@@ -914,12 +1011,12 @@ function restartWorldTimePolling(delayMs = worldTimePollDelayMs()) {
     }, delayMs);
 }
 async function refreshPlayers() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value || isRefreshingPlayers) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value || isRefreshingPlayers) {
         return;
     }
     isRefreshingPlayers = true;
     try {
-        const response = await fetch(`/api/players/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value)}`);
+        const response = await fetch(`/api/players/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)}`);
         if (!response.ok) {
             throw new Error(`Player request failed: ${response.status}`);
         }
@@ -930,21 +1027,21 @@ async function refreshPlayers() {
     catch (error) {
         lastPlayerPollFailed = true;
         console.warn('Player refresh failed', error);
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent)('player_refresh_failed', { error: error?.message ?? error });
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('player_refresh_failed', { error: error?.message ?? error });
     }
     finally {
         isRefreshingPlayers = false;
     }
 }
 function playerUpdateRateMs() {
-    const parsed = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.playerUpdateRateInput.value, 10);
+    const parsed = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput.value, 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PLAYER_UPDATE_RATE_MS;
 }
 function playerPollDelayMs() {
     if (lastPlayerPollFailed) {
         return PLAYER_POLL_ERROR_MS;
     }
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.checked) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked) {
         return HIDDEN_PLAYER_POLL_MS;
     }
     if (lastPlayerCount <= 0) {
@@ -965,12 +1062,12 @@ function restartPlayerPolling(delayMs = playerPollDelayMs()) {
     }, delayMs);
 }
 async function refreshMobs() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value || !_dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked || isRefreshingMobs) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value || !_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked || isRefreshingMobs) {
         return;
     }
     isRefreshingMobs = true;
     try {
-        const response = await fetch(`/api/mobs/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value)}`);
+        const response = await fetch(`/api/mobs/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)}`);
         if (!response.ok) {
             throw new Error(`Mob request failed: ${response.status}`);
         }
@@ -982,14 +1079,14 @@ async function refreshMobs() {
     catch (error) {
         lastMobPollFailed = true;
         console.warn('Mob refresh failed', error);
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent)('mob_refresh_failed', { error: error?.message ?? error });
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mob_refresh_failed', { error: error?.message ?? error });
     }
     finally {
         isRefreshingMobs = false;
     }
 }
 function mobPollDelayMs() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
         return null;
     }
     if (lastMobPollFailed) {
@@ -1008,7 +1105,7 @@ function restartMobPolling(delayMs = mobPollDelayMs()) {
     }, delayMs);
 }
 function wantsEntityStream() {
-    return _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value && (_dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.checked || _dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked);
+    return _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value && (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked || _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked);
 }
 function restartEntityStream() {
     clearTimeout(entityStreamFallbackTimer);
@@ -1018,23 +1115,23 @@ function restartEntityStream() {
         restartMobPolling();
         return;
     }
-    const includePlayers = _dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.checked;
-    const includeMobs = _dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked;
+    const includePlayers = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked;
+    const includeMobs = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked;
     if (entityStream
-        && entityStreamWorld === _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value
+        && entityStreamWorld === _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value
         && entityStreamPlayers === includePlayers
         && entityStreamMobs === includeMobs) {
         return;
     }
     closeEntityStream();
-    entityStreamWorld = _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value;
+    entityStreamWorld = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
     entityStreamPlayers = includePlayers;
     entityStreamMobs = includeMobs;
     const params = new URLSearchParams({
         players: includePlayers ? '1' : '0',
         mobs: includeMobs ? '1' : '0',
     });
-    entityStream = new EventSource(`/api/entities/stream/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value)}?${params}`);
+    entityStream = new EventSource(`/api/entities/stream/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)}?${params}`);
     entityStream.addEventListener('open', () => {
         entityStreamConnected = true;
         clearTimeout(playerPollTimer);
@@ -1050,7 +1147,7 @@ function restartEntityStream() {
         }
         catch (error) {
             console.warn('Entity stream parse failed', error);
-            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent)('entity_stream_parse_failed', { error: error?.message ?? error });
+            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('entity_stream_parse_failed', { error: error?.message ?? error });
         }
     });
     entityStream.addEventListener('error', () => {
@@ -1081,12 +1178,12 @@ function scheduleEntityFallbackPolling() {
 function applyEntitySnapshot(snapshot) {
     if (!snapshot?.ok)
         return;
-    if (snapshot.world && snapshot.world !== _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value)
+    if (snapshot.world && snapshot.world !== _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)
         return;
-    if (_dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.checked) {
+    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked) {
         updatePlayers(snapshot.players ?? []);
     }
-    if (_dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked) {
+    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
         lastMobSourceStats = snapshot.mobSourceStats ?? null;
         updateMobs(snapshot.mobs ?? []);
     }
@@ -1095,7 +1192,7 @@ function updatePlayers(players) {
     const previousPlayerCount = lastPlayerCount;
     lastPlayerCount = players.length;
     if (previousPlayerCount !== lastPlayerCount) {
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent)('player_count_changed', {
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('player_count_changed', {
             players: lastPlayerCount,
             nextPollMs: playerPollDelayMs(),
         });
@@ -1105,16 +1202,16 @@ function updatePlayers(players) {
         }
     }
     const seen = new Set();
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.checked) {
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl.replaceChildren();
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl.textContent = 'Players hidden';
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked) {
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.replaceChildren();
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.textContent = 'Players hidden';
     }
     else if (players.length === 0) {
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl.replaceChildren();
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl.textContent = 'No players';
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.replaceChildren();
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.textContent = 'No players';
     }
-    else if (_dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl.childNodes.length === 1 && _dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl.firstChild.nodeType === Node.TEXT_NODE) {
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl.replaceChildren();
+    else if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.childNodes.length === 1 && _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.firstChild.nodeType === Node.TEXT_NODE) {
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.replaceChildren();
     }
     let tileIndex = 0;
     for (const player of players) {
@@ -1134,7 +1231,7 @@ function updatePlayers(players) {
         marker.userData.targetPosition ??= new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
         marker.userData.targetPosition.set(player.x, player.y, player.z);
         marker.userData.targetYaw = player.yaw ?? marker.userData.targetYaw ?? 0;
-        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.checked;
+        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked;
         marker.userData.player = player;
         (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updatePlayerMarkerCard)(marker, player);
         (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updatePlayerMarkerCardHeight)(marker, 4.35);
@@ -1142,14 +1239,14 @@ function updatePlayers(players) {
         if (!marker.parent) {
             scene.add(marker);
         }
-        if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.checked) {
+        if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked) {
             continue;
         }
-        const tile = playerTiles.get(player.uuid) ?? (0,_player_tiles_js__WEBPACK_IMPORTED_MODULE_11__.createPlayerTile)(player, playerTileContext());
+        const tile = playerTiles.get(player.uuid) ?? (0,_player_tiles_js__WEBPACK_IMPORTED_MODULE_14__.createPlayerTile)(player, playerTileContext());
         if (!playerTiles.has(player.uuid)) {
             playerTiles.set(player.uuid, tile);
         }
-        (0,_player_tiles_js__WEBPACK_IMPORTED_MODULE_11__.updatePlayerTile)(tile, player, playerTileContext());
+        (0,_player_tiles_js__WEBPACK_IMPORTED_MODULE_14__.updatePlayerTile)(tile, player, playerTileContext());
         ensurePlayerTileOrder(tile.element, tileIndex++);
     }
     for (const [uuid, marker] of playerMarkers) {
@@ -1179,18 +1276,18 @@ function playerTileContext() {
     };
 }
 function ensurePlayerTileOrder(tileElement, index) {
-    const current = _dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl.children[index] ?? null;
+    const current = _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.children[index] ?? null;
     if (current === tileElement) {
         return;
     }
-    if (tileElement.parentElement !== _dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl) {
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl.insertBefore(tileElement, current);
+    if (tileElement.parentElement !== _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl) {
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.insertBefore(tileElement, current);
         return;
     }
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl.insertBefore(tileElement, current);
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.insertBefore(tileElement, current);
 }
 function schedulePlayerConnectMobSample(players) {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value || !_dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked)
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value || !_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked)
         return;
     clearTimeout(playerConnectMobSampleTimer);
     const sampledPlayers = players.map((player) => compactObject({
@@ -1205,8 +1302,8 @@ function schedulePlayerConnectMobSample(players) {
     }, PLAYER_CONNECT_MOB_SAMPLE_DELAY_MS);
 }
 async function sampleMobFeedOnPlayerConnect(players) {
-    const world = _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value;
-    if (!world || !_dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked)
+    const world = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
+    if (!world || !_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked)
         return;
     try {
         const response = await fetch(`/api/mobs/${encodeURIComponent(world)}`);
@@ -1215,7 +1312,7 @@ async function sampleMobFeedOnPlayerConnect(players) {
         }
         const data = await response.json();
         const mobs = Array.isArray(data.mobs) ? data.mobs : [];
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent)('mob_connect_sample', {
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mob_connect_sample', {
             world,
             players: players.length,
             player: players[0] ?? null,
@@ -1228,7 +1325,7 @@ async function sampleMobFeedOnPlayerConnect(players) {
         });
     }
     catch (error) {
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent)('mob_connect_sample_failed', { error: error?.message ?? error });
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mob_connect_sample_failed', { error: error?.message ?? error });
     }
 }
 function summarizeItems(items, selector, limit = 10) {
@@ -1301,13 +1398,13 @@ function compactObject(object) {
     return result;
 }
 function updateMobs(mobs) {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked && mobs.length > 0) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked && mobs.length > 0) {
         return;
     }
     const previousMobCount = lastMobCount;
     lastMobCount = mobs.length;
     if (previousMobCount !== lastMobCount) {
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_7__.logClientEvent)('mob_count_changed', {
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mob_count_changed', {
             mobs: lastMobCount,
             nextPollMs: mobPollDelayMs(),
         });
@@ -1325,7 +1422,7 @@ function updateMobs(mobs) {
         marker.userData.targetPosition.set(mob.x, mob.y, mob.z);
         marker.userData.mob = enrichedMob;
         (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updateMobMarkerCard)(marker, enrichedMob);
-        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked;
+        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked;
         mobMarkers.set(id, marker);
         if (!marker.parent) {
             scene.add(marker);
@@ -1455,28 +1552,28 @@ function setFollowControlsEnabled(enabled) {
 }
 function updateDebugBounds() {
     for (const entry of loadedChunks.values()) {
-        entry.debug.visible = _dom_js__WEBPACK_IMPORTED_MODULE_5__.debugBoundsInput.checked;
+        entry.debug.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked;
     }
 }
 function setRenderDetailsOpen(open) {
     const isOpen = open === true;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.infoCardEl.classList.toggle('collapsed', !isOpen);
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.infoCardHeadEl.setAttribute('aria-expanded', String(isOpen));
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.infoCardHeadEl.title = isOpen ? 'Hide render details' : 'Show render details';
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardEl.classList.toggle('collapsed', !isOpen);
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardHeadEl.setAttribute('aria-expanded', String(isOpen));
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardHeadEl.title = isOpen ? 'Hide render details' : 'Show render details';
 }
 function toggleRenderDetails() {
-    setRenderDetailsOpen(_dom_js__WEBPACK_IMPORTED_MODULE_5__.infoCardEl.classList.contains('collapsed'));
+    setRenderDetailsOpen(_dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardEl.classList.contains('collapsed'));
     saveViewState();
 }
 function updateEntityVisibility() {
     for (const marker of playerMarkers.values()) {
-        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.checked;
+        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked;
     }
     for (const marker of mobMarkers.values()) {
-        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked;
+        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked;
     }
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.checked) {
-        _dom_js__WEBPACK_IMPORTED_MODULE_5__.playersEl.textContent = 'Players hidden';
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked) {
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.textContent = 'Players hidden';
     }
 }
 function exposeDebugState() {
@@ -1495,7 +1592,11 @@ function exposeDebugState() {
         }),
         npcDetailsState: () => npcCatalog.state(),
         loadGrid: (options = {}) => loadGrid(options),
-        mapBackdropStats: _map_backdrop_js__WEBPACK_IMPORTED_MODULE_9__.mapBackdropStats,
+        auditMapTiles: () => (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.auditMapTiles)(scene),
+        mapBackdropY: () => (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.resolveMapBackdropY)(),
+        mapBackdropStats: _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapBackdropStats,
+        mapTileSceneStats: _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapTileSceneStats,
+        probeMapTilePixel: (chunkX, chunkZ) => (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.probeMapTilePixel)(scene, renderer, camera, () => (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.renderPostProcessing)(postProcessing, renderer, scene, camera, 0, 0), chunkX, chunkZ),
         terrainFormatVersion: () => terrainFormatVersion,
         activeCenterId: () => activeCenterId,
         requestedCenterId: () => requestedCenterId,
@@ -1503,11 +1604,50 @@ function exposeDebugState() {
         updateMobsForTest: (mobs) => updateMobs(mobs),
         waterMaterialSummary: () => waterMaterialSummary(),
         cameraPose: () => ({
-            camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.vectorState)(camera.position),
-            target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.vectorState)(controls.target),
+            camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.vectorState)(camera.position),
+            target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.vectorState)(controls.target),
             fov: camera.fov,
         }),
         streamAnchorChunk: () => playerChunk(),
+        cameraChunk: () => ({
+            chunkX: Math.floor(camera.position.x / 32),
+            chunkZ: Math.floor(camera.position.z / 32),
+        }),
+        setAutoStream: (enabled) => {
+            _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked = enabled === true;
+            _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.dispatchEvent(new Event('change', { bubbles: true }));
+        },
+        lastPerfTimings: () => ({
+            gridLoad: lastGridLoadTiming,
+            terrainBatch: null,
+            terrainStream: lastTerrainStreamTiming,
+        }),
+        gridLoadCount: () => gridLoadCount,
+        resetGridLoadCount: () => {
+            gridLoadCount = 0;
+        },
+        jankStats: () => frameJank.stats(),
+        resetJankStats: () => frameJank.reset(),
+        chunkPlaceholderCount: () => chunkPlaceholderManager.count(),
+        chunkPlaceholderWaiting: () => chunkPlaceholderManager.waitingCount(),
+        landMotionActive: () => chunkLandMotion.activeCount(loadedChunks.values()),
+        mapTileMotionActive: _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapTileMotionActive,
+        chunkWrapperCount: () => scene.children.filter((child) => child.name?.startsWith('chunk:')).length,
+        orphanChunkWrappers: () => countOrphanChunkWrappers(),
+        pruneOrphanChunkWrappers: () => pruneOrphanChunkWrappers(),
+        viewState: () => ({
+            mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
+            landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked,
+            sun: _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput.checked,
+            shade: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked,
+            mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked,
+            water: _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value,
+            shader: _dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput.value,
+            players: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked,
+            mobs: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked,
+            auto: _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked,
+            bounds: _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked,
+        }),
         skySummary: () => ({
             background: displayColor(scene.background),
             fogType: scene.fog?.isFogExp2 ? 'FogExp2' : (scene.fog?.isFog ? 'Fog' : null),
@@ -1525,7 +1665,7 @@ function exposeDebugState() {
         }),
         setWorldTimeForTest: (time) => {
             worldTime = time;
-            _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTimeInput.checked = true;
+            _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked = true;
             applyLighting();
             timeRibbon.update(worldTime);
         },
@@ -1543,14 +1683,14 @@ function exposeDebugState() {
             zoomFlyView(Number(deltaY));
         },
         setCameraPose: ({ camera: cameraState, target: targetState, lookAt }) => {
-            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.isVectorState)(cameraState)) {
+            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.isVectorState)(cameraState)) {
                 camera.position.set(cameraState.x, cameraState.y, cameraState.z);
             }
-            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.isVectorState)(targetState)) {
+            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.isVectorState)(targetState)) {
                 controls.target.set(targetState.x, targetState.y, targetState.z);
             }
             controls.update();
-            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.isVectorState)(lookAt)) {
+            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.isVectorState)(lookAt)) {
                 camera.lookAt(lookAt.x, lookAt.y, lookAt.z);
             }
             syncFlyLookFromCamera();
@@ -1613,7 +1753,7 @@ function restoreCameraPose() {
     }
     const cameraState = storedViewState.camera;
     const targetState = storedViewState.target;
-    if (!(0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.isVectorState)(cameraState) || !(0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.isVectorState)(targetState)) {
+    if (!(0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.isVectorState)(cameraState) || !(0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.isVectorState)(targetState)) {
         return false;
     }
     camera.position.set(cameraState.x, cameraState.y, cameraState.z);
@@ -1628,33 +1768,34 @@ function hasExplicitViewParams() {
     return ['world', 'chunkX', 'chunkZ', 'radius'].some((name) => initialParams.has(name));
 }
 function saveViewState() {
-    if (!hasStarted || !_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value)
+    if (!hasStarted || !_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)
         return;
     const target = controls.target;
     const chunk = playerChunk();
     const state = {
-        world: _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value,
-        chunkX: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkXInput.value, 10) || chunk.chunkX,
-        chunkZ: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkZInput.value, 10) || chunk.chunkZ,
-        radius: Math.max(0, Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value, 10) || 0),
-        auto: _dom_js__WEBPACK_IMPORTED_MODULE_5__.autoStreamInput.checked,
-        bounds: _dom_js__WEBPACK_IMPORTED_MODULE_5__.debugBoundsInput.checked,
-        players: _dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.checked,
-        mobs: _dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked,
-        renderDetails: !_dom_js__WEBPACK_IMPORTED_MODULE_5__.infoCardEl.classList.contains('collapsed'),
-        sun: _dom_js__WEBPACK_IMPORTED_MODULE_5__.sunLightingInput.checked,
-        shade: _dom_js__WEBPACK_IMPORTED_MODULE_5__.treeShadeInput.checked,
-        mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTimeInput.checked,
-        mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput.checked,
-        shadeSize: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeSizeValueInput.value),
-        shadeDarkness: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeDarknessValueInput.value),
-        water: _dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput.value,
-        shader: _dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput.value,
-        playerRate: _dom_js__WEBPACK_IMPORTED_MODULE_5__.playerUpdateRateInput.value,
-        camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.vectorState)(camera.position),
-        target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.vectorState)(target),
+        world: _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value,
+        chunkX: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10) || chunk.chunkX,
+        chunkZ: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10) || chunk.chunkZ,
+        radius: Math.max(0, Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10) || 0),
+        auto: _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked,
+        bounds: _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked,
+        players: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked,
+        mobs: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked,
+        renderDetails: !_dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardEl.classList.contains('collapsed'),
+        sun: _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput.checked,
+        shade: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked,
+        mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked,
+        mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
+        landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked,
+        shadeSize: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput.value),
+        shadeDarkness: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput.value),
+        water: _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value,
+        shader: _dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput.value,
+        playerRate: _dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput.value,
+        camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.vectorState)(camera.position),
+        target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.vectorState)(target),
     };
-    if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_15__.saveStoredViewState)(state)) {
+    if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.saveStoredViewState)(state)) {
         storedViewState = state;
     }
 }
@@ -1688,12 +1829,30 @@ function streamAnchorPosition() {
 function updateCoordinates() {
     const target = controls.target;
     const chunk = playerChunk();
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.coordTargetEl.textContent = `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatCoord)(target.x)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatCoord)(target.y)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatCoord)(target.z)}`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.coordChunkEl.textContent = `${chunk.chunkX}, ${chunk.chunkZ}`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.coordCameraEl.textContent = `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatCoord)(camera.position.x)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatCoord)(camera.position.y)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.formatCoord)(camera.position.z)}`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.coordTargetEl.textContent = `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatCoord)(target.x)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatCoord)(target.y)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatCoord)(target.z)}`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.coordChunkEl.textContent = `${chunk.chunkX}, ${chunk.chunkZ}`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.coordCameraEl.textContent = `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatCoord)(camera.position.x)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatCoord)(camera.position.y)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatCoord)(camera.position.z)}`;
 }
 function updateEmptyGrid() {
     grid.position.set(Math.round(camera.position.x / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP, EMPTY_GRID_Y, Math.round(camera.position.z / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP);
+}
+function updateChunkPlaceholders() {
+    const world = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
+    if (!world || !hasFocusedInitialGrid) {
+        return;
+    }
+    const radius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10), 0));
+    const player = playerChunk();
+    const playerId = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.centerId)(world, player.chunkX, player.chunkZ);
+    const shouldShow = _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked
+        || requestedCenterId != null
+        || (activeCenterId != null && playerId !== activeCenterId);
+    if (!shouldShow) {
+        chunkPlaceholderManager.sync(world, [], new Set(loadedChunks.keys()));
+        return;
+    }
+    const keys = chunkKeys(player.chunkX, player.chunkZ, radius);
+    chunkPlaceholderManager.sync(world, keys, new Set(loadedChunks.keys()));
 }
 function syncFlyLookFromCamera() {
     camera.getWorldDirection(tempCameraForward);
@@ -1734,19 +1893,31 @@ function shouldStartFlyLook(event) {
 function isFlyLookActive() {
     return document.pointerLockElement === renderer.domElement;
 }
-function maybeAutoStream() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.autoStreamInput.checked || !hasFocusedInitialGrid || !_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value)
+function scheduleAutoStreamLoad() {
+    const world = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
+    if (!world)
         return;
     const player = playerChunk();
-    const playerId = (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.centerId)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value, player.chunkX, player.chunkZ);
-    if (playerId === activeCenterId || playerId === requestedCenterId || playerId === scheduledCenterId)
+    scheduledCenterId = null;
+    clearTimeout(streamTimer);
+    streamTimer = null;
+    loadGrid({ centerX: player.chunkX, centerZ: player.chunkZ, streamLoad: true }).catch((error) => setStatus(error.message));
+}
+function maybeAutoStream() {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked || !hasFocusedInitialGrid || !_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)
         return;
+    const player = playerChunk();
+    const playerId = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.centerId)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value, player.chunkX, player.chunkZ);
+    if (playerId === activeCenterId || playerId === requestedCenterId || playerId === scheduledCenterId) {
+        return;
+    }
     clearTimeout(streamTimer);
     scheduledCenterId = playerId;
     streamTimer = setTimeout(() => {
+        streamTimer = null;
         scheduledCenterId = null;
-        loadGrid({ centerX: player.chunkX, centerZ: player.chunkZ }).catch((error) => setStatus(error.message));
-    }, 250);
+        scheduleAutoStreamLoad();
+    }, AUTO_STREAM_DEBOUNCE_MS);
 }
 function scheduleControlGridLoad() {
     if (!hasStarted)
@@ -1761,10 +1932,10 @@ function resize() {
     const width = window.innerWidth;
     const height = window.innerHeight;
     renderer.setSize(width, height, false);
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_12__.resizePostProcessing)(postProcessing, width, height, rendererPixelRatio);
+    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.resizePostProcessing)(postProcessing, width, height, rendererPixelRatio);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
-    (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_8__.positionFpsCounter)(fpsCounter);
+    (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_11__.positionFpsCounter)(fpsCounter);
 }
 function handleKeyboardNavigation(deltaSeconds) {
     if (viewPlayerUuid || pressedKeys.size === 0 || isTypingInHud())
@@ -1833,7 +2004,7 @@ function updateMobMarkers(deltaSeconds, elapsedSeconds) {
             tempMobTarget.copy(targetPosition);
             tempMobTarget.y += 0.25 + Math.sin(elapsedSeconds * 3.2 + marker.name.length) * 0.08;
             marker.position.lerp(tempMobTarget, alpha);
-            const cardHeight = (0,_utils_js__WEBPACK_IMPORTED_MODULE_14__.clamp)(desiredWorldY - targetPosition.y, MOB_CARD_MIN_HEIGHT, MOB_CARD_TREE_TOP_HEIGHT);
+            const cardHeight = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(desiredWorldY - targetPosition.y, MOB_CARD_MIN_HEIGHT, MOB_CARD_TREE_TOP_HEIGHT);
             (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updateMobMarkerHeight)(marker, cardHeight);
         }
         const badge = marker.userData.badge;
@@ -1896,6 +2067,9 @@ function blurFocusedHudControl() {
 function animate() {
     const deltaSeconds = Math.min(clock.getDelta(), 0.05);
     const elapsedSeconds = clock.elapsedTime;
+    frameJank.recordFrame();
+    chunkLandMotion.update(loadedChunks.values());
+    (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.tickMapTileMotion)(landMotionEnabled());
     updatePlayerMarkers(deltaSeconds);
     updateMobMarkers(deltaSeconds, elapsedSeconds);
     handleKeyboardNavigation(deltaSeconds);
@@ -1906,14 +2080,15 @@ function animate() {
     if (controls.enabled) {
         controls.update();
     }
-    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_6__.positionSkyObjects)(lightingRig, camera.position);
+    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.positionSkyObjects)(lightingRig, camera.position);
     updateEmptyGrid();
-    updateMapTileLayer();
-    (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_8__.updateFpsCounter)(fpsCounter, deltaSeconds);
+    updateChunkPlaceholders();
+    chunkPlaceholderManager.update(deltaSeconds);
+    (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_11__.updateFpsCounter)(fpsCounter, deltaSeconds);
     maybeAutoStream();
     updateCoordinates();
-    (0,_water_js__WEBPACK_IMPORTED_MODULE_16__.updateWaterMaterials)(scene, renderer, elapsedSeconds, camera);
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_12__.renderPostProcessing)(postProcessing, renderer, scene, camera, deltaSeconds, elapsedSeconds);
+    (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.updateWaterMaterials)(scene, renderer, elapsedSeconds, camera);
+    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.renderPostProcessing)(postProcessing, renderer, scene, camera, deltaSeconds, elapsedSeconds);
     updateMetrics();
     maybeSaveViewState();
     requestAnimationFrame(animate);
@@ -1965,58 +2140,59 @@ window.addEventListener('mousemove', (event) => {
     applyFlyLook();
 });
 window.addEventListener('worldview:map-backdrop-loaded', applyMapWaterTint);
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.debugBoundsInput.addEventListener('change', updateDebugBounds);
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.debugBoundsInput.addEventListener('change', saveViewState);
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.addEventListener('change', () => {
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.addEventListener('change', updateDebugBounds);
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.addEventListener('change', saveViewState);
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.addEventListener('change', () => {
     updateEntityVisibility();
     restartEntityStream();
     restartPlayerPolling();
     saveViewState();
 });
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.addEventListener('change', () => {
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.addEventListener('change', () => {
     clearTimeout(mobPollTimer);
     mobPollTimer = null;
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
         clearMobs();
     }
     updateEntityVisibility();
     restartEntityStream();
-    if (_dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked) {
+    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
         restartMobPolling(0);
     }
     saveViewState();
 });
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput.addEventListener('change', () => {
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.addEventListener('change', () => {
     applyWaterMode();
     saveViewState();
 });
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.playerUpdateRateInput.addEventListener('change', () => {
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput.addEventListener('change', () => {
     restartPlayerPolling();
     saveViewState();
 });
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput.addEventListener('change', () => {
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_12__.setShaderEffect)(postProcessing, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shaderEffectInput.value);
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput.addEventListener('change', () => {
+    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.setShaderEffect)(postProcessing, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput.value);
     saveViewState();
 });
-for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_5__.sunLightingInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.treeShadeInput]) {
+for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput]) {
     const eventName = input.type === 'range' ? 'input' : 'change';
     input.addEventListener(eventName, () => {
         applyLighting();
         saveViewState();
     });
 }
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTimeInput.addEventListener('change', () => {
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.addEventListener('change', () => {
     applyLighting();
     restartWorldTimePolling();
     saveViewState();
 });
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput.addEventListener('change', () => {
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.addEventListener('change', () => {
     updateMapTileLayer();
     saveViewState();
 });
-syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeSizeValueInput);
-syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeDarknessValueInput);
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.addEventListener('change', () => {
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.addEventListener('change', saveViewState);
+syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput);
+syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput);
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.addEventListener('change', () => {
     closeEntityStream();
     updatePlayers([]);
     clearMobs();
@@ -2028,18 +2204,18 @@ _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.addEventListener('change', () =
     scheduleControlGridLoad();
     saveViewState();
 });
-for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkXInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkZInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput]) {
+for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput]) {
     input.addEventListener('input', scheduleControlGridLoad);
     input.addEventListener('change', scheduleControlGridLoad);
 }
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.panelToggle.addEventListener('click', () => {
-    const open = _dom_js__WEBPACK_IMPORTED_MODULE_5__.hudEl.classList.toggle('open');
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.panelToggle.classList.toggle('active', open);
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.panelToggle.setAttribute('aria-expanded', String(open));
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.panelToggle.addEventListener('click', () => {
+    const open = _dom_js__WEBPACK_IMPORTED_MODULE_8__.hudEl.classList.toggle('open');
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.panelToggle.classList.toggle('active', open);
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.panelToggle.setAttribute('aria-expanded', String(open));
 });
 setRenderDetailsOpen(!storedViewState || storedViewState.renderDetails !== false);
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.infoCardHeadEl.addEventListener('click', toggleRenderDetails);
-_dom_js__WEBPACK_IMPORTED_MODULE_5__.infoCardHeadEl.addEventListener('keydown', (event) => {
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardHeadEl.addEventListener('click', toggleRenderDetails);
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardHeadEl.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ')
         return;
     event.preventDefault();
@@ -2052,7 +2228,7 @@ timeRibbon.update(worldTime);
 animate();
 await loadWorlds();
 await npcCatalog.load();
-if (_dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.value) {
+if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value) {
     hasStarted = true;
     const restoredCameraPose = restoreCameraPose();
     await refreshWorldTime();
@@ -2174,6 +2350,180 @@ function makeCornerLabel(text) {
 
 /***/ },
 
+/***/ "./src/main/resources/web/src/chunk-placeholder.ts"
+/*!*********************************************************!*\
+  !*** ./src/main/resources/web/src/chunk-placeholder.ts ***!
+  \*********************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   createChunkPlaceholderManager: () => (/* binding */ createChunkPlaceholderManager)
+/* harmony export */ });
+/* harmony import */ var three__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! three */ "three");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./utils.js */ "./src/main/resources/web/src/utils.ts");
+
+
+const CHUNK_SIZE = 32;
+const PLACEHOLDER_BASE_Y = 96;
+const PLACEHOLDER_HEIGHT = 32;
+const PLACEHOLDER_FADE_MS = 220;
+const FACE_GRID_LINES = 3;
+const PLACEHOLDER_AXIS_COLOR = 0x1faa6a;
+const PLACEHOLDER_LINE_COLOR = 0x15965a;
+function createFaceGridGeometry(size, height, lineCount) {
+    const positions = [];
+    const step = size / (lineCount + 1);
+    const addSegment = (ax, ay, az, bx, by, bz) => {
+        positions.push(ax, ay, az, bx, by, bz);
+    };
+    for (let i = 1; i <= lineCount; i += 1) {
+        const offset = step * i;
+        addSegment(0, 0, offset, size, 0, offset);
+        addSegment(0, height, offset, size, height, offset);
+        addSegment(0, 0, offset, 0, height, offset);
+        addSegment(size, 0, offset, size, height, offset);
+        addSegment(0, offset, 0, size, offset, 0);
+        addSegment(0, offset, size, size, offset, size);
+        addSegment(0, offset, 0, 0, offset, size);
+        addSegment(size, offset, 0, size, offset, size);
+        addSegment(offset, 0, 0, offset, 0, size);
+        addSegment(offset, height, 0, offset, height, size);
+        addSegment(offset, 0, 0, offset, height, 0);
+        addSegment(offset, 0, size, offset, height, size);
+    }
+    const geometry = new three__WEBPACK_IMPORTED_MODULE_0__.BufferGeometry();
+    geometry.setAttribute('position', new three__WEBPACK_IMPORTED_MODULE_0__.Float32BufferAttribute(positions, 3));
+    return geometry;
+}
+function createChunkPlaceholderManager(scene) {
+    const placeholders = new Map();
+    function createPlaceholderObject() {
+        const group = new three__WEBPACK_IMPORTED_MODULE_0__.Group();
+        group.name = 'chunk-placeholder';
+        const box = new three__WEBPACK_IMPORTED_MODULE_0__.BoxGeometry(CHUNK_SIZE, PLACEHOLDER_HEIGHT, CHUNK_SIZE);
+        const edges = new three__WEBPACK_IMPORTED_MODULE_0__.EdgesGeometry(box);
+        box.dispose();
+        const lineMaterial = new three__WEBPACK_IMPORTED_MODULE_0__.LineBasicMaterial({
+            color: PLACEHOLDER_AXIS_COLOR,
+            transparent: true,
+            opacity: 0.72,
+            depthWrite: false,
+        });
+        const edgeLines = new three__WEBPACK_IMPORTED_MODULE_0__.LineSegments(edges, lineMaterial);
+        edgeLines.renderOrder = -12;
+        group.add(edgeLines);
+        const faceGrid = new three__WEBPACK_IMPORTED_MODULE_0__.LineSegments(createFaceGridGeometry(CHUNK_SIZE, PLACEHOLDER_HEIGHT, FACE_GRID_LINES), new three__WEBPACK_IMPORTED_MODULE_0__.LineBasicMaterial({
+            color: PLACEHOLDER_LINE_COLOR,
+            transparent: true,
+            opacity: 0.46,
+            depthWrite: false,
+        }));
+        faceGrid.renderOrder = -11;
+        group.add(faceGrid);
+        return {
+            object: group,
+            lineMaterial,
+            state: 'waiting',
+            fadeElapsed: 0,
+        };
+    }
+    function disposeEntry(entry) {
+        scene.remove(entry.object);
+        entry.object.traverse((child) => {
+            child.geometry?.dispose();
+            const materials = child instanceof three__WEBPACK_IMPORTED_MODULE_0__.LineSegments
+                ? (Array.isArray(child.material) ? child.material : [child.material])
+                : [];
+            for (const material of materials) {
+                material?.dispose();
+            }
+        });
+        entry.lineMaterial.dispose();
+    }
+    return {
+        sync(world, keys, loadedIds) {
+            const keep = new Set();
+            for (const key of keys) {
+                const id = key.id ?? (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.chunkId)(world, key.chunkX, key.chunkZ);
+                keep.add(id);
+                if (loadedIds.has(id)) {
+                    continue;
+                }
+                let entry = placeholders.get(id);
+                if (!entry) {
+                    entry = createPlaceholderObject();
+                    entry.object.position.set(key.chunkX * CHUNK_SIZE, PLACEHOLDER_BASE_Y, key.chunkZ * CHUNK_SIZE);
+                    placeholders.set(id, entry);
+                    scene.add(entry.object);
+                }
+                else if (entry.state === 'waiting') {
+                    entry.object.position.set(key.chunkX * CHUNK_SIZE, PLACEHOLDER_BASE_Y, key.chunkZ * CHUNK_SIZE);
+                    entry.object.visible = true;
+                }
+            }
+            for (const [id, entry] of placeholders) {
+                if (!keep.has(id) && entry.state === 'waiting') {
+                    disposeEntry(entry);
+                    placeholders.delete(id);
+                }
+            }
+        },
+        resolve(world, chunkX, chunkZ) {
+            const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.chunkId)(world, chunkX, chunkZ);
+            const entry = placeholders.get(id);
+            if (!entry || entry.state === 'fading') {
+                return;
+            }
+            entry.state = 'fading';
+            entry.fadeElapsed = 0;
+        },
+        update(deltaSeconds) {
+            const completed = [];
+            for (const [id, entry] of placeholders) {
+                if (entry.state !== 'fading') {
+                    continue;
+                }
+                entry.fadeElapsed += deltaSeconds * 1000;
+                const progress = Math.min(1, entry.fadeElapsed / PLACEHOLDER_FADE_MS);
+                const edgeOpacity = 0.72 * (1 - progress);
+                entry.lineMaterial.opacity = edgeOpacity;
+                entry.object.traverse((child) => {
+                    if (!(child instanceof three__WEBPACK_IMPORTED_MODULE_0__.LineSegments) || child.material === entry.lineMaterial) {
+                        return;
+                    }
+                    const material = child.material;
+                    material.opacity = 0.46 * (1 - progress);
+                });
+                if (progress >= 1) {
+                    completed.push(id);
+                }
+            }
+            for (const id of completed) {
+                const entry = placeholders.get(id);
+                if (!entry)
+                    continue;
+                disposeEntry(entry);
+                placeholders.delete(id);
+            }
+        },
+        count() {
+            return placeholders.size;
+        },
+        waitingCount() {
+            let count = 0;
+            for (const entry of placeholders.values()) {
+                if (entry.state === 'waiting')
+                    count += 1;
+            }
+            return count;
+        },
+    };
+}
+
+
+/***/ },
+
 /***/ "./src/main/resources/web/src/client-log.ts"
 /*!**************************************************!*\
   !*** ./src/main/resources/web/src/client-log.ts ***!
@@ -2290,6 +2640,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   hudEl: () => (/* binding */ hudEl),
 /* harmony export */   infoCardEl: () => (/* binding */ infoCardEl),
 /* harmony export */   infoCardHeadEl: () => (/* binding */ infoCardHeadEl),
+/* harmony export */   landMotionInput: () => (/* binding */ landMotionInput),
 /* harmony export */   mapTilesInput: () => (/* binding */ mapTilesInput),
 /* harmony export */   mapTimeInput: () => (/* binding */ mapTimeInput),
 /* harmony export */   metricCenterEl: () => (/* binding */ metricCenterEl),
@@ -2334,6 +2685,7 @@ const playerUpdateRateInput = document.querySelector('#player-update-rate');
 const sunLightingInput = document.querySelector('#sun-lighting');
 const treeShadeInput = document.querySelector('#tree-shade');
 const mapTilesInput = document.querySelector('#map-tiles');
+const landMotionInput = document.querySelector('#land-motion');
 const shadeSizeInput = document.querySelector('#shade-size');
 const shadeSizeValueInput = document.querySelector('#shade-size-value');
 const shadeDarknessInput = document.querySelector('#shade-darkness');
@@ -2414,6 +2766,314 @@ function drawCounter(counter) {
     if (counter.frameEl) {
         counter.frameEl.textContent = `${counter.frameMs.toFixed(1)} ms`;
     }
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/frame-jank.ts"
+/*!**************************************************!*\
+  !*** ./src/main/resources/web/src/frame-jank.ts ***!
+  \**************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   createFrameJankRecorder: () => (/* binding */ createFrameJankRecorder)
+/* harmony export */ });
+/* harmony import */ var _client_log_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./client-log.js */ "./src/main/resources/web/src/client-log.ts");
+
+const HITCH_THRESHOLD_MS = 50;
+const SEVERE_HITCH_THRESHOLD_MS = 100;
+const BUFFER_SIZE = 300;
+function percentile(sorted, ratio) {
+    if (sorted.length === 0)
+        return 0;
+    const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1));
+    return sorted[index];
+}
+function createFrameJankRecorder() {
+    const frameMs = new Array(BUFFER_SIZE);
+    let frameCount = 0;
+    let lastFrameAt = performance.now();
+    let activeLoadKind = 'none';
+    let hitchCount50 = 0;
+    let hitchCount100 = 0;
+    let longestHitchMs = 0;
+    let hitchWhileLoading = 0;
+    function pushFrame(deltaMs) {
+        const slot = frameCount % BUFFER_SIZE;
+        frameMs[slot] = deltaMs;
+        frameCount += 1;
+    }
+    return {
+        setActiveLoadKind(kind) {
+            activeLoadKind = kind;
+        },
+        getActiveLoadKind() {
+            return activeLoadKind;
+        },
+        recordFrame() {
+            const now = performance.now();
+            const deltaMs = now - lastFrameAt;
+            lastFrameAt = now;
+            pushFrame(deltaMs);
+            if (deltaMs < HITCH_THRESHOLD_MS) {
+                return;
+            }
+            hitchCount50 += 1;
+            if (deltaMs > longestHitchMs) {
+                longestHitchMs = deltaMs;
+            }
+            if (deltaMs >= SEVERE_HITCH_THRESHOLD_MS) {
+                hitchCount100 += 1;
+            }
+            if (activeLoadKind !== 'none') {
+                hitchWhileLoading += 1;
+            }
+            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_0__.logClientEvent)('frame_hitch', {
+                deltaMs: Math.round(deltaMs),
+                load: activeLoadKind,
+            });
+        },
+        reset() {
+            frameCount = 0;
+            hitchCount50 = 0;
+            hitchCount100 = 0;
+            longestHitchMs = 0;
+            hitchWhileLoading = 0;
+            lastFrameAt = performance.now();
+        },
+        stats() {
+            const sampleCount = Math.min(frameCount, BUFFER_SIZE);
+            const samples = [];
+            for (let i = 0; i < sampleCount; i += 1) {
+                const value = frameMs[i];
+                if (Number.isFinite(value)) {
+                    samples.push(value);
+                }
+            }
+            samples.sort((a, b) => a - b);
+            return {
+                samples: sampleCount,
+                p50FrameMs: Math.round(percentile(samples, 0.5) * 10) / 10,
+                p95FrameMs: Math.round(percentile(samples, 0.95) * 10) / 10,
+                p99FrameMs: Math.round(percentile(samples, 0.99) * 10) / 10,
+                maxFrameMs: Math.round((samples.length > 0 ? samples[samples.length - 1] : 0) * 10) / 10,
+                hitchCount50,
+                hitchCount100,
+                longestHitchMs: Math.round(longestHitchMs * 10) / 10,
+                hitchWhileLoading,
+                activeLoadKind,
+            };
+        },
+    };
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/library/chunk-land-motion.ts"
+/*!*****************************************************************!*\
+  !*** ./src/main/resources/web/src/library/chunk-land-motion.ts ***!
+  \*****************************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   createChunkLandMotion: () => (/* binding */ createChunkLandMotion)
+/* harmony export */ });
+/* harmony import */ var three__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! three */ "three");
+
+const LOAD_RISE_START_Y = -48;
+const LOAD_RISE_MS = 310;
+const UNLOAD_SINK_DISTANCE = 12;
+const UNLOAD_SINK_MS = 100;
+const LAND_FAILSAFE_MULTIPLIER = 1.5;
+const GROUND_Y = 0;
+const GROUND_EPSILON = 0.25;
+function easeOutCubic(t) {
+    const clamped = Math.max(0, Math.min(1, t));
+    return 1 - (1 - clamped) ** 3;
+}
+function nowMs() {
+    return performance.now();
+}
+function createChunkLandMotion() {
+    function startRise(entry) {
+        entry.landState = 'rising';
+        entry.landStartedAt = nowMs();
+        entry.landDurationMs = LOAD_RISE_MS;
+        entry.landStartY = LOAD_RISE_START_Y;
+        entry.landTargetY = GROUND_Y;
+        entry.object.position.y = entry.landStartY;
+        entry.onLandComplete = null;
+    }
+    function startSink(entry, onComplete) {
+        entry.landState = 'sinking';
+        entry.landStartedAt = nowMs();
+        entry.landDurationMs = UNLOAD_SINK_MS;
+        entry.landStartY = entry.object.position.y;
+        entry.landTargetY = entry.landStartY - UNLOAD_SINK_DISTANCE;
+        entry.onLandComplete = onComplete;
+        entry.pendingUnload = null;
+    }
+    function settleRise(entry) {
+        entry.object.position.y = GROUND_Y;
+        entry.landState = 'settled';
+        entry.onLandComplete = null;
+        const pending = entry.pendingUnload;
+        entry.pendingUnload = null;
+        pending?.();
+    }
+    function settleSink(entry) {
+        entry.object.position.y = entry.landTargetY;
+        const complete = entry.onLandComplete;
+        entry.onLandComplete = null;
+        entry.pendingUnload = null;
+        entry.landState = 'settled';
+        complete?.();
+    }
+    function tickEntry(entry) {
+        if (!Number.isFinite(entry.landStartedAt) || entry.landStartedAt <= 0) {
+            entry.landStartedAt = nowMs();
+        }
+        const elapsed = nowMs() - entry.landStartedAt;
+        const duration = Math.max(1, entry.landDurationMs);
+        const rawT = elapsed / duration;
+        const progress = easeOutCubic(Math.min(1, rawT));
+        entry.object.position.y = three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.lerp(entry.landStartY, entry.landTargetY, progress);
+        const finished = rawT >= 1 || elapsed >= duration * LAND_FAILSAFE_MULTIPLIER;
+        if (!finished) {
+            return;
+        }
+        if (entry.landState === 'rising') {
+            settleRise(entry);
+            return;
+        }
+        if (entry.landState === 'sinking') {
+            settleSink(entry);
+        }
+    }
+    function normalizeLandState(entry) {
+        const state = entry.landState;
+        if (state === 'dropping') {
+            entry.landState = 'rising';
+            if (!Number.isFinite(entry.landStartedAt) || entry.landStartedAt <= 0) {
+                entry.landStartedAt = nowMs();
+            }
+            if (!Number.isFinite(entry.landDurationMs) || entry.landDurationMs <= 0) {
+                entry.landDurationMs = LOAD_RISE_MS;
+            }
+            entry.landStartY = entry.object.position.y;
+            entry.landTargetY = GROUND_Y;
+        }
+    }
+    function reconcileGrounded(entry) {
+        if (entry.landState === 'rising' || entry.landState === 'sinking') {
+            return;
+        }
+        if (Math.abs(entry.object.position.y - GROUND_Y) > GROUND_EPSILON) {
+            entry.object.position.y = GROUND_Y;
+            entry.landState = 'settled';
+        }
+    }
+    return {
+        isAnimating(entry) {
+            return entry.landState === 'rising' || entry.landState === 'sinking';
+        },
+        beginLoad(entry, enabled) {
+            entry.pendingUnload = null;
+            entry.onLandComplete = null;
+            if (!enabled) {
+                entry.landState = 'settled';
+                entry.landStartedAt = 0;
+                entry.landDurationMs = 0;
+                entry.landStartY = GROUND_Y;
+                entry.landTargetY = GROUND_Y;
+                entry.object.position.y = GROUND_Y;
+                return;
+            }
+            startRise(entry);
+        },
+        beginUnload(entry, enabled, onComplete) {
+            if (!enabled) {
+                entry.pendingUnload = null;
+                entry.onLandComplete = null;
+                entry.landState = 'settled';
+                onComplete();
+                return false;
+            }
+            if (entry.landState === 'rising') {
+                entry.pendingUnload = () => {
+                    startSink(entry, onComplete);
+                };
+                return true;
+            }
+            if (entry.landState === 'sinking') {
+                entry.onLandComplete = onComplete;
+                return true;
+            }
+            startSink(entry, onComplete);
+            return true;
+        },
+        cancel(entry) {
+            entry.pendingUnload = null;
+            entry.onLandComplete = null;
+            entry.landState = 'settled';
+            entry.object.position.y = GROUND_Y;
+        },
+        update(entries) {
+            let active = 0;
+            for (const entry of entries) {
+                normalizeLandState(entry);
+                if (entry.landState === 'rising' || entry.landState === 'sinking') {
+                    active += 1;
+                    tickEntry(entry);
+                    continue;
+                }
+                reconcileGrounded(entry);
+            }
+            return active;
+        },
+        activeCount(entries) {
+            let count = 0;
+            for (const entry of entries) {
+                if (entry.landState === 'rising' || entry.landState === 'sinking') {
+                    count += 1;
+                }
+            }
+            return count;
+        },
+    };
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/library/map-tile-loader.ts"
+/*!***************************************************************!*\
+  !*** ./src/main/resources/web/src/library/map-tile-loader.ts ***!
+  \***************************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   loadMapTilePng: () => (/* binding */ loadMapTilePng)
+/* harmony export */ });
+/* harmony import */ var _client_log_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../client-log.js */ "./src/main/resources/web/src/client-log.ts");
+
+async function loadMapTilePng(world, chunkX, chunkZ) {
+    const url = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.map.png`;
+    const started = performance.now();
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Map tile request failed: ${response.status}`);
+    }
+    const bytes = await response.arrayBuffer();
+    const source = response.headers.get('X-Worldview-Cache') ?? 'other';
+    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_0__.logClientTiming)('map_tile_single_load', started, { world, chunkX, chunkZ, bytes: bytes.byteLength, source });
+    return { bytes, source };
 }
 
 
@@ -2997,28 +3657,46 @@ function getShadeTexture() {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   MAP_HORIZON_MARGIN: () => (/* binding */ MAP_HORIZON_MARGIN),
+/* harmony export */   auditMapTiles: () => (/* binding */ auditMapTiles),
 /* harmony export */   clearMapBackdrop: () => (/* binding */ clearMapBackdrop),
+/* harmony export */   configureMapBackdrop: () => (/* binding */ configureMapBackdrop),
+/* harmony export */   loadMapTilesForKeys: () => (/* binding */ loadMapTilesForKeys),
 /* harmony export */   mapBackdropStats: () => (/* binding */ mapBackdropStats),
+/* harmony export */   mapTileMotionActive: () => (/* binding */ mapTileMotionActive),
+/* harmony export */   mapTileSceneStats: () => (/* binding */ mapTileSceneStats),
+/* harmony export */   probeMapTilePixel: () => (/* binding */ probeMapTilePixel),
+/* harmony export */   pruneMapTiles: () => (/* binding */ pruneMapTiles),
 /* harmony export */   sampleMapBackdropColor: () => (/* binding */ sampleMapBackdropColor),
+/* harmony export */   setMapTileChunkCovered: () => (/* binding */ setMapTileChunkCovered),
+/* harmony export */   tickMapTileMotion: () => (/* binding */ tickMapTileMotion),
 /* harmony export */   updateMapBackdrop: () => (/* binding */ updateMapBackdrop)
 /* harmony export */ });
 /* harmony import */ var three__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! three */ "three");
 /* harmony import */ var _client_log_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./client-log.js */ "./src/main/resources/web/src/client-log.ts");
+/* harmony import */ var _library_map_tile_loader_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./library/map-tile-loader.js */ "./src/main/resources/web/src/library/map-tile-loader.ts");
+/* harmony import */ var _mesh_cache_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./mesh-cache.js */ "./src/main/resources/web/src/mesh-cache.ts");
+/* harmony import */ var _water_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./water.js */ "./src/main/resources/web/src/water.ts");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./utils.js */ "./src/main/resources/web/src/utils.ts");
+
+
+
+
 
 
 const CHUNK_SIZE = 32;
-const MAP_REGION_BONUS_RADIUS = 54;
-const MAP_REGION_MAX_RADIUS = 102;
-const MAP_BACKDROP_PAN_MARGIN = 20;
-const MAP_BACKDROP_Y = 112.0;
-let activeBackdrop = null;
-let pendingTextureKey = null;
-let activeGeometryKey = null;
-let activeSampler = null;
-let textureAnchor = null;
-let requestSerial = 0;
-let fetchCount = 0;
-let reuseCount = 0;
+/** Map tiles extend this many chunks beyond the voxel terrain square on each side. */
+const MAP_HORIZON_MARGIN = 40;
+const SKY_RGB = { r: 23, g: 52, b: 84 };
+const RISE_START_Y = -48;
+const RISE_MS = 200;
+const RISE_FAILSAFE_MULTIPLIER = 1.5;
+const PROMOTE_PER_FRAME = 512;
+const loadedTiles = new Map();
+const pendingRise = [];
+const activeRise = new Map();
+let loadGeneration = 0;
+let context = null;
 let activeStats = {
     loaded: 0,
     centerX: 0,
@@ -3033,158 +3711,243 @@ let activeStats = {
     reuses: 0,
     anchorX: 0,
     anchorZ: 0,
+    visibleTiles: 0,
+    totalTiles: 0,
 };
-function updateMapBackdrop(scene, renderer, options) {
-    const { enabled, world, centerX, centerZ, meshRadius, coveredChunks } = options;
-    if (!enabled || !world || !Number.isFinite(centerX) || !Number.isFinite(centerZ)) {
-        clearMapBackdrop(scene);
-        return;
-    }
-    const innerRadius = Math.max(0, Math.floor(meshRadius));
-    const displayRadius = computeDisplayRadius(innerRadius);
-    const fetchRadius = computeFetchRadius(displayRadius);
-    const geometryKey = `${world}:${centerX}:${centerZ}:${innerRadius}:${displayRadius}:${coveredChunkKey(coveredChunks)}`;
-    if (canReuseTexture(world, centerX, centerZ, innerRadius, displayRadius, fetchRadius)) {
-        applyLoadedBackdrop(scene, {
-            world,
-            viewCenterX: centerX,
-            viewCenterZ: centerZ,
-            innerRadius,
-            displayRadius,
-            coveredChunks,
-            geometryKey,
-            reused: true,
-        });
-        return;
-    }
-    const anchorX = centerX;
-    const anchorZ = centerZ;
-    const textureKey = `${world}:${anchorX}:${anchorZ}:${innerRadius}:${fetchRadius}`;
-    if (textureKey === pendingTextureKey) {
-        return;
-    }
-    pendingTextureKey = textureKey;
-    activeStats = {
-        loaded: 0,
-        centerX,
-        centerZ,
-        radius: displayRadius,
-        chunks: displayRadius * 2 + 1,
-        bytes: 0,
-        loadMs: 0,
-        textureSize: '',
-        reused: false,
-        fetches: fetchCount,
-        reuses: reuseCount,
-        anchorX,
-        anchorZ,
-    };
-    const serial = ++requestSerial;
-    const textureLoader = new three__WEBPACK_IMPORTED_MODULE_0__.TextureLoader();
-    const url = `/api/mapregion/${encodeURIComponent(world)}/${anchorX}/${anchorZ}/${fetchRadius}.png`;
-    const started = performance.now();
-    fetch(url)
-        .then((response) => {
-        if (!response.ok) {
-            throw new Error(`Map backdrop request failed: ${response.status}`);
-        }
-        return response.blob();
-    })
-        .then((blob) => new Promise((resolve, reject) => {
-        const objectUrl = URL.createObjectURL(blob);
-        textureLoader.load(objectUrl, (texture) => {
+function easeOutCubic(t) {
+    const clamped = Math.max(0, Math.min(1, t));
+    return 1 - (1 - clamped) ** 3;
+}
+function tileCacheKey(world, chunkX, chunkZ, formatVersion) {
+    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_3__.makeMapTileCacheKey)({ world, chunkX, chunkZ, formatVersion });
+}
+function tileMotionKey(chunkX, chunkZ) {
+    return `${chunkX}:${chunkZ}`;
+}
+async function textureFromPngBytes(bytes, maxAnisotropy) {
+    const blob = new Blob([bytes], { type: 'image/png' });
+    const objectUrl = URL.createObjectURL(blob);
+    return new Promise((resolve, reject) => {
+        const loader = new three__WEBPACK_IMPORTED_MODULE_0__.TextureLoader();
+        loader.load(objectUrl, (texture) => {
             URL.revokeObjectURL(objectUrl);
-            resolve({ texture, bytes: blob.size, loadMs: performance.now() - started });
+            texture.colorSpace = three__WEBPACK_IMPORTED_MODULE_0__.SRGBColorSpace;
+            texture.anisotropy = Math.min(4, maxAnisotropy);
+            texture.needsUpdate = true;
+            resolve({ texture, image: texture.image ?? null });
         }, undefined, (error) => {
             URL.revokeObjectURL(objectUrl);
             reject(error);
         });
-    }))
-        .then(({ texture, bytes, loadMs }) => {
-        if (serial !== requestSerial) {
-            texture.dispose();
-            return;
-        }
-        texture.colorSpace = three__WEBPACK_IMPORTED_MODULE_0__.SRGBColorSpace;
-        texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy?.() ?? 1);
-        texture.needsUpdate = true;
-        textureAnchor = {
-            world,
-            centerX: anchorX,
-            centerZ: anchorZ,
-            innerRadius,
-            displayRadius,
-            fetchRadius,
-            textureKey,
-        };
-        fetchCount += 1;
-        pendingTextureKey = null;
-        const chunkCount = fetchRadius * 2 + 1;
-        applyLoadedBackdrop(scene, {
-            world,
-            viewCenterX: centerX,
-            viewCenterZ: centerZ,
-            innerRadius,
-            displayRadius,
-            coveredChunks,
-            geometryKey,
-            texture,
-            bytes,
-            loadMs,
-            reused: false,
-        });
-        activeStats = {
-            loaded: 1,
-            centerX,
-            centerZ,
-            radius: displayRadius,
-            chunks: chunkCount,
-            bytes,
-            loadMs,
-            textureSize: texture.image ? `${texture.image.width}x${texture.image.height}` : '',
-            reused: false,
-            fetches: fetchCount,
-            reuses: reuseCount,
-            anchorX,
-            anchorZ,
-        };
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_1__.logClientEvent)('map_backdrop_load', {
-            world,
-            centerX,
-            centerZ,
-            anchorX,
-            anchorZ,
-            radius: fetchRadius,
-            displayRadius,
-            chunks: chunkCount,
-            bytes,
-            ms: Math.round(loadMs),
-            textureSize: activeStats.textureSize,
-        });
-        window.dispatchEvent(new CustomEvent('worldview:map-backdrop-loaded'));
-    })
-        .catch((error) => {
-        if (serial === requestSerial) {
-            pendingTextureKey = null;
-            console.warn('Map backdrop load failed', error);
-            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_1__.logClientEvent)('map_backdrop_failed', {
-                world,
-                centerX,
-                centerZ,
-                radius: fetchRadius,
-                error: error?.message ?? error,
-            });
-            if (!activeBackdrop) {
-                clearMapBackdrop(scene);
-            }
-        }
     });
 }
+function applyTileHeight(mesh, chunkX, chunkZ, y = _water_js__WEBPACK_IMPORTED_MODULE_4__.MAP_BACKDROP_Y) {
+    mesh.position.set(chunkX * CHUNK_SIZE + CHUNK_SIZE / 2, y, chunkZ * CHUNK_SIZE + CHUNK_SIZE / 2);
+}
+function createTileMesh(texture, chunkX, chunkZ) {
+    const geometry = new three__WEBPACK_IMPORTED_MODULE_0__.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE);
+    geometry.rotateX(-Math.PI / 2);
+    const material = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.98,
+        depthTest: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: 1,
+        polygonOffsetUnits: 1,
+        side: three__WEBPACK_IMPORTED_MODULE_0__.DoubleSide,
+        fog: false,
+        toneMapped: false,
+    });
+    const mesh = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(geometry, material);
+    applyTileHeight(mesh, chunkX, chunkZ);
+    mesh.name = `map-tile:${chunkX}:${chunkZ}`;
+    mesh.renderOrder = 0;
+    mesh.frustumCulled = false;
+    return mesh;
+}
+function disposeTileEntry(entry) {
+    entry.mesh.parent?.remove(entry.mesh);
+    entry.texture.dispose();
+    entry.mesh.geometry?.dispose();
+    const material = entry.mesh.material;
+    if (material && !Array.isArray(material)) {
+        material.dispose();
+    }
+    entry.mesh.dispose?.();
+}
+function revealTile(entry, motionEnabled) {
+    const key = tileMotionKey(entry.chunkX, entry.chunkZ);
+    if (activeRise.has(key) || pendingRise.some((rising) => tileMotionKey(rising.chunkX, rising.chunkZ) === key)) {
+        return;
+    }
+    entry.mesh.visible = true;
+    if (!motionEnabled) {
+        applyTileHeight(entry.mesh, entry.chunkX, entry.chunkZ);
+        return;
+    }
+    const startY = RISE_START_Y;
+    entry.mesh.position.y = startY;
+    pendingRise.push({
+        mesh: entry.mesh,
+        chunkX: entry.chunkX,
+        chunkZ: entry.chunkZ,
+        startedAt: 0,
+        startY,
+    });
+}
+async function installTile(scene, world, chunkX, chunkZ, bytes, maxAnisotropy, motionEnabled) {
+    const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_5__.chunkId)(world, chunkX, chunkZ);
+    if (loadedTiles.has(id))
+        return loadedTiles.get(id);
+    const { texture, image } = await textureFromPngBytes(bytes, maxAnisotropy);
+    const mesh = createTileMesh(texture, chunkX, chunkZ);
+    const entry = {
+        mesh,
+        texture,
+        image,
+        pixels: null,
+        pixelWidth: CHUNK_SIZE,
+        pixelHeight: CHUNK_SIZE,
+        chunkX,
+        chunkZ,
+        bytes: bytes.byteLength,
+    };
+    scene.add(mesh);
+    loadedTiles.set(id, entry);
+    revealTile(entry, motionEnabled);
+    return entry;
+}
+function updateStats() {
+    let visibleTiles = 0;
+    let totalBytes = 0;
+    for (const entry of loadedTiles.values()) {
+        if (entry.mesh.visible)
+            visibleTiles += 1;
+        totalBytes += entry.bytes;
+    }
+    activeStats = {
+        ...activeStats,
+        loaded: loadedTiles.size > 0 ? 1 : 0,
+        bytes: totalBytes,
+        textureSize: loadedTiles.size > 0 ? `${CHUNK_SIZE}x${CHUNK_SIZE}` : '',
+        visibleTiles,
+        totalTiles: loadedTiles.size,
+    };
+}
+function configureMapBackdrop(scene, renderer, options) {
+    context = {
+        scene,
+        renderer,
+        enabled: options.enabled === true,
+        formatVersion: options.formatVersion ?? 'v13',
+        motionEnabled: options.motionEnabled !== false,
+    };
+    if (!context.enabled) {
+        clearMapBackdrop(scene);
+    }
+}
+function pruneMapTiles(world, retainIds) {
+    if (!context?.scene)
+        return;
+    const scene = context.scene;
+    for (const [key, entry] of loadedTiles.entries()) {
+        if (retainIds.has(key))
+            continue;
+        scene.remove(entry.mesh);
+        disposeTileEntry(entry);
+        loadedTiles.delete(key);
+        activeRise.delete(tileMotionKey(entry.chunkX, entry.chunkZ));
+    }
+    pendingRise.splice(0, pendingRise.length, ...pendingRise.filter((rising) => {
+        const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_5__.chunkId)(world, rising.chunkX, rising.chunkZ);
+        return retainIds.has(id);
+    }));
+    updateStats();
+}
+/** Load map tiles in caller-provided order, cache first, then direct chunk PNG fetches. */
+async function loadMapTilesForKeys(world, keys, options = {}) {
+    if (!context?.enabled || !context.scene || keys.length === 0)
+        return;
+    const generation = loadGeneration;
+    const { scene, renderer, formatVersion, motionEnabled } = context;
+    const revealMotion = options.immediate === true ? false : motionEnabled;
+    const maxAnisotropy = renderer.capabilities.getMaxAnisotropy?.() ?? 1;
+    const missing = keys.filter((key) => !loadedTiles.has((0,_utils_js__WEBPACK_IMPORTED_MODULE_5__.chunkId)(world, key.chunkX, key.chunkZ)));
+    if (missing.length === 0)
+        return;
+    const started = performance.now();
+    const networkMissing = [];
+    for (const key of missing) {
+        if (generation !== loadGeneration)
+            return;
+        const cacheKey = tileCacheKey(world, key.chunkX, key.chunkZ, formatVersion);
+        const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_3__.readMapTileCache)(cacheKey);
+        if (generation !== loadGeneration)
+            return;
+        if (cached?.bytes) {
+            await installTile(scene, world, key.chunkX, key.chunkZ, cached.bytes, maxAnisotropy, revealMotion);
+            activeStats.reuses += 1;
+            continue;
+        }
+        networkMissing.push(key);
+    }
+    for (const key of networkMissing) {
+        if (generation !== loadGeneration)
+            return;
+        try {
+            const result = await (0,_library_map_tile_loader_js__WEBPACK_IMPORTED_MODULE_2__.loadMapTilePng)(world, key.chunkX, key.chunkZ);
+            if (generation !== loadGeneration)
+                return;
+            const cacheKey = tileCacheKey(world, key.chunkX, key.chunkZ, formatVersion);
+            (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_3__.writeMapTileCache)(cacheKey, result.bytes.slice(0), { source: result.source });
+            await installTile(scene, world, key.chunkX, key.chunkZ, result.bytes, maxAnisotropy, revealMotion);
+        }
+        catch (error) {
+            console.warn(`Failed to load map tile ${key.chunkX},${key.chunkZ}`, error);
+            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_1__.logClientEvent)('map_tile_single_failed', {
+                world,
+                chunkX: key.chunkX,
+                chunkZ: key.chunkZ,
+                error: error?.message ?? error,
+            });
+        }
+    }
+    activeStats.fetches += 1;
+    activeStats.loadMs = performance.now() - started;
+    updateStats();
+    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_1__.logClientEvent)('map_tiles_stream', {
+        world,
+        requested: keys.length,
+        installed: loadedTiles.size,
+        network: networkMissing.length,
+        ms: Math.round(activeStats.loadMs),
+        visibleTiles: activeStats.visibleTiles,
+    });
+}
+/** @deprecated Use configureMapBackdrop + loadMapTilesForKeys with terrain batches. */
+function updateMapBackdrop(scene, renderer, options) {
+    configureMapBackdrop(scene, renderer, options);
+    activeStats.centerX = options.centerX ?? 0;
+    activeStats.centerZ = options.centerZ ?? 0;
+    activeStats.radius = options.meshRadius ?? 0;
+    activeStats.chunks = (options.meshRadius ?? 0) * 2 + 1;
+    activeStats.anchorX = options.centerX ?? 0;
+    activeStats.anchorZ = options.centerZ ?? 0;
+}
+function setMapTileChunkCovered(_chunkX, _chunkZ, _covered) {
+    // Bedrock map tiles stay visible; terrain depth buffer occludes them.
+}
 function clearMapBackdrop(scene) {
-    pendingTextureKey = null;
-    activeGeometryKey = null;
-    textureAnchor = null;
-    requestSerial++;
+    loadGeneration += 1;
+    pendingRise.splice(0, pendingRise.length);
+    activeRise.clear();
+    for (const entry of loadedTiles.values()) {
+        scene.remove(entry.mesh);
+        disposeTileEntry(entry);
+    }
+    loadedTiles.clear();
     activeStats = {
         loaded: 0,
         centerX: 0,
@@ -3195,227 +3958,209 @@ function clearMapBackdrop(scene) {
         loadMs: 0,
         textureSize: '',
         reused: false,
-        fetches: fetchCount,
-        reuses: reuseCount,
+        fetches: activeStats.fetches,
+        reuses: 0,
         anchorX: 0,
         anchorZ: 0,
+        visibleTiles: 0,
+        totalTiles: 0,
     };
-    activeSampler = null;
-    disposeActiveBackdrop(scene);
-}
-function canReuseTexture(world, viewCenterX, viewCenterZ, innerRadius, displayRadius, fetchRadius) {
-    if (!activeBackdrop || !textureAnchor?.textureKey)
-        return false;
-    if (textureAnchor.world !== world)
-        return false;
-    if (textureAnchor.innerRadius !== innerRadius)
-        return false;
-    if (textureAnchor.fetchRadius !== fetchRadius)
-        return false;
-    return viewFitsAnchor(viewCenterX, viewCenterZ, displayRadius, textureAnchor);
-}
-function viewFitsAnchor(viewCenterX, viewCenterZ, displayRadius, anchor) {
-    return viewCenterX - displayRadius >= anchor.centerX - anchor.fetchRadius
-        && viewCenterX + displayRadius <= anchor.centerX + anchor.fetchRadius
-        && viewCenterZ - displayRadius >= anchor.centerZ - anchor.fetchRadius
-        && viewCenterZ + displayRadius <= anchor.centerZ + anchor.fetchRadius;
-}
-function applyLoadedBackdrop(scene, options) {
-    const { viewCenterX, viewCenterZ, innerRadius, displayRadius, coveredChunks, geometryKey, texture = null, bytes = activeStats.bytes, loadMs = 0, reused = false, } = options;
-    const anchor = textureAnchor;
-    if (!anchor)
-        return;
-    const textureMinX = (anchor.centerX - anchor.fetchRadius) * CHUNK_SIZE;
-    const textureMinZ = (anchor.centerZ - anchor.fetchRadius) * CHUNK_SIZE;
-    const textureSize = anchor.fetchRadius * 2 + 1;
-    const textureWorldSize = textureSize * CHUNK_SIZE;
-    const geometry = createBackdropCoverageGeometry(textureMinX, textureMinZ, textureWorldSize, viewCenterX, viewCenterZ, displayRadius, innerRadius, coveredChunks);
-    if (texture) {
-        applyBackdropMesh(scene, geometry, texture, textureSize, anchor.fetchRadius);
-    }
-    else if (activeBackdrop) {
-        const previousGeometry = activeBackdrop.geometry;
-        activeBackdrop.geometry = geometry;
-        previousGeometry?.dispose();
-        if (!activeBackdrop.parent) {
-            scene.add(activeBackdrop);
-        }
-    }
-    activeGeometryKey = geometryKey;
-    activeSampler = createBackdropSampler(activeBackdrop?.material?.map?.image, textureMinX, textureMinZ, textureWorldSize);
-    if (reused) {
-        reuseCount += 1;
-        activeStats = {
-            ...activeStats,
-            loaded: 1,
-            centerX: viewCenterX,
-            centerZ: viewCenterZ,
-            radius: displayRadius,
-            chunks: displayRadius * 2 + 1,
-            bytes,
-            loadMs: 0,
-            textureSize: activeBackdrop?.material?.map?.image
-                ? `${activeBackdrop.material.map.image.width}x${activeBackdrop.material.map.image.height}`
-                : activeStats.textureSize,
-            reused: true,
-            fetches: fetchCount,
-            reuses: reuseCount,
-            anchorX: anchor.centerX,
-            anchorZ: anchor.centerZ,
-        };
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_1__.logClientEvent)('map_backdrop_reuse', {
-            world: anchor.world,
-            centerX: viewCenterX,
-            centerZ: viewCenterZ,
-            anchorX: anchor.centerX,
-            anchorZ: anchor.centerZ,
-            displayRadius,
-            fetchRadius: anchor.fetchRadius,
-        });
-        window.dispatchEvent(new CustomEvent('worldview:map-backdrop-loaded'));
-    }
-}
-function computeDisplayRadius(innerRadius) {
-    return Math.min(MAP_REGION_MAX_RADIUS, Math.max(innerRadius + MAP_REGION_BONUS_RADIUS, innerRadius + 1));
-}
-function computeFetchRadius(displayRadius) {
-    return Math.min(MAP_REGION_MAX_RADIUS, displayRadius + MAP_BACKDROP_PAN_MARGIN);
-}
-function disposeActiveBackdrop(scene) {
-    if (!activeBackdrop)
-        return;
-    scene.remove(activeBackdrop);
-    activeBackdrop.geometry?.dispose();
-    if (activeBackdrop.material?.map) {
-        activeBackdrop.material.map.dispose();
-    }
-    activeBackdrop.material?.dispose();
-    activeBackdrop = null;
-}
-function applyBackdropMesh(scene, geometry, texture, chunkCount, radius) {
-    if (!activeBackdrop) {
-        const material = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
-            map: texture,
-            side: three__WEBPACK_IMPORTED_MODULE_0__.DoubleSide,
-            transparent: true,
-            opacity: 0.98,
-            depthTest: true,
-            depthWrite: false,
-            fog: false,
-            toneMapped: false,
-        });
-        activeBackdrop = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(geometry, material);
-        activeBackdrop.name = 'worldview-map-backdrop';
-        activeBackdrop.renderOrder = -30;
-        activeBackdrop.frustumCulled = false;
-        scene.add(activeBackdrop);
-    }
-    else {
-        const previousGeometry = activeBackdrop.geometry;
-        const previousTexture = activeBackdrop.material?.map;
-        activeBackdrop.geometry = geometry;
-        activeBackdrop.material.map = texture;
-        activeBackdrop.material.needsUpdate = true;
-        previousGeometry?.dispose();
-        previousTexture?.dispose();
-        if (!activeBackdrop.parent) {
-            scene.add(activeBackdrop);
-        }
-    }
-    activeBackdrop.userData.chunkCount = chunkCount;
-    activeBackdrop.userData.radius = radius;
 }
 function mapBackdropStats() {
     return activeStats;
 }
-function sampleMapBackdropColor(worldX, worldZ) {
-    if (!activeSampler || !Number.isFinite(worldX) || !Number.isFinite(worldZ)) {
-        return null;
+function mapTileSceneStats() {
+    let meshCount = 0;
+    let visibleCount = 0;
+    for (const entry of loadedTiles.values()) {
+        meshCount += 1;
+        if (entry.mesh.visible)
+            visibleCount += 1;
     }
-    const pixels = activeSampler.getPixels();
-    if (!pixels)
-        return null;
-    const u = (worldX - activeSampler.minX) / activeSampler.size;
-    const v = (worldZ - activeSampler.minZ) / activeSampler.size;
-    if (u < 0 || u > 1 || v < 0 || v > 1) {
-        return null;
+    return {
+        meshCount,
+        visibleCount,
+        ...activeStats,
+    };
+}
+function tickMapTileMotion(motionEnabled) {
+    const now = performance.now();
+    let promoted = 0;
+    while (pendingRise.length > 0 && promoted < PROMOTE_PER_FRAME) {
+        const rising = pendingRise.shift();
+        if (!rising)
+            break;
+        const key = tileMotionKey(rising.chunkX, rising.chunkZ);
+        rising.startedAt = now;
+        activeRise.set(key, rising);
+        promoted += 1;
     }
-    const x = Math.max(0, Math.min(activeSampler.width - 1, Math.floor(u * activeSampler.width)));
-    const y = Math.max(0, Math.min(activeSampler.height - 1, Math.floor(v * activeSampler.height)));
-    const offset = (y * activeSampler.width + x) * 4;
-    return {
-        r: pixels[offset],
-        g: pixels[offset + 1],
-        b: pixels[offset + 2],
-    };
-}
-function createBackdropSampler(image, minX, minZ, size) {
-    if (!image?.width || !image?.height)
-        return null;
-    return {
-        minX,
-        minZ,
-        size,
-        width: image.width,
-        height: image.height,
-        image,
-        pixels: null,
-        getPixels() {
-            if (this.pixels)
-                return this.pixels;
-            const canvas = document.createElement('canvas');
-            canvas.width = image.width;
-            canvas.height = image.height;
-            const context = canvas.getContext('2d', { willReadFrequently: true });
-            if (!context)
-                return null;
-            context.drawImage(image, 0, 0);
-            this.pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-            return this.pixels;
-        },
-    };
-}
-function coveredChunkKey(coveredChunks) {
-    if (!(coveredChunks instanceof Set) || coveredChunks.size === 0)
-        return '';
-    return Array.from(coveredChunks).sort().join('|');
-}
-function createBackdropCoverageGeometry(minX, minZ, size, centerX, centerZ, radius, innerRadius, coveredChunks) {
-    const positions = [];
-    const uvs = [];
-    const indices = [];
-    const addRect = (x0, z0, x1, z1) => {
-        if (x1 <= x0 || z1 <= z0)
-            return;
-        const index = positions.length / 3;
-        positions.push(x0, MAP_BACKDROP_Y, z0, x1, MAP_BACKDROP_Y, z0, x1, MAP_BACKDROP_Y, z1, x0, MAP_BACKDROP_Y, z1);
-        uvs.push(uvX(x0), uvZ(z0), uvX(x1), uvZ(z0), uvX(x1), uvZ(z1), uvX(x0), uvZ(z1));
-        indices.push(index, index + 1, index + 2, index, index + 2, index + 3);
-    };
-    const covered = coveredChunks instanceof Set ? coveredChunks : new Set();
-    for (let chunkZ = centerZ - radius; chunkZ <= centerZ + radius; chunkZ += 1) {
-        for (let chunkX = centerX - radius; chunkX <= centerX + radius; chunkX += 1) {
-            const x0 = chunkX * CHUNK_SIZE;
-            const z0 = chunkZ * CHUNK_SIZE;
-            const x1 = x0 + CHUNK_SIZE;
-            const z1 = z0 + CHUNK_SIZE;
-            if (!covered.has(`${chunkX}:${chunkZ}`)) {
-                addRect(x0, z0, x1, z1);
-            }
+    for (const [key, rising] of [...activeRise.entries()]) {
+        const found = [...loadedTiles.values()].find((tile) => tile.mesh === rising.mesh);
+        if (!found) {
+            activeRise.delete(key);
+            continue;
+        }
+        if (!motionEnabled) {
+            applyTileHeight(rising.mesh, rising.chunkX, rising.chunkZ);
+            activeRise.delete(key);
+            continue;
+        }
+        const elapsed = now - rising.startedAt;
+        const duration = Math.max(1, RISE_MS);
+        const rawT = elapsed / duration;
+        rising.mesh.position.y = three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.lerp(rising.startY, _water_js__WEBPACK_IMPORTED_MODULE_4__.MAP_BACKDROP_Y, easeOutCubic(Math.min(1, rawT)));
+        if (rawT >= 1 || elapsed >= duration * RISE_FAILSAFE_MULTIPLIER) {
+            applyTileHeight(rising.mesh, rising.chunkX, rising.chunkZ);
+            activeRise.delete(key);
         }
     }
-    const geometry = new three__WEBPACK_IMPORTED_MODULE_0__.BufferGeometry();
-    geometry.setAttribute('position', new three__WEBPACK_IMPORTED_MODULE_0__.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('uv', new three__WEBPACK_IMPORTED_MODULE_0__.Float32BufferAttribute(uvs, 2));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
-    return geometry;
-    function uvX(x) {
-        return (x - minX) / size;
+    updateStats();
+    return activeRise.size + pendingRise.length;
+}
+function mapTileMotionActive() {
+    return activeRise.size > 0 || pendingRise.length > 0;
+}
+function ensureTilePixels(entry) {
+    if (entry.pixels || !entry.image)
+        return entry.pixels;
+    const image = entry.image;
+    const width = image.width ?? CHUNK_SIZE;
+    const height = image.height ?? CHUNK_SIZE;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context2d = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context2d)
+        return null;
+    context2d.drawImage(entry.image, 0, 0);
+    entry.pixelWidth = width;
+    entry.pixelHeight = height;
+    entry.pixels = context2d.getImageData(0, 0, width, height).data;
+    return entry.pixels;
+}
+function auditMapTiles(scene) {
+    const issues = [];
+    const tiles = [];
+    for (const entry of loadedTiles.values()) {
+        const material = entry.mesh.material;
+        const texture = material?.map;
+        const image = texture?.image;
+        const worldX = entry.chunkX * CHUNK_SIZE + CHUNK_SIZE / 2;
+        const worldZ = entry.chunkZ * CHUNK_SIZE + CHUNK_SIZE / 2;
+        const sample = sampleMapBackdropColor(worldX, worldZ);
+        const row = {
+            chunkX: entry.chunkX,
+            chunkZ: entry.chunkZ,
+            visible: entry.mesh.visible,
+            inScene: entry.mesh.parent === scene,
+            y: entry.mesh.position.y,
+            hasTexture: Boolean(texture),
+            textureWidth: image?.width ?? 0,
+            textureHeight: image?.height ?? 0,
+            bytes: entry.bytes,
+            sample,
+        };
+        tiles.push(row);
+        if (!row.inScene)
+            issues.push(`missing_scene:${entry.chunkX},${entry.chunkZ}`);
+        if (!row.hasTexture)
+            issues.push(`missing_texture:${entry.chunkX},${entry.chunkZ}`);
+        if (row.textureWidth < 8 || row.textureHeight < 8)
+            issues.push(`tiny_texture:${entry.chunkX},${entry.chunkZ}`);
+        if (!row.visible)
+            issues.push(`not_visible:${entry.chunkX},${entry.chunkZ}`);
+        if (!sample)
+            issues.push(`sample_failed:${entry.chunkX},${entry.chunkZ}`);
     }
-    function uvZ(z) {
-        return 1 - (z - minZ) / size;
+    return {
+        ok: issues.length === 0 && tiles.length > 0,
+        count: tiles.length,
+        issues,
+        tiles: tiles.slice(0, 8),
+    };
+}
+function probeMapTilePixel(scene, renderer, camera, renderFrame, chunkX, chunkZ) {
+    const entry = [...loadedTiles.values()].find((tile) => tile.chunkX === chunkX && tile.chunkZ === chunkZ);
+    if (!entry) {
+        return { ok: false, error: 'tile_missing' };
     }
+    const savedVisibility = new Map();
+    scene.traverse((object) => {
+        savedVisibility.set(object, object.visible);
+    });
+    scene.traverse((object) => {
+        if (object === entry.mesh) {
+            object.visible = true;
+            return;
+        }
+        if (object === scene)
+            return;
+        object.visible = false;
+    });
+    const worldX = chunkX * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const worldZ = chunkZ * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const savedPosition = camera.position.clone();
+    const savedQuaternion = camera.quaternion.clone();
+    const savedUp = camera.up.clone();
+    camera.position.set(worldX, 12, worldZ);
+    camera.up.set(0, 0, -1);
+    camera.lookAt(worldX, _water_js__WEBPACK_IMPORTED_MODULE_4__.MAP_BACKDROP_Y, worldZ);
+    camera.updateMatrixWorld(true);
+    scene.background = null;
+    scene.fog = null;
+    renderFrame();
+    const canvas = renderer.domElement;
+    const gl = renderer.getContext();
+    const pixel = new Uint8Array(4);
+    const x = Math.floor(canvas.width / 2);
+    const y = Math.floor(canvas.height / 2);
+    gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+    for (const [object, visible] of savedVisibility.entries()) {
+        object.visible = visible;
+    }
+    camera.position.copy(savedPosition);
+    camera.quaternion.copy(savedQuaternion);
+    camera.up.copy(savedUp);
+    camera.updateMatrixWorld(true);
+    const sampled = sampleMapBackdropColor(worldX, worldZ);
+    const skyDistance = Math.hypot(pixel[0] - SKY_RGB.r, pixel[1] - SKY_RGB.g, pixel[2] - SKY_RGB.b);
+    const sampleDistance = sampled
+        ? Math.hypot(pixel[0] - sampled.r, pixel[1] - sampled.g, pixel[2] - sampled.b)
+        : Number.POSITIVE_INFINITY;
+    const notSky = skyDistance > 24;
+    const mapTint = pixel[1] >= pixel[0] && pixel[1] >= pixel[2];
+    return {
+        ok: notSky && sampled != null && (mapTint || sampleDistance < 96),
+        pixel: { r: pixel[0], g: pixel[1], b: pixel[2] },
+        sampled,
+        skyDistance: Math.round(skyDistance),
+        sampleDistance: Math.round(sampleDistance),
+        mapTint,
+    };
+}
+function sampleMapBackdropColor(worldX, worldZ) {
+    if (!Number.isFinite(worldX) || !Number.isFinite(worldZ)) {
+        return null;
+    }
+    const chunkX = Math.floor(worldX / CHUNK_SIZE);
+    const chunkZ = Math.floor(worldZ / CHUNK_SIZE);
+    const entry = [...loadedTiles.values()].find((tile) => tile.chunkX === chunkX && tile.chunkZ === chunkZ);
+    if (!entry?.image)
+        return null;
+    const localX = worldX - chunkX * CHUNK_SIZE;
+    const localZ = worldZ - chunkZ * CHUNK_SIZE;
+    const u = localX / CHUNK_SIZE;
+    const v = 1 - (localZ / CHUNK_SIZE);
+    if (u < 0 || u > 1 || v < 0 || v > 1)
+        return null;
+    const pixels = ensureTilePixels(entry);
+    if (!pixels)
+        return null;
+    const x = Math.max(0, Math.min(entry.pixelWidth - 1, Math.floor(u * entry.pixelWidth)));
+    const y = Math.max(0, Math.min(entry.pixelHeight - 1, Math.floor(v * entry.pixelHeight)));
+    const offset = (y * entry.pixelWidth + x) * 4;
+    return { r: pixels[offset], g: pixels[offset + 1], b: pixels[offset + 2] };
 }
 
 
@@ -3429,13 +4174,17 @@ function createBackdropCoverageGeometry(minX, minZ, size, centerX, centerZ, radi
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   makeMapTileCacheKey: () => (/* binding */ makeMapTileCacheKey),
 /* harmony export */   makeTerrainCacheKey: () => (/* binding */ makeTerrainCacheKey),
+/* harmony export */   readMapTileCache: () => (/* binding */ readMapTileCache),
 /* harmony export */   readTerrainCache: () => (/* binding */ readTerrainCache),
+/* harmony export */   writeMapTileCache: () => (/* binding */ writeMapTileCache),
 /* harmony export */   writeTerrainCache: () => (/* binding */ writeTerrainCache)
 /* harmony export */ });
 const DB_NAME = 'synthworldview-cache';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const TERRAIN_STORE = 'terrainMeshes';
+const MAP_TILE_STORE = 'mapTileTextures';
 const MAX_RECORD_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 let dbPromise = null;
 function makeTerrainCacheKey({ world, chunkX, chunkZ, formatVersion, detailsEnabled }) {
@@ -3453,6 +4202,39 @@ async function readTerrainCache(key) {
     }
     catch {
         return null;
+    }
+}
+function makeMapTileCacheKey({ world, chunkX, chunkZ, formatVersion }) {
+    return `${formatVersion}:map:${world}:${chunkX}:${chunkZ}`;
+}
+async function readMapTileCache(key) {
+    try {
+        const db = await openDb();
+        const record = await requestPromise(db.transaction(MAP_TILE_STORE, 'readonly').objectStore(MAP_TILE_STORE).get(key));
+        if (!record?.bytes || Date.now() - record.updatedAt > MAX_RECORD_AGE_MS) {
+            return null;
+        }
+        return record;
+    }
+    catch {
+        return null;
+    }
+}
+async function writeMapTileCache(key, bytes, meta = {}) {
+    if (!bytes?.byteLength)
+        return false;
+    try {
+        const db = await openDb();
+        await requestPromise(db.transaction(MAP_TILE_STORE, 'readwrite').objectStore(MAP_TILE_STORE).put({
+            key,
+            bytes,
+            meta,
+            updatedAt: Date.now(),
+        }));
+        return true;
+    }
+    catch {
+        return false;
     }
 }
 async function writeTerrainCache(key, bytes, meta = {}) {
@@ -3485,6 +4267,9 @@ function openDb() {
             const db = request.result;
             if (!db.objectStoreNames.contains(TERRAIN_STORE)) {
                 db.createObjectStore(TERRAIN_STORE, { keyPath: 'key' });
+            }
+            if (!db.objectStoreNames.contains(MAP_TILE_STORE)) {
+                db.createObjectStore(MAP_TILE_STORE, { keyPath: 'key' });
             }
         };
         request.onsuccess = () => resolve(request.result);
@@ -4685,8 +5470,10 @@ function roundStateNumber(value) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   MAP_BACKDROP_Y: () => (/* binding */ MAP_BACKDROP_Y),
 /* harmony export */   applyWaterModeToObject: () => (/* binding */ applyWaterModeToObject),
 /* harmony export */   prepareWaterMaterials: () => (/* binding */ prepareWaterMaterials),
+/* harmony export */   resolveMapBackdropY: () => (/* binding */ resolveMapBackdropY),
 /* harmony export */   tintWaterMaterialsFromMap: () => (/* binding */ tintWaterMaterialsFromMap),
 /* harmony export */   updateWaterMaterials: () => (/* binding */ updateWaterMaterials)
 /* harmony export */ });
@@ -4995,6 +5782,11 @@ function updateWaterReflection(scene, renderer, camera) {
     for (const [mesh, visible] of visibleStates) {
         mesh.visible = visible;
     }
+}
+/** Fixed Y where per-chunk map tiles meet the voxel water surface (pre-instancer value). */
+const MAP_BACKDROP_Y = 112;
+function resolveMapBackdropY() {
+    return MAP_BACKDROP_Y;
 }
 function estimateWaterY() {
     let y = 0;

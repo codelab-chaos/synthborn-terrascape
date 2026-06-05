@@ -47,6 +47,7 @@ import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.role.Role;
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.joml.Vector3d;
 
@@ -82,6 +83,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -112,6 +114,8 @@ public final class WorldviewWebServer {
     private static final String MAP_REGION_CACHE_CONTROL = "public, max-age=31536000, immutable";
     private static final Duration MAP_REGION_TIMEOUT = Duration.ofSeconds(60);
     private static final int MAX_CLIENT_LOG_BYTES = 16 * 1024;
+    private static final int STATIC_HTTP_THREADS = 2;
+    private static final int API_HTTP_THREADS = 8;
     private static final int MAX_MOB_SNAPSHOTS = 256;
     private static final int MAX_MOB_DEBUG_SUMMARY_ITEMS = 32;
     private static final double MOB_RADAR_RADIUS = 500.0d;
@@ -125,6 +129,7 @@ public final class WorldviewWebServer {
     private static final Pattern CHUNK_OBJECT_PATTERN = Pattern.compile("\\{[^{}]*}");
     private static final Pattern CHUNK_X_PATTERN = Pattern.compile("\"chunkX\"\\s*:\\s*(-?\\d+)");
     private static final Pattern CHUNK_Z_PATTERN = Pattern.compile("\"chunkZ\"\\s*:\\s*(-?\\d+)");
+    private static final Pattern ASSET_PATTERN = Pattern.compile("\"asset\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern MOB_ICON_PATH_PATTERN = Pattern.compile("^/mob-icons/([A-Za-z0-9_.-]+\\.png)$");
     private static final Pattern PLAYER_AVATAR_PATH_PATTERN = Pattern.compile("^/api/player-avatar/([A-Za-z0-9-]{1,64})\\.png$");
     private static final String GENERATED_ICON_ENTRY_PREFIX = "Common/Icons/ModelsGenerated/";
@@ -138,6 +143,16 @@ public final class WorldviewWebServer {
     private final boolean experimentalDetailsEnabled;
     private final NpcRoleIndex npcRoleIndex;
     private final HttpServer server;
+    private final ExecutorService staticHttpExecutor = Executors.newFixedThreadPool(STATIC_HTTP_THREADS, runnable -> {
+        Thread thread = new Thread(runnable, "SynthWorldview-http-static");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final ExecutorService apiHttpExecutor = Executors.newFixedThreadPool(API_HTTP_THREADS, runnable -> {
+        Thread thread = new Thread(runnable, "SynthWorldview-http-api");
+        thread.setDaemon(true);
+        return thread;
+    });
     private final Semaphore generationPermits = new Semaphore(MAX_CONCURRENT_GENERATIONS);
     private final ConcurrentHashMap<String, CompletableFuture<TerrainResult>> pendingTerrain = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CompletableFuture<MapRegionResult>> pendingMapRegions = new ConcurrentHashMap<>();
@@ -170,23 +185,19 @@ public final class WorldviewWebServer {
         this.experimentalDetailsEnabled = experimentalDetailsEnabled;
         this.npcRoleIndex = npcRoleIndex;
         this.server = HttpServer.create(new InetSocketAddress(host, port), 0);
-        this.server.createContext("/api/worlds", this::handleWorlds);
-        this.server.createContext("/api/players", this::handlePlayers);
-        this.server.createContext("/api/player-avatar", this::handlePlayerAvatar);
-        this.server.createContext("/api/time", this::handleTime);
-        this.server.createContext("/api/mobs", this::handleMobs);
-        this.server.createContext("/api/mob-debug", this::handleMobDebug);
-        this.server.createContext("/api/npc-index", this::handleNpcIndex);
-        this.server.createContext("/api/entities/stream", this::handleEntityStream);
-        this.server.createContext("/api/mapregion", this::handleMapRegion);
-        this.server.createContext("/api/client-log", this::handleClientLog);
-        this.server.createContext("/api/terrain", this::handleTerrain);
-        this.server.createContext("/", this::handleStatic);
-        this.server.setExecutor(Executors.newFixedThreadPool(8, runnable -> {
-            Thread thread = new Thread(runnable, "SynthWorldview-http");
-            thread.setDaemon(true);
-            return thread;
-        }));
+        this.server.createContext("/api/worlds", onApi(this::handleWorlds));
+        this.server.createContext("/api/players", onApi(this::handlePlayers));
+        this.server.createContext("/api/player-avatar", onApi(this::handlePlayerAvatar));
+        this.server.createContext("/api/time", onApi(this::handleTime));
+        this.server.createContext("/api/mobs", onApi(this::handleMobs));
+        this.server.createContext("/api/mob-debug", onApi(this::handleMobDebug));
+        this.server.createContext("/api/npc-index", onApi(this::handleNpcIndex));
+        this.server.createContext("/api/entities/stream", onApi(this::handleEntityStream));
+        this.server.createContext("/api/mapregion", onApi(this::handleMapRegion));
+        this.server.createContext("/api/client-log", onApi(this::handleClientLog));
+        this.server.createContext("/api/terrain", onApi(this::handleTerrain));
+        this.server.createContext("/", onStatic(this::handleStatic));
+        this.server.setExecutor(null);
     }
 
     public void start() {
@@ -196,6 +207,30 @@ public final class WorldviewWebServer {
 
     public void stop() {
         server.stop(0);
+        staticHttpExecutor.shutdownNow();
+        apiHttpExecutor.shutdownNow();
+    }
+
+    private HttpHandler onStatic(@Nonnull HttpHandler handler) {
+        return exchange -> staticHttpExecutor.execute(() -> {
+            try {
+                handler.handle(exchange);
+            } catch (IOException error) {
+                plugin.getLogger().at(Level.WARNING).withCause(error).log(
+                        "Static request failed: " + exchange.getRequestURI().getPath());
+            }
+        });
+    }
+
+    private HttpHandler onApi(@Nonnull HttpHandler handler) {
+        return exchange -> apiHttpExecutor.execute(() -> {
+            try {
+                handler.handle(exchange);
+            } catch (IOException error) {
+                plugin.getLogger().at(Level.WARNING).withCause(error).log(
+                        "API request failed: " + exchange.getRequestURI().getPath());
+            }
+        });
     }
 
     public String address() {
@@ -604,9 +639,15 @@ public final class WorldviewWebServer {
             return;
         }
 
+        TerrainMapTileRequest mapTileRequest = parseTerrainMapTileRequest(exchange.getRequestURI().getPath());
+        if (mapTileRequest != null) {
+            handleTerrainMapTile(exchange, mapTileRequest);
+            return;
+        }
+
         TerrainRequest request = parseTerrainRequest(exchange.getRequestURI().getPath(), experimentalDetailsEnabled);
         if (request == null) {
-            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/terrain/{world}/{chunkX}/{chunkZ}.glb\"}");
+            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/terrain/{world}/{chunkX}/{chunkZ}.glb_or_.map.png\"}");
             return;
         }
 
@@ -649,6 +690,107 @@ public final class WorldviewWebServer {
         }
     }
 
+    private void handleTerrainMapTile(@Nonnull HttpExchange exchange, @Nonnull TerrainMapTileRequest request) throws IOException {
+        World world = findWorld(request.worldName());
+        if (world == null) {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"unknown_world\"}");
+            return;
+        }
+
+        try {
+            long startedNanos = System.nanoTime();
+            MapTileTerrainResult result = generateMapTilePng(world, request);
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
+            exchange.getResponseHeaders().set("Content-Type", "image/png");
+            exchange.getResponseHeaders().set("Cache-Control", "no-cache");
+            addCors(exchange);
+            exchange.getResponseHeaders().set("X-Worldview-Cache", result.source());
+            exchange.sendResponseHeaders(200, result.png().length);
+            try (OutputStream outputStream = exchange.getResponseBody()) {
+                outputStream.write(result.png());
+            }
+            plugin.getLogger().at(Level.FINE).log("terrain-map-tile world=" + world.getName()
+                    + " chunk=" + request.chunkX() + "," + request.chunkZ()
+                    + " cache=" + result.source()
+                    + " bytes=" + result.png().length
+                    + " ms=" + elapsedMillis);
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Terrain map tile request failed: " + request);
+            writeJson(exchange, 500, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
+        }
+    }
+
+    private void handleTerrainMapTileBatch(
+            @Nonnull HttpExchange exchange,
+            @Nonnull World world,
+            @Nonnull BatchTerrainRequest request,
+            long startedNanos) throws IOException {
+        List<BatchMapTileResult> results = generateMapTileBatch(world, request);
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
+        StringBuilder json = new StringBuilder(256 + results.size() * 512);
+        json.append("{\"ok\":true,\"asset\":\"map\",\"maxBatchChunks\":").append(MAX_BATCH_CHUNKS).append(",\"chunks\":[");
+        for (int i = 0; i < results.size(); i++) {
+            if (i > 0) {
+                json.append(',');
+            }
+            BatchMapTileResult result = results.get(i);
+            json.append("{\"chunkX\":").append(result.chunkX())
+                    .append(",\"chunkZ\":").append(result.chunkZ())
+                    .append(",\"ok\":").append(result.error() == null);
+            if (result.error() == null && result.tile() != null) {
+                json.append(",\"cache\":\"").append(result.tile().source()).append("\"")
+                        .append(",\"base64\":\"")
+                        .append(Base64.getEncoder().encodeToString(result.tile().png()))
+                        .append("\"");
+            } else {
+                json.append(",\"error\":\"").append(escapeJson(result.error())).append("\"");
+            }
+            json.append('}');
+        }
+        json.append("]}");
+        writeJson(exchange, 200, json.toString());
+        plugin.getLogger().at(Level.INFO).log("terrain-map-batch world=" + world.getName()
+                + " requested=" + request.chunks().size()
+                + " ok=" + results.stream().filter(result -> result.error() == null).count()
+                + " ms=" + elapsedMillis);
+    }
+
+    private MapTileTerrainResult generateMapTilePng(@Nonnull World world, @Nonnull TerrainMapTileRequest request) throws Exception {
+        byte[] diskCached = readTerrainMapTileDiskCache(request);
+        if (diskCached != null) {
+            return new MapTileTerrainResult(diskCached, "disk");
+        }
+
+        WorldMapManager mapManager = world.getWorldMapManager();
+        if (mapManager == null || !mapManager.isWorldMapEnabled()) {
+            throw new IllegalStateException("world_map_disabled");
+        }
+
+        BufferedImage tile = getMapTileImage(mapManager, world.getName(), request.chunkX(), request.chunkZ(), true)
+                .get(MAP_REGION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        if (tile == null) {
+            throw new IllegalStateException("map_tile_missing");
+        }
+        byte[] png = MapTilePngEncoder.encode(tile);
+        writeTerrainMapTileDiskCache(request, png);
+        return new MapTileTerrainResult(png, "generated");
+    }
+
+    private List<BatchMapTileResult> generateMapTileBatch(@Nonnull World world, @Nonnull BatchTerrainRequest request) {
+        List<BatchMapTileResult> results = new ArrayList<>(request.chunks().size());
+        for (ChunkCoord chunk : request.chunks()) {
+            try {
+                MapTileTerrainResult tile = generateMapTilePng(
+                        world,
+                        new TerrainMapTileRequest(request.worldName(), chunk.chunkX(), chunk.chunkZ()));
+                results.add(new BatchMapTileResult(chunk.chunkX(), chunk.chunkZ(), tile, null));
+            } catch (Exception e) {
+                results.add(new BatchMapTileResult(chunk.chunkX(), chunk.chunkZ(), null, e.getMessage()));
+            }
+        }
+        return results;
+    }
+
     private void handleTerrainBatch(@Nonnull HttpExchange exchange) throws IOException {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
@@ -671,11 +813,15 @@ public final class WorldviewWebServer {
         try {
             batchRequests.incrementAndGet();
             long startedNanos = System.nanoTime();
+            if (request.mapAsset()) {
+                handleTerrainMapTileBatch(exchange, world, request, startedNanos);
+                return;
+            }
             List<BatchTerrainResult> results = generateTerrainBatch(world, request);
             long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
             TerrainBatchSummary summary = summarizeTerrainBatch(results);
             StringBuilder json = new StringBuilder(256 + results.size() * 256);
-            json.append("{\"ok\":true,\"maxBatchChunks\":").append(MAX_BATCH_CHUNKS).append(",\"chunks\":[");
+            json.append("{\"ok\":true,\"asset\":\"mesh\",\"maxBatchChunks\":").append(MAX_BATCH_CHUNKS).append(",\"chunks\":[");
             for (int i = 0; i < results.size(); i++) {
                 if (i > 0) {
                     json.append(',');
@@ -955,7 +1101,22 @@ public final class WorldviewWebServer {
         return new TerrainBatchSummary(ok, errors, generated, disk, memory, bytes, columns, vertices, triangles, details);
     }
 
-    private void handleStatic(@Nonnull HttpExchange exchange) throws IOException {
+    private void handleStatic(@Nonnull HttpExchange exchange) {
+        try {
+            serveStatic(exchange);
+        } catch (Exception error) {
+            plugin.getLogger().at(Level.WARNING).withCause(error).log(
+                    "Static request failed: " + exchange.getRequestURI().getPath());
+            try {
+                if (exchange.getResponseCode() <= 0) {
+                    writeText(exchange, 500, "internal error", "text/plain; charset=utf-8");
+                }
+            } catch (IOException ignored) {
+            }
+        }
+    }
+
+    private void serveStatic(@Nonnull HttpExchange exchange) throws IOException {
         if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
             writeText(exchange, 405, "method not allowed", "text/plain; charset=utf-8");
             return;
@@ -1204,7 +1365,16 @@ public final class WorldviewWebServer {
         }
     }
 
-    private Path mapTileOutputPath(@Nonnull String worldName, int chunkX, int chunkZ) {
+    private Path terrainMapTilePath(@Nonnull String worldName, int chunkX, int chunkZ) {
+        return plugin.worldviewDir()
+                .resolve("terrain")
+                .resolve(FORMAT_VERSION)
+                .resolve(safeName(worldName))
+                .resolve("map")
+                .resolve(chunkX + "_" + chunkZ + ".png");
+    }
+
+    private Path legacyMapTileOutputPath(@Nonnull String worldName, int chunkX, int chunkZ) {
         return plugin.worldviewDir()
                 .resolve("map-tile")
                 .resolve("tile-" + MAP_REGION_TILE_SIZE)
@@ -1212,9 +1382,43 @@ public final class WorldviewWebServer {
                 .resolve(chunkX + "_" + chunkZ + ".png");
     }
 
+    private Path mapTileOutputPath(@Nonnull String worldName, int chunkX, int chunkZ) {
+        return terrainMapTilePath(worldName, chunkX, chunkZ);
+    }
+
+    @Nullable
+    private byte[] readTerrainMapTileDiskCache(@Nonnull TerrainMapTileRequest request) {
+        for (Path path : List.of(
+                terrainMapTilePath(request.worldName(), request.chunkX(), request.chunkZ()),
+                legacyMapTileOutputPath(request.worldName(), request.chunkX(), request.chunkZ()))) {
+            if (!Files.isRegularFile(path)) {
+                continue;
+            }
+            try {
+                return Files.readAllBytes(path);
+            } catch (IOException e) {
+                plugin.getLogger().at(Level.FINE).log("Ignoring invalid terrain map-tile cache entry " + path + ": " + e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    private void writeTerrainMapTileDiskCache(@Nonnull TerrainMapTileRequest request, byte[] png) {
+        Path path = terrainMapTilePath(request.worldName(), request.chunkX(), request.chunkZ());
+        try {
+            Files.createDirectories(path.getParent());
+            Files.write(path, png);
+        } catch (IOException e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to write terrain map-tile cache entry " + path);
+        }
+    }
+
     @Nullable
     private BufferedImage readMapTileDiskCache(@Nonnull String worldName, int chunkX, int chunkZ) {
-        Path path = mapTileOutputPath(worldName, chunkX, chunkZ);
+        Path path = terrainMapTilePath(worldName, chunkX, chunkZ);
+        if (!Files.isRegularFile(path)) {
+            path = legacyMapTileOutputPath(worldName, chunkX, chunkZ);
+        }
         if (!Files.isRegularFile(path)) {
             return null;
         }
@@ -1265,6 +1469,23 @@ public final class WorldviewWebServer {
             return "/web" + requestPath;
         }
         return null;
+    }
+
+    private static TerrainMapTileRequest parseTerrainMapTileRequest(@Nonnull String path) {
+        String prefix = "/api/terrain/";
+        if (!path.startsWith(prefix)) {
+            return null;
+        }
+        String[] parts = path.substring(prefix.length()).split("/");
+        if (parts.length != 3 || !parts[2].endsWith(".map.png")) {
+            return null;
+        }
+        Integer chunkX = parseInt(parts[1]);
+        Integer chunkZ = parseInt(parts[2].substring(0, parts[2].length() - ".map.png".length()));
+        if (chunkX == null || chunkZ == null) {
+            return null;
+        }
+        return new TerrainMapTileRequest(decode(parts[0]), chunkX, chunkZ);
     }
 
     private static TerrainRequest parseTerrainRequest(@Nonnull String path, boolean includeDetails) {
@@ -1325,7 +1546,14 @@ public final class WorldviewWebServer {
         if (chunks.isEmpty()) {
             throw new IllegalArgumentException("chunks_required");
         }
-        return new BatchTerrainRequest(worldName, chunks);
+        String asset = findString(ASSET_PATTERN, body, "asset");
+        if (asset == null || asset.isBlank()) {
+            throw new IllegalArgumentException("asset_required");
+        }
+        if (!"mesh".equalsIgnoreCase(asset) && !"map".equalsIgnoreCase(asset)) {
+            throw new IllegalArgumentException("asset_must_be_mesh_or_map");
+        }
+        return new BatchTerrainRequest(worldName, chunks, asset);
     }
 
     private static World findWorld(@Nonnull String worldName) {
@@ -2922,7 +3150,22 @@ public final class WorldviewWebServer {
     private record MapRegionGeneration(byte[] bytes, boolean complete) {
     }
 
-    private record BatchTerrainRequest(String worldName, List<ChunkCoord> chunks) {
+    private record TerrainMapTileRequest(String worldName, int chunkX, int chunkZ) {
+        String key() {
+            return worldName + ":" + chunkX + ":" + chunkZ;
+        }
+    }
+
+    private record MapTileTerrainResult(byte[] png, String source) {
+    }
+
+    private record BatchMapTileResult(int chunkX, int chunkZ, @Nullable MapTileTerrainResult tile, @Nullable String error) {
+    }
+
+    private record BatchTerrainRequest(String worldName, List<ChunkCoord> chunks, String asset) {
+        boolean mapAsset() {
+            return "map".equalsIgnoreCase(asset);
+        }
     }
 
     private record ChunkCoord(int chunkX, int chunkZ) {

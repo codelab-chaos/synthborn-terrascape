@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "defaults": {
+    "centerX": 0,
+    "centerZ": 0,
+    "modes": ["dry"],
+    "stepSettleMs": 100,
+    "world": "default"
+  },
+  "thresholds": {},
+  "serverMeshProbe": { "enabled": false },
+  "scenarios": [
+    {
+      "id": "mesh-only",
+      "label": "Terrain mesh warm browser cache (radius 5)",
+      "features": {
+        "mapTiles": false,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "auto": false
+      },
+      "radius": 5,
+      "steps": 1,
+      "modes": ["dry"]
+    }
+  ]
+}
