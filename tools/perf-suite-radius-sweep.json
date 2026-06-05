@@ -16,7 +16,7 @@
   },
   "thresholds": {
     "totalMs": {
-      "smoothness-gate": 180000
+      "default": 180000
     },
     "gridLoadMs": {
       "default": 25000
@@ -39,11 +39,9 @@
   },
   "scenarios": [
     {
-      "id": "smoothness-gate",
-      "label": "Quick default validation (auto-stream fly, full default visuals)",
-      "radius": 4,
-      "steps": 0,
-      "modes": ["dry"],
+      "id": "radius-3",
+      "label": "Voxel mesh radius 3 (49 chunks)",
+      "radius": 3,
       "features": {
         "mapTiles": true,
         "players": false,
@@ -53,10 +51,37 @@
         "sun": true,
         "shade": true,
         "auto": true
-      },
-      "flyDirections": "east-west",
-      "flyChunks": 6,
-      "regressionFactor": 1.25
+      }
+    },
+    {
+      "id": "radius-4",
+      "label": "Voxel mesh radius 4 (81 chunks)",
+      "radius": 4,
+      "features": {
+        "mapTiles": true,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "shader": "none",
+        "sun": true,
+        "shade": true,
+        "auto": true
+      }
+    },
+    {
+      "id": "radius-5",
+      "label": "Voxel mesh radius 5 (121 chunks)",
+      "radius": 5,
+      "features": {
+        "mapTiles": true,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "shader": "none",
+        "sun": true,
+        "shade": true,
+        "auto": true
+      }
     }
   ]
 }

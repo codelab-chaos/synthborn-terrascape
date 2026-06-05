@@ -61,11 +61,14 @@
           <span>Chunk Z</span>
           <input id="chunk-z" type="number" value="0" step="1">
         </label>
-        <label>
-          <span>Radius</span>
-          <input id="radius" type="number" value="10" min="0" step="1">
-        </label>
       </div>
+      <label class="paired-control mesh-distance-control">
+        <span>Voxel Mesh Distance <output id="radius-diameter" for="radius-range radius">9 x 9 chunks, 81 meshes</output></span>
+        <div class="range-number">
+          <input id="radius-range" type="range" value="4" min="0" max="12" step="1" aria-label="Voxel mesh radius">
+          <input id="radius" type="number" value="4" min="0" max="12" step="1" aria-label="Voxel mesh radius">
+        </div>
+      </label>
       <div class="toggle-row">
         <label class="toggle">
           <input id="auto-stream" type="checkbox" checked>
