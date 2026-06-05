@@ -10,7 +10,10 @@
     "perf": "node tools/run-worldview-perf.js --both",
     "perf:dry": "node tools/run-worldview-perf.js --dry",
     "perf:wet": "node tools/run-worldview-perf.js --wet",
-    "perf:postdeploy": "node tools/run-worldview-perf.js --post-deploy --both"
+    "perf:extensive": "node tools/run-worldview-perf.js --extensive --runs 2",
+    "perf:extensive:wet": "node tools/run-worldview-perf.js --extensive --wet --runs 2",
+    "perf:postdeploy": "node tools/run-worldview-perf.js --post-deploy --both",
+    "perf:postdeploy:extensive": "node tools/run-worldview-perf.js --post-deploy --extensive --runs 2 --clear-server-cache"
   },
   "keywords": [],
   "author": "",

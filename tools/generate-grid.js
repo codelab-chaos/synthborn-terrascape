@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
+const fs = require('node:fs');
 const http = require('node:http');
+const path = require('node:path');
 const { performance } = require('node:perf_hooks');
 
 const args = parseArgs(process.argv.slice(2));
@@ -58,6 +60,46 @@ async function main() {
   if (timings.length > 0) {
     console.log(`  min/median/max ms: ${timings[0].toFixed(0)} / ${percentile(timings, 0.5).toFixed(0)} / ${timings[timings.length - 1].toFixed(0)}`);
   }
+  const jsonOut = args['json-out'] ?? args.jsonOut;
+  if (jsonOut) {
+    const report = {
+      kind: 'worldview-mesh-probe',
+      timestamp: new Date().toISOString(),
+      url: baseUrl,
+      world,
+      centerX,
+      centerZ,
+      radius,
+      concurrency,
+      total: requests.length,
+      ok: ok.length,
+      failed: failed.length,
+      elapsedMs: Math.round(elapsed),
+      bytes,
+      vertices,
+      triangles,
+      minMs: timings.length > 0 ? Math.round(timings[0]) : 0,
+      medianMs: timings.length > 0 ? Math.round(percentile(timings, 0.5)) : 0,
+      maxMs: timings.length > 0 ? Math.round(timings[timings.length - 1]) : 0,
+      chunks: ok.map((result) => ({
+        chunkX: result.chunkX,
+        chunkZ: result.chunkZ,
+        bytes: result.bytes,
+        vertices: result.vertices,
+        triangles: result.triangles,
+        ms: Math.round(result.ms),
+      })),
+      failures: failed.map((result) => ({
+        chunkX: result.chunkX,
+        chunkZ: result.chunkZ,
+        status: result.status,
+        ms: Math.round(result.ms),
+      })),
+    };
+    fs.mkdirSync(path.dirname(path.resolve(jsonOut)), { recursive: true });
+    fs.writeFileSync(path.resolve(jsonOut), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  }
+
   if (failed.length > 0) {
     process.exitCode = 1;
   }
