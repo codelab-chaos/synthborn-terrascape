@@ -855,9 +855,23 @@ function applyMapWaterTint() {
   }
 }
 
+function mapBackdropCenter() {
+  const gridX = Number.parseInt(chunkXInput.value, 10);
+  const gridZ = Number.parseInt(chunkZInput.value, 10);
+  if (activeCenterId && Number.isFinite(gridX) && Number.isFinite(gridZ)) {
+    const parts = activeCenterId.split(':');
+    const activeX = Number.parseInt(parts[parts.length - 2], 10);
+    const activeZ = Number.parseInt(parts[parts.length - 1], 10);
+    if (gridX === activeX && gridZ === activeZ) {
+      return { chunkX: gridX, chunkZ: gridZ };
+    }
+  }
+  return cameraChunk();
+}
+
 function updateMapTileLayer(options = {}) {
   grid.visible = !mapTilesInput.checked;
-  const center = cameraChunk();
+  const center = mapBackdropCenter();
   const radius = Math.max(0, numberOr(Number.parseInt(radiusInput.value, 10), 0));
   const layerKey = `${worldSelect.value}:${center.chunkX}:${center.chunkZ}:${radius}:${mapTilesInput.checked}`;
   if (!options.force && !mapTileCoverageDirty && layerKey === mapTileLayerKey) {

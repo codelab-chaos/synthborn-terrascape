@@ -4,14 +4,17 @@ import { logClientEvent } from './client-log.js';
 const CHUNK_SIZE = 32;
 const MAP_REGION_BONUS_RADIUS = 54;
 const MAP_REGION_MAX_RADIUS = 102;
+const MAP_BACKDROP_PAN_MARGIN = 20;
 const MAP_BACKDROP_Y = 112.0;
 
 let activeBackdrop = null;
-let activeKey = null;
-let pendingKey = null;
+let pendingTextureKey = null;
 let activeGeometryKey = null;
 let activeSampler = null;
+let textureAnchor = null;
 let requestSerial = 0;
+let fetchCount = 0;
+let reuseCount = 0;
 let activeStats = {
   loaded: 0,
   centerX: 0,
@@ -21,6 +24,11 @@ let activeStats = {
   bytes: 0,
   loadMs: 0,
   textureSize: '',
+  reused: false,
+  fetches: 0,
+  reuses: 0,
+  anchorX: 0,
+  anchorZ: 0,
 };
 
 export function updateMapBackdrop(scene, renderer, options) {
@@ -31,31 +39,50 @@ export function updateMapBackdrop(scene, renderer, options) {
   }
 
   const innerRadius = Math.max(0, Math.floor(meshRadius));
-  const radius = Math.min(MAP_REGION_MAX_RADIUS, Math.max(innerRadius + MAP_REGION_BONUS_RADIUS, innerRadius + 1));
-  const key = `${world}:${centerX}:${centerZ}:${innerRadius}:${radius}`;
-  const geometryKey = `${key}:${coveredChunkKey(coveredChunks)}`;
-  if (key === activeKey) {
-    updateBackdropGeometry(geometryKey, centerX, centerZ, radius, innerRadius, coveredChunks);
+  const displayRadius = computeDisplayRadius(innerRadius);
+  const fetchRadius = computeFetchRadius(displayRadius);
+  const geometryKey = `${world}:${centerX}:${centerZ}:${innerRadius}:${displayRadius}:${coveredChunkKey(coveredChunks)}`;
+
+  if (canReuseTexture(world, centerX, centerZ, innerRadius, displayRadius, fetchRadius)) {
+    applyLoadedBackdrop(scene, {
+      world,
+      viewCenterX: centerX,
+      viewCenterZ: centerZ,
+      innerRadius,
+      displayRadius,
+      coveredChunks,
+      geometryKey,
+      reused: true,
+    });
     return;
   }
-  if (key === pendingKey) {
+
+  const anchorX = centerX;
+  const anchorZ = centerZ;
+  const textureKey = `${world}:${anchorX}:${anchorZ}:${innerRadius}:${fetchRadius}`;
+  if (textureKey === pendingTextureKey) {
     return;
   }
-  pendingKey = key;
+  pendingTextureKey = textureKey;
   activeStats = {
     loaded: 0,
     centerX,
     centerZ,
-    radius,
-    chunks: radius * 2 + 1,
+    radius: displayRadius,
+    chunks: displayRadius * 2 + 1,
     bytes: 0,
     loadMs: 0,
     textureSize: '',
+    reused: false,
+    fetches: fetchCount,
+    reuses: reuseCount,
+    anchorX,
+    anchorZ,
   };
 
   const serial = ++requestSerial;
   const textureLoader = new THREE.TextureLoader();
-  const url = `/api/mapregion/${encodeURIComponent(world)}/${centerX}/${centerZ}/${radius}.png`;
+  const url = `/api/mapregion/${encodeURIComponent(world)}/${anchorX}/${anchorZ}/${fetchRadius}.png`;
   const started = performance.now();
   fetch(url)
     .then((response) => {
@@ -84,31 +111,56 @@ export function updateMapBackdrop(scene, renderer, options) {
       texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy?.() ?? 1);
       texture.needsUpdate = true;
 
-      const chunkCount = radius * 2 + 1;
-      const size = chunkCount * CHUNK_SIZE;
-      const minX = (centerX - radius) * CHUNK_SIZE;
-      const minZ = (centerZ - radius) * CHUNK_SIZE;
-      const geometry = createBackdropCoverageGeometry(minX, minZ, size, centerX, centerZ, radius, innerRadius, coveredChunks);
-      applyBackdropMesh(scene, geometry, texture, chunkCount, radius);
-      activeKey = key;
-      pendingKey = null;
-      activeGeometryKey = geometryKey;
-      activeSampler = createBackdropSampler(texture.image, minX, minZ, size);
+      textureAnchor = {
+        world,
+        centerX: anchorX,
+        centerZ: anchorZ,
+        innerRadius,
+        displayRadius,
+        fetchRadius,
+        textureKey,
+      };
+      fetchCount += 1;
+      pendingTextureKey = null;
+
+      const chunkCount = fetchRadius * 2 + 1;
+      applyLoadedBackdrop(scene, {
+        world,
+        viewCenterX: centerX,
+        viewCenterZ: centerZ,
+        innerRadius,
+        displayRadius,
+        coveredChunks,
+        geometryKey,
+        texture,
+        bytes,
+        loadMs,
+        reused: false,
+      });
+
       activeStats = {
         loaded: 1,
         centerX,
         centerZ,
-        radius,
+        radius: displayRadius,
         chunks: chunkCount,
         bytes,
         loadMs,
         textureSize: texture.image ? `${texture.image.width}x${texture.image.height}` : '',
+        reused: false,
+        fetches: fetchCount,
+        reuses: reuseCount,
+        anchorX,
+        anchorZ,
       };
       logClientEvent('map_backdrop_load', {
         world,
         centerX,
         centerZ,
-        radius,
+        anchorX,
+        anchorZ,
+        radius: fetchRadius,
+        displayRadius,
         chunks: chunkCount,
         bytes,
         ms: Math.round(loadMs),
@@ -118,13 +170,13 @@ export function updateMapBackdrop(scene, renderer, options) {
     })
     .catch((error) => {
       if (serial === requestSerial) {
-        pendingKey = null;
+        pendingTextureKey = null;
         console.warn('Map backdrop load failed', error);
         logClientEvent('map_backdrop_failed', {
           world,
           centerX,
           centerZ,
-          radius,
+          radius: fetchRadius,
           error: error?.message ?? error,
         });
         if (!activeBackdrop) {
@@ -135,9 +187,9 @@ export function updateMapBackdrop(scene, renderer, options) {
 }
 
 export function clearMapBackdrop(scene) {
-  activeKey = null;
-  pendingKey = null;
+  pendingTextureKey = null;
   activeGeometryKey = null;
+  textureAnchor = null;
   requestSerial++;
   activeStats = {
     loaded: 0,
@@ -148,9 +200,121 @@ export function clearMapBackdrop(scene) {
     bytes: 0,
     loadMs: 0,
     textureSize: '',
+    reused: false,
+    fetches: fetchCount,
+    reuses: reuseCount,
+    anchorX: 0,
+    anchorZ: 0,
   };
   activeSampler = null;
   disposeActiveBackdrop(scene);
+}
+
+function canReuseTexture(world, viewCenterX, viewCenterZ, innerRadius, displayRadius, fetchRadius) {
+  if (!activeBackdrop || !textureAnchor?.textureKey) return false;
+  if (textureAnchor.world !== world) return false;
+  if (textureAnchor.innerRadius !== innerRadius) return false;
+  if (textureAnchor.fetchRadius !== fetchRadius) return false;
+  return viewFitsAnchor(viewCenterX, viewCenterZ, displayRadius, textureAnchor);
+}
+
+function viewFitsAnchor(viewCenterX, viewCenterZ, displayRadius, anchor) {
+  return viewCenterX - displayRadius >= anchor.centerX - anchor.fetchRadius
+    && viewCenterX + displayRadius <= anchor.centerX + anchor.fetchRadius
+    && viewCenterZ - displayRadius >= anchor.centerZ - anchor.fetchRadius
+    && viewCenterZ + displayRadius <= anchor.centerZ + anchor.fetchRadius;
+}
+
+function applyLoadedBackdrop(scene, options) {
+  const {
+    viewCenterX,
+    viewCenterZ,
+    innerRadius,
+    displayRadius,
+    coveredChunks,
+    geometryKey,
+    texture = null,
+    bytes = activeStats.bytes,
+    loadMs = 0,
+    reused = false,
+  } = options;
+
+  const anchor = textureAnchor;
+  if (!anchor) return;
+
+  const textureMinX = (anchor.centerX - anchor.fetchRadius) * CHUNK_SIZE;
+  const textureMinZ = (anchor.centerZ - anchor.fetchRadius) * CHUNK_SIZE;
+  const textureSize = anchor.fetchRadius * 2 + 1;
+  const textureWorldSize = textureSize * CHUNK_SIZE;
+  const geometry = createBackdropCoverageGeometry(
+    textureMinX,
+    textureMinZ,
+    textureWorldSize,
+    viewCenterX,
+    viewCenterZ,
+    displayRadius,
+    innerRadius,
+    coveredChunks,
+  );
+
+  if (texture) {
+    applyBackdropMesh(scene, geometry, texture, textureSize, anchor.fetchRadius);
+  } else if (activeBackdrop) {
+    const previousGeometry = activeBackdrop.geometry;
+    activeBackdrop.geometry = geometry;
+    previousGeometry?.dispose();
+    if (!activeBackdrop.parent) {
+      scene.add(activeBackdrop);
+    }
+  }
+
+  activeGeometryKey = geometryKey;
+  activeSampler = createBackdropSampler(
+    activeBackdrop?.material?.map?.image,
+    textureMinX,
+    textureMinZ,
+    textureWorldSize,
+  );
+
+  if (reused) {
+    reuseCount += 1;
+    activeStats = {
+      ...activeStats,
+      loaded: 1,
+      centerX: viewCenterX,
+      centerZ: viewCenterZ,
+      radius: displayRadius,
+      chunks: displayRadius * 2 + 1,
+      bytes,
+      loadMs: 0,
+      textureSize: activeBackdrop?.material?.map?.image
+        ? `${activeBackdrop.material.map.image.width}x${activeBackdrop.material.map.image.height}`
+        : activeStats.textureSize,
+      reused: true,
+      fetches: fetchCount,
+      reuses: reuseCount,
+      anchorX: anchor.centerX,
+      anchorZ: anchor.centerZ,
+    };
+    logClientEvent('map_backdrop_reuse', {
+      world: anchor.world,
+      centerX: viewCenterX,
+      centerZ: viewCenterZ,
+      anchorX: anchor.centerX,
+      anchorZ: anchor.centerZ,
+      displayRadius,
+      fetchRadius: anchor.fetchRadius,
+    });
+    window.dispatchEvent(new CustomEvent('worldview:map-backdrop-loaded'));
+  }
+}
+
+function computeDisplayRadius(innerRadius) {
+  return Math.min(MAP_REGION_MAX_RADIUS, Math.max(innerRadius + MAP_REGION_BONUS_RADIUS, innerRadius + 1));
+}
+
+function computeFetchRadius(displayRadius) {
+  return Math.min(MAP_REGION_MAX_RADIUS, displayRadius + MAP_BACKDROP_PAN_MARGIN);
 }
 
 function disposeActiveBackdrop(scene) {
@@ -197,18 +361,6 @@ function applyBackdropMesh(scene, geometry, texture, chunkCount, radius) {
   activeBackdrop.userData.radius = radius;
 }
 
-function updateBackdropGeometry(geometryKey, centerX, centerZ, radius, innerRadius, coveredChunks) {
-  if (!activeBackdrop || geometryKey === activeGeometryKey) return;
-  const chunkCount = radius * 2 + 1;
-  const size = chunkCount * CHUNK_SIZE;
-  const minX = (centerX - radius) * CHUNK_SIZE;
-  const minZ = (centerZ - radius) * CHUNK_SIZE;
-  const previous = activeBackdrop.geometry;
-  activeBackdrop.geometry = createBackdropCoverageGeometry(minX, minZ, size, centerX, centerZ, radius, innerRadius, coveredChunks);
-  previous?.dispose();
-  activeGeometryKey = geometryKey;
-}
-
 export function mapBackdropStats() {
   return activeStats;
 }
@@ -217,6 +369,8 @@ export function sampleMapBackdropColor(worldX, worldZ) {
   if (!activeSampler || !Number.isFinite(worldX) || !Number.isFinite(worldZ)) {
     return null;
   }
+  const pixels = activeSampler.getPixels();
+  if (!pixels) return null;
   const u = (worldX - activeSampler.minX) / activeSampler.size;
   const v = (worldZ - activeSampler.minZ) / activeSampler.size;
   if (u < 0 || u > 1 || v < 0 || v > 1) {
@@ -226,27 +380,33 @@ export function sampleMapBackdropColor(worldX, worldZ) {
   const y = Math.max(0, Math.min(activeSampler.height - 1, Math.floor(v * activeSampler.height)));
   const offset = (y * activeSampler.width + x) * 4;
   return {
-    r: activeSampler.data[offset],
-    g: activeSampler.data[offset + 1],
-    b: activeSampler.data[offset + 2],
+    r: pixels[offset],
+    g: pixels[offset + 1],
+    b: pixels[offset + 2],
   };
 }
 
 function createBackdropSampler(image, minX, minZ, size) {
   if (!image?.width || !image?.height) return null;
-  const canvas = document.createElement('canvas');
-  canvas.width = image.width;
-  canvas.height = image.height;
-  const context = canvas.getContext('2d', { willReadFrequently: true });
-  if (!context) return null;
-  context.drawImage(image, 0, 0);
   return {
     minX,
     minZ,
     size,
-    width: canvas.width,
-    height: canvas.height,
-    data: context.getImageData(0, 0, canvas.width, canvas.height).data,
+    width: image.width,
+    height: image.height,
+    image,
+    pixels: null as Uint8ClampedArray | null,
+    getPixels() {
+      if (this.pixels) return this.pixels;
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) return null;
+      context.drawImage(image, 0, 0);
+      this.pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      return this.pixels;
+    },
   };
 }
 
@@ -256,8 +416,6 @@ function coveredChunkKey(coveredChunks) {
 }
 
 function createBackdropCoverageGeometry(minX, minZ, size, centerX, centerZ, radius, innerRadius, coveredChunks) {
-  const maxX = minX + size;
-  const maxZ = minZ + size;
   const positions = [];
   const uvs = [];
   const indices = [];
