@@ -10,9 +10,12 @@ const CHUNK_SIZE = 32;
 export const MAP_HORIZON_MARGIN = 40;
 const SKY_RGB = { r: 23, g: 52, b: 84 };
 const RISE_START_Y = -48;
-const RISE_MS = 200;
+const RISE_MS = 140;
 const RISE_FAILSAFE_MULTIPLIER = 1.5;
 const PROMOTE_PER_FRAME = 512;
+const TILE_LOAD_CONCURRENCY = 6;
+const IMMEDIATE_TILE_LOAD_LIMIT = 256;
+const TILE_QUEUE_SLICE_SIZE = 96;
 
 type RisingTile = {
   mesh: THREE.Mesh;
@@ -42,10 +45,31 @@ type MapBackdropContext = {
   motionEnabled: boolean;
 };
 
+type TileLoadRequest = {
+  id: string;
+  world: string;
+  chunkX: number;
+  chunkZ: number;
+  scene: THREE.Scene;
+  formatVersion: string;
+  maxAnisotropy: number;
+  motionEnabled: boolean;
+};
+
+type TileLoadResult = {
+  installed: boolean;
+  network: boolean;
+};
+
 const loadedTiles = new Map<string, MapTileEntry>();
+const loadedTilesByCoord = new Map<string, MapTileEntry>();
 const pendingRise: RisingTile[] = [];
 const activeRise = new Map<string, RisingTile>();
+const desiredTileLoads = new Map<string, TileLoadRequest>();
+const inFlightTileLoads = new Map<string, { request: TileLoadRequest; promise: Promise<TileLoadResult> }>();
 let loadGeneration = 0;
+let tileLoadGeneration = 0;
+let tileLoadWorker: Promise<void> | null = null;
 let context: MapBackdropContext | null = null;
 let activeStats = {
   loaded: 0,
@@ -76,6 +100,25 @@ function tileCacheKey(world: string, chunkX: number, chunkZ: number, formatVersi
 
 function tileMotionKey(chunkX: number, chunkZ: number) {
   return `${chunkX}:${chunkZ}`;
+}
+
+function coordKey(chunkX: number, chunkZ: number) {
+  return `${chunkX}:${chunkZ}`;
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+) {
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const item = items[next++];
+      await worker(item);
+    }
+  });
+  await Promise.all(workers);
 }
 
 async function textureFromPngBytes(bytes: ArrayBuffer, maxAnisotropy: number) {
@@ -187,6 +230,7 @@ async function installTile(
   };
   scene.add(mesh);
   loadedTiles.set(id, entry);
+  loadedTilesByCoord.set(coordKey(chunkX, chunkZ), entry);
   revealTile(entry, motionEnabled);
   return entry;
 }
@@ -229,6 +273,8 @@ export function pruneMapTiles(world: string, retainIds: Set<string>) {
     scene.remove(entry.mesh);
     disposeTileEntry(entry);
     loadedTiles.delete(key);
+    loadedTilesByCoord.delete(coordKey(entry.chunkX, entry.chunkZ));
+    desiredTileLoads.delete(key);
     activeRise.delete(tileMotionKey(entry.chunkX, entry.chunkZ));
   }
   pendingRise.splice(0, pendingRise.length, ...pendingRise.filter((rising) => {
@@ -242,71 +288,178 @@ export function pruneMapTiles(world: string, retainIds: Set<string>) {
 export async function loadMapTilesForKeys(
   world: string,
   keys: { chunkX: number; chunkZ: number }[],
-  options: { immediate?: boolean } = {},
+  options: { immediate?: boolean; replace?: boolean } = {},
 ) {
   if (!context?.enabled || !context.scene || keys.length === 0) return;
-  const generation = loadGeneration;
   const { scene, renderer, formatVersion, motionEnabled } = context;
   const revealMotion = options.immediate === true ? false : motionEnabled;
   const maxAnisotropy = renderer.capabilities.getMaxAnisotropy?.() ?? 1;
 
-  const missing = keys.filter((key) => !loadedTiles.has(chunkId(world, key.chunkX, key.chunkZ)));
-  if (missing.length === 0) return;
-
-  const started = performance.now();
-  const networkMissing: { chunkX: number; chunkZ: number }[] = [];
-
-  for (const key of missing) {
-    if (generation !== loadGeneration) return;
-    const cacheKey = tileCacheKey(world, key.chunkX, key.chunkZ, formatVersion);
-    const cached = await readMapTileCache(cacheKey);
-    if (generation !== loadGeneration) return;
-    if (cached?.bytes) {
-      await installTile(scene, world, key.chunkX, key.chunkZ, cached.bytes, maxAnisotropy, revealMotion);
-      activeStats.reuses += 1;
-      continue;
+  if (options.replace) {
+    for (const [id] of desiredTileLoads) {
+      if (!inFlightTileLoads.has(id)) {
+        desiredTileLoads.delete(id);
+      }
     }
-    networkMissing.push(key);
   }
 
-  for (const key of networkMissing) {
-    if (generation !== loadGeneration) return;
-    try {
-      const result = await loadMapTilePng(world, key.chunkX, key.chunkZ);
+  let queued = 0;
+  const immediateRequests: TileLoadRequest[] = [];
+  for (const key of keys) {
+    const id = chunkId(world, key.chunkX, key.chunkZ);
+    if (loadedTiles.has(id)) continue;
+    const request = {
+      id,
+      world,
+      chunkX: key.chunkX,
+      chunkZ: key.chunkZ,
+      scene,
+      formatVersion,
+      maxAnisotropy,
+      motionEnabled: revealMotion,
+    };
+    desiredTileLoads.set(id, request);
+    immediateRequests.push(request);
+    queued += 1;
+  }
+  if (queued === 0) {
+    if (desiredTileLoads.size > 0) {
+      startTileLoadWorker();
+    }
+    return;
+  }
+
+  tileLoadGeneration += 1;
+  let loadedImmediateTiles = false;
+  if (options.immediate === true && immediateRequests.length > 0 && immediateRequests.length <= IMMEDIATE_TILE_LOAD_LIMIT) {
+    await runWithConcurrency(immediateRequests, TILE_LOAD_CONCURRENCY, async (request) => {
+      if (desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id)) return;
+      try {
+        const result = await loadTileRequest(request, loadGeneration);
+        if (result.installed || loadedTiles.has(request.id)) {
+          desiredTileLoads.delete(request.id);
+        }
+      } catch (error) {
+        desiredTileLoads.delete(request.id);
+        console.warn(`Failed to load map tile ${request.chunkX},${request.chunkZ}`, error);
+      }
+    });
+    updateStats();
+    loadedImmediateTiles = true;
+  }
+  startTileLoadWorker();
+  if (loadedImmediateTiles) return;
+  return tileLoadWorker;
+}
+
+function startTileLoadWorker() {
+  if (!tileLoadWorker) {
+    tileLoadWorker = processTileLoadQueue().finally(() => {
+      tileLoadWorker = null;
+      if (desiredTileLoads.size > 0 && context?.enabled) {
+        startTileLoadWorker();
+      }
+    });
+  }
+}
+
+async function processTileLoadQueue() {
+  while (context?.enabled && desiredTileLoads.size > 0) {
+    const generation = loadGeneration;
+    const queueGeneration = tileLoadGeneration;
+    const started = performance.now();
+    let networkMissing = 0;
+    const requests = [...desiredTileLoads.values()]
+      .filter((request) => {
+        return !loadedTiles.has(request.id) && desiredTileLoads.get(request.id) === request;
+      })
+      .slice(0, TILE_QUEUE_SLICE_SIZE);
+    if (requests.length === 0) {
+      desiredTileLoads.clear();
+      break;
+    }
+
+    await runWithConcurrency(requests, TILE_LOAD_CONCURRENCY, async (request) => {
       if (generation !== loadGeneration) return;
-      const cacheKey = tileCacheKey(world, key.chunkX, key.chunkZ, formatVersion);
-      writeMapTileCache(cacheKey, result.bytes.slice(0), { source: result.source });
-      await installTile(
-        scene,
-        world,
-        key.chunkX,
-        key.chunkZ,
-        result.bytes,
-        maxAnisotropy,
-        revealMotion,
-      );
-    } catch (error) {
-      console.warn(`Failed to load map tile ${key.chunkX},${key.chunkZ}`, error);
-      logClientEvent('map_tile_single_failed', {
-        world,
-        chunkX: key.chunkX,
-        chunkZ: key.chunkZ,
-        error: error?.message ?? error,
-      });
+      if (desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id)) return;
+      try {
+        const result = await loadTileRequest(request, generation);
+        if (result.network) networkMissing += 1;
+        if (result.installed || loadedTiles.has(request.id) || desiredTileLoads.get(request.id) !== request) {
+          desiredTileLoads.delete(request.id);
+        }
+      } catch (error) {
+        desiredTileLoads.delete(request.id);
+        console.warn(`Failed to load map tile ${request.chunkX},${request.chunkZ}`, error);
+        logClientEvent('map_tile_single_failed', {
+          world: request.world,
+          chunkX: request.chunkX,
+          chunkZ: request.chunkZ,
+          error: error?.message ?? error,
+        });
+      }
+    });
+
+    activeStats.fetches += 1;
+    activeStats.loadMs = performance.now() - started;
+    updateStats();
+    logClientEvent('map_tiles_stream', {
+      world: requests[0]?.world ?? 'unknown',
+      requested: requests.length,
+      pending: desiredTileLoads.size,
+      installed: loadedTiles.size,
+      network: networkMissing,
+      ms: Math.round(activeStats.loadMs),
+      visibleTiles: activeStats.visibleTiles,
+    });
+
+    if (queueGeneration === tileLoadGeneration || generation !== loadGeneration) {
+      break;
     }
   }
+}
 
-  activeStats.fetches += 1;
-  activeStats.loadMs = performance.now() - started;
-  updateStats();
-  logClientEvent('map_tiles_stream', {
-    world,
-    requested: keys.length,
-    installed: loadedTiles.size,
-    network: networkMissing.length,
-    ms: Math.round(activeStats.loadMs),
-    visibleTiles: activeStats.visibleTiles,
+async function loadTileRequest(request: TileLoadRequest, generation: number): Promise<TileLoadResult> {
+  if (loadedTiles.has(request.id)) return { installed: false, network: false };
+  const existing = inFlightTileLoads.get(request.id);
+  if (existing && desiredTileLoads.get(request.id) === existing.request) return existing.promise;
+
+  const task = loadTileRequestUncached(request, generation).finally(() => {
+    if (inFlightTileLoads.get(request.id)?.promise === task) {
+      inFlightTileLoads.delete(request.id);
+    }
   });
+  inFlightTileLoads.set(request.id, { request, promise: task });
+  return task;
+}
+
+async function loadTileRequestUncached(request: TileLoadRequest, generation: number): Promise<TileLoadResult> {
+  const cacheKey = tileCacheKey(request.world, request.chunkX, request.chunkZ, request.formatVersion);
+  const cached = await readMapTileCache(cacheKey);
+  if (generation !== loadGeneration || desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id)) {
+    return { installed: false, network: false };
+  }
+  if (cached?.bytes) {
+    await installTile(request.scene, request.world, request.chunkX, request.chunkZ, cached.bytes, request.maxAnisotropy, request.motionEnabled);
+    activeStats.reuses += 1;
+    return { installed: true, network: false };
+  }
+
+  const result = await loadMapTilePng(request.world, request.chunkX, request.chunkZ);
+  if (generation !== loadGeneration || desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id)) {
+    return { installed: false, network: true };
+  }
+  void writeMapTileCache(cacheKey, result.bytes.slice(0), { source: result.source });
+  await installTile(
+    request.scene,
+    request.world,
+    request.chunkX,
+    request.chunkZ,
+    result.bytes,
+    request.maxAnisotropy,
+    request.motionEnabled,
+  );
+  return { installed: true, network: true };
 }
 
 /** @deprecated Use configureMapBackdrop + loadMapTilesForKeys with terrain batches. */
@@ -333,6 +486,8 @@ export function clearMapBackdrop(scene) {
     disposeTileEntry(entry);
   }
   loadedTiles.clear();
+  loadedTilesByCoord.clear();
+  desiredTileLoads.clear();
   activeStats = {
     loaded: 0,
     centerX: 0,
@@ -480,7 +635,7 @@ export function probeMapTilePixel(
   chunkX: number,
   chunkZ: number,
 ) {
-  const entry = [...loadedTiles.values()].find((tile) => tile.chunkX === chunkX && tile.chunkZ === chunkZ);
+  const entry = loadedTilesByCoord.get(coordKey(chunkX, chunkZ));
   if (!entry) {
     return { ok: false, error: 'tile_missing' };
   }
@@ -557,7 +712,7 @@ export function sampleMapBackdropColor(worldX, worldZ) {
   }
   const chunkX = Math.floor(worldX / CHUNK_SIZE);
   const chunkZ = Math.floor(worldZ / CHUNK_SIZE);
-  const entry = [...loadedTiles.values()].find((tile) => tile.chunkX === chunkX && tile.chunkZ === chunkZ);
+  const entry = loadedTilesByCoord.get(coordKey(chunkX, chunkZ));
   if (!entry?.image) return null;
 
   const localX = worldX - chunkX * CHUNK_SIZE;

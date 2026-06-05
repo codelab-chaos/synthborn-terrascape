@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
 const LOAD_RISE_START_Y = -48;
-const LOAD_RISE_MS = 310;
+const LOAD_RISE_MS = 190;
 const UNLOAD_SINK_DISTANCE = 12;
-const UNLOAD_SINK_MS = 100;
+const UNLOAD_SINK_MS = 85;
 const LAND_FAILSAFE_MULTIPLIER = 1.5;
 const GROUND_Y = 0;
 const GROUND_EPSILON = 0.25;

@@ -72,6 +72,10 @@ const EMPTY_GRID_CHUNK_SNAP = 32;
 const EMPTY_GRID_Y = 96;
 const AUTO_STREAM_DEBOUNCE_MS = 250;
 const AUTO_STREAM_RETAIN_MARGIN = 1;
+const TERRAIN_LOAD_CONCURRENCY = 4;
+const TERRAIN_PROMOTION_BUDGET_MS = 4;
+const TERRAIN_PROMOTIONS_PER_FRAME = 2;
+const METRICS_UPDATE_INTERVAL_MS = 250;
 function yieldToMain() {
     return new Promise((resolve) => {
         if (typeof requestAnimationFrame === 'function') {
@@ -199,6 +203,7 @@ let entityStreamPlayers = null;
 let entityStreamMobs = null;
 let entityStreamFallbackTimer = null;
 let playerConnectMobSampleTimer = null;
+let lastMetricsUpdate = 0;
 const pressedKeys = new Set();
 const clock = new three__WEBPACK_IMPORTED_MODULE_0__.Clock();
 const initialParams = new URLSearchParams(window.location.search);
@@ -254,6 +259,7 @@ function mapTileRetainRadius(terrainRadius, streamLoad = false) {
         : terrainRadius + _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.MAP_HORIZON_MARGIN;
 }
 function updateMetrics() {
+    lastMetricsUpdate = performance.now();
     const loaded = loadedChunks.size;
     const center = activeCenterId ? activeCenterId.split(':').slice(1).join(', ') : 'pending';
     const resources = collectResourceStats();
@@ -271,6 +277,13 @@ function updateMetrics() {
     _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricDisposedEl.textContent = `${disposalStats.chunks}c · ${disposalStats.geometries}g · ${disposalStats.materials}m · ${disposalStats.textures}t`;
     _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricMobsEl.textContent = mobMetricText();
     _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricCenterEl.textContent = center;
+}
+function maybeUpdateMetrics(force = false) {
+    const now = performance.now();
+    if (!force && now - lastMetricsUpdate < METRICS_UPDATE_INTERVAL_MS) {
+        return;
+    }
+    updateMetrics();
 }
 function mobMetricText() {
     if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
@@ -493,7 +506,7 @@ async function loadGrid(options = {}) {
         const neededKeySet = new Set(needed.map((key) => `${key.chunkX}:${key.chunkZ}`));
         const horizonMapKeys = mapRetainKeys.filter((key) => !neededKeySet.has(`${key.chunkX}:${key.chunkZ}`));
         if (horizonMapKeys.length > 0) {
-            void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(world, sortChunkKeysByPlayerDistance(horizonMapKeys, streamAnchor.chunkX, streamAnchor.chunkZ), { immediate: true });
+            void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(world, sortChunkKeysByPlayerDistance(horizonMapKeys, streamAnchor.chunkX, streamAnchor.chunkZ), { immediate: true, replace: true });
         }
     }
     updateMetrics();
@@ -522,69 +535,80 @@ async function loadGrid(options = {}) {
     }
     try {
         let networkChunks = 0;
-        for (const key of missing) {
-            if (generation !== loadGeneration)
+        const promotionQueue = [];
+        let nextMissing = 0;
+        const inFlight = new Set();
+        const enqueueNext = () => {
+            if (nextMissing >= missing.length || generation !== loadGeneration)
                 return;
-            const cacheKey = terrainCacheKey(world, key.chunkX, key.chunkZ);
-            const readStarted = performance.now();
-            const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.readTerrainCache)(cacheKey);
-            cacheReadMs += performance.now() - readStarted;
-            let loaded = false;
-            if (cached?.bytes) {
-                try {
-                    const parseStarted = performance.now();
-                    const gltf = await parseGltfBytes(cached.bytes);
-                    cacheParseMs += performance.now() - parseStarted;
-                    if (generation !== loadGeneration)
-                        return;
-                    addChunkObject(world, key.chunkX, key.chunkZ, gltf.scene);
+            const key = missing[nextMissing++];
+            const task = loadTerrainChunkData(world, key, generation)
+                .then((result) => {
+                if (result.cacheReadMs)
+                    cacheReadMs += result.cacheReadMs;
+                if (result.cacheParseMs)
+                    cacheParseMs += result.cacheParseMs;
+                if (result.cacheHit)
                     cacheHits++;
-                    completed++;
-                    loaded = true;
-                }
-                catch (error) {
-                    console.warn(`Cached terrain parse failed for ${key.chunkX},${key.chunkZ}`, error);
-                    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_cache_parse_failed', {
-                        chunkX: key.chunkX,
-                        chunkZ: key.chunkZ,
-                        error: error?.message ?? error,
-                    });
-                }
-            }
-            if (!loaded) {
-                cacheMisses++;
-                networkChunks++;
-                try {
-                    loaded = await loadChunk(world, key.chunkX, key.chunkZ, generation);
-                    completed++;
-                    if (!loaded) {
-                        failed++;
-                    }
-                }
-                catch (error) {
-                    failed++;
-                    console.warn(`Failed to load chunk ${key.chunkX},${key.chunkZ}`, error);
-                    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_stream_chunk_failed', {
-                        world,
-                        chunkX: key.chunkX,
-                        chunkZ: key.chunkZ,
-                        error: error?.message ?? error,
-                    });
-                }
-            }
-            else if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
-                void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(world, [key], { immediate: true });
-            }
-            setStatus(`Loaded ${completed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
-            updateMetrics();
-            await yieldToMain();
+                if (result.cacheMiss)
+                    cacheMisses++;
+                if (result.network)
+                    networkChunks++;
+                promotionQueue.push(result);
+            })
+                .catch((error) => {
+                promotionQueue.push({
+                    ok: false,
+                    key,
+                    error,
+                    cacheReadMs: 0,
+                    cacheParseMs: 0,
+                    cacheHit: false,
+                    cacheMiss: true,
+                    network: false,
+                });
+            })
+                .finally(() => {
+                inFlight.delete(task);
+            });
+            inFlight.add(task);
+        };
+        while (inFlight.size < TERRAIN_LOAD_CONCURRENCY && nextMissing < missing.length) {
+            enqueueNext();
         }
+        while ((inFlight.size > 0 || promotionQueue.length > 0) && generation === loadGeneration) {
+            while (inFlight.size < TERRAIN_LOAD_CONCURRENCY && nextMissing < missing.length) {
+                enqueueNext();
+            }
+            const promoted = promoteTerrainResults(promotionQueue, generation);
+            completed += promoted.completed;
+            failed += promoted.failed;
+            if (promoted.completed > 0 || promoted.failed > 0) {
+                setStatus(`Loaded ${completed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
+                maybeUpdateMetrics(true);
+                if (promoted.yielded) {
+                    await yieldToMain();
+                    continue;
+                }
+            }
+            if (promotionQueue.length === 0 && inFlight.size > 0) {
+                await Promise.race([...inFlight]);
+            }
+            else if (promotionQueue.length > 0) {
+                await yieldToMain();
+            }
+        }
+        if (generation !== loadGeneration)
+            return;
         if (generation !== loadGeneration)
             return;
         retainOnly(world, retainKeys);
         activeCenterId = centerKey;
         requestedCenterId = null;
         syncMapTileLayer(mapRetainKeys);
+        if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
+            await (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(world, needed, { immediate: true });
+        }
         updateMetrics();
         setStatus(failed === 0
             ? `Loaded ${needed.length} chunks around ${centerX}, ${centerZ}`
@@ -636,6 +660,108 @@ async function loadChunk(world, chunkX, chunkZ, generation) {
     addChunkObject(world, chunkX, chunkZ, gltf.scene);
     (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientTiming)('terrain_single_load', started, { world, chunkX, chunkZ });
     return true;
+}
+async function loadTerrainChunkData(world, key, generation) {
+    const cacheKey = terrainCacheKey(world, key.chunkX, key.chunkZ);
+    const readStarted = performance.now();
+    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.readTerrainCache)(cacheKey);
+    const cacheReadMs = performance.now() - readStarted;
+    if (generation !== loadGeneration) {
+        return { ok: false, key, stale: true, cacheReadMs, cacheParseMs: 0, cacheHit: false, cacheMiss: false, network: false };
+    }
+    if (cached?.bytes) {
+        try {
+            const parseStarted = performance.now();
+            const gltf = await parseGltfBytes(cached.bytes);
+            return {
+                ok: true,
+                world,
+                key,
+                gltf,
+                source: 'cache',
+                cacheReadMs,
+                cacheParseMs: performance.now() - parseStarted,
+                cacheHit: true,
+                cacheMiss: false,
+                network: false,
+            };
+        }
+        catch (error) {
+            console.warn(`Cached terrain parse failed for ${key.chunkX},${key.chunkZ}`, error);
+            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_cache_parse_failed', {
+                chunkX: key.chunkX,
+                chunkZ: key.chunkZ,
+                error: error?.message ?? error,
+            });
+        }
+    }
+    const url = `/api/terrain/${encodeURIComponent(world)}/${key.chunkX}/${key.chunkZ}.glb`;
+    const started = performance.now();
+    const bytes = await fetchArrayBufferWithRetry(url);
+    const parseStarted = performance.now();
+    const gltf = await parseGltfBytes(bytes);
+    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientTiming)('terrain_single_load', started, { world, chunkX: key.chunkX, chunkZ: key.chunkZ });
+    return {
+        ok: true,
+        world,
+        key,
+        gltf,
+        bytes,
+        source: 'network',
+        cacheReadMs,
+        cacheParseMs: performance.now() - parseStarted,
+        cacheHit: false,
+        cacheMiss: true,
+        network: true,
+    };
+}
+function promoteTerrainResults(queue, generation) {
+    const started = performance.now();
+    let completed = 0;
+    let failed = 0;
+    let promoted = 0;
+    while (queue.length > 0 && generation === loadGeneration) {
+        if (promoted >= TERRAIN_PROMOTIONS_PER_FRAME
+            || (promoted > 0 && performance.now() - started >= TERRAIN_PROMOTION_BUDGET_MS)) {
+            break;
+        }
+        const result = queue.shift();
+        if (result.stale) {
+            continue;
+        }
+        if (!result.ok) {
+            failed++;
+            console.warn(`Failed to load chunk ${result.key.chunkX},${result.key.chunkZ}`, result.error);
+            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_stream_chunk_failed', {
+                world: _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value,
+                chunkX: result.key.chunkX,
+                chunkZ: result.key.chunkZ,
+                error: result.error?.message ?? result.error,
+            });
+            continue;
+        }
+        if (generation !== loadGeneration) {
+            break;
+        }
+        const resultWorld = result.world ?? _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
+        const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.chunkId)(resultWorld, result.key.chunkX, result.key.chunkZ);
+        if (!loadedChunks.has(id)) {
+            addChunkObject(resultWorld, result.key.chunkX, result.key.chunkZ, result.gltf.scene);
+            if (result.bytes) {
+                (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.writeTerrainCache)(terrainCacheKey(resultWorld, result.key.chunkX, result.key.chunkZ), result.bytes.slice(0), { source: 'single' });
+            }
+            if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
+                void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(resultWorld, [result.key], { immediate: true });
+            }
+            promoted++;
+        }
+        completed++;
+    }
+    return {
+        completed,
+        failed,
+        yielded: queue.length > 0 && (completed > 0 || failed > 0),
+    };
 }
 function chunkWrapperName(chunkX, chunkZ) {
     return `chunk:${chunkX}:${chunkZ}`;
@@ -959,7 +1085,7 @@ function updateMapTileLayer(options = {}) {
     syncMapTileLayer(keys);
     if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
         const anchor = playerChunk();
-        void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value, sortChunkKeysByPlayerDistance(keys, anchor.chunkX, anchor.chunkZ), { immediate: true });
+        void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value, sortChunkKeysByPlayerDistance(keys, anchor.chunkX, anchor.chunkZ), { immediate: true, replace: true });
     }
 }
 function cameraChunk() {
@@ -2089,7 +2215,7 @@ function animate() {
     updateCoordinates();
     (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.updateWaterMaterials)(scene, renderer, elapsedSeconds, camera);
     (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.renderPostProcessing)(postProcessing, renderer, scene, camera, deltaSeconds, elapsedSeconds);
-    updateMetrics();
+    maybeUpdateMetrics();
     maybeSaveViewState();
     requestAnimationFrame(animate);
 }
@@ -2886,9 +3012,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var three__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! three */ "three");
 
 const LOAD_RISE_START_Y = -48;
-const LOAD_RISE_MS = 310;
+const LOAD_RISE_MS = 190;
 const UNLOAD_SINK_DISTANCE = 12;
-const UNLOAD_SINK_MS = 100;
+const UNLOAD_SINK_MS = 85;
 const LAND_FAILSAFE_MULTIPLIER = 1.5;
 const GROUND_Y = 0;
 const GROUND_EPSILON = 0.25;
@@ -3689,13 +3815,21 @@ const CHUNK_SIZE = 32;
 const MAP_HORIZON_MARGIN = 40;
 const SKY_RGB = { r: 23, g: 52, b: 84 };
 const RISE_START_Y = -48;
-const RISE_MS = 200;
+const RISE_MS = 140;
 const RISE_FAILSAFE_MULTIPLIER = 1.5;
 const PROMOTE_PER_FRAME = 512;
+const TILE_LOAD_CONCURRENCY = 6;
+const IMMEDIATE_TILE_LOAD_LIMIT = 256;
+const TILE_QUEUE_SLICE_SIZE = 96;
 const loadedTiles = new Map();
+const loadedTilesByCoord = new Map();
 const pendingRise = [];
 const activeRise = new Map();
+const desiredTileLoads = new Map();
+const inFlightTileLoads = new Map();
 let loadGeneration = 0;
+let tileLoadGeneration = 0;
+let tileLoadWorker = null;
 let context = null;
 let activeStats = {
     loaded: 0,
@@ -3723,6 +3857,19 @@ function tileCacheKey(world, chunkX, chunkZ, formatVersion) {
 }
 function tileMotionKey(chunkX, chunkZ) {
     return `${chunkX}:${chunkZ}`;
+}
+function coordKey(chunkX, chunkZ) {
+    return `${chunkX}:${chunkZ}`;
+}
+async function runWithConcurrency(items, concurrency, worker) {
+    let next = 0;
+    const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+        while (next < items.length) {
+            const item = items[next++];
+            await worker(item);
+        }
+    });
+    await Promise.all(workers);
 }
 async function textureFromPngBytes(bytes, maxAnisotropy) {
     const blob = new Blob([bytes], { type: 'image/png' });
@@ -3816,6 +3963,7 @@ async function installTile(scene, world, chunkX, chunkZ, bytes, maxAnisotropy, m
     };
     scene.add(mesh);
     loadedTiles.set(id, entry);
+    loadedTilesByCoord.set(coordKey(chunkX, chunkZ), entry);
     revealTile(entry, motionEnabled);
     return entry;
 }
@@ -3858,6 +4006,8 @@ function pruneMapTiles(world, retainIds) {
         scene.remove(entry.mesh);
         disposeTileEntry(entry);
         loadedTiles.delete(key);
+        loadedTilesByCoord.delete(coordKey(entry.chunkX, entry.chunkZ));
+        desiredTileLoads.delete(key);
         activeRise.delete(tileMotionKey(entry.chunkX, entry.chunkZ));
     }
     pendingRise.splice(0, pendingRise.length, ...pendingRise.filter((rising) => {
@@ -3870,61 +4020,165 @@ function pruneMapTiles(world, retainIds) {
 async function loadMapTilesForKeys(world, keys, options = {}) {
     if (!context?.enabled || !context.scene || keys.length === 0)
         return;
-    const generation = loadGeneration;
     const { scene, renderer, formatVersion, motionEnabled } = context;
     const revealMotion = options.immediate === true ? false : motionEnabled;
     const maxAnisotropy = renderer.capabilities.getMaxAnisotropy?.() ?? 1;
-    const missing = keys.filter((key) => !loadedTiles.has((0,_utils_js__WEBPACK_IMPORTED_MODULE_5__.chunkId)(world, key.chunkX, key.chunkZ)));
-    if (missing.length === 0)
-        return;
-    const started = performance.now();
-    const networkMissing = [];
-    for (const key of missing) {
-        if (generation !== loadGeneration)
-            return;
-        const cacheKey = tileCacheKey(world, key.chunkX, key.chunkZ, formatVersion);
-        const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_3__.readMapTileCache)(cacheKey);
-        if (generation !== loadGeneration)
-            return;
-        if (cached?.bytes) {
-            await installTile(scene, world, key.chunkX, key.chunkZ, cached.bytes, maxAnisotropy, revealMotion);
-            activeStats.reuses += 1;
-            continue;
+    if (options.replace) {
+        for (const [id] of desiredTileLoads) {
+            if (!inFlightTileLoads.has(id)) {
+                desiredTileLoads.delete(id);
+            }
         }
-        networkMissing.push(key);
     }
-    for (const key of networkMissing) {
-        if (generation !== loadGeneration)
-            return;
-        try {
-            const result = await (0,_library_map_tile_loader_js__WEBPACK_IMPORTED_MODULE_2__.loadMapTilePng)(world, key.chunkX, key.chunkZ);
+    let queued = 0;
+    const immediateRequests = [];
+    for (const key of keys) {
+        const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_5__.chunkId)(world, key.chunkX, key.chunkZ);
+        if (loadedTiles.has(id))
+            continue;
+        const request = {
+            id,
+            world,
+            chunkX: key.chunkX,
+            chunkZ: key.chunkZ,
+            scene,
+            formatVersion,
+            maxAnisotropy,
+            motionEnabled: revealMotion,
+        };
+        desiredTileLoads.set(id, request);
+        immediateRequests.push(request);
+        queued += 1;
+    }
+    if (queued === 0) {
+        if (desiredTileLoads.size > 0) {
+            startTileLoadWorker();
+        }
+        return;
+    }
+    tileLoadGeneration += 1;
+    let loadedImmediateTiles = false;
+    if (options.immediate === true && immediateRequests.length > 0 && immediateRequests.length <= IMMEDIATE_TILE_LOAD_LIMIT) {
+        await runWithConcurrency(immediateRequests, TILE_LOAD_CONCURRENCY, async (request) => {
+            if (desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id))
+                return;
+            try {
+                const result = await loadTileRequest(request, loadGeneration);
+                if (result.installed || loadedTiles.has(request.id)) {
+                    desiredTileLoads.delete(request.id);
+                }
+            }
+            catch (error) {
+                desiredTileLoads.delete(request.id);
+                console.warn(`Failed to load map tile ${request.chunkX},${request.chunkZ}`, error);
+            }
+        });
+        updateStats();
+        loadedImmediateTiles = true;
+    }
+    startTileLoadWorker();
+    if (loadedImmediateTiles)
+        return;
+    return tileLoadWorker;
+}
+function startTileLoadWorker() {
+    if (!tileLoadWorker) {
+        tileLoadWorker = processTileLoadQueue().finally(() => {
+            tileLoadWorker = null;
+            if (desiredTileLoads.size > 0 && context?.enabled) {
+                startTileLoadWorker();
+            }
+        });
+    }
+}
+async function processTileLoadQueue() {
+    while (context?.enabled && desiredTileLoads.size > 0) {
+        const generation = loadGeneration;
+        const queueGeneration = tileLoadGeneration;
+        const started = performance.now();
+        let networkMissing = 0;
+        const requests = [...desiredTileLoads.values()]
+            .filter((request) => {
+            return !loadedTiles.has(request.id) && desiredTileLoads.get(request.id) === request;
+        })
+            .slice(0, TILE_QUEUE_SLICE_SIZE);
+        if (requests.length === 0) {
+            desiredTileLoads.clear();
+            break;
+        }
+        await runWithConcurrency(requests, TILE_LOAD_CONCURRENCY, async (request) => {
             if (generation !== loadGeneration)
                 return;
-            const cacheKey = tileCacheKey(world, key.chunkX, key.chunkZ, formatVersion);
-            (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_3__.writeMapTileCache)(cacheKey, result.bytes.slice(0), { source: result.source });
-            await installTile(scene, world, key.chunkX, key.chunkZ, result.bytes, maxAnisotropy, revealMotion);
-        }
-        catch (error) {
-            console.warn(`Failed to load map tile ${key.chunkX},${key.chunkZ}`, error);
-            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_1__.logClientEvent)('map_tile_single_failed', {
-                world,
-                chunkX: key.chunkX,
-                chunkZ: key.chunkZ,
-                error: error?.message ?? error,
-            });
+            if (desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id))
+                return;
+            try {
+                const result = await loadTileRequest(request, generation);
+                if (result.network)
+                    networkMissing += 1;
+                if (result.installed || loadedTiles.has(request.id) || desiredTileLoads.get(request.id) !== request) {
+                    desiredTileLoads.delete(request.id);
+                }
+            }
+            catch (error) {
+                desiredTileLoads.delete(request.id);
+                console.warn(`Failed to load map tile ${request.chunkX},${request.chunkZ}`, error);
+                (0,_client_log_js__WEBPACK_IMPORTED_MODULE_1__.logClientEvent)('map_tile_single_failed', {
+                    world: request.world,
+                    chunkX: request.chunkX,
+                    chunkZ: request.chunkZ,
+                    error: error?.message ?? error,
+                });
+            }
+        });
+        activeStats.fetches += 1;
+        activeStats.loadMs = performance.now() - started;
+        updateStats();
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_1__.logClientEvent)('map_tiles_stream', {
+            world: requests[0]?.world ?? 'unknown',
+            requested: requests.length,
+            pending: desiredTileLoads.size,
+            installed: loadedTiles.size,
+            network: networkMissing,
+            ms: Math.round(activeStats.loadMs),
+            visibleTiles: activeStats.visibleTiles,
+        });
+        if (queueGeneration === tileLoadGeneration || generation !== loadGeneration) {
+            break;
         }
     }
-    activeStats.fetches += 1;
-    activeStats.loadMs = performance.now() - started;
-    updateStats();
-    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_1__.logClientEvent)('map_tiles_stream', {
-        world,
-        requested: keys.length,
-        installed: loadedTiles.size,
-        network: networkMissing.length,
-        ms: Math.round(activeStats.loadMs),
-        visibleTiles: activeStats.visibleTiles,
+}
+async function loadTileRequest(request, generation) {
+    if (loadedTiles.has(request.id))
+        return { installed: false, network: false };
+    const existing = inFlightTileLoads.get(request.id);
+    if (existing && desiredTileLoads.get(request.id) === existing.request)
+        return existing.promise;
+    const task = loadTileRequestUncached(request, generation).finally(() => {
+        if (inFlightTileLoads.get(request.id)?.promise === task) {
+            inFlightTileLoads.delete(request.id);
+        }
     });
+    inFlightTileLoads.set(request.id, { request, promise: task });
+    return task;
+}
+async function loadTileRequestUncached(request, generation) {
+    const cacheKey = tileCacheKey(request.world, request.chunkX, request.chunkZ, request.formatVersion);
+    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_3__.readMapTileCache)(cacheKey);
+    if (generation !== loadGeneration || desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id)) {
+        return { installed: false, network: false };
+    }
+    if (cached?.bytes) {
+        await installTile(request.scene, request.world, request.chunkX, request.chunkZ, cached.bytes, request.maxAnisotropy, request.motionEnabled);
+        activeStats.reuses += 1;
+        return { installed: true, network: false };
+    }
+    const result = await (0,_library_map_tile_loader_js__WEBPACK_IMPORTED_MODULE_2__.loadMapTilePng)(request.world, request.chunkX, request.chunkZ);
+    if (generation !== loadGeneration || desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id)) {
+        return { installed: false, network: true };
+    }
+    void (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_3__.writeMapTileCache)(cacheKey, result.bytes.slice(0), { source: result.source });
+    await installTile(request.scene, request.world, request.chunkX, request.chunkZ, result.bytes, request.maxAnisotropy, request.motionEnabled);
+    return { installed: true, network: true };
 }
 /** @deprecated Use configureMapBackdrop + loadMapTilesForKeys with terrain batches. */
 function updateMapBackdrop(scene, renderer, options) {
@@ -3948,6 +4202,8 @@ function clearMapBackdrop(scene) {
         disposeTileEntry(entry);
     }
     loadedTiles.clear();
+    loadedTilesByCoord.clear();
+    desiredTileLoads.clear();
     activeStats = {
         loaded: 0,
         centerX: 0,
@@ -4081,7 +4337,7 @@ function auditMapTiles(scene) {
     };
 }
 function probeMapTilePixel(scene, renderer, camera, renderFrame, chunkX, chunkZ) {
-    const entry = [...loadedTiles.values()].find((tile) => tile.chunkX === chunkX && tile.chunkZ === chunkZ);
+    const entry = loadedTilesByCoord.get(coordKey(chunkX, chunkZ));
     if (!entry) {
         return { ok: false, error: 'tile_missing' };
     }
@@ -4145,7 +4401,7 @@ function sampleMapBackdropColor(worldX, worldZ) {
     }
     const chunkX = Math.floor(worldX / CHUNK_SIZE);
     const chunkZ = Math.floor(worldZ / CHUNK_SIZE);
-    const entry = [...loadedTiles.values()].find((tile) => tile.chunkX === chunkX && tile.chunkZ === chunkZ);
+    const entry = loadedTilesByCoord.get(coordKey(chunkX, chunkZ));
     if (!entry?.image)
         return null;
     const localX = worldX - chunkX * CHUNK_SIZE;
@@ -4187,6 +4443,8 @@ const TERRAIN_STORE = 'terrainMeshes';
 const MAP_TILE_STORE = 'mapTileTextures';
 const MAX_RECORD_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 let dbPromise = null;
+const mapTileWriteQueue = new Map();
+let mapTileWriteWorker = null;
 function makeTerrainCacheKey({ world, chunkX, chunkZ, formatVersion, detailsEnabled }) {
     const details = detailsEnabled ? 'details' : 'surface';
     return `${formatVersion}:${details}:${world}:${chunkX}:${chunkZ}`;
@@ -4223,15 +4481,34 @@ async function readMapTileCache(key) {
 async function writeMapTileCache(key, bytes, meta = {}) {
     if (!bytes?.byteLength)
         return false;
+    mapTileWriteQueue.set(key, { key, bytes, meta, updatedAt: Date.now() });
+    if (!mapTileWriteWorker) {
+        mapTileWriteWorker = drainMapTileWriteQueue().finally(() => {
+            mapTileWriteWorker = null;
+            if (mapTileWriteQueue.size > 0) {
+                mapTileWriteWorker = drainMapTileWriteQueue().finally(() => {
+                    mapTileWriteWorker = null;
+                });
+            }
+        });
+    }
+    return true;
+}
+async function drainMapTileWriteQueue() {
     try {
         const db = await openDb();
-        await requestPromise(db.transaction(MAP_TILE_STORE, 'readwrite').objectStore(MAP_TILE_STORE).put({
-            key,
-            bytes,
-            meta,
-            updatedAt: Date.now(),
-        }));
-        return true;
+        while (mapTileWriteQueue.size > 0) {
+            const records = [...mapTileWriteQueue.values()].slice(0, 64);
+            for (const record of records) {
+                mapTileWriteQueue.delete(record.key);
+            }
+            const transaction = db.transaction(MAP_TILE_STORE, 'readwrite');
+            const store = transaction.objectStore(MAP_TILE_STORE);
+            for (const record of records) {
+                store.put(record);
+            }
+            await transactionPromise(transaction);
+        }
     }
     catch {
         return false;
@@ -4282,6 +4559,13 @@ function requestPromise(request) {
     return new Promise((resolve, reject) => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
+    });
+}
+function transactionPromise(transaction) {
+    return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => resolve(true);
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
     });
 }
 
