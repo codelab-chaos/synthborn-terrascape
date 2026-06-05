@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "defaults": {
+    "centerX": 0,
+    "centerZ": 0,
+    "steps": 4,
+    "modes": ["wet", "dry"],
+    "regressionFactor": 1.5,
+    "stepSettleMs": 250,
+    "world": "default"
+  },
+  "thresholds": {
+    "totalMs": {
+      "baseline-full": 180000,
+      "mesh-only": 150000,
+      "map-tiles-focus": 90000,
+      "esp-players": 120000,
+      "esp-mobs": 120000,
+      "esp-combined": 180000
+    },
+    "minFps": {
+      "default": 18,
+      "esp-heavy": 12,
+      "esp-combined": 10
+    },
+    "mapBackdropLoadMs": {
+      "default": 45000,
+      "map-tiles-focus": 60000
+    },
+    "maxStepMs": {
+      "default": 90000
+    }
+  },
+  "serverMeshProbe": {
+    "enabled": true,
+    "centerX": 0,
+    "centerZ": 0,
+    "radius": 3,
+    "concurrency": 8,
+    "clearCacheBefore": false
+  },
+  "scenarios": [
+    {
+      "id": "mesh-only",
+      "label": "Terrain mesh only (map tiles off, no ESP)",
+      "features": {
+        "mapTiles": false,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "auto": false
+      },
+      "radius": 10,
+      "steps": 3,
+      "modes": ["wet", "dry"],
+      "regressionFactor": 1.5
+    },
+    {
+      "id": "map-tiles-focus",
+      "label": "Map region image gen (minimal mesh radius)",
+      "features": {
+        "mapTiles": true,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "auto": false
+      },
+      "radius": 1,
+      "steps": 4,
+      "modes": ["wet"],
+      "regressionFactor": 1.6
+    },
+    {
+      "id": "esp-players",
+      "label": "Player ESP overlay (no map tiles)",
+      "features": {
+        "mapTiles": false,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "auto": false
+      },
+      "radius": 5,
+      "steps": 2,
+      "modes": ["wet"],
+      "esp": { "players": 24, "showPlayers": true },
+      "regressionFactor": 1.5
+    },
+    {
+      "id": "esp-mobs",
+      "label": "Mob ESP overlay (no map tiles)",
+      "features": {
+        "mapTiles": false,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "auto": false
+      },
+      "radius": 5,
+      "steps": 2,
+      "modes": ["wet"],
+      "esp": { "mobs": 48, "showMobs": true },
+      "regressionFactor": 1.5
+    },
+    {
+      "id": "baseline-full",
+      "label": "Full stack (mesh + map tiles + players)",
+      "features": {
+        "mapTiles": true,
+        "players": true,
+        "mobs": false,
+        "water": "solid",
+        "auto": false
+      },
+      "radius": 10,
+      "steps": 2,
+      "modes": ["wet", "dry"],
+      "regressionFactor": 1.5
+    },
+    {
+      "id": "esp-combined",
+      "label": "Combined ESP + map tiles (stress)",
+      "features": {
+        "mapTiles": true,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "auto": false
+      },
+      "radius": 8,
+      "steps": 2,
+      "modes": ["wet"],
+      "esp": { "players": 16, "mobs": 32, "showPlayers": true, "showMobs": true },
+      "regressionFactor": 1.7
+    }
+  ]
+}

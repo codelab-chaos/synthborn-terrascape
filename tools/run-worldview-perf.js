@@ -1,6 +1,17 @@
 #!/usr/bin/env node
 const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
 const path = require('node:path');
+const {
+  DEFAULT_CONFIG_PATH,
+  loadPerfSuiteConfig,
+  buildScenariosPayload,
+  runMeshProbe,
+  readReportFile,
+  compareRuns,
+  printRunSummary,
+  printRunComparison,
+} = require('./library/perf-suite');
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const projectRoot = path.resolve(__dirname, '..');
@@ -9,6 +20,8 @@ const args = process.argv.slice(2);
 
 const options = {
   mode: 'both',
+  suite: 'default',
+  runs: 1,
   build: false,
   deploy: false,
   clearServerCache: false,
@@ -19,6 +32,8 @@ const options = {
   centerZ: null,
   radius: null,
   steps: null,
+  configPath: DEFAULT_CONFIG_PATH,
+  reportDir: path.join(projectRoot, 'perf-history'),
 };
 
 for (let i = 0; i < args.length; i++) {
@@ -35,6 +50,21 @@ for (let i = 0; i < args.length; i++) {
       break;
     case '--both':
       options.mode = 'both';
+      break;
+    case '--suite':
+      options.suite = args[++i] ?? options.suite;
+      break;
+    case '--extensive':
+      options.suite = 'extensive';
+      break;
+    case '--runs':
+      options.runs = Math.max(1, Number.parseInt(args[++i] ?? '1', 10) || 1);
+      break;
+    case '--config':
+      options.configPath = path.resolve(args[++i] ?? DEFAULT_CONFIG_PATH);
+      break;
+    case '--report-dir':
+      options.reportDir = path.resolve(args[++i] ?? options.reportDir);
       break;
     case '--build':
       options.build = true;
@@ -84,13 +114,118 @@ if (!['wet', 'dry', 'both'].includes(options.mode)) {
   usage(1);
 }
 
+const isExtensive = options.suite === 'extensive';
+let suiteConfig = null;
+let scenariosPayload = null;
+
+if (isExtensive) {
+  const loaded = loadPerfSuiteConfig(options.configPath);
+  suiteConfig = loaded.config;
+  scenariosPayload = buildScenariosPayload(suiteConfig);
+  console.log(`Perf suite: extensive (${scenariosPayload.length} scenarios from ${loaded.configPath})`);
+} else {
+  console.log('Perf suite: default (legacy single scenario)');
+}
+
 if (options.build) {
   run(isWindows ? '.\\gradlew.bat' : './gradlew', ['build'], projectRoot);
 }
 if (options.deploy) {
   run(isWindows ? '.\\gradlew.bat' : './gradlew', ['deploy'], projectRoot);
 }
-if (options.clearServerCache) {
+
+const baseUrl = process.env.WORLDVIEW_URL ?? 'http://127.0.0.1:5960';
+const runReports = [];
+
+for (let runIndex = 1; runIndex <= options.runs; runIndex++) {
+  const runId = `run-${runIndex}`;
+  const reportFile = path.join(options.reportDir, `worldview-perf-${runId}.json`);
+  const meshProbeFile = path.join(options.reportDir, `mesh-probe-${runId}.json`);
+
+  if (options.clearServerCache) {
+    clearServerCache();
+  }
+
+  let meshProbe = null;
+  if (isExtensive && suiteConfig?.serverMeshProbe?.enabled) {
+    const probe = suiteConfig.serverMeshProbe;
+    if (probe.clearCacheBefore) {
+      clearServerCache();
+    }
+    console.log(`\n== mesh probe ${runId}`);
+    meshProbe = runMeshProbe(projectRoot, {
+      url: baseUrl,
+      world: probe.world ?? 'default',
+      centerX: probe.centerX ?? 0,
+      centerZ: probe.centerZ ?? 0,
+      radius: probe.radius ?? 3,
+      concurrency: probe.concurrency ?? 8,
+      jsonOut: meshProbeFile,
+    });
+  }
+
+  console.log(`\n== browser perf ${runId}`);
+  runPlaywright({
+    runId,
+    reportFile,
+    scenariosPayload,
+  });
+
+  const report = readReportFile(reportFile) ?? { runId, results: [] };
+  if (meshProbe) {
+    report.meshProbe = meshProbe;
+    fs.writeFileSync(reportFile, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  }
+  runReports.push(report);
+  if (suiteConfig) {
+    printRunSummary(report, suiteConfig);
+  } else {
+    printRunSummary(report, { thresholds: {} });
+  }
+}
+
+if (runReports.length === 2 && suiteConfig) {
+  const comparisons = compareRuns(runReports[0], runReports[1]);
+  printRunComparison(comparisons);
+  const comparisonFile = path.join(options.reportDir, 'worldview-perf-run-comparison.json');
+  fs.mkdirSync(options.reportDir, { recursive: true });
+  fs.writeFileSync(comparisonFile, `${JSON.stringify({
+    kind: 'worldview-perf-comparison',
+    timestamp: new Date().toISOString(),
+    run1: runReports[0].runId,
+    run2: runReports[1].runId,
+    comparisons,
+  }, null, 2)}\n`, 'utf8');
+  console.log(`\nComparison written: ${comparisonFile}`);
+}
+
+function runPlaywright({ runId, reportFile, scenariosPayload }) {
+  const playwright = path.join(projectRoot, 'node_modules', '.bin', isWindows ? 'playwright.cmd' : 'playwright');
+  const playwrightArgs = ['test', 'tests/worldview-perf.spec.js'];
+  if (options.headed) {
+    playwrightArgs.push('--headed');
+  }
+
+  const env = {
+    ...process.env,
+    WORLDVIEW_PERF_MODE: options.mode,
+    WORLDVIEW_PERF_ENFORCE: options.enforce ? '1' : (process.env.WORLDVIEW_PERF_ENFORCE ?? ''),
+    WORLDVIEW_PERF_RUN_ID: runId,
+    WORLDVIEW_PERF_REPORT_FILE: reportFile,
+  };
+  if (options.threshold) env.WORLDVIEW_PERF_REGRESSION_FACTOR = options.threshold;
+  if (options.centerX) env.WORLDVIEW_PERF_CENTER_X = options.centerX;
+  if (options.centerZ) env.WORLDVIEW_PERF_CENTER_Z = options.centerZ;
+  if (options.radius) env.WORLDVIEW_PERF_RADIUS = options.radius;
+  if (options.steps) env.WORLDVIEW_PERF_STEPS = options.steps;
+  if (scenariosPayload) {
+    env.WORLDVIEW_PERF_SCENARIOS = JSON.stringify(scenariosPayload);
+  }
+
+  run(playwright, playwrightArgs, projectRoot, env);
+}
+
+function clearServerCache() {
   run('node', [
     'tools/rcon/synth-rcon.js',
     '--save',
@@ -99,25 +234,6 @@ if (options.clearServerCache) {
     'clearcache',
   ], repoRoot);
 }
-
-const playwright = path.join(projectRoot, 'node_modules', '.bin', isWindows ? 'playwright.cmd' : 'playwright');
-const playwrightArgs = ['test', 'tests/worldview-perf.spec.js'];
-if (options.headed) {
-  playwrightArgs.push('--headed');
-}
-
-const env = {
-  ...process.env,
-  WORLDVIEW_PERF_MODE: options.mode,
-  WORLDVIEW_PERF_ENFORCE: options.enforce ? '1' : (process.env.WORLDVIEW_PERF_ENFORCE ?? ''),
-};
-if (options.threshold) env.WORLDVIEW_PERF_REGRESSION_FACTOR = options.threshold;
-if (options.centerX) env.WORLDVIEW_PERF_CENTER_X = options.centerX;
-if (options.centerZ) env.WORLDVIEW_PERF_CENTER_Z = options.centerZ;
-if (options.radius) env.WORLDVIEW_PERF_RADIUS = options.radius;
-if (options.steps) env.WORLDVIEW_PERF_STEPS = options.steps;
-
-run(playwright, playwrightArgs, projectRoot, env);
 
 function run(command, commandArgs, cwd, env = process.env) {
   const result = spawnSync(command, commandArgs, {
@@ -142,17 +258,26 @@ Options:
   --wet                  Clear browser mesh cache, then measure server/network load.
   --dry                  Measure warm browser-cache loading.
   --both                 Run wet then dry in the same browser session. Default.
+  --suite default        Legacy single-scenario route. Default.
+  --suite extensive      Run the scenario matrix from tools/perf-suite-config.json.
+  --extensive            Alias for --suite extensive.
+  --runs N               Repeat the suite N times and compare (default 1).
+  --config PATH          Perf suite config JSON (default tools/perf-suite-config.json).
+  --report-dir PATH      Where run JSON reports are written (default perf-history/).
   --build                Run Gradle build before the browser perf test.
   --deploy               Run Gradle deploy before the browser perf test.
   --post-deploy          Alias for --build --deploy.
-  --clear-server-cache   Run /worldview clearcache through SynthRCON first.
+  --clear-server-cache   Run /worldview clearcache through SynthRCON before each run.
   --headed               Show the browser.
   --enforce              Fail when history comparison exceeds the threshold.
-  --threshold N          Regression factor. Default 1.5.
-  --center-x N           Perf route center chunk X. Default 0.
-  --center-z N           Perf route center chunk Z. Default 0.
-  --radius N             Mesh radius. Default 10.
-  --steps N              Chunks to navigate in each direction. Default 4.
+  --threshold N          Regression factor. Default 1.5 (per-scenario overrides in config).
+  --center-x N           Legacy route center chunk X. Default 0.
+  --center-z N           Legacy route center chunk Z. Default 0.
+  --radius N             Legacy mesh radius. Default 10.
+  --steps N              Legacy chunks to navigate in each direction. Default 4.
+
+Thresholds and scenario matrix live in tools/perf-suite-config.json.
+Edit regressionFactor per scenario and thresholds.totalMs / minFps / mapBackdropLoadMs there.
 `);
   process.exit(exitCode);
 }
