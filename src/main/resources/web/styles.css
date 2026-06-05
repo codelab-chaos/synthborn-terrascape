@@ -360,6 +360,20 @@ input[type="number"] {
   text-align: right;
 }
 
+.mesh-distance-control > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.mesh-distance-control output {
+  color: #d6f1e4;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 select {
   width: 100%;
   min-width: 0;

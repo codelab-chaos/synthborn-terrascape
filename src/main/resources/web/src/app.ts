@@ -32,7 +32,9 @@ import {
   metricCenterEl,
   playersEl,
   playerUpdateRateInput,
+  radiusDiameterEl,
   radiusInput,
+  radiusRangeInput,
   shadeDarknessInput,
   shadeDarknessValueInput,
   shadeSizeInput,
@@ -411,7 +413,7 @@ function applyStoredInputs() {
   if (!storedViewState) return;
   setNumberInput(chunkXInput, storedViewState.chunkX);
   setNumberInput(chunkZInput, storedViewState.chunkZ);
-  setNumberInput(radiusInput, storedViewState.radius);
+  setRadiusControlValue(storedViewState.radius);
   if (typeof storedViewState.auto === 'boolean') autoStreamInput.checked = storedViewState.auto;
   if (typeof storedViewState.bounds === 'boolean') debugBoundsInput.checked = storedViewState.bounds;
   if (typeof storedViewState.players === 'boolean') showPlayersInput.checked = storedViewState.players;
@@ -455,7 +457,12 @@ function applyNumberParam(name, input) {
   const value = initialParams.get(name);
   if (value === null || value.trim() === '') return;
   const parsed = Number.parseInt(value, 10);
-  if (!Number.isNaN(parsed)) input.value = parsed;
+  if (Number.isNaN(parsed)) return;
+  if (input === radiusInput) {
+    setRadiusControlValue(parsed);
+    return;
+  }
+  input.value = parsed;
 }
 
 function applyBooleanParam(name, input) {
@@ -496,6 +503,25 @@ function setNumberInput(input, value) {
   }
 }
 
+function setRadiusControlValue(value) {
+  const normalized = normalizePairedValue(radiusRangeInput, Math.round(Number(value)));
+  radiusRangeInput.value = normalized;
+  radiusInput.value = normalized;
+  updateRadiusReadout();
+  return normalized;
+}
+
+function radiusValue() {
+  return Math.max(0, numberOr(Number.parseInt(radiusInput.value, 10), 0));
+}
+
+function updateRadiusReadout() {
+  const radius = radiusValue();
+  const diameter = radius * 2 + 1;
+  const chunks = diameter * diameter;
+  radiusDiameterEl.textContent = `${diameter} x ${diameter} chunks, ${chunks} meshes`;
+}
+
 function setPairedControlValue(rangeInput, numberInput, value) {
   if (!Number.isFinite(value)) return;
   const normalized = normalizePairedValue(rangeInput, value);
@@ -525,8 +551,7 @@ async function loadGrid(options = {}) {
   const world = worldSelect.value;
   const centerX = options.centerX ?? Number.parseInt(chunkXInput.value, 10);
   const centerZ = options.centerZ ?? Number.parseInt(chunkZInput.value, 10);
-  const radius = Math.max(0, numberOr(Number.parseInt(radiusInput.value, 10), 0));
-  radiusInput.value = radius;
+  const radius = setRadiusControlValue(radiusValue());
   if (!world || Number.isNaN(centerX) || Number.isNaN(centerZ)) {
     setStatus('Choose a world and integer chunk coordinates');
     return;
@@ -1131,12 +1156,12 @@ function syncMapTileLayer(retainKeys = null) {
   const keys = retainKeys ?? chunkKeys(
     Number.parseInt(chunkXInput.value, 10),
     Number.parseInt(chunkZInput.value, 10),
-    Math.max(0, numberOr(Number.parseInt(radiusInput.value, 10), 0)),
+    radiusValue(),
   );
   const retainIds = new Set(keys.map((key) => key.id));
   pruneMapTiles(world, retainIds);
   const center = mapBackdropCenter();
-  const terrainRadius = Math.max(0, numberOr(Number.parseInt(radiusInput.value, 10), 0));
+  const terrainRadius = radiusValue();
   const mapRadius = mapTileRetainRadius(terrainRadius, autoStreamInput.checked);
   const stats = mapBackdropStats();
   stats.centerX = center.chunkX;
@@ -1150,7 +1175,7 @@ function syncMapTileLayer(retainKeys = null) {
 
 function updateMapTileLayer(options = {}) {
   const center = mapBackdropCenter();
-  const radius = Math.max(0, numberOr(Number.parseInt(radiusInput.value, 10), 0));
+  const radius = radiusValue();
   const mapRadius = mapTileRetainRadius(radius, autoStreamInput.checked);
   const layerKey = `${worldSelect.value}:${center.chunkX}:${center.chunkZ}:${mapRadius}:${mapTilesInput.checked}`;
   if (!options.force && layerKey === mapTileLayerKey) {
@@ -2027,7 +2052,7 @@ function saveViewState() {
     world: worldSelect.value,
     chunkX: Number.parseInt(chunkXInput.value, 10) || chunk.chunkX,
     chunkZ: Number.parseInt(chunkZInput.value, 10) || chunk.chunkZ,
-    radius: Math.max(0, Number.parseInt(radiusInput.value, 10) || 0),
+    radius: radiusValue(),
     auto: autoStreamInput.checked,
     bounds: debugBoundsInput.checked,
     players: showPlayersInput.checked,
@@ -2099,7 +2124,7 @@ function updateChunkPlaceholders() {
   if (!world || !hasFocusedInitialGrid) {
     return;
   }
-  const radius = Math.max(0, numberOr(Number.parseInt(radiusInput.value, 10), 0));
+  const radius = radiusValue();
   const player = playerChunk();
   const playerId = centerId(world, player.chunkX, player.chunkZ);
   const shouldShow = autoStreamInput.checked
@@ -2461,6 +2486,7 @@ mapTilesInput.addEventListener('change', () => {
   saveViewState();
 });
 landMotionInput.addEventListener('change', saveViewState);
+syncRadiusControl();
 syncPairedControl(shadeSizeInput, shadeSizeValueInput);
 syncPairedControl(shadeDarknessInput, shadeDarknessValueInput);
 worldSelect.addEventListener('change', () => {
@@ -2475,7 +2501,7 @@ worldSelect.addEventListener('change', () => {
   scheduleControlGridLoad();
   saveViewState();
 });
-for (const input of [chunkXInput, chunkZInput, radiusInput]) {
+for (const input of [chunkXInput, chunkZInput]) {
   input.addEventListener('input', scheduleControlGridLoad);
   input.addEventListener('change', scheduleControlGridLoad);
 }
@@ -2492,6 +2518,7 @@ infoCardHeadEl.addEventListener('keydown', (event) => {
   toggleRenderDetails();
 });
 applyInitialParams();
+setRadiusControlValue(radiusValue());
 exposeDebugState();
 resize();
 timeRibbon.update(worldTime);
@@ -2528,5 +2555,29 @@ function syncPairedControl(rangeInput, numberInput, applyUpdate = applyLighting)
     setPairedControlValue(rangeInput, numberInput, Number.parseFloat(numberInput.value));
     applyUpdate();
     saveViewState();
+  });
+}
+
+function syncRadiusControl() {
+  radiusRangeInput.addEventListener('input', () => {
+    radiusInput.value = radiusRangeInput.value;
+    updateRadiusReadout();
+    scheduleControlGridLoad();
+  });
+  radiusInput.addEventListener('input', () => {
+    const parsed = Number.parseInt(radiusInput.value, 10);
+    if (Number.isFinite(parsed)) {
+      radiusRangeInput.value = normalizePairedValue(radiusRangeInput, parsed);
+    }
+    updateRadiusReadout();
+    scheduleControlGridLoad();
+  });
+  radiusInput.addEventListener('change', () => {
+    setRadiusControlValue(radiusInput.value);
+    scheduleControlGridLoad();
+  });
+  radiusRangeInput.addEventListener('change', () => {
+    setRadiusControlValue(radiusRangeInput.value);
+    scheduleControlGridLoad();
   });
 }

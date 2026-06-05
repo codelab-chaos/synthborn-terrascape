@@ -353,7 +353,7 @@ function applyStoredInputs() {
         return;
     setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput, storedViewState.chunkX);
     setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput, storedViewState.chunkZ);
-    setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput, storedViewState.radius);
+    setRadiusControlValue(storedViewState.radius);
     if (typeof storedViewState.auto === 'boolean')
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked = storedViewState.auto;
     if (typeof storedViewState.bounds === 'boolean')
@@ -407,8 +407,13 @@ function applyNumberParam(name, input) {
     if (value === null || value.trim() === '')
         return;
     const parsed = Number.parseInt(value, 10);
-    if (!Number.isNaN(parsed))
-        input.value = parsed;
+    if (Number.isNaN(parsed))
+        return;
+    if (input === _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput) {
+        setRadiusControlValue(parsed);
+        return;
+    }
+    input.value = parsed;
 }
 function applyBooleanParam(name, input) {
     const value = initialParams.get(name);
@@ -446,6 +451,22 @@ function setNumberInput(input, value) {
         input.value = value;
     }
 }
+function setRadiusControlValue(value) {
+    const normalized = normalizePairedValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput, Math.round(Number(value)));
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput.value = normalized;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value = normalized;
+    updateRadiusReadout();
+    return normalized;
+}
+function radiusValue() {
+    return Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10), 0));
+}
+function updateRadiusReadout() {
+    const radius = radiusValue();
+    const diameter = radius * 2 + 1;
+    const chunks = diameter * diameter;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusDiameterEl.textContent = `${diameter} x ${diameter} chunks, ${chunks} meshes`;
+}
 function setPairedControlValue(rangeInput, numberInput, value) {
     if (!Number.isFinite(value))
         return;
@@ -476,8 +497,7 @@ async function loadGrid(options = {}) {
     const world = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
     const centerX = options.centerX ?? Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10);
     const centerZ = options.centerZ ?? Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10);
-    const radius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10), 0));
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value = radius;
+    const radius = setRadiusControlValue(radiusValue());
     if (!world || Number.isNaN(centerX) || Number.isNaN(centerZ)) {
         setStatus('Choose a world and integer chunk coordinates');
         return;
@@ -1057,11 +1077,11 @@ function syncMapTileLayer(retainKeys = null) {
         return;
     }
     const world = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
-    const keys = retainKeys ?? chunkKeys(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10), Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10), Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10), 0)));
+    const keys = retainKeys ?? chunkKeys(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10), Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10), radiusValue());
     const retainIds = new Set(keys.map((key) => key.id));
     (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.pruneMapTiles)(world, retainIds);
     const center = mapBackdropCenter();
-    const terrainRadius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10), 0));
+    const terrainRadius = radiusValue();
     const mapRadius = mapTileRetainRadius(terrainRadius, _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked);
     const stats = (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapBackdropStats)();
     stats.centerX = center.chunkX;
@@ -1074,7 +1094,7 @@ function syncMapTileLayer(retainKeys = null) {
 }
 function updateMapTileLayer(options = {}) {
     const center = mapBackdropCenter();
-    const radius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10), 0));
+    const radius = radiusValue();
     const mapRadius = mapTileRetainRadius(radius, _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked);
     const layerKey = `${_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value}:${center.chunkX}:${center.chunkZ}:${mapRadius}:${_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked}`;
     if (!options.force && layerKey === mapTileLayerKey) {
@@ -1902,7 +1922,7 @@ function saveViewState() {
         world: _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value,
         chunkX: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10) || chunk.chunkX,
         chunkZ: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10) || chunk.chunkZ,
-        radius: Math.max(0, Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10) || 0),
+        radius: radiusValue(),
         auto: _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked,
         bounds: _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked,
         players: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked,
@@ -1967,7 +1987,7 @@ function updateChunkPlaceholders() {
     if (!world || !hasFocusedInitialGrid) {
         return;
     }
-    const radius = Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10), 0));
+    const radius = radiusValue();
     const player = playerChunk();
     const playerId = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.centerId)(world, player.chunkX, player.chunkZ);
     const shouldShow = _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked
@@ -2316,6 +2336,7 @@ _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.addEventListener('change', ()
     saveViewState();
 });
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.addEventListener('change', saveViewState);
+syncRadiusControl();
 syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput);
 syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput);
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.addEventListener('change', () => {
@@ -2330,7 +2351,7 @@ _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.addEventListener('change', () =
     scheduleControlGridLoad();
     saveViewState();
 });
-for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput]) {
+for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput]) {
     input.addEventListener('input', scheduleControlGridLoad);
     input.addEventListener('change', scheduleControlGridLoad);
 }
@@ -2348,6 +2369,7 @@ _dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardHeadEl.addEventListener('keydown', 
     toggleRenderDetails();
 });
 applyInitialParams();
+setRadiusControlValue(radiusValue());
 exposeDebugState();
 resize();
 timeRibbon.update(worldTime);
@@ -2383,6 +2405,29 @@ function syncPairedControl(rangeInput, numberInput, applyUpdate = applyLighting)
         setPairedControlValue(rangeInput, numberInput, Number.parseFloat(numberInput.value));
         applyUpdate();
         saveViewState();
+    });
+}
+function syncRadiusControl() {
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput.addEventListener('input', () => {
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput.value;
+        updateRadiusReadout();
+        scheduleControlGridLoad();
+    });
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.addEventListener('input', () => {
+        const parsed = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10);
+        if (Number.isFinite(parsed)) {
+            _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput.value = normalizePairedValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput, parsed);
+        }
+        updateRadiusReadout();
+        scheduleControlGridLoad();
+    });
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.addEventListener('change', () => {
+        setRadiusControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value);
+        scheduleControlGridLoad();
+    });
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput.addEventListener('change', () => {
+        setRadiusControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput.value);
+        scheduleControlGridLoad();
     });
 }
 
@@ -2779,7 +2824,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   panelToggle: () => (/* binding */ panelToggle),
 /* harmony export */   playerUpdateRateInput: () => (/* binding */ playerUpdateRateInput),
 /* harmony export */   playersEl: () => (/* binding */ playersEl),
+/* harmony export */   radiusDiameterEl: () => (/* binding */ radiusDiameterEl),
 /* harmony export */   radiusInput: () => (/* binding */ radiusInput),
+/* harmony export */   radiusRangeInput: () => (/* binding */ radiusRangeInput),
 /* harmony export */   shadeDarknessInput: () => (/* binding */ shadeDarknessInput),
 /* harmony export */   shadeDarknessValueInput: () => (/* binding */ shadeDarknessValueInput),
 /* harmony export */   shadeSizeInput: () => (/* binding */ shadeSizeInput),
@@ -2802,7 +2849,9 @@ const canvas = document.querySelector('#scene');
 const worldSelect = document.querySelector('#world');
 const chunkXInput = document.querySelector('#chunk-x');
 const chunkZInput = document.querySelector('#chunk-z');
+const radiusRangeInput = document.querySelector('#radius-range');
 const radiusInput = document.querySelector('#radius');
+const radiusDiameterEl = document.querySelector('#radius-diameter');
 const autoStreamInput = document.querySelector('#auto-stream');
 const debugBoundsInput = document.querySelector('#debug-bounds');
 const showPlayersInput = document.querySelector('#show-players');
