@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "defaults": {
+    "centerX": 0,
+    "centerZ": 0,
+    "steps": 0,
+    "modes": ["dry"],
+    "regressionFactor": 1.25,
+    "stepSettleMs": 200,
+    "flyChunks": 6,
+    "flyLegs": true,
+    "flySprint": false,
+    "flySampleMs": 50,
+    "flyDirections": "east-west",
+    "world": "default"
+  },
+  "thresholds": {
+    "totalMs": {
+      "smoothness-gate": 180000
+    },
+    "gridLoadMs": {
+      "default": 25000
+    },
+    "minFpsDuringFly": {
+      "default": 18
+    },
+    "p95FrameMsDuringFly": {
+      "default": 42
+    },
+    "hitchCount50DuringFly": {
+      "default": 12
+    },
+    "longestHitchMsDuringFly": {
+      "default": 140
+    }
+  },
+  "serverMeshProbe": {
+    "enabled": false
+  },
+  "scenarios": [
+    {
+      "id": "smoothness-gate",
+      "label": "Quick default validation (auto-stream fly, full default visuals)",
+      "radius": 3,
+      "steps": 0,
+      "modes": ["dry"],
+      "features": {
+        "mapTiles": true,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "shader": "none",
+        "sun": true,
+        "shade": true,
+        "auto": true
+      },
+      "flyDirections": "east-west",
+      "flyChunks": 6,
+      "regressionFactor": 1.25
+    }
+  ]
+}

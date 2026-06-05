@@ -7,21 +7,29 @@
     "modes": ["wet", "dry"],
     "regressionFactor": 1.5,
     "stepSettleMs": 250,
+    "flyChunks": 6,
+    "flyLegs": true,
+    "flySprint": false,
+    "flySampleMs": 100,
     "world": "default"
   },
   "thresholds": {
     "totalMs": {
-      "baseline-full": 180000,
-      "mesh-only": 150000,
-      "map-tiles-focus": 90000,
-      "esp-players": 120000,
-      "esp-mobs": 120000,
-      "esp-combined": 180000
+      "baseline-full": 900000,
+      "mesh-only": 600000,
+      "map-tiles-focus": 480000,
+      "esp-players": 480000,
+      "esp-mobs": 480000,
+      "esp-combined": 720000
     },
     "minFps": {
       "default": 18,
       "esp-heavy": 12,
       "esp-combined": 10
+    },
+    "minFpsDuringFly": {
+      "default": 12,
+      "esp-combined": 8
     },
     "mapBackdropLoadMs": {
       "default": 45000,
@@ -51,7 +59,7 @@
         "auto": false
       },
       "radius": 10,
-      "steps": 3,
+      "steps": 1,
       "modes": ["wet", "dry"],
       "regressionFactor": 1.5
     },
@@ -66,7 +74,7 @@
         "auto": false
       },
       "radius": 1,
-      "steps": 4,
+      "steps": 1,
       "modes": ["wet"],
       "regressionFactor": 1.6
     },

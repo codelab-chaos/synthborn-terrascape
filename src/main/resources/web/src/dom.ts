@@ -11,6 +11,7 @@ export const playerUpdateRateInput = document.querySelector('#player-update-rate
 export const sunLightingInput = document.querySelector('#sun-lighting');
 export const treeShadeInput = document.querySelector('#tree-shade');
 export const mapTilesInput = document.querySelector('#map-tiles');
+export const landMotionInput = document.querySelector('#land-motion');
 export const shadeSizeInput = document.querySelector('#shade-size');
 export const shadeSizeValueInput = document.querySelector('#shade-size-value');
 export const shadeDarknessInput = document.querySelector('#shade-darkness');

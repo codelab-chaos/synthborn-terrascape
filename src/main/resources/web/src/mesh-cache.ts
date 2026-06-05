@@ -1,6 +1,7 @@
 const DB_NAME = 'synthworldview-cache';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const TERRAIN_STORE = 'terrainMeshes';
+const MAP_TILE_STORE = 'mapTileTextures';
 const MAX_RECORD_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 let dbPromise = null;
@@ -20,6 +21,39 @@ export async function readTerrainCache(key) {
     return record;
   } catch {
     return null;
+  }
+}
+
+export function makeMapTileCacheKey({ world, chunkX, chunkZ, formatVersion }) {
+  return `${formatVersion}:map:${world}:${chunkX}:${chunkZ}`;
+}
+
+export async function readMapTileCache(key) {
+  try {
+    const db = await openDb();
+    const record = await requestPromise(db.transaction(MAP_TILE_STORE, 'readonly').objectStore(MAP_TILE_STORE).get(key));
+    if (!record?.bytes || Date.now() - record.updatedAt > MAX_RECORD_AGE_MS) {
+      return null;
+    }
+    return record;
+  } catch {
+    return null;
+  }
+}
+
+export async function writeMapTileCache(key, bytes, meta = {}) {
+  if (!bytes?.byteLength) return false;
+  try {
+    const db = await openDb();
+    await requestPromise(db.transaction(MAP_TILE_STORE, 'readwrite').objectStore(MAP_TILE_STORE).put({
+      key,
+      bytes,
+      meta,
+      updatedAt: Date.now(),
+    }));
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -52,6 +86,9 @@ function openDb() {
       const db = request.result;
       if (!db.objectStoreNames.contains(TERRAIN_STORE)) {
         db.createObjectStore(TERRAIN_STORE, { keyPath: 'key' });
+      }
+      if (!db.objectStoreNames.contains(MAP_TILE_STORE)) {
+        db.createObjectStore(MAP_TILE_STORE, { keyPath: 'key' });
       }
     };
     request.onsuccess = () => resolve(request.result);

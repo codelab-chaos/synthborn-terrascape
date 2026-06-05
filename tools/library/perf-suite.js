@@ -14,6 +14,23 @@ function loadPerfSuiteConfig(configPath = DEFAULT_CONFIG_PATH) {
   return { config, configPath: resolved };
 }
 
+function resolveFeatureSet(scenario, defaults) {
+  const featureDefaults = defaults.features ?? {};
+  const features = scenario.features ?? {};
+  return {
+    mapTiles: featureBool(features.mapTiles, featureBool(featureDefaults.mapTiles, true)),
+    players: featureBool(features.players, featureBool(featureDefaults.players, true)),
+    mobs: featureBool(features.mobs, featureBool(featureDefaults.mobs, false)),
+    sun: featureBool(features.sun, featureBool(featureDefaults.sun, true)),
+    shade: featureBool(features.shade, featureBool(featureDefaults.shade, true)),
+    mapTime: featureBool(features.mapTime, featureBool(featureDefaults.mapTime, false)),
+    bounds: featureBool(features.bounds, featureBool(featureDefaults.bounds, false)),
+    water: features.water ?? featureDefaults.water ?? 'solid',
+    shader: features.shader ?? featureDefaults.shader ?? 'none',
+    auto: featureBool(features.auto, featureBool(featureDefaults.auto, false)),
+  };
+}
+
 function resolveScenario(config, scenario) {
   const defaults = config.defaults ?? {};
   return {
@@ -22,20 +39,19 @@ function resolveScenario(config, scenario) {
     centerX: numberOr(scenario.centerX, defaults.centerX, 0),
     centerZ: numberOr(scenario.centerZ, defaults.centerZ, 0),
     radius: Math.max(0, numberOr(scenario.radius, defaults.radius, 10)),
-    steps: Math.max(1, numberOr(scenario.steps, defaults.steps, 4)),
+    steps: Math.max(0, numberOr(scenario.steps, defaults.steps, 4)),
     modes: Array.isArray(scenario.modes) && scenario.modes.length > 0
       ? scenario.modes
       : (defaults.modes ?? ['wet', 'dry']),
     regressionFactor: numberOr(scenario.regressionFactor, defaults.regressionFactor, 1.5),
     stepSettleMs: Math.max(0, numberOr(scenario.stepSettleMs, defaults.stepSettleMs, 250)),
+    flyChunks: Math.max(1, numberOr(scenario.flyChunks, defaults.flyChunks, 6)),
+    flyLegs: scenario.flyLegs !== false && defaults.flyLegs !== false,
+    flySprint: scenario.flySprint === true || defaults.flySprint === true,
+    flySampleMs: Math.max(50, numberOr(scenario.flySampleMs, defaults.flySampleMs, 100)),
+    flyDirections: scenario.flyDirections ?? defaults.flyDirections ?? 'all',
     world: scenario.world ?? defaults.world ?? 'default',
-    features: {
-      mapTiles: featureBool(scenario.features?.mapTiles, true),
-      players: featureBool(scenario.features?.players, true),
-      mobs: featureBool(scenario.features?.mobs, false),
-      water: scenario.features?.water ?? 'solid',
-      auto: featureBool(scenario.features?.auto, false),
-    },
+    features: resolveFeatureSet(scenario, defaults),
     esp: scenario.esp ?? null,
     thresholds: scenario.thresholds ?? {},
   };
@@ -110,6 +126,10 @@ function compareRuns(runA, runB) {
       ratio: left.totalMs > 0 ? right.totalMs / left.totalMs : 1,
       run1MinFps: left.minFps,
       run2MinFps: right.minFps,
+      run1MinFpsDuringFly: left.minFpsDuringFly ?? null,
+      run2MinFpsDuringFly: right.minFpsDuringFly ?? null,
+      run1TotalFlyMs: left.totalFlyMs ?? null,
+      run2TotalFlyMs: right.totalFlyMs ?? null,
       run1MapBackdropMs: left.finalMapBackdrop?.loadMs ?? null,
       run2MapBackdropMs: right.finalMapBackdrop?.loadMs ?? null,
       run1EspPlayers: left.entityOverlay?.players ?? null,
@@ -154,6 +174,81 @@ function analyzeRun(run, config) {
         mode: result.mode,
         area: 'esp-client',
         message: `min FPS ${result.minFps} below threshold ${fpsLimit}`,
+      });
+    }
+    const flyFpsLimit = thresholdFor(
+      config,
+      'minFpsDuringFly',
+      scenarioId,
+      thresholdFor(config, 'minFpsDuringFly', 'default', null),
+    );
+    if (Number.isFinite(flyFpsLimit) && Number.isFinite(result.minFpsDuringFly) && result.minFpsDuringFly < flyFpsLimit) {
+      findings.push({
+        severity: 'warn',
+        scenarioId,
+        mode: result.mode,
+        area: 'movement',
+        message: `min FPS during fly ${result.minFpsDuringFly} below threshold ${flyFpsLimit}`,
+      });
+    }
+    const p95FrameLimit = thresholdFor(
+      config,
+      'p95FrameMsDuringFly',
+      scenarioId,
+      thresholdFor(config, 'p95FrameMsDuringFly', 'default', null),
+    );
+    if (Number.isFinite(p95FrameLimit) && Number.isFinite(result.p95FrameMsDuringFly) && result.p95FrameMsDuringFly > p95FrameLimit) {
+      findings.push({
+        severity: 'warn',
+        scenarioId,
+        mode: result.mode,
+        area: 'movement',
+        message: `p95 frame time during fly ${result.p95FrameMsDuringFly}ms exceeds threshold ${p95FrameLimit}ms`,
+      });
+    }
+    const hitchCountLimit = thresholdFor(
+      config,
+      'hitchCount50DuringFly',
+      scenarioId,
+      thresholdFor(config, 'hitchCount50DuringFly', 'default', null),
+    );
+    if (Number.isFinite(hitchCountLimit) && Number.isFinite(result.hitchCount50DuringFly) && result.hitchCount50DuringFly > hitchCountLimit) {
+      findings.push({
+        severity: 'warn',
+        scenarioId,
+        mode: result.mode,
+        area: 'movement',
+        message: `hitch count (>50ms) during fly ${result.hitchCount50DuringFly} exceeds threshold ${hitchCountLimit}`,
+      });
+    }
+    const longestHitchLimit = thresholdFor(
+      config,
+      'longestHitchMsDuringFly',
+      scenarioId,
+      thresholdFor(config, 'longestHitchMsDuringFly', 'default', null),
+    );
+    if (Number.isFinite(longestHitchLimit) && Number.isFinite(result.longestHitchMsDuringFly) && result.longestHitchMsDuringFly > longestHitchLimit) {
+      findings.push({
+        severity: 'warn',
+        scenarioId,
+        mode: result.mode,
+        area: 'movement',
+        message: `longest hitch during fly ${result.longestHitchMsDuringFly}ms exceeds threshold ${longestHitchLimit}ms`,
+      });
+    }
+    const gridLoadLimit = thresholdFor(
+      config,
+      'gridLoadMs',
+      scenarioId,
+      thresholdFor(config, 'gridLoadMs', 'default', null),
+    );
+    if (Number.isFinite(gridLoadLimit) && Number.isFinite(result.maxGridLoadMs) && result.maxGridLoadMs > gridLoadLimit) {
+      findings.push({
+        severity: 'warn',
+        scenarioId,
+        mode: result.mode,
+        area: 'mesh-gen',
+        message: `slowest grid load during fly ${result.maxGridLoadMs}ms exceeds threshold ${gridLoadLimit}ms`,
       });
     }
     if (Number.isFinite(mapLimit) && result.finalMapBackdrop?.loadMs > mapLimit) {
@@ -232,7 +327,11 @@ function printRunSummary(run, config) {
       result.features?.players ? 'players' : 'no-players',
       result.features?.mobs ? 'mobs' : 'no-mobs',
     ].join(', ');
-    console.log(`  [${result.scenarioId}/${result.mode}] total=${result.totalMs}ms avgStep=${result.averageStepMs}ms minFps=${result.minFps} (${flags})`);
+    const flyLegCount = result.flyDirectionCount ?? 4;
+    const flyTag = result.flyLegs
+      ? ` fly=${result.flyChunks}ch×${flyLegCount} totalFly=${result.totalFlyMs ?? 0}ms minFpsFly=${result.minFpsDuringFly ?? '-'} p95=${result.p95FrameMsDuringFly ?? '-'}ms hitches=${result.hitchCount50DuringFly ?? '-'} gridLoad=${result.maxGridLoadMs ?? '-'}ms`
+      : '';
+    console.log(`  [${result.scenarioId}/${result.mode}] total=${result.totalMs}ms avgStep=${result.averageStepMs}ms minFps=${result.minFps}${flyTag} (${flags})`);
     if (result.finalMapBackdrop?.loadMs) {
       console.log(`    map backdrop: ${result.finalMapBackdrop.loadMs}ms ${result.finalMapBackdrop.bytes}b ${result.finalMapBackdrop.textureSize}`);
     }
@@ -282,6 +381,123 @@ function printRunComparison(comparisons) {
   }
 }
 
+function resultByScenario(run, scenarioId, mode = 'dry') {
+  return (run.results ?? []).find((result) => result.scenarioId === scenarioId && result.mode === mode) ?? null;
+}
+
+function featureCostRow(baseline, result, label) {
+  if (!baseline || !result) return null;
+  const deltaMs = result.totalMs - baseline.totalMs;
+  const deltaFlyMs = (result.totalFlyMs ?? 0) - (baseline.totalFlyMs ?? 0);
+  const fpsDelta = Number.isFinite(result.minFpsDuringFly) && Number.isFinite(baseline.minFpsDuringFly)
+    ? result.minFpsDuringFly - baseline.minFpsDuringFly
+    : null;
+  const mapMs = result.finalMapBackdrop?.loadMs ?? 0;
+  return {
+    label,
+    scenarioId: result.scenarioId,
+    totalMs: result.totalMs,
+    totalFlyMs: result.totalFlyMs ?? null,
+    minFpsDuringFly: result.minFpsDuringFly ?? null,
+    mapBackdropLoadMs: result.finalMapBackdrop?.loadMs ?? null,
+    deltaTotalMs: deltaMs,
+    deltaTotalPct: baseline.totalMs > 0 ? Math.round((deltaMs / baseline.totalMs) * 1000) / 10 : null,
+    deltaFlyMs,
+    deltaMinFpsDuringFly: fpsDelta,
+  };
+}
+
+function analyzeFeatureIsolation(run, config) {
+  const isolation = config.featureIsolation ?? {};
+  const baselineId = isolation.baselineId ?? 'minimum';
+  const referenceId = isolation.referenceId ?? 'full-default';
+  const mode = isolation.mode ?? 'dry';
+  const baseline = resultByScenario(run, baselineId, mode);
+  const reference = resultByScenario(run, referenceId, mode);
+  if (!baseline) {
+    throw new Error(`Feature isolation baseline scenario not found: ${baselineId}/${mode}`);
+  }
+
+  const additions = [];
+  const removals = [];
+  for (const scenario of config.scenarios ?? []) {
+    const result = resultByScenario(run, scenario.id, mode);
+    if (!result || result.scenarioId === baselineId) continue;
+    const row = featureCostRow(baseline, result, scenario.label ?? scenario.id);
+    if (!row) continue;
+    if (scenario.id.startsWith('plus-')) {
+      additions.push(row);
+    } else if (scenario.id.startsWith('full-no-') && reference) {
+      removals.push({
+        ...featureCostRow(reference, result, scenario.label ?? scenario.id),
+        savingsVsFullMs: reference.totalMs - result.totalMs,
+        savingsVsFullPct: reference.totalMs > 0
+          ? Math.round(((reference.totalMs - result.totalMs) / reference.totalMs) * 1000) / 10
+          : null,
+      });
+    } else if (scenario.id === referenceId) {
+      additions.push({
+        ...row,
+        label: `${scenario.label ?? scenario.id} (reference stack)`,
+      });
+    }
+  }
+
+  additions.sort((a, b) => (b.deltaTotalMs ?? 0) - (a.deltaTotalMs ?? 0));
+  removals.sort((a, b) => (b.savingsVsFullMs ?? 0) - (a.savingsVsFullMs ?? 0));
+
+  return {
+    kind: 'worldview-feature-isolation',
+    timestamp: new Date().toISOString(),
+    runId: run.runId,
+    mode,
+    baseline: {
+      scenarioId: baseline.scenarioId,
+      totalMs: baseline.totalMs,
+      totalFlyMs: baseline.totalFlyMs ?? null,
+      minFpsDuringFly: baseline.minFpsDuringFly ?? null,
+    },
+    reference: reference
+      ? {
+        scenarioId: reference.scenarioId,
+        totalMs: reference.totalMs,
+        totalFlyMs: reference.totalFlyMs ?? null,
+        minFpsDuringFly: reference.minFpsDuringFly ?? null,
+      }
+      : null,
+    additions,
+    removals,
+  };
+}
+
+function printFeatureIsolation(analysis) {
+  console.log('');
+  console.log('=== Feature isolation savings ===');
+  console.log(`  baseline (${analysis.baseline.scenarioId}): ${analysis.baseline.totalMs}ms fly=${analysis.baseline.totalFlyMs ?? '-'}ms minFpsFly=${analysis.baseline.minFpsDuringFly ?? '-'}`);
+  if (analysis.reference) {
+    console.log(`  reference (${analysis.reference.scenarioId}): ${analysis.reference.totalMs}ms fly=${analysis.reference.totalFlyMs ?? '-'}ms minFpsFly=${analysis.reference.minFpsDuringFly ?? '-'}`);
+  }
+  if (analysis.additions.length > 0) {
+    console.log('  cost to enable (vs minimum):');
+    for (const row of analysis.additions) {
+      const pct = Number.isFinite(row.deltaTotalPct) ? ` (+${row.deltaTotalPct}%)` : '';
+      const map = row.mapBackdropLoadMs > 0 ? ` map=${row.mapBackdropLoadMs}ms` : '';
+      console.log(`    - ${row.label}: +${row.deltaTotalMs}ms${pct} fly+${row.deltaFlyMs}ms minFpsFly=${row.minFpsDuringFly ?? '-'}${map}`);
+    }
+  }
+  if (analysis.removals.length > 0) {
+    console.log('  savings when disabled (vs full default):');
+    for (const row of analysis.removals) {
+      if ((row.savingsVsFullMs ?? 0) > 0) {
+        const pct = Number.isFinite(row.savingsVsFullPct) ? ` (−${row.savingsVsFullPct}%)` : '';
+        console.log(`    - ${row.label}: saves ${row.savingsVsFullMs}ms${pct} → ${row.totalMs}ms`);
+      } else {
+        console.log(`    - ${row.label}: no savings (${Math.abs(row.savingsVsFullMs ?? 0)}ms slower, within run variance) → ${row.totalMs}ms`);
+      }
+    }
+  }
+}
+
 function featureBool(value, fallback) {
   if (typeof value === 'boolean') return value;
   return fallback;
@@ -305,6 +521,8 @@ module.exports = {
   readReportFile,
   compareRuns,
   analyzeRun,
+  analyzeFeatureIsolation,
   printRunSummary,
   printRunComparison,
+  printFeatureIsolation,
 };

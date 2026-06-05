@@ -90,6 +90,46 @@ test('renders shader water with map-matched wave shader', async ({ page }) => {
   expect(updatedTime).toBeGreaterThan(firstTime);
 });
 
+test('map tiles serve PNGs, bind textures, and render map pixels', async ({ page }) => {
+  await page.goto('/?radius=1&chunkX=0&chunkZ=0&auto=false&mapTiles=true&water=transparent');
+  await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 0, 0');
+
+  const png = await page.request.get('/api/terrain/default/0/0.map.png');
+  expect(png.status()).toBe(200);
+  expect(png.headers()['content-type']).toContain('image/png');
+  const body = await png.body();
+  expect(body.byteLength).toBeGreaterThan(100);
+  expect(body[0]).toBe(0x89);
+  expect(body[1]).toBe(0x50);
+
+  await expect.poll(async () => {
+    const stats = await page.evaluate(() => window.__synthWorldviewDebug.mapTileSceneStats());
+    return stats.meshCount;
+  }, { timeout: 45000 }).toBeGreaterThanOrEqual(9);
+
+  const backdropY = await page.evaluate(() => window.__synthWorldviewDebug.mapBackdropY());
+  expect(backdropY).toBe(112);
+
+  const audit = await page.evaluate(() => window.__synthWorldviewDebug.auditMapTiles());
+  expect(audit.count).toBeGreaterThanOrEqual(9);
+  expect(audit.issues).toEqual([]);
+  for (const tile of audit.tiles) {
+    expect(tile.y).toBe(backdropY);
+    expect(tile.inScene).toBe(true);
+    expect(tile.hasTexture).toBe(true);
+  }
+
+  const centerProbe = await page.evaluate(() => window.__synthWorldviewDebug.probeMapTilePixel(0, 0));
+  expect(centerProbe.ok, JSON.stringify(centerProbe)).toBe(true);
+  expect(centerProbe.sampled).toBeTruthy();
+  expect(centerProbe.skyDistance).toBeGreaterThan(24);
+
+  await expect.poll(async () => {
+    const probe = await page.evaluate(() => window.__synthWorldviewDebug.probeMapTilePixel(2, 0));
+    return probe.ok;
+  }, { timeout: 45000 }).toBe(true);
+});
+
 test('loads a bounded terrain grid and reports render resources', async ({ page }) => {
   await page.goto('/?radius=1&chunkX=0&chunkZ=0&water=transparent&auto=false');
   const setControlValue = async (selector, value, eventName = 'change') => {
@@ -138,7 +178,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(mapBackdrop.centerX).toBe(0);
   expect(mapBackdrop.centerZ).toBe(0);
   expect(mapBackdrop.chunks).toBe(mapBackdrop.radius * 2 + 1);
-  expect(mapBackdrop.textureSize).toBe(`${mapBackdrop.chunks * 32}x${mapBackdrop.chunks * 32}`);
+  expect(mapBackdrop.textureSize).toBe('32x32');
   await page.evaluate(() => {
     window.__synthWorldviewDebug.setCameraPose({
       camera: { x: 80, y: 180, z: -40 },
@@ -149,7 +189,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect.poll(async () => page.evaluate(() => {
     const stats = window.__synthWorldviewDebug.mapBackdropStats();
     return `${stats.loaded}:${stats.centerX}:${stats.centerZ}`;
-  }), { timeout: 20000 }).toBe('1:2:-2');
+  }), { timeout: 20000 }).toBe('1:0:0');
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 0, 0');
   await expect(page.locator('#shade-size')).toHaveValue('1.85');
   await expect(page.locator('#shade-size-value')).toHaveValue('1.85');
@@ -586,7 +626,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
 
   const oldLodTerrain = await page.request.get('/api/terrain/default/1/-7/3.glb');
   expect(oldLodTerrain.status()).toBe(400);
-  expect((await oldLodTerrain.json()).error).toBe('expected_/api/terrain/{world}/{chunkX}/{chunkZ}.glb');
+  expect((await oldLodTerrain.json()).error).toBe('expected_/api/terrain/{world}/{chunkX}/{chunkZ}.glb_or_.map.png');
 
   await setControlValue('#water-mode', 'solid');
   await expect(page.locator('#water-mode')).toHaveValue('solid');
