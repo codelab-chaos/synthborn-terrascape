@@ -121,9 +121,17 @@
       <label title="How decorative floating blocks such as roofs, planks, torches, fire, doors, and furniture are loaded">
         <span>Cosmetic Blocks</span>
         <select id="cosmetic-blocks-mode">
-          <option value="off" selected>Off</option>
+          <option value="off">Off</option>
           <option value="baked">Baked</option>
-          <option value="split">Split</option>
+          <option value="split" selected>Split</option>
+        </select>
+      </label>
+      <label title="How much shape-aware visual detail is included when cosmetic blocks are enabled">
+        <span>Visual Detail</span>
+        <select id="visual-detail-mode">
+          <option value="basic">Basic voxels</option>
+          <option value="structures">Structures</option>
+          <option value="all" selected>Structures + foliage</option>
         </select>
       </label>
       <label class="paired-control" title="Maximum ready voxel meshes added to the scene each frame">
@@ -176,8 +184,24 @@
         </select>
       </label>
       <div id="experimental-details-state" class="feature-tag">Detailed trees: server off</div>
+      <div class="cache-clear-row">
+        <button id="clear-mesh-cache" type="button" title="Delete cached terrain GLBs and map tile textures stored in this browser">
+          Clear mesh cache
+        </button>
+        <span class="cache-clear-hint">IndexedDB · terrain + map tiles</span>
+      </div>
     </div>
   </div>
+  <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-dialog-title">
+    <form method="dialog" class="confirm-dialog-form">
+      <p id="confirm-dialog-title" class="confirm-dialog-title"></p>
+      <p id="confirm-dialog-message" class="confirm-dialog-message"></p>
+      <div class="confirm-dialog-actions">
+        <button id="confirm-dialog-cancel" type="submit" value="cancel" class="confirm-dialog-cancel">Cancel</button>
+        <button id="confirm-dialog-confirm" type="submit" value="confirm" class="confirm-dialog-confirm">Confirm</button>
+      </div>
+    </form>
+  </dialog>
   <aside class="players-panel">
     <label class="player-rate-control">
       <span>Update</span>

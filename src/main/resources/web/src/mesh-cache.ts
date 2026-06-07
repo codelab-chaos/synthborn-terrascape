@@ -8,10 +8,11 @@ let dbPromise = null;
 const mapTileWriteQueue = new Map();
 let mapTileWriteWorker = null;
 
-export function makeTerrainCacheKey({ world, chunkX, chunkZ, formatVersion, detailsEnabled, cosmeticsMode }) {
+export function makeTerrainCacheKey({ world, chunkX, chunkZ, formatVersion, detailsEnabled, cosmeticsMode, visualDetailMode }) {
   const details = detailsEnabled ? 'details' : 'surface';
   const cosmetics = cosmeticsMode || 'plain';
-  return `${formatVersion}:${details}:${cosmetics}:${world}:${chunkX}:${chunkZ}`;
+  const visualDetail = visualDetailMode || 'basic';
+  return `${formatVersion}:${details}:${cosmetics}:${visualDetail}:${world}:${chunkX}:${chunkZ}`;
 }
 
 export async function readTerrainCache(key) {
@@ -94,6 +95,45 @@ export async function writeTerrainCache(key, bytes, meta = {}) {
   } catch {
     return false;
   }
+}
+
+export async function getMeshCacheStats() {
+  try {
+    const db = await openDb();
+    const terrain = await countStore(db, TERRAIN_STORE);
+    const mapTiles = await countStore(db, MAP_TILE_STORE);
+    return { terrain, mapTiles, total: terrain + mapTiles };
+  } catch {
+    return { terrain: 0, mapTiles: 0, total: 0 };
+  }
+}
+
+export async function clearMeshCache() {
+  mapTileWriteQueue.clear();
+  mapTileWriteWorker = null;
+
+  try {
+    const db = await openDb();
+    const terrain = await clearStore(db, TERRAIN_STORE);
+    const mapTiles = await clearStore(db, MAP_TILE_STORE);
+    return { terrain, mapTiles, total: terrain + mapTiles };
+  } catch (error) {
+    dbPromise = null;
+    throw error;
+  }
+}
+
+async function countStore(db, storeName) {
+  const store = db.transaction(storeName, 'readonly').objectStore(storeName);
+  return requestPromise(store.count());
+}
+
+async function clearStore(db, storeName) {
+  const count = await countStore(db, storeName);
+  const transaction = db.transaction(storeName, 'readwrite');
+  transaction.objectStore(storeName).clear();
+  await transactionPromise(transaction);
+  return count;
 }
 
 function openDb() {

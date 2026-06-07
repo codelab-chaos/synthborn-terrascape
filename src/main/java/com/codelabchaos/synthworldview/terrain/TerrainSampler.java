@@ -7,6 +7,7 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -24,6 +25,16 @@ public final class TerrainSampler {
     }
 
     public static TerrainSnapshot sample(@Nonnull World world, int chunkX, int chunkZ, boolean includeCosmeticDetails) {
+        return sample(world, chunkX, chunkZ, includeCosmeticDetails, VisualDetailMode.BASIC);
+    }
+
+    public static TerrainSnapshot sample(
+            @Nonnull World world,
+            int chunkX,
+            int chunkZ,
+            boolean includeCosmeticDetails,
+            @Nonnull VisualDetailMode visualDetailMode
+    ) {
         long chunkIndex = ChunkUtil.indexChunk(chunkX, chunkZ);
         WorldChunk chunk = world.getChunkIfLoaded(chunkIndex);
         if (chunk == null) {
@@ -42,7 +53,7 @@ public final class TerrainSampler {
         for (int z = 0; z < TerrainSnapshot.CHUNK_SIZE; z++) {
             for (int x = 0; x < TerrainSnapshot.CHUNK_SIZE; x++) {
                 short height = chunk.getHeight(x, z);
-                SampledColumn sampled = sampleColumn(chunk, x, z, height, includeCosmeticDetails);
+                SampledColumn sampled = sampleColumn(chunk, x, z, height, includeCosmeticDetails, visualDetailMode);
                 TerrainColumn column = sampled.column();
                 columns[z * TerrainSnapshot.CHUNK_SIZE + x] = column;
                 details.addAll(sampled.details());
@@ -62,7 +73,14 @@ public final class TerrainSampler {
         return new TerrainSnapshot(world.getName(), chunkX, chunkZ, columns, details.toArray(TerrainDetail[]::new), nonEmpty, minY, maxY);
     }
 
-    private static SampledColumn sampleColumn(@Nonnull WorldChunk chunk, int localX, int localZ, short height, boolean includeCosmeticDetails) {
+    private static SampledColumn sampleColumn(
+            @Nonnull WorldChunk chunk,
+            int localX,
+            int localZ,
+            short height,
+            boolean includeCosmeticDetails,
+            @Nonnull VisualDetailMode visualDetailMode
+    ) {
         if (height < 0) {
             return new SampledColumn(new TerrainColumn(localX, localZ, -1, 0, 0, "EMPTY", 0x000000, false), List.of());
         }
@@ -90,8 +108,8 @@ public final class TerrainSampler {
         String blockKey = blockType.getId();
         boolean fluid = fluidId != 0 || isFluidBlock(blockKey);
         int color = fluid ? waterColor(blockKey) : colorFor(blockType, blockKey, chunk.getTint(localX, localZ));
-        if (!fluid && (isOverlandDetail(blockKey) || hasAirGapBelowTop(chunk, localX, localZ, height))) {
-            return sampleOverlandColumn(chunk, localX, localZ, height, blockType, blockKey, color, includeCosmeticDetails);
+        if (!fluid && (isOverlandDetail(blockKey, visualDetailMode) || hasAirGapBelowTop(chunk, localX, localZ, height))) {
+            return sampleOverlandColumn(chunk, localX, localZ, height, blockType, blockKey, color, includeCosmeticDetails, visualDetailMode);
         }
         return new SampledColumn(new TerrainColumn(localX, localZ, height, blockId, fluidId, blockKey, color, fluid), List.of());
     }
@@ -104,7 +122,8 @@ public final class TerrainSampler {
             BlockType topBlockType,
             String topBlockKey,
             int topColor,
-            boolean includeCosmeticDetails
+            boolean includeCosmeticDetails,
+            @Nonnull VisualDetailMode visualDetailMode
     ) {
         TerrainColumn ground = null;
         for (int y = height; y >= Math.max(0, height - OVERLAND_SCAN_BELOW_HEIGHTMAP); y--) {
@@ -114,7 +133,7 @@ public final class TerrainSampler {
                 continue;
             }
             String blockKey = blockType.getId();
-            if (!isOverlandDetail(blockKey) && !isFluidBlock(blockKey) && !isFloatingDetailBlock(chunk, localX, localZ, y)) {
+            if (!isOverlandDetail(blockKey, visualDetailMode) && !isFluidBlock(blockKey) && !isFloatingDetailBlock(chunk, localX, localZ, y, visualDetailMode)) {
                 ground = new TerrainColumn(localX, localZ, y, blockId, safeFluidId(chunk, localX, y, localZ),
                         blockKey, colorFor(blockType, blockKey, chunk.getTint(localX, localZ)), false);
                 break;
@@ -127,7 +146,10 @@ public final class TerrainSampler {
         }
         List<TerrainDetail> details = new ArrayList<>(collectVegetationDetails(chunk, localX, localZ, ground.y() + 1, height));
         if (includeCosmeticDetails) {
-            details.addAll(collectCosmeticDetails(chunk, localX, localZ, ground.y() + 1, height));
+            details.addAll(collectCosmeticDetails(chunk, localX, localZ, ground.y() + 1, height, visualDetailMode));
+            if (visualDetailMode.includesSmallFoliage()) {
+                details.addAll(collectSmallFoliageDetails(chunk, localX, localZ, ground.y() + 1, height));
+            }
         }
         return new SampledColumn(ground, details);
     }
@@ -151,7 +173,7 @@ public final class TerrainSampler {
                 continue;
             }
             String blockKey = blockType.getId();
-            if (!isVegetationDetail(blockKey) || isFluidBlock(blockKey)) {
+            if (isFluidBlock(blockKey) || (!isVegetationDetail(blockKey) && !isTrunkBlock(blockKey))) {
                 continue;
             }
             details.add(new TerrainDetail(
@@ -165,6 +187,45 @@ public final class TerrainSampler {
     }
 
     private static List<TerrainDetail> collectCosmeticDetails(
+            @Nonnull WorldChunk chunk,
+            int localX,
+            int localZ,
+            int minY,
+            int maxY,
+            @Nonnull VisualDetailMode visualDetailMode
+    ) {
+        if (maxY < minY) {
+            return List.of();
+        }
+
+        List<TerrainDetail> details = new ArrayList<>();
+        for (int y = minY; y <= maxY; y++) {
+            int blockId = safeBlockId(chunk, localX, y, localZ);
+            BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+            if (blockType == null || blockId == BlockType.EMPTY_ID) {
+                continue;
+            }
+            String blockKey = blockType.getId();
+            if (isFluidBlock(blockKey) || isVegetationDetail(blockKey) || !CosmeticShapeRules.matchesCosmetic(blockKey)) {
+                continue;
+            }
+            boolean orientedShapes = visualDetailMode.usesSimpleShapes();
+            int rotationIndex = orientedShapes && CosmeticShapeRules.usesBlockRotation(blockKey)
+                    ? safeRotationIndex(chunk, localX, y, localZ)
+                    : 0;
+            details.add(new TerrainDetail(
+                    localX,
+                    localZ,
+                    y,
+                    CosmeticShapeRules.kindFor(blockKey, orientedShapes),
+                    colorFor(blockType, blockKey, chunk.getTint(localX, localZ)),
+                    orientedShapes ? CosmeticShapeRules.shapeFor(blockKey) : TerrainDetail.Shape.FULL,
+                    rotationIndex));
+        }
+        return details;
+    }
+
+    private static List<TerrainDetail> collectSmallFoliageDetails(
             @Nonnull WorldChunk chunk,
             int localX,
             int localZ,
@@ -183,27 +244,30 @@ public final class TerrainSampler {
                 continue;
             }
             String blockKey = blockType.getId();
-            if (isFluidBlock(blockKey) || isVegetationDetail(blockKey) || !isCosmeticDetail(blockKey)) {
+            if (isFluidBlock(blockKey) || !isSmallFoliageDetail(blockKey)) {
                 continue;
             }
             details.add(new TerrainDetail(
                     localX,
                     localZ,
                     y,
-                    TerrainDetail.Kind.COSMETIC_VOXEL,
-                    colorFor(blockType, blockKey, chunk.getTint(localX, localZ))));
+                    TerrainDetail.Kind.FOLIAGE_SMALL,
+                    colorFor(blockType, blockKey, chunk.getTint(localX, localZ)),
+                    TerrainDetail.Shape.SMALL_FOLIAGE));
         }
         return details;
     }
 
-    private static boolean isFloatingDetailBlock(@Nonnull WorldChunk chunk, int localX, int localZ, int y) {
+    private static boolean isFloatingDetailBlock(@Nonnull WorldChunk chunk, int localX, int localZ, int y, @Nonnull VisualDetailMode visualDetailMode) {
         int blockId = safeBlockId(chunk, localX, y, localZ);
         BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
         if (blockType == null || blockId == BlockType.EMPTY_ID) {
             return false;
         }
         String blockKey = blockType.getId();
-        return isOverlandDetail(blockKey) || hasAirGapBelowTop(chunk, localX, localZ, y);
+        return isOverlandDetail(blockKey, visualDetailMode)
+                || CosmeticShapeRules.preferDetailLayer(blockKey, visualDetailMode.usesSimpleShapes())
+                || hasAirGapBelowTop(chunk, localX, localZ, y);
     }
 
     private static boolean hasAirGapBelowTop(@Nonnull WorldChunk chunk, int localX, int localZ, int y) {
@@ -243,6 +307,14 @@ public final class TerrainSampler {
             return chunk.getBlock(localX, y, localZ);
         } catch (RuntimeException e) {
             return BlockType.EMPTY_ID;
+        }
+    }
+
+    private static int safeRotationIndex(@Nonnull WorldChunk chunk, int localX, int y, int localZ) {
+        try {
+            return chunk.getRotationIndex(localX, y, localZ);
+        } catch (RuntimeException e) {
+            return 0;
         }
     }
 
@@ -290,24 +362,26 @@ public final class TerrainSampler {
                 || key.contains("lake");
     }
 
-    private static boolean isOverlandDetail(String blockKey) {
-        return isTrunkBlock(blockKey) || isVegetationDetail(blockKey);
+    private static boolean isOverlandDetail(String blockKey, @Nonnull VisualDetailMode visualDetailMode) {
+        return isTrunkBlock(blockKey) || isVegetationDetail(blockKey) || (visualDetailMode.includesSmallFoliage() && isSmallFoliageDetail(blockKey));
     }
 
     private static boolean isTrunkBlock(String blockKey) {
         String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
         return key.contains("trunk")
                 || key.contains("log")
-                || key.contains("wood");
+                || key.contains("tree_wood")
+                || key.contains("wood_trunk")
+                || key.contains("wood_log")
+                || key.endsWith("/wood")
+                || key.endsWith("_wood");
     }
 
     private static boolean isVegetationDetail(String blockKey) {
         String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
         if (key.contains("grass")
                 || key.contains("flower")
-                || key.contains("mushroom")
-                || key.contains("bush")
-                || key.contains("shrub")) {
+                || key.contains("mushroom")) {
             return false;
         }
         return key.contains("leaf")
@@ -322,39 +396,17 @@ public final class TerrainSampler {
                 || (key.contains("conifer") && !isTrunkBlock(key));
     }
 
-    private static boolean isCosmeticDetail(String blockKey) {
+    private static boolean isSmallFoliageDetail(String blockKey) {
         String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
-        return key.contains("plank")
-                || key.contains("roof")
-                || key.contains("shingle")
-                || key.contains("thatch")
-                || key.contains("tile")
-                || key.contains("timber")
-                || key.contains("beam")
-                || key.contains("post")
-                || key.contains("pillar")
-                || key.contains("fence")
-                || key.contains("rail")
-                || key.contains("torch")
-                || key.contains("fire")
-                || key.contains("lantern")
-                || key.contains("candle")
-                || key.contains("crate")
-                || key.contains("barrel")
-                || key.contains("chair")
-                || key.contains("table")
-                || key.contains("bench")
-                || key.contains("bed")
-                || key.contains("door")
-                || key.contains("window")
-                || key.contains("glass")
-                || key.contains("carpet")
-                || key.contains("rug")
-                || key.contains("banner")
-                || key.contains("sign")
-                || key.contains("stair")
-                || key.contains("slab")
-                || (key.contains("wood") && !isTrunkBlock(key));
+        return key.contains("tall_grass")
+                || key.contains("grass_tuft")
+                || key.contains("grass_blade")
+                || key.contains("flower")
+                || key.contains("mushroom")
+                || key.contains("fern")
+                || key.contains("crop")
+                || key.contains("sprout")
+                || key.contains("sapling");
     }
 
     private static int waterColor(String blockKey) {
@@ -407,5 +459,38 @@ public final class TerrainSampler {
     }
 
     private record SampledColumn(TerrainColumn column, List<TerrainDetail> details) {
+    }
+
+    public enum VisualDetailMode {
+        BASIC,
+        STRUCTURES,
+        ALL;
+
+        public static VisualDetailMode fromQuery(@Nullable String value) {
+            if (value == null || value.isBlank()) {
+                return ALL;
+            }
+            return switch (value.toLowerCase(Locale.ROOT)) {
+                case "basic", "off" -> BASIC;
+                case "all", "foliage", "structures_foliage", "structures+foliage" -> ALL;
+                default -> STRUCTURES;
+            };
+        }
+
+        boolean usesSimpleShapes() {
+            return this == STRUCTURES || this == ALL;
+        }
+
+        boolean includesSmallFoliage() {
+            return this == ALL;
+        }
+
+        public String queryValue() {
+            return switch (this) {
+                case BASIC -> "basic";
+                case STRUCTURES -> "structures";
+                case ALL -> "all";
+            };
+        }
     }
 }

@@ -30,7 +30,12 @@ public final class TerrainMesher {
             addSideIfLower(builder, snapshot, column, 1, 0);
         }
         if (includeDetail) {
-            addDetails(detail, snapshot.details(), TerrainDetail.Kind.CANOPY_VOXEL, TerrainDetail.Kind.COSMETIC_VOXEL);
+            addDetails(detail, snapshot.details(),
+                    TerrainDetail.Kind.CANOPY_VOXEL,
+                    TerrainDetail.Kind.COSMETIC_VOXEL,
+                    TerrainDetail.Kind.COSMETIC_THIN,
+                    TerrainDetail.Kind.COSMETIC_LIGHT,
+                    TerrainDetail.Kind.FOLIAGE_SMALL);
         }
         return new TerrainMesh(opaque.toPart(), water.toPart(), detail.toPart());
     }
@@ -39,7 +44,11 @@ public final class TerrainMesher {
         MeshBuilder opaque = new MeshBuilder("opaque");
         MeshBuilder water = new MeshBuilder("water");
         MeshBuilder detail = new MeshBuilder("detail");
-        addDetails(detail, snapshot.details(), TerrainDetail.Kind.COSMETIC_VOXEL);
+        addDetails(detail, snapshot.details(),
+                TerrainDetail.Kind.COSMETIC_VOXEL,
+                TerrainDetail.Kind.COSMETIC_THIN,
+                TerrainDetail.Kind.COSMETIC_LIGHT,
+                TerrainDetail.Kind.FOLIAGE_SMALL);
         return new TerrainMesh(opaque.toPart(), water.toPart(), detail.toPart());
     }
 
@@ -68,12 +77,20 @@ public final class TerrainMesher {
         int x = detail.localX();
         int y = detail.y();
         int z = detail.localZ();
-        float x0 = x;
-        float x1 = x + 1.0f;
-        float y0 = y;
-        float y1 = y + 1.0f;
-        float z0 = z;
-        float z1 = z + 1.0f;
+        DetailBoundsOriented.DetailBounds oriented = DetailBoundsOriented.bounds(detail.shape(), detail.rotationIndex());
+        DetailBounds bounds = new DetailBounds(
+                oriented.minX(),
+                oriented.minY(),
+                oriented.minZ(),
+                oriented.maxX(),
+                oriented.maxY(),
+                oriented.maxZ());
+        float x0 = x + bounds.minX();
+        float x1 = x + bounds.maxX();
+        float y0 = y + bounds.minY();
+        float y1 = y + bounds.maxY();
+        float z0 = z + bounds.minZ();
+        float z1 = z + bounds.maxZ();
         int rgb = detail.rgb();
 
         if (!hasDetail(canopy, x, y + 1, z)) {
@@ -188,6 +205,9 @@ public final class TerrainMesher {
     }
 
     private record DetailKey(int x, int y, int z) {
+    }
+
+    private record DetailBounds(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
     }
 
     private static final class MeshBuilder {
