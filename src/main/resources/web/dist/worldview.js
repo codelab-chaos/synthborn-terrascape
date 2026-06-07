@@ -72,9 +72,10 @@ const EMPTY_GRID_CHUNK_SNAP = 32;
 const EMPTY_GRID_Y = 96;
 const AUTO_STREAM_DEBOUNCE_MS = 250;
 const AUTO_STREAM_RETAIN_MARGIN = 1;
-const TERRAIN_LOAD_CONCURRENCY = 4;
-const TERRAIN_PROMOTION_BUDGET_MS = 4;
-const TERRAIN_PROMOTIONS_PER_FRAME = 2;
+const DEFAULT_TERRAIN_LOAD_CONCURRENCY = 4;
+const DEFAULT_TERRAIN_PROMOTION_BUDGET_MS = 4;
+const DEFAULT_TERRAIN_PROMOTIONS_PER_FRAME = 2;
+const TERRAIN_STREAM_PROGRESS_LOG_MS = 1000;
 const METRICS_UPDATE_INTERVAL_MS = 250;
 function yieldToMain() {
     return new Promise((resolve) => {
@@ -91,9 +92,13 @@ const FOCUSED_PLAYER_POLL_MIN_MS = 1000;
 const EMPTY_PLAYER_POLL_MS = 15000;
 const HIDDEN_PLAYER_POLL_MS = 30000;
 const PLAYER_POLL_ERROR_MS = 10000;
+const PLAYER_EYE_ROTATION_LERP = 14;
 const MOB_POLL_MS = 5000;
-const EMPTY_MOB_POLL_MS = 12000;
+const EMPTY_MOB_POLL_MS = 30000;
 const MOB_POLL_ERROR_MS = 15000;
+const MOB_MARKER_FRAME_BUDGET_MS = 3;
+const MOB_MARKER_UPSERTS_PER_FRAME = 4;
+const MOB_MARKER_REMOVALS_PER_FRAME = 96;
 const ENTITY_STREAM_FALLBACK_DELAY_MS = 4000;
 const MAP_TIME_ACTIVE_POLL_MS = 5000;
 const MAP_TIME_VISIBLE_POLL_MS = 10000;
@@ -220,6 +225,11 @@ let timePollTimer = null;
 let viewPlayerUuid = null;
 let followPlayerUuid = null;
 const cameraModeStack = [];
+const playerEyeState = {
+    uuid: null,
+    yawRad: 0,
+    pitchRad: 0,
+};
 let isRefreshingPlayers = false;
 let lastPlayerCount = 0;
 let lastPlayerPollFailed = false;
@@ -228,10 +238,16 @@ let lastMobCount = 0;
 let lastMobPollFailed = false;
 let entityStreamConnected = false;
 let lastMobSourceStats = null;
+let pendingMobMarkerUpdate = null;
+let mobMarkerUpdateScheduled = false;
+let mobMarkerUpdateGeneration = 0;
 const tempPlayerTarget = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempMobTarget = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
+const lastMobBillboardQuaternion = new three__WEBPACK_IMPORTED_MODULE_0__.Quaternion();
+let hasMobBillboardQuaternion = false;
 const tempPlayerCamera = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempPlayerLook = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
+const tempPlayerForward = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempPlayerCardQuaternion = new three__WEBPACK_IMPORTED_MODULE_0__.Quaternion();
 const tempPlayerParentQuaternion = new three__WEBPACK_IMPORTED_MODULE_0__.Quaternion();
 const tempFollowDelta = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
@@ -257,6 +273,90 @@ function mapTileRetainRadius(terrainRadius, streamLoad = false) {
     return streamLoad
         ? terrainRadius + AUTO_STREAM_RETAIN_MARGIN + _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.MAP_HORIZON_MARGIN
         : terrainRadius + _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.MAP_HORIZON_MARGIN;
+}
+function terrainLoadConcurrency() {
+    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput, DEFAULT_TERRAIN_LOAD_CONCURRENCY);
+}
+function terrainPromotionBudgetMs() {
+    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput, DEFAULT_TERRAIN_PROMOTION_BUDGET_MS);
+}
+function terrainPromotionsPerFrame() {
+    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput, DEFAULT_TERRAIN_PROMOTIONS_PER_FRAME);
+}
+function terrainTuningValue(input, fallback) {
+    const parsed = Number.parseInt(input?.value, 10);
+    if (!Number.isFinite(parsed)) {
+        return fallback;
+    }
+    const min = Number.parseInt(input.min, 10);
+    const max = Number.parseInt(input.max, 10);
+    return (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(parsed, Number.isFinite(min) ? min : 1, Number.isFinite(max) ? max : 64);
+}
+function createTerrainStreamStats(world, centerX, centerZ, radius, needed, alreadyLoaded, missing, startedAt) {
+    return {
+        world,
+        centerX,
+        centerZ,
+        radius,
+        needed,
+        alreadyLoaded,
+        missing,
+        startedAt,
+        lastProgressLogAt: startedAt,
+        requested: 0,
+        dataReady: 0,
+        promoted: alreadyLoaded,
+        failed: 0,
+        cacheHits: 0,
+        cacheMisses: 0,
+        networkChunks: 0,
+        maxQueue: 0,
+        maxReadyWaitMs: 0,
+        totalReadyWaitMs: 0,
+    };
+}
+function terrainStreamSnapshot(stats, queueLength, inFlightCount, final = false) {
+    const elapsedMs = Math.max(1, performance.now() - stats.startedAt);
+    const spawnedMissing = Math.max(0, stats.promoted - stats.alreadyLoaded);
+    const avgReadyWaitMs = spawnedMissing > 0 ? stats.totalReadyWaitMs / spawnedMissing : 0;
+    return {
+        world: stats.world,
+        centerX: stats.centerX,
+        centerZ: stats.centerZ,
+        radius: stats.radius,
+        needed: stats.needed,
+        alreadyLoaded: stats.alreadyLoaded,
+        missing: stats.missing,
+        requested: stats.requested,
+        dataReady: stats.dataReady,
+        promoted: stats.promoted,
+        spawnedMissing,
+        failed: stats.failed,
+        queued: queueLength,
+        inFlight: inFlightCount,
+        cacheHits: stats.cacheHits,
+        cacheMisses: stats.cacheMisses,
+        networkChunks: stats.networkChunks,
+        maxQueue: stats.maxQueue,
+        maxReadyWaitMs: Math.round(stats.maxReadyWaitMs),
+        avgReadyWaitMs: Math.round(avgReadyWaitMs),
+        requestedPerSec: Math.round((stats.requested * 1000 / elapsedMs) * 10) / 10,
+        readyPerSec: Math.round((stats.dataReady * 1000 / elapsedMs) * 10) / 10,
+        spawnPerSec: Math.round((spawnedMissing * 1000 / elapsedMs) * 10) / 10,
+        loadSlots: terrainLoadConcurrency(),
+        spawnFrame: terrainPromotionsPerFrame(),
+        spawnBudgetMs: terrainPromotionBudgetMs(),
+        elapsedMs: Math.round(elapsedMs),
+        final,
+    };
+}
+function maybeLogTerrainStreamProgress(stats, queueLength, inFlightCount, force = false, final = false) {
+    const now = performance.now();
+    if (!force && now - stats.lastProgressLogAt < TERRAIN_STREAM_PROGRESS_LOG_MS) {
+        return;
+    }
+    stats.lastProgressLogAt = now;
+    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)(final ? 'terrain_stream_summary' : 'terrain_stream_progress', terrainStreamSnapshot(stats, queueLength, inFlightCount, final));
 }
 function updateMetrics() {
     lastMetricsUpdate = performance.now();
@@ -335,11 +435,19 @@ function applyInitialParams() {
     applyBooleanParam('bounds', _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput);
     applyBooleanParam('players', _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput);
     applyBooleanParam('mobs', _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput);
+    applyBooleanParam('mobBlocks', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput);
+    syncMobBlocksInputs(_dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput.checked);
     applyBooleanParam('sun', _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput);
     applyBooleanParam('shade', _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput);
     applyBooleanParam('mapTiles', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput);
     applyBooleanParam('landMotion', _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput);
     applyBooleanParam('mapTime', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput);
+    applyNumberParam('terrainLoadSlots', _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput);
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput.value;
+    applyNumberParam('terrainSpawnFrame', _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput);
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput.value;
+    applyNumberParam('terrainSpawnMs', _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput);
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput.value;
     applyFloatParam('shadeSize', _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput);
     applyFloatParam('shadeDarkness', _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput);
     applySelectParam('water', _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput);
@@ -347,6 +455,7 @@ function applyInitialParams() {
     applySelectParam('playerRate', _dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput);
     (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.setShaderEffect)(postProcessing, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput.value);
     applyLighting();
+    updateEntityVisibility();
 }
 function applyStoredInputs() {
     if (!storedViewState)
@@ -362,6 +471,8 @@ function applyStoredInputs() {
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked = storedViewState.players;
     if (typeof storedViewState.mobs === 'boolean')
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked = storedViewState.mobs;
+    if (typeof storedViewState.mobBlocks === 'boolean')
+        syncMobBlocksInputs(storedViewState.mobBlocks);
     if (typeof storedViewState.sun === 'boolean')
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput.checked = storedViewState.sun;
     if (typeof storedViewState.shade === 'boolean')
@@ -374,6 +485,9 @@ function applyStoredInputs() {
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked = storedViewState.landMotion;
     if (typeof storedViewState.renderDetails === 'boolean')
         setRenderDetailsOpen(storedViewState.renderDetails);
+    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput, storedViewState.terrainLoadSlots);
+    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput, storedViewState.terrainSpawnFrame);
+    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput, storedViewState.terrainSpawnMs);
     setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput, storedViewState.shadeSize);
     setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput, storedViewState.shadeDarkness);
     if (typeof storedViewState.water === 'string') {
@@ -420,6 +534,13 @@ function applyBooleanParam(name, input) {
     if (value === null)
         return;
     input.checked = ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+}
+function syncMobBlocksInputs(checked) {
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput.checked = checked === true;
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksPanelInput.checked = checked === true;
+}
+function mobBlocksEnabled() {
+    return _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput.checked === true;
 }
 function applyFloatParam(name, ...inputs) {
     const value = initialParams.get(name);
@@ -558,54 +679,72 @@ async function loadGrid(options = {}) {
         const promotionQueue = [];
         let nextMissing = 0;
         const inFlight = new Set();
+        const loadConcurrency = terrainLoadConcurrency();
+        const streamStats = createTerrainStreamStats(world, centerX, centerZ, radius, needed.length, completed, missing.length, gridStarted);
         const enqueueNext = () => {
             if (nextMissing >= missing.length || generation !== loadGeneration)
                 return;
             const key = missing[nextMissing++];
+            streamStats.requested++;
             const task = loadTerrainChunkData(world, key, generation)
                 .then((result) => {
                 if (result.cacheReadMs)
                     cacheReadMs += result.cacheReadMs;
                 if (result.cacheParseMs)
                     cacheParseMs += result.cacheParseMs;
-                if (result.cacheHit)
+                if (result.cacheHit) {
                     cacheHits++;
-                if (result.cacheMiss)
+                    streamStats.cacheHits++;
+                }
+                if (result.cacheMiss) {
                     cacheMisses++;
-                if (result.network)
+                    streamStats.cacheMisses++;
+                }
+                if (result.network) {
                     networkChunks++;
+                    streamStats.networkChunks++;
+                }
+                result.readyAt = performance.now();
+                streamStats.dataReady++;
                 promotionQueue.push(result);
+                streamStats.maxQueue = Math.max(streamStats.maxQueue, promotionQueue.length);
+                maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size);
             })
                 .catch((error) => {
+                streamStats.dataReady++;
                 promotionQueue.push({
                     ok: false,
                     key,
                     error,
+                    readyAt: performance.now(),
                     cacheReadMs: 0,
                     cacheParseMs: 0,
                     cacheHit: false,
                     cacheMiss: true,
                     network: false,
                 });
+                streamStats.maxQueue = Math.max(streamStats.maxQueue, promotionQueue.length);
+                maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size);
             })
                 .finally(() => {
                 inFlight.delete(task);
             });
             inFlight.add(task);
         };
-        while (inFlight.size < TERRAIN_LOAD_CONCURRENCY && nextMissing < missing.length) {
+        while (inFlight.size < loadConcurrency && nextMissing < missing.length) {
             enqueueNext();
         }
         while ((inFlight.size > 0 || promotionQueue.length > 0) && generation === loadGeneration) {
-            while (inFlight.size < TERRAIN_LOAD_CONCURRENCY && nextMissing < missing.length) {
+            while (inFlight.size < loadConcurrency && nextMissing < missing.length) {
                 enqueueNext();
             }
-            const promoted = promoteTerrainResults(promotionQueue, generation);
+            const promoted = promoteTerrainResults(promotionQueue, generation, streamStats);
             completed += promoted.completed;
             failed += promoted.failed;
             if (promoted.completed > 0 || promoted.failed > 0) {
                 setStatus(`Loaded ${completed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
                 maybeUpdateMetrics(true);
+                maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size, promoted.yielded);
                 if (promoted.yielded) {
                     await yieldToMain();
                     continue;
@@ -620,6 +759,7 @@ async function loadGrid(options = {}) {
         }
         if (generation !== loadGeneration)
             return;
+        maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size, true, true);
         if (generation !== loadGeneration)
             return;
         retainOnly(world, retainKeys);
@@ -646,6 +786,15 @@ async function loadGrid(options = {}) {
             failed,
             cacheReadMs: Math.round(cacheReadMs),
             cacheParseMs: Math.round(cacheParseMs),
+            terrainLoadSlots: loadConcurrency,
+            terrainSpawnFrame: terrainPromotionsPerFrame(),
+            terrainSpawnBudgetMs: terrainPromotionBudgetMs(),
+            terrainRequested: streamStats.requested,
+            terrainDataReady: streamStats.dataReady,
+            terrainPromoted: streamStats.promoted,
+            terrainSpawnedMissing: Math.max(0, streamStats.promoted - streamStats.alreadyLoaded),
+            terrainMaxQueue: streamStats.maxQueue,
+            terrainMaxReadyWaitMs: Math.round(streamStats.maxReadyWaitMs),
             streamAnchorX: streamAnchor.chunkX,
             streamAnchorZ: streamAnchor.chunkZ,
             ms: Math.round(performance.now() - gridStarted),
@@ -735,14 +884,16 @@ async function loadTerrainChunkData(world, key, generation) {
         network: true,
     };
 }
-function promoteTerrainResults(queue, generation) {
+function promoteTerrainResults(queue, generation, streamStats = null) {
     const started = performance.now();
+    const promotionsPerFrame = terrainPromotionsPerFrame();
+    const promotionBudgetMs = terrainPromotionBudgetMs();
     let completed = 0;
     let failed = 0;
     let promoted = 0;
     while (queue.length > 0 && generation === loadGeneration) {
-        if (promoted >= TERRAIN_PROMOTIONS_PER_FRAME
-            || (promoted > 0 && performance.now() - started >= TERRAIN_PROMOTION_BUDGET_MS)) {
+        if (promoted >= promotionsPerFrame
+            || (promoted > 0 && performance.now() - started >= promotionBudgetMs)) {
             break;
         }
         const result = queue.shift();
@@ -751,6 +902,8 @@ function promoteTerrainResults(queue, generation) {
         }
         if (!result.ok) {
             failed++;
+            if (streamStats)
+                streamStats.failed++;
             console.warn(`Failed to load chunk ${result.key.chunkX},${result.key.chunkZ}`, result.error);
             (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_stream_chunk_failed', {
                 world: _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value,
@@ -774,6 +927,12 @@ function promoteTerrainResults(queue, generation) {
                 void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(resultWorld, [result.key], { immediate: true });
             }
             promoted++;
+            if (streamStats) {
+                streamStats.promoted++;
+                const readyWaitMs = result.readyAt ? performance.now() - result.readyAt : 0;
+                streamStats.totalReadyWaitMs += readyWaitMs;
+                streamStats.maxReadyWaitMs = Math.max(streamStats.maxReadyWaitMs, readyWaitMs);
+            }
         }
         completed++;
     }
@@ -1208,7 +1367,7 @@ function restartPlayerPolling(delayMs = playerPollDelayMs()) {
     }, delayMs);
 }
 async function refreshMobs() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value || !_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked || isRefreshingMobs) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value || !liveMobFeedEnabled() || isRefreshingMobs) {
         return;
     }
     isRefreshingMobs = true;
@@ -1220,7 +1379,7 @@ async function refreshMobs() {
         const data = await response.json();
         lastMobPollFailed = false;
         lastMobSourceStats = data.sourceStats ?? null;
-        updateMobs(data.mobs ?? []);
+        scheduleMobMarkerUpdate(data.mobs ?? []);
     }
     catch (error) {
         lastMobPollFailed = true;
@@ -1234,6 +1393,9 @@ async function refreshMobs() {
 function mobPollDelayMs() {
     if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
         return null;
+    }
+    if (!liveMobFeedEnabled()) {
+        return EMPTY_MOB_POLL_MS;
     }
     if (lastMobPollFailed) {
         return MOB_POLL_ERROR_MS;
@@ -1250,8 +1412,11 @@ function restartMobPolling(delayMs = mobPollDelayMs()) {
         restartMobPolling();
     }, delayMs);
 }
+function liveMobFeedEnabled() {
+    return _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked && lastPlayerCount > 0;
+}
 function wantsEntityStream() {
-    return _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value && (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked || _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked);
+    return _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value && (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked || liveMobFeedEnabled());
 }
 function restartEntityStream() {
     clearTimeout(entityStreamFallbackTimer);
@@ -1262,7 +1427,7 @@ function restartEntityStream() {
         return;
     }
     const includePlayers = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked;
-    const includeMobs = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked;
+    const includeMobs = liveMobFeedEnabled();
     if (entityStream
         && entityStreamWorld === _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value
         && entityStreamPlayers === includePlayers
@@ -1329,9 +1494,9 @@ function applyEntitySnapshot(snapshot) {
     if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked) {
         updatePlayers(snapshot.players ?? []);
     }
-    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
+    if (liveMobFeedEnabled()) {
         lastMobSourceStats = snapshot.mobSourceStats ?? null;
-        updateMobs(snapshot.mobs ?? []);
+        scheduleMobMarkerUpdate(snapshot.mobs ?? []);
     }
 }
 function updatePlayers(players) {
@@ -1345,6 +1510,13 @@ function updatePlayers(players) {
         restartWorldTimePolling();
         if (lastPlayerCount > previousPlayerCount) {
             schedulePlayerConnectMobSample(players);
+        }
+        if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
+            if (lastPlayerCount <= 0) {
+                clearMobs();
+            }
+            restartEntityStream();
+            restartMobPolling(lastPlayerCount > 0 ? 0 : mobPollDelayMs());
         }
     }
     const seen = new Set();
@@ -1372,11 +1544,13 @@ function updatePlayers(players) {
         const marker = playerMarkers.get(player.uuid) ?? (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.createPlayerMarker)(player);
         if (!existingMarker || markerIsLegacy) {
             marker.position.set(player.x, player.y, player.z);
-            marker.rotation.y = player.yaw ?? 0;
+            marker.rotation.y = playerCameraYawRad(player.yaw ?? 0);
         }
         marker.userData.targetPosition ??= new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
         marker.userData.targetPosition.set(player.x, player.y, player.z);
-        marker.userData.targetYaw = player.yaw ?? marker.userData.targetYaw ?? 0;
+        marker.userData.targetYaw = playerCameraYawRad(player.yaw ?? marker.userData.targetYawDeg ?? 0);
+        marker.userData.targetYawDeg = player.yaw ?? marker.userData.targetYawDeg ?? 0;
+        marker.userData.targetPitch = player.pitch ?? marker.userData.targetPitch ?? 0;
         marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked;
         marker.userData.player = player;
         (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updatePlayerMarkerCard)(marker, player);
@@ -1544,35 +1718,14 @@ function compactObject(object) {
     return result;
 }
 function updateMobs(mobs) {
+    cancelPendingMobMarkerUpdate();
     if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked && mobs.length > 0) {
         return;
     }
-    const previousMobCount = lastMobCount;
-    lastMobCount = mobs.length;
-    if (previousMobCount !== lastMobCount) {
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mob_count_changed', {
-            mobs: lastMobCount,
-            nextPollMs: mobPollDelayMs(),
-        });
-    }
+    setMobCount(mobs.length);
     const seen = new Set();
     for (const mob of mobs) {
-        const id = String(mob.id ?? `${mob.type}:${mob.x}:${mob.y}:${mob.z}`);
-        const enrichedMob = npcCatalog.enrich(mob, id);
-        seen.add(id);
-        const marker = mobMarkers.get(id) ?? (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.createMobMarker)(enrichedMob);
-        if (!mobMarkers.has(id)) {
-            marker.position.set(mob.x, mob.y, mob.z);
-        }
-        marker.userData.targetPosition ??= new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
-        marker.userData.targetPosition.set(mob.x, mob.y, mob.z);
-        marker.userData.mob = enrichedMob;
-        (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updateMobMarkerCard)(marker, enrichedMob);
-        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked;
-        mobMarkers.set(id, marker);
-        if (!marker.parent) {
-            scene.add(marker);
-        }
+        seen.add(upsertMobMarker(mob));
     }
     for (const [id, marker] of mobMarkers) {
         if (!seen.has(id)) {
@@ -1582,6 +1735,112 @@ function updateMobs(mobs) {
         }
     }
     updateEntityVisibility();
+}
+function scheduleMobMarkerUpdate(mobs) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked && mobs.length > 0) {
+        return;
+    }
+    const generation = ++mobMarkerUpdateGeneration;
+    pendingMobMarkerUpdate = {
+        generation,
+        mobs,
+        index: 0,
+        seen: new Set(),
+        removals: null,
+        removalIndex: 0,
+    };
+    setMobCount(mobs.length);
+    if (!mobMarkerUpdateScheduled) {
+        mobMarkerUpdateScheduled = true;
+        requestAnimationFrame(() => processPendingMobMarkerUpdate(generation));
+    }
+}
+function cancelPendingMobMarkerUpdate() {
+    mobMarkerUpdateGeneration++;
+    pendingMobMarkerUpdate = null;
+    mobMarkerUpdateScheduled = false;
+}
+function processPendingMobMarkerUpdate(generation) {
+    mobMarkerUpdateScheduled = false;
+    const update = pendingMobMarkerUpdate;
+    if (!update)
+        return;
+    if (update.generation !== generation) {
+        schedulePendingMobMarkerUpdate(update.generation);
+        return;
+    }
+    const start = performance.now();
+    let processed = 0;
+    while (update.index < update.mobs.length) {
+        const id = upsertMobMarker(update.mobs[update.index]);
+        update.seen.add(id);
+        update.index += 1;
+        processed += 1;
+        if (processed >= MOB_MARKER_UPSERTS_PER_FRAME
+            || performance.now() - start >= MOB_MARKER_FRAME_BUDGET_MS) {
+            schedulePendingMobMarkerUpdate(generation);
+            return;
+        }
+    }
+    if (!update.removals) {
+        update.removals = Array.from(mobMarkers.keys()).filter((id) => !update.seen.has(id));
+    }
+    processed = 0;
+    while (update.removalIndex < update.removals.length) {
+        const id = update.removals[update.removalIndex];
+        const marker = mobMarkers.get(id);
+        if (marker) {
+            scene.remove(marker);
+            (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.disposeObject)(marker);
+            mobMarkers.delete(id);
+        }
+        update.removalIndex += 1;
+        processed += 1;
+        if (processed >= MOB_MARKER_REMOVALS_PER_FRAME
+            || performance.now() - start >= MOB_MARKER_FRAME_BUDGET_MS) {
+            schedulePendingMobMarkerUpdate(generation);
+            return;
+        }
+    }
+    pendingMobMarkerUpdate = null;
+    updateEntityVisibility();
+}
+function schedulePendingMobMarkerUpdate(generation) {
+    mobMarkerUpdateScheduled = true;
+    requestAnimationFrame(() => processPendingMobMarkerUpdate(generation));
+}
+function setMobCount(count) {
+    const previousMobCount = lastMobCount;
+    lastMobCount = count;
+    if (previousMobCount !== lastMobCount) {
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mob_count_changed', {
+            mobs: lastMobCount,
+            nextPollMs: mobPollDelayMs(),
+        });
+    }
+}
+function upsertMobMarker(mob) {
+    const id = String(mob.id ?? `${mob.type}:${mob.x}:${mob.y}:${mob.z}`);
+    const enrichedMob = npcCatalog.enrich(mob, id);
+    const existingMarker = mobMarkers.get(id);
+    const marker = existingMarker ?? (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.createMobMarker)(enrichedMob);
+    if (!existingMarker) {
+        marker.position.set(mob.x, mob.y, mob.z);
+    }
+    marker.userData.targetPosition ??= new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
+    marker.userData.targetPosition.set(mob.x, mob.y, mob.z);
+    marker.userData.mob = enrichedMob;
+    (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updateMobMarkerCard)(marker, enrichedMob);
+    marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked;
+    const headshotBlock = marker.userData.headshotBlock;
+    if (headshotBlock) {
+        headshotBlock.visible = mobBlocksEnabled();
+    }
+    mobMarkers.set(id, marker);
+    if (!marker.parent) {
+        scene.add(marker);
+    }
+    return id;
 }
 function clearMobs() {
     updateMobs([]);
@@ -1607,7 +1866,8 @@ function setPlayerEyeView(uuid) {
         return;
     if (uuid) {
         pushCameraMode('eye', uuid);
-        updateEyeCamera();
+        resetPlayerEyeState(uuid);
+        updateEyeCamera(0);
     }
     else if (viewPlayerUuid) {
         popCameraMode();
@@ -1653,6 +1913,7 @@ function resetCameraModes() {
     cameraModeStack.length = 0;
     viewPlayerUuid = null;
     followPlayerUuid = null;
+    playerEyeState.uuid = null;
     setFollowControlsEnabled(false);
 }
 function captureCameraModeState() {
@@ -1675,6 +1936,12 @@ function restoreCameraModeState(state) {
     controls.target.copy(state.target);
     viewPlayerUuid = state.viewPlayerUuid;
     followPlayerUuid = state.followPlayerUuid;
+    if (viewPlayerUuid) {
+        resetPlayerEyeState(viewPlayerUuid);
+    }
+    else {
+        playerEyeState.uuid = null;
+    }
     setFollowControlsEnabled(Boolean(followPlayerUuid));
     controls.update();
     syncFlyLookFromCamera();
@@ -1717,6 +1984,9 @@ function updateEntityVisibility() {
     }
     for (const marker of mobMarkers.values()) {
         marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked;
+        if (marker.userData.headshotBlock) {
+            marker.userData.headshotBlock.visible = mobBlocksEnabled();
+        }
     }
     if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked) {
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.textContent = 'Players hidden';
@@ -1734,6 +2004,7 @@ function exposeDebugState() {
             world: entityStreamWorld,
             players: entityStreamPlayers,
             mobs: entityStreamMobs,
+            liveMobFeed: liveMobFeedEnabled(),
             available: 'EventSource' in window,
         }),
         npcDetailsState: () => npcCatalog.state(),
@@ -1747,7 +2018,9 @@ function exposeDebugState() {
         activeCenterId: () => activeCenterId,
         requestedCenterId: () => requestedCenterId,
         updatePlayersForTest: (players) => updatePlayers(players),
+        setPlayerEyeViewForTest: (uuid) => setPlayerEyeView(uuid),
         updateMobsForTest: (mobs) => updateMobs(mobs),
+        scheduleMobsForTest: (mobs) => scheduleMobMarkerUpdate(mobs),
         waterMaterialSummary: () => waterMaterialSummary(),
         cameraPose: () => ({
             camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.vectorState)(camera.position),
@@ -1768,6 +2041,11 @@ function exposeDebugState() {
             terrainBatch: null,
             terrainStream: lastTerrainStreamTiming,
         }),
+        terrainTuning: () => ({
+            loadSlots: terrainLoadConcurrency(),
+            spawnFrame: terrainPromotionsPerFrame(),
+            spawnBudgetMs: terrainPromotionBudgetMs(),
+        }),
         gridLoadCount: () => gridLoadCount,
         resetGridLoadCount: () => {
             gridLoadCount = 0;
@@ -1784,6 +2062,9 @@ function exposeDebugState() {
         viewState: () => ({
             mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
             landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked,
+            terrainLoadSlots: terrainLoadConcurrency(),
+            terrainSpawnFrame: terrainPromotionsPerFrame(),
+            terrainSpawnMs: terrainPromotionBudgetMs(),
             sun: _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput.checked,
             shade: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked,
             mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked,
@@ -1791,6 +2072,7 @@ function exposeDebugState() {
             shader: _dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput.value,
             players: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked,
             mobs: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked,
+            mobBlocks: mobBlocksEnabled(),
             auto: _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked,
             bounds: _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked,
         }),
@@ -1927,12 +2209,16 @@ function saveViewState() {
         bounds: _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked,
         players: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked,
         mobs: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked,
+        mobBlocks: mobBlocksEnabled(),
         renderDetails: !_dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardEl.classList.contains('collapsed'),
         sun: _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput.checked,
         shade: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked,
         mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked,
         mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
         landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked,
+        terrainLoadSlots: terrainLoadConcurrency(),
+        terrainSpawnFrame: terrainPromotionsPerFrame(),
+        terrainSpawnMs: terrainPromotionBudgetMs(),
         shadeSize: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput.value),
         shadeDarkness: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput.value),
         water: _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value,
@@ -2138,49 +2424,86 @@ function updatePlayerMarkers(deltaSeconds) {
         }
     }
 }
-function updateMobMarkers(deltaSeconds, elapsedSeconds) {
+function updateMobMarkers(deltaSeconds) {
     const alpha = 1 - Math.exp(-deltaSeconds * 5);
     const playerHeightSource = playerMarkers.get(viewPlayerUuid) ?? playerMarkers.get(followPlayerUuid);
     const desiredWorldY = playerHeightSource
         ? playerHeightSource.position.y + MOB_CARD_PLAYER_HEIGHT
         : camera.position.y;
+    const updateBillboards = !hasMobBillboardQuaternion
+        || lastMobBillboardQuaternion.angleTo(camera.quaternion) > 0.0005;
+    if (updateBillboards) {
+        lastMobBillboardQuaternion.copy(camera.quaternion);
+        hasMobBillboardQuaternion = true;
+    }
     for (const marker of mobMarkers.values()) {
         const targetPosition = marker.userData.targetPosition;
         if (targetPosition) {
             tempMobTarget.copy(targetPosition);
-            tempMobTarget.y += 0.25 + Math.sin(elapsedSeconds * 3.2 + marker.name.length) * 0.08;
+            tempMobTarget.y += 0.25;
             marker.position.lerp(tempMobTarget, alpha);
             const cardHeight = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(desiredWorldY - targetPosition.y, MOB_CARD_MIN_HEIGHT, MOB_CARD_TREE_TOP_HEIGHT);
-            (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updateMobMarkerHeight)(marker, cardHeight);
+            if (!Number.isFinite(marker.userData.cardHeight)
+                || Math.abs(marker.userData.cardHeight - cardHeight) > 0.05) {
+                (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updateMobMarkerHeight)(marker, cardHeight);
+                marker.userData.cardHeight = cardHeight;
+            }
         }
         const badge = marker.userData.badge;
-        if (badge) {
+        if (badge && updateBillboards) {
             badge.quaternion.copy(camera.quaternion);
         }
     }
 }
 function updatePlayerCameraMode(deltaSeconds) {
     if (viewPlayerUuid) {
-        updateEyeCamera();
+        updateEyeCamera(deltaSeconds);
         return;
     }
     if (followPlayerUuid) {
         updateWalkFollowCamera(deltaSeconds);
     }
 }
-function updateEyeCamera() {
+function resetPlayerEyeState(uuid) {
+    const marker = playerMarkers.get(uuid);
+    if (!marker)
+        return;
+    playerEyeState.uuid = uuid;
+    playerEyeState.yawRad = Number.isFinite(marker.userData.targetYaw) ? marker.userData.targetYaw : 0;
+    playerEyeState.pitchRad = playerCameraPitchRad(marker.userData.targetPitch ?? 0);
+}
+function updateEyeCamera(deltaSeconds = 0) {
     const marker = playerMarkers.get(viewPlayerUuid);
     if (!marker) {
         setPlayerEyeView(null);
         return;
     }
-    tempPlayerCamera.set(0, 2.45, -0.44);
-    tempPlayerLook.set(0, 2.45, -12);
-    marker.localToWorld(tempPlayerCamera);
-    marker.localToWorld(tempPlayerLook);
+    if (playerEyeState.uuid !== viewPlayerUuid) {
+        resetPlayerEyeState(viewPlayerUuid);
+    }
+    const targetYawRad = Number.isFinite(marker.userData.targetYaw) ? marker.userData.targetYaw : playerEyeState.yawRad;
+    const targetPitchRad = playerCameraPitchRad(marker.userData.targetPitch ?? 0);
+    const alpha = deltaSeconds > 0 ? 1 - Math.exp(-deltaSeconds * PLAYER_EYE_ROTATION_LERP) : 1;
+    playerEyeState.yawRad = lerpAngle(playerEyeState.yawRad, targetYawRad, alpha);
+    playerEyeState.pitchRad = three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.lerp(playerEyeState.pitchRad, targetPitchRad, alpha);
+    const lookDistance = 12;
+    const cosPitch = Math.cos(playerEyeState.pitchRad);
+    tempPlayerForward.set(-Math.sin(playerEyeState.yawRad) * cosPitch, Math.sin(playerEyeState.pitchRad), -Math.cos(playerEyeState.yawRad) * cosPitch);
+    tempPlayerCamera.copy(marker.position);
+    tempPlayerCamera.y += 2.45;
+    tempPlayerCamera.addScaledVector(tempPlayerForward, 0.44);
+    tempPlayerLook.copy(tempPlayerCamera).addScaledVector(tempPlayerForward, lookDistance);
     camera.position.copy(tempPlayerCamera);
     controls.target.copy(tempPlayerLook);
     camera.lookAt(tempPlayerLook);
+}
+function playerCameraYawRad(yawDeg) {
+    // Hytale client yaw arrives in degrees. Keep the sign direct for this FPV rig:
+    // negating it makes real left turns render as right turns.
+    return three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.degToRad(Number(yawDeg || 0));
+}
+function playerCameraPitchRad(pitchDeg) {
+    return three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.degToRad((0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(Number(pitchDeg || 0), -89, 89));
 }
 function updateWalkFollowCamera(deltaSeconds) {
     const marker = playerMarkers.get(followPlayerUuid);
@@ -2307,6 +2630,13 @@ _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.addEventListener('change', ()
     }
     saveViewState();
 });
+function onMobBlocksToggle(event) {
+    syncMobBlocksInputs(event.target.checked);
+    updateEntityVisibility();
+    saveViewState();
+}
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput.addEventListener('change', onMobBlocksToggle);
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksPanelInput.addEventListener('change', onMobBlocksToggle);
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.addEventListener('change', () => {
     applyWaterMode();
     saveViewState();
@@ -2337,6 +2667,9 @@ _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.addEventListener('change', ()
 });
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.addEventListener('change', saveViewState);
 syncRadiusControl();
+syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput, () => { });
+syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput, () => { });
+syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput, () => { });
 syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput);
 syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput);
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.addEventListener('change', () => {
@@ -2711,11 +3044,21 @@ const CLIENT_LOG_ENDPOINT = '/api/client-log';
 const FLUSH_INTERVAL_MS = 2000;
 const MAX_EVENTS_PER_FLUSH = 24;
 const MAX_QUEUED_EVENTS = 80;
+const PERF_TELEMETRY_TYPES = new Set([
+    'frame_hitch',
+    'grid_load',
+    'terrain_single_load',
+    'map_tile_single_load',
+    'map_tiles_stream',
+]);
+const PERF_TELEMETRY_ENABLED = ['1', 'true', 'yes', 'on'].includes(new URLSearchParams(location.search).get('perfTelemetry')?.toLowerCase() ?? '');
 let queue = [];
 let flushTimer = null;
 let sequence = 0;
 function logClientEvent(type, fields = {}) {
     if (!type)
+        return;
+    if (PERF_TELEMETRY_TYPES.has(type) && !PERF_TELEMETRY_ENABLED)
         return;
     const event = sanitizeEvent({
         seq: ++sequence,
@@ -2745,6 +3088,7 @@ function flushClientLogs() {
     const events = queue.splice(0, MAX_EVENTS_PER_FLUSH);
     const payload = JSON.stringify({
         page: location.pathname,
+        perfTelemetry: PERF_TELEMETRY_ENABLED,
         events,
     });
     if (navigator.sendBeacon) {
@@ -2821,6 +3165,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   metricMeshesEl: () => (/* binding */ metricMeshesEl),
 /* harmony export */   metricMobsEl: () => (/* binding */ metricMobsEl),
 /* harmony export */   metricResourcesEl: () => (/* binding */ metricResourcesEl),
+/* harmony export */   mobBlocksInput: () => (/* binding */ mobBlocksInput),
+/* harmony export */   mobBlocksPanelInput: () => (/* binding */ mobBlocksPanelInput),
 /* harmony export */   panelToggle: () => (/* binding */ panelToggle),
 /* harmony export */   playerUpdateRateInput: () => (/* binding */ playerUpdateRateInput),
 /* harmony export */   playersEl: () => (/* binding */ playersEl),
@@ -2840,6 +3186,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   skySunEl: () => (/* binding */ skySunEl),
 /* harmony export */   statusEl: () => (/* binding */ statusEl),
 /* harmony export */   sunLightingInput: () => (/* binding */ sunLightingInput),
+/* harmony export */   terrainLoadSlotsInput: () => (/* binding */ terrainLoadSlotsInput),
+/* harmony export */   terrainLoadSlotsValueInput: () => (/* binding */ terrainLoadSlotsValueInput),
+/* harmony export */   terrainSpawnBudgetInput: () => (/* binding */ terrainSpawnBudgetInput),
+/* harmony export */   terrainSpawnBudgetValueInput: () => (/* binding */ terrainSpawnBudgetValueInput),
+/* harmony export */   terrainSpawnFrameInput: () => (/* binding */ terrainSpawnFrameInput),
+/* harmony export */   terrainSpawnFrameValueInput: () => (/* binding */ terrainSpawnFrameValueInput),
 /* harmony export */   timeCycleLabelEl: () => (/* binding */ timeCycleLabelEl),
 /* harmony export */   treeShadeInput: () => (/* binding */ treeShadeInput),
 /* harmony export */   waterModeInput: () => (/* binding */ waterModeInput),
@@ -2856,11 +3208,19 @@ const autoStreamInput = document.querySelector('#auto-stream');
 const debugBoundsInput = document.querySelector('#debug-bounds');
 const showPlayersInput = document.querySelector('#show-players');
 const showMobsInput = document.querySelector('#show-mobs');
+const mobBlocksInput = document.querySelector('#mob-blocks');
+const mobBlocksPanelInput = document.querySelector('#mob-blocks-panel');
 const playerUpdateRateInput = document.querySelector('#player-update-rate');
 const sunLightingInput = document.querySelector('#sun-lighting');
 const treeShadeInput = document.querySelector('#tree-shade');
 const mapTilesInput = document.querySelector('#map-tiles');
 const landMotionInput = document.querySelector('#land-motion');
+const terrainLoadSlotsInput = document.querySelector('#terrain-load-slots');
+const terrainLoadSlotsValueInput = document.querySelector('#terrain-load-slots-value');
+const terrainSpawnFrameInput = document.querySelector('#terrain-spawn-frame');
+const terrainSpawnFrameValueInput = document.querySelector('#terrain-spawn-frame-value');
+const terrainSpawnBudgetInput = document.querySelector('#terrain-spawn-budget');
+const terrainSpawnBudgetValueInput = document.querySelector('#terrain-spawn-budget-value');
 const shadeSizeInput = document.querySelector('#shade-size');
 const shadeSizeValueInput = document.querySelector('#shade-size-value');
 const shadeDarknessInput = document.querySelector('#shade-darkness');
@@ -3861,15 +4221,15 @@ __webpack_require__.r(__webpack_exports__);
 
 const CHUNK_SIZE = 32;
 /** Map tiles extend this many chunks beyond the voxel terrain square on each side. */
-const MAP_HORIZON_MARGIN = 40;
+const MAP_HORIZON_MARGIN = 8;
 const SKY_RGB = { r: 23, g: 52, b: 84 };
 const RISE_START_Y = -48;
 const RISE_MS = 140;
 const RISE_FAILSAFE_MULTIPLIER = 1.5;
-const PROMOTE_PER_FRAME = 512;
-const TILE_LOAD_CONCURRENCY = 6;
-const IMMEDIATE_TILE_LOAD_LIMIT = 256;
-const TILE_QUEUE_SLICE_SIZE = 96;
+const PROMOTE_PER_FRAME = 96;
+const TILE_LOAD_CONCURRENCY = 4;
+const IMMEDIATE_TILE_LOAD_LIMIT = 96;
+const TILE_QUEUE_SLICE_SIZE = 48;
 const loadedTiles = new Map();
 const loadedTilesByCoord = new Map();
 const pendingRise = [];
@@ -3960,7 +4320,6 @@ function createTileMesh(texture, chunkX, chunkZ) {
     applyTileHeight(mesh, chunkX, chunkZ);
     mesh.name = `map-tile:${chunkX}:${chunkZ}`;
     mesh.renderOrder = 0;
-    mesh.frustumCulled = false;
     return mesh;
 }
 function disposeTileEntry(entry) {
@@ -4634,6 +4993,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var three__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! three */ "three");
 
+const ICON_REDRAWS_PER_FRAME = 8;
+const iconCache = new Map();
+const pendingIconRedraws = [];
+let iconRedrawScheduled = false;
 function createMobBadge(mob, color) {
     const canvas = document.createElement('canvas');
     canvas.width = 192;
@@ -4670,27 +5033,66 @@ function updateMobBadge(sprite, mob) {
         drawMobBadge(sprite, mob);
         return;
     }
-    if (sprite.userData.iconUrl === iconUrl && sprite.userData.iconImage) {
-        drawMobBadge(sprite, mob, sprite.userData.iconImage);
+    const cachedIcon = iconCache.get(iconUrl);
+    if (cachedIcon?.image) {
+        sprite.userData.iconUrl = iconUrl;
+        sprite.userData.iconImage = cachedIcon.image;
+        drawMobBadge(sprite, mob, cachedIcon.image);
         return;
     }
     sprite.userData.iconUrl = iconUrl;
     sprite.userData.iconImage = null;
     drawMobBadge(sprite, mob);
+    if (cachedIcon) {
+        cachedIcon.sprites.add(sprite);
+        return;
+    }
+    const iconEntry = {
+        image: null,
+        sprites: new Set([sprite]),
+    };
+    iconCache.set(iconUrl, iconEntry);
     const image = new Image();
     image.onload = () => {
-        if (sprite.userData.iconUrl !== iconUrl)
-            return;
-        sprite.userData.iconImage = image;
-        drawMobBadge(sprite, sprite.userData.mob, image);
+        iconEntry.image = image;
+        for (const pendingSprite of iconEntry.sprites) {
+            enqueueIconRedraw(pendingSprite, iconUrl, image);
+        }
+        iconEntry.sprites.clear();
     };
     image.onerror = () => {
-        if (sprite.userData.iconUrl === iconUrl) {
-            sprite.userData.iconImage = null;
-            drawMobBadge(sprite, sprite.userData.mob);
+        for (const pendingSprite of iconEntry.sprites) {
+            if (pendingSprite.userData.iconUrl === iconUrl) {
+                pendingSprite.userData.iconImage = null;
+                drawMobBadge(pendingSprite, pendingSprite.userData.mob);
+            }
         }
+        iconEntry.sprites.clear();
     };
     image.src = iconUrl;
+}
+function enqueueIconRedraw(sprite, iconUrl, image) {
+    pendingIconRedraws.push({ sprite, iconUrl, image });
+    if (!iconRedrawScheduled) {
+        iconRedrawScheduled = true;
+        requestAnimationFrame(processPendingIconRedraws);
+    }
+}
+function processPendingIconRedraws() {
+    iconRedrawScheduled = false;
+    let processed = 0;
+    while (pendingIconRedraws.length > 0 && processed < ICON_REDRAWS_PER_FRAME) {
+        const { sprite, iconUrl, image } = pendingIconRedraws.shift();
+        if (sprite.userData.iconUrl === iconUrl) {
+            sprite.userData.iconImage = image;
+            drawMobBadge(sprite, sprite.userData.mob, image);
+        }
+        processed += 1;
+    }
+    if (pendingIconRedraws.length > 0) {
+        iconRedrawScheduled = true;
+        requestAnimationFrame(processPendingIconRedraws);
+    }
 }
 function drawMobBadge(sprite, mob, image = null) {
     const { ctx, canvas, texture, colorHex: hex } = sprite.userData;
@@ -5217,7 +5619,13 @@ const PLAYER_HEAD_TOP_Y = 2.8;
 const PLAYER_CARD_POINTER_MIN_LENGTH = 0.9;
 const CARD_POINTER_CARD_OVERLAP = 0.08;
 const MOB_POINTER_ANCHOR_Y = 0.65;
+const MOB_HEADSHOT_BLOCK_HEIGHT = 2.3;
+const MOB_HEADSHOT_BLOCK_MIN_SIZE = 1.25;
+const MOB_HEADSHOT_BLOCK_MAX_SIZE = 3.3;
 const PLAYER_CARD_COLOR = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x5ef1b5);
+const fallbackMobHeadshotGeometry = createMobHeadshotGeometry(1, 1);
+const mobHeadshotTextureLoader = new three__WEBPACK_IMPORTED_MODULE_0__.TextureLoader();
+const mobHeadshotMaterials = new Map();
 function createPlayerMarker(player) {
     const group = new three__WEBPACK_IMPORTED_MODULE_0__.Group();
     group.name = `player:${player.uuid}`;
@@ -5263,6 +5671,9 @@ function createMobMarker(mob) {
     badge.renderOrder = 35;
     group.userData.badge = badge;
     group.add(badge);
+    const headshotBlock = createMobHeadshotBlock(mob);
+    group.userData.headshotBlock = headshotBlock;
+    group.add(headshotBlock);
     updateMobMarkerHeight(group, 3.4);
     return group;
 }
@@ -5270,6 +5681,7 @@ function updateMobMarkerCard(marker, mob) {
     if (!marker?.userData?.badge)
         return;
     (0,_mob_card_js__WEBPACK_IMPORTED_MODULE_1__.updateMobBadge)(marker.userData.badge, mob);
+    updateMobHeadshotBlock(marker, mob);
 }
 function updateMobMarkerHeight(marker, cardHeight) {
     updateMarkerCardHeight(marker, cardHeight);
@@ -5349,6 +5761,138 @@ function createGroundShadow() {
     contact.renderOrder = 19;
     return contact;
 }
+function createMobHeadshotBlock(mob) {
+    const entry = mobHeadshotResource(mob);
+    const mesh = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(entry.geometry, entry.materials);
+    mesh.name = 'mob-headshot-block';
+    mesh.renderOrder = 20;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.userData.worldviewMobHeadshot = true;
+    updateMobHeadshotBlockMesh(mesh, mob);
+    return mesh;
+}
+function updateMobHeadshotBlock(marker, mob) {
+    let block = marker.userData.headshotBlock;
+    if (!block) {
+        block = createMobHeadshotBlock(mob);
+        marker.userData.headshotBlock = block;
+        marker.add(block);
+        return;
+    }
+    const materialKey = mobHeadshotMaterialKey(mob);
+    if (block.userData.materialKey !== materialKey) {
+        const entry = mobHeadshotResource(mob);
+        block.geometry = entry.geometry;
+        block.material = entry.materials;
+    }
+    updateMobHeadshotBlockMesh(block, mob);
+}
+function updateMobHeadshotBlockMesh(mesh, mob) {
+    const materialKey = mobHeadshotMaterialKey(mob);
+    if (mesh.userData.materialKey && mesh.userData.materialKey !== materialKey) {
+        mobHeadshotMaterials.get(mesh.userData.materialKey)?.meshes.delete(mesh);
+    }
+    const entry = mobHeadshotMaterials.get(materialKey);
+    mesh.userData.materialKey = materialKey;
+    mesh.userData.mob = { ...mob };
+    entry?.meshes.add(mesh);
+    mesh.geometry = entry?.geometry ?? fallbackMobHeadshotGeometry;
+    mesh.scale.set(1, 1, 1);
+    mesh.position.set(0, 0.12 + MOB_HEADSHOT_BLOCK_HEIGHT / 2, 0);
+}
+function mobHeadshotMaterialKey(mob) {
+    return typeof mob?.iconUrl === 'string' && mob.iconUrl ? mob.iconUrl : `color:${mob?.color ?? 'default'}`;
+}
+function mobHeadshotResource(mob) {
+    const key = mobHeadshotMaterialKey(mob);
+    const existing = mobHeadshotMaterials.get(key);
+    if (existing)
+        return existing;
+    const fallbackMaterial = sharedMobHeadshotSideMaterial(mob?.color);
+    const capMaterial = sharedMobHeadshotCapMaterial(mob?.color);
+    const materials = mobHeadshotFaceMaterials(fallbackMaterial, capMaterial);
+    const entry = {
+        aspect: 1,
+        geometry: fallbackMobHeadshotGeometry,
+        materials,
+        meshes: new Set(),
+    };
+    mobHeadshotMaterials.set(key, entry);
+    const iconUrl = typeof mob?.iconUrl === 'string' ? mob.iconUrl : '';
+    if (iconUrl) {
+        mobHeadshotTextureLoader.load(iconUrl, (texture) => {
+            texture.colorSpace = three__WEBPACK_IMPORTED_MODULE_0__.SRGBColorSpace;
+            texture.userData.worldviewShared = true;
+            const image = texture.image;
+            const aspect = image?.width && image?.height ? image.width / image.height : 1;
+            entry.aspect = aspect;
+            entry.geometry = createMobHeadshotGeometry(image?.width ?? 1, image?.height ?? 1);
+            const imageMaterial = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
+                map: texture,
+                color: 0x4f5f5b,
+                transparent: true,
+                opacity: 0.72,
+                depthWrite: false,
+            });
+            imageMaterial.userData.worldviewShared = true;
+            entry.materials = mobHeadshotFaceMaterials(imageMaterial, capMaterial);
+            for (const mesh of entry.meshes) {
+                if (mesh.userData.materialKey !== key)
+                    continue;
+                mesh.geometry = entry.geometry;
+                mesh.material = entry.materials;
+            }
+        }, undefined, () => {
+            entry.meshes.clear();
+        });
+    }
+    return entry;
+}
+function createMobHeadshotGeometry(imageWidth, imageHeight) {
+    const safeWidth = Math.max(1, Number(imageWidth) || 1);
+    const safeHeight = Math.max(1, Number(imageHeight) || 1);
+    const pixelWorldSize = MOB_HEADSHOT_BLOCK_HEIGHT / safeHeight;
+    const width = (0,_utils_js__WEBPACK_IMPORTED_MODULE_2__.clamp)((safeWidth + 2) * pixelWorldSize, MOB_HEADSHOT_BLOCK_MIN_SIZE, MOB_HEADSHOT_BLOCK_MAX_SIZE);
+    const depth = width;
+    const geometry = new three__WEBPACK_IMPORTED_MODULE_0__.BoxGeometry(width, MOB_HEADSHOT_BLOCK_HEIGHT, depth);
+    geometry.userData.worldviewShared = true;
+    geometry.userData.mobHeadshotSize = {
+        imageWidth: safeWidth,
+        imageHeight: safeHeight,
+        width,
+        height: MOB_HEADSHOT_BLOCK_HEIGHT,
+        depth,
+    };
+    return geometry;
+}
+function sharedMobHeadshotSideMaterial(color) {
+    const baseColor = new three__WEBPACK_IMPORTED_MODULE_0__.Color(color || '#1a2325');
+    const material = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
+        color: baseColor.multiplyScalar(0.32),
+        transparent: true,
+        opacity: 0.62,
+        depthWrite: false,
+    });
+    material.userData.worldviewShared = true;
+    return material;
+}
+function sharedMobHeadshotCapMaterial(color) {
+    const baseColor = new three__WEBPACK_IMPORTED_MODULE_0__.Color(color || '#1a2325');
+    const material = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
+        color: baseColor.multiplyScalar(0.18),
+        transparent: true,
+        opacity: 0.38,
+        depthWrite: false,
+    });
+    material.userData.worldviewShared = true;
+    return material;
+}
+function mobHeadshotFaceMaterials(sideMaterial, capMaterial) {
+    // BoxGeometry material order: +x, -x, +y, -y, +z, -z.
+    // The four vertical sides carry the mob image; top and bottom stay dark glass.
+    return [sideMaterial, sideMaterial, capMaterial, capMaterial, sideMaterial, sideMaterial];
+}
 function createPointer(color, name, renderOrder) {
     const pointer = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(new three__WEBPACK_IMPORTED_MODULE_0__.CylinderGeometry(0.035, 0.09, 1, 12), new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
         color,
@@ -5399,13 +5943,18 @@ function updateMarkerCardHeight(marker, cardHeight) {
 }
 function disposeObject(root) {
     root.traverse((object) => {
-        if (object.geometry)
+        if (object.userData?.worldviewMobHeadshot && object.userData.materialKey) {
+            mobHeadshotMaterials.get(object.userData.materialKey)?.meshes.delete(object);
+        }
+        if (object.geometry && object.geometry.userData?.worldviewShared !== true)
             object.geometry.dispose();
         if (object.material) {
             const materials = Array.isArray(object.material) ? object.material : [object.material];
             for (const material of materials) {
+                if (material?.userData?.worldviewShared === true)
+                    continue;
                 for (const value of Object.values(material)) {
-                    if (value?.isTexture)
+                    if (value?.isTexture && value.userData?.worldviewShared !== true)
                         value.dispose();
                 }
                 material.dispose();

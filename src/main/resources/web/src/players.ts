@@ -6,7 +6,13 @@ const PLAYER_HEAD_TOP_Y = 2.8;
 const PLAYER_CARD_POINTER_MIN_LENGTH = 0.9;
 const CARD_POINTER_CARD_OVERLAP = 0.08;
 const MOB_POINTER_ANCHOR_Y = 0.65;
+const MOB_HEADSHOT_BLOCK_HEIGHT = 2.3;
+const MOB_HEADSHOT_BLOCK_MIN_SIZE = 1.25;
+const MOB_HEADSHOT_BLOCK_MAX_SIZE = 3.3;
 const PLAYER_CARD_COLOR = new THREE.Color(0x5ef1b5);
+const fallbackMobHeadshotGeometry = createMobHeadshotGeometry(1, 1);
+const mobHeadshotTextureLoader = new THREE.TextureLoader();
+const mobHeadshotMaterials = new Map();
 
 export function createPlayerMarker(player) {
   const group = new THREE.Group();
@@ -62,6 +68,9 @@ export function createMobMarker(mob) {
   badge.renderOrder = 35;
   group.userData.badge = badge;
   group.add(badge);
+  const headshotBlock = createMobHeadshotBlock(mob);
+  group.userData.headshotBlock = headshotBlock;
+  group.add(headshotBlock);
   updateMobMarkerHeight(group, 3.4);
 
   return group;
@@ -70,6 +79,7 @@ export function createMobMarker(mob) {
 export function updateMobMarkerCard(marker, mob) {
   if (!marker?.userData?.badge) return;
   updateMobBadge(marker.userData.badge, mob);
+  updateMobHeadshotBlock(marker, mob);
 }
 
 export function updateMobMarkerHeight(marker, cardHeight) {
@@ -179,6 +189,153 @@ function createGroundShadow() {
   return contact;
 }
 
+function createMobHeadshotBlock(mob) {
+  const entry = mobHeadshotResource(mob);
+  const mesh = new THREE.Mesh(entry.geometry, entry.materials);
+  mesh.name = 'mob-headshot-block';
+  mesh.renderOrder = 20;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  mesh.userData.worldviewMobHeadshot = true;
+  updateMobHeadshotBlockMesh(mesh, mob);
+  return mesh;
+}
+
+function updateMobHeadshotBlock(marker, mob) {
+  let block = marker.userData.headshotBlock;
+  if (!block) {
+    block = createMobHeadshotBlock(mob);
+    marker.userData.headshotBlock = block;
+    marker.add(block);
+    return;
+  }
+  const materialKey = mobHeadshotMaterialKey(mob);
+  if (block.userData.materialKey !== materialKey) {
+    const entry = mobHeadshotResource(mob);
+    block.geometry = entry.geometry;
+    block.material = entry.materials;
+  }
+  updateMobHeadshotBlockMesh(block, mob);
+}
+
+function updateMobHeadshotBlockMesh(mesh, mob) {
+  const materialKey = mobHeadshotMaterialKey(mob);
+  if (mesh.userData.materialKey && mesh.userData.materialKey !== materialKey) {
+    mobHeadshotMaterials.get(mesh.userData.materialKey)?.meshes.delete(mesh);
+  }
+  const entry = mobHeadshotMaterials.get(materialKey);
+  mesh.userData.materialKey = materialKey;
+  mesh.userData.mob = { ...mob };
+  entry?.meshes.add(mesh);
+  mesh.geometry = entry?.geometry ?? fallbackMobHeadshotGeometry;
+  mesh.scale.set(1, 1, 1);
+  mesh.position.set(0, 0.12 + MOB_HEADSHOT_BLOCK_HEIGHT / 2, 0);
+}
+
+function mobHeadshotMaterialKey(mob) {
+  return typeof mob?.iconUrl === 'string' && mob.iconUrl ? mob.iconUrl : `color:${mob?.color ?? 'default'}`;
+}
+
+function mobHeadshotResource(mob) {
+  const key = mobHeadshotMaterialKey(mob);
+  const existing = mobHeadshotMaterials.get(key);
+  if (existing) return existing;
+
+  const fallbackMaterial = sharedMobHeadshotSideMaterial(mob?.color);
+  const capMaterial = sharedMobHeadshotCapMaterial(mob?.color);
+  const materials = mobHeadshotFaceMaterials(fallbackMaterial, capMaterial);
+  const entry = {
+    aspect: 1,
+    geometry: fallbackMobHeadshotGeometry,
+    materials,
+    meshes: new Set(),
+  };
+  mobHeadshotMaterials.set(key, entry);
+
+  const iconUrl = typeof mob?.iconUrl === 'string' ? mob.iconUrl : '';
+  if (iconUrl) {
+    mobHeadshotTextureLoader.load(
+      iconUrl,
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.userData.worldviewShared = true;
+        const image = texture.image;
+        const aspect = image?.width && image?.height ? image.width / image.height : 1;
+        entry.aspect = aspect;
+        entry.geometry = createMobHeadshotGeometry(image?.width ?? 1, image?.height ?? 1);
+        const imageMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
+          color: 0x4f5f5b,
+          transparent: true,
+          opacity: 0.72,
+          depthWrite: false,
+        });
+        imageMaterial.userData.worldviewShared = true;
+        entry.materials = mobHeadshotFaceMaterials(imageMaterial, capMaterial);
+        for (const mesh of entry.meshes) {
+          if (mesh.userData.materialKey !== key) continue;
+          mesh.geometry = entry.geometry;
+          mesh.material = entry.materials;
+        }
+      },
+      undefined,
+      () => {
+        entry.meshes.clear();
+      },
+    );
+  }
+
+  return entry;
+}
+
+function createMobHeadshotGeometry(imageWidth, imageHeight) {
+  const safeWidth = Math.max(1, Number(imageWidth) || 1);
+  const safeHeight = Math.max(1, Number(imageHeight) || 1);
+  const pixelWorldSize = MOB_HEADSHOT_BLOCK_HEIGHT / safeHeight;
+  const width = clamp((safeWidth + 2) * pixelWorldSize, MOB_HEADSHOT_BLOCK_MIN_SIZE, MOB_HEADSHOT_BLOCK_MAX_SIZE);
+  const depth = width;
+  const geometry = new THREE.BoxGeometry(width, MOB_HEADSHOT_BLOCK_HEIGHT, depth);
+  geometry.userData.worldviewShared = true;
+  geometry.userData.mobHeadshotSize = {
+    imageWidth: safeWidth,
+    imageHeight: safeHeight,
+    width,
+    height: MOB_HEADSHOT_BLOCK_HEIGHT,
+    depth,
+  };
+  return geometry;
+}
+
+function sharedMobHeadshotSideMaterial(color) {
+  const baseColor = new THREE.Color(color || '#1a2325');
+  const material = new THREE.MeshBasicMaterial({
+    color: baseColor.multiplyScalar(0.32),
+    transparent: true,
+    opacity: 0.62,
+    depthWrite: false,
+  });
+  material.userData.worldviewShared = true;
+  return material;
+}
+
+function sharedMobHeadshotCapMaterial(color) {
+  const baseColor = new THREE.Color(color || '#1a2325');
+  const material = new THREE.MeshBasicMaterial({
+    color: baseColor.multiplyScalar(0.18),
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false,
+  });
+  material.userData.worldviewShared = true;
+  return material;
+}
+
+function mobHeadshotFaceMaterials(sideMaterial, capMaterial) {
+  // BoxGeometry material order: +x, -x, +y, -y, +z, -z.
+  // The four vertical sides carry the mob image; top and bottom stay dark glass.
+  return [sideMaterial, sideMaterial, capMaterial, capMaterial, sideMaterial, sideMaterial];
+}
+
 function createPointer(color, name, renderOrder) {
   const pointer = new THREE.Mesh(
     new THREE.CylinderGeometry(0.035, 0.09, 1, 12),
@@ -234,12 +391,16 @@ function updateMarkerCardHeight(marker, cardHeight) {
 
 export function disposeObject(root) {
   root.traverse((object) => {
-    if (object.geometry) object.geometry.dispose();
+    if (object.userData?.worldviewMobHeadshot && object.userData.materialKey) {
+      mobHeadshotMaterials.get(object.userData.materialKey)?.meshes.delete(object);
+    }
+    if (object.geometry && object.geometry.userData?.worldviewShared !== true) object.geometry.dispose();
     if (object.material) {
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of materials) {
+        if (material?.userData?.worldviewShared === true) continue;
         for (const value of Object.values(material)) {
-          if (value?.isTexture) value.dispose();
+          if (value?.isTexture && value.userData?.worldviewShared !== true) value.dispose();
         }
         material.dispose();
       }

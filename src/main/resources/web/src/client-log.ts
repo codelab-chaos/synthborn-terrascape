@@ -2,6 +2,16 @@ const CLIENT_LOG_ENDPOINT = '/api/client-log';
 const FLUSH_INTERVAL_MS = 2000;
 const MAX_EVENTS_PER_FLUSH = 24;
 const MAX_QUEUED_EVENTS = 80;
+const PERF_TELEMETRY_TYPES = new Set([
+  'frame_hitch',
+  'grid_load',
+  'terrain_single_load',
+  'map_tile_single_load',
+  'map_tiles_stream',
+]);
+const PERF_TELEMETRY_ENABLED = ['1', 'true', 'yes', 'on'].includes(
+  new URLSearchParams(location.search).get('perfTelemetry')?.toLowerCase() ?? '',
+);
 
 let queue = [];
 let flushTimer = null;
@@ -9,6 +19,7 @@ let sequence = 0;
 
 export function logClientEvent(type, fields = {}) {
   if (!type) return;
+  if (PERF_TELEMETRY_TYPES.has(type) && !PERF_TELEMETRY_ENABLED) return;
   const event = sanitizeEvent({
     seq: ++sequence,
     t: Math.round(performance.now()),
@@ -38,6 +49,7 @@ export function flushClientLogs() {
   const events = queue.splice(0, MAX_EVENTS_PER_FLUSH);
   const payload = JSON.stringify({
     page: location.pathname,
+    perfTelemetry: PERF_TELEMETRY_ENABLED,
     events,
   });
 

@@ -298,6 +298,7 @@ function buildPerfUrl({ world, centerX, centerZ, radius, features }) {
     shade: String(features.shade !== false),
     mapTime: String(features.mapTime === true),
     bounds: String(features.bounds === true),
+    perfTelemetry: 'true',
     water: features.water ?? 'solid',
     shader: features.shader ?? 'none',
   });
@@ -355,21 +356,19 @@ async function injectEspLoad(page, esp, centerX, centerZ) {
       const input = document.querySelector('#show-players');
       if (input) {
         input.checked = true;
-        input.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
     if (showMobs) {
       const input = document.querySelector('#show-mobs');
       if (input) {
         input.checked = true;
-        input.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
     if (players.length > 0) {
       window.__synthWorldviewDebug.updatePlayersForTest(players);
     }
     if (mobs.length > 0) {
-      window.__synthWorldviewDebug.updateMobsForTest(mobs);
+      window.__synthWorldviewDebug.scheduleMobsForTest?.(mobs);
     }
   }, {
     players,
@@ -377,6 +376,11 @@ async function injectEspLoad(page, esp, centerX, centerZ) {
     showPlayers: esp.showPlayers === true || playerCount > 0,
     showMobs: esp.showMobs === true || mobCount > 0,
   });
+  if (mobCount > 0) {
+    await expect.poll(async () => {
+      return page.evaluate(() => window.__synthWorldviewDebug.mobMarkers.size);
+    }, { timeout: 15_000 }).toBe(mobCount);
+  }
   await page.waitForTimeout(400);
 }
 
@@ -622,6 +626,7 @@ async function clearBrowserMeshCache(page) {
 async function logPerfEvent(page, type, fields) {
   await page.request.post('/api/client-log', {
     data: {
+      perfTelemetry: true,
       events: [{
         type,
         source: 'playwright-perf',

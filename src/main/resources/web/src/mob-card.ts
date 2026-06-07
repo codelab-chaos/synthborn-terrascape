@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 
+const ICON_REDRAWS_PER_FRAME = 8;
+const iconCache = new Map();
+const pendingIconRedraws = [];
+let iconRedrawScheduled = false;
+
 export function createMobBadge(mob, color) {
   const canvas = document.createElement('canvas');
   canvas.width = 192;
@@ -36,26 +41,70 @@ export function updateMobBadge(sprite, mob) {
     drawMobBadge(sprite, mob);
     return;
   }
-  if (sprite.userData.iconUrl === iconUrl && sprite.userData.iconImage) {
-    drawMobBadge(sprite, mob, sprite.userData.iconImage);
+  const cachedIcon = iconCache.get(iconUrl);
+  if (cachedIcon?.image) {
+    sprite.userData.iconUrl = iconUrl;
+    sprite.userData.iconImage = cachedIcon.image;
+    drawMobBadge(sprite, mob, cachedIcon.image);
     return;
   }
+
   sprite.userData.iconUrl = iconUrl;
   sprite.userData.iconImage = null;
   drawMobBadge(sprite, mob);
+  if (cachedIcon) {
+    cachedIcon.sprites.add(sprite);
+    return;
+  }
+
+  const iconEntry = {
+    image: null,
+    sprites: new Set([sprite]),
+  };
+  iconCache.set(iconUrl, iconEntry);
   const image = new Image();
   image.onload = () => {
-    if (sprite.userData.iconUrl !== iconUrl) return;
-    sprite.userData.iconImage = image;
-    drawMobBadge(sprite, sprite.userData.mob, image);
+    iconEntry.image = image;
+    for (const pendingSprite of iconEntry.sprites) {
+      enqueueIconRedraw(pendingSprite, iconUrl, image);
+    }
+    iconEntry.sprites.clear();
   };
   image.onerror = () => {
-    if (sprite.userData.iconUrl === iconUrl) {
-      sprite.userData.iconImage = null;
-      drawMobBadge(sprite, sprite.userData.mob);
+    for (const pendingSprite of iconEntry.sprites) {
+      if (pendingSprite.userData.iconUrl === iconUrl) {
+        pendingSprite.userData.iconImage = null;
+        drawMobBadge(pendingSprite, pendingSprite.userData.mob);
+      }
     }
+    iconEntry.sprites.clear();
   };
   image.src = iconUrl;
+}
+
+function enqueueIconRedraw(sprite, iconUrl, image) {
+  pendingIconRedraws.push({ sprite, iconUrl, image });
+  if (!iconRedrawScheduled) {
+    iconRedrawScheduled = true;
+    requestAnimationFrame(processPendingIconRedraws);
+  }
+}
+
+function processPendingIconRedraws() {
+  iconRedrawScheduled = false;
+  let processed = 0;
+  while (pendingIconRedraws.length > 0 && processed < ICON_REDRAWS_PER_FRAME) {
+    const { sprite, iconUrl, image } = pendingIconRedraws.shift();
+    if (sprite.userData.iconUrl === iconUrl) {
+      sprite.userData.iconImage = image;
+      drawMobBadge(sprite, sprite.userData.mob, image);
+    }
+    processed += 1;
+  }
+  if (pendingIconRedraws.length > 0) {
+    iconRedrawScheduled = true;
+    requestAnimationFrame(processPendingIconRedraws);
+  }
 }
 
 function drawMobBadge(sprite, mob, image = null) {

@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "defaults": {
+    "centerX": -9,
+    "centerZ": 19,
+    "steps": 0,
+    "modes": ["dry"],
+    "regressionFactor": 1.25,
+    "stepSettleMs": 300,
+    "flyChunks": 4,
+    "flyLegs": true,
+    "flySprint": false,
+    "flySampleMs": 50,
+    "flyDirections": "east-west",
+    "world": "default"
+  },
+  "thresholds": {
+    "totalMs": {
+      "mob-view-220": 180000
+    },
+    "minFpsDuringFly": {
+      "default": 18
+    },
+    "p95FrameMsDuringFly": {
+      "default": 42
+    },
+    "hitchCount50DuringFly": {
+      "default": 12
+    },
+    "longestHitchMsDuringFly": {
+      "default": 140
+    }
+  },
+  "serverMeshProbe": {
+    "enabled": false
+  },
+  "scenarios": [
+    {
+      "id": "mob-view-220",
+      "label": "Mob view stress (synthetic player-anchored mob overlay)",
+      "radius": 4,
+      "steps": 0,
+      "modes": ["dry"],
+      "features": {
+        "mapTiles": true,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "shader": "none",
+        "sun": true,
+        "shade": true,
+        "auto": true
+      },
+      "esp": {
+        "mobs": 220,
+        "showMobs": true
+      },
+      "flyDirections": "east-west",
+      "flyChunks": 4,
+      "regressionFactor": 1.25
+    }
+  ]
+}
