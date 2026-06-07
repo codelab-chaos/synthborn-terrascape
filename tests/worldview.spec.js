@@ -317,12 +317,18 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       hasPointer: marker.getObjectByName('mob-pointer') !== undefined,
       hasHeadshotBlock: block !== undefined,
       cardY: marker.getObjectByName('mob-card')?.position.y,
+      cardScaleX: marker.getObjectByName('mob-card')?.scale.x,
+      cardScaleY: marker.getObjectByName('mob-card')?.scale.y,
       pointerScaleY: marker.getObjectByName('mob-pointer')?.scale.y,
       headshotScaleY: block?.scale.y,
       headshotScaleZ: block?.scale.z,
       headshotGeometryWidth: block?.geometry?.userData?.mobHeadshotSize?.width,
       headshotGeometryHeight: block?.geometry?.userData?.mobHeadshotSize?.height,
       headshotGeometryDepth: block?.geometry?.userData?.mobHeadshotSize?.depth,
+      headshotImageOpacity: block?.material?.[0]?.opacity,
+      headshotImageTransparent: block?.material?.[0]?.transparent,
+      headshotCapOpacity: block?.material?.[2]?.opacity,
+      headshotCapTransparent: block?.material?.[2]?.transparent,
       headshotMaterialCount: Array.isArray(block?.material)
         ? block.material.length
         : 0,
@@ -342,12 +348,19 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(mobMarkerShape.hasPointer).toBe(true);
   expect(mobMarkerShape.hasHeadshotBlock).toBe(true);
   expect(mobMarkerShape.cardY).toBe(12);
+  expect(mobMarkerShape.cardScaleX).toBe(3.6);
+  expect(mobMarkerShape.cardScaleY).toBe(4.8);
   expect(mobMarkerShape.pointerScaleY).toBeGreaterThan(10);
   expect(mobMarkerShape.headshotScaleY).toBe(1);
   expect(mobMarkerShape.headshotScaleZ).toBe(1);
-  expect(mobMarkerShape.headshotGeometryHeight).toBeGreaterThan(2);
+  expect(mobMarkerShape.headshotGeometryHeight).toBeGreaterThan(0.2);
+  expect(mobMarkerShape.headshotGeometryHeight).toBeLessThanOrEqual(2.3);
   expect(mobMarkerShape.headshotGeometryWidth).toBeGreaterThan(1);
   expect(mobMarkerShape.headshotGeometryDepth).toBeCloseTo(mobMarkerShape.headshotGeometryWidth, 4);
+  expect(mobMarkerShape.headshotImageOpacity).toBe(1);
+  expect(mobMarkerShape.headshotImageTransparent).toBe(true);
+  expect(mobMarkerShape.headshotCapOpacity).toBe(1);
+  expect(mobMarkerShape.headshotCapTransparent).toBe(false);
   expect(mobMarkerShape.headshotMaterialCount).toBe(6);
   expect(mobMarkerShape.rightHasMap).toBe(true);
   expect(mobMarkerShape.leftHasMap).toBe(true);
@@ -355,6 +368,47 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(mobMarkerShape.backHasMap).toBe(true);
   expect(mobMarkerShape.topHasMap).toBe(false);
   expect(mobMarkerShape.bottomHasMap).toBe(false);
+
+  const paddedMobMarkerShape = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, 32, 32);
+    ctx.fillStyle = '#48c2ff';
+    ctx.fillRect(7, 4, 18, 24);
+    const iconUrl = canvas.toDataURL('image/png');
+    const { createMobMarker, disposeObject } = await import('/dist/worldview.js');
+    const marker = createMobMarker({
+      id: 'test-padded-icon',
+      type: 'PaddedIcon',
+      label: 'PaddedIcon',
+      color: '#48c2ff',
+      iconUrl,
+    });
+    const block = marker.getObjectByName('mob-headshot-block');
+    for (let i = 0; i < 120 && block?.geometry?.userData?.mobHeadshotSize?.cropWidth !== 20; i += 1) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    const size = block?.geometry?.userData?.mobHeadshotSize;
+    const result = {
+      cropX: size?.cropX,
+      cropY: size?.cropY,
+      cropWidth: size?.cropWidth,
+      cropHeight: size?.cropHeight,
+      width: size?.width,
+      height: size?.height,
+    };
+    disposeObject(marker);
+    return result;
+  });
+  expect(paddedMobMarkerShape.cropX).toBe(6);
+  expect(paddedMobMarkerShape.cropY).toBe(3);
+  expect(paddedMobMarkerShape.cropWidth).toBe(20);
+  expect(paddedMobMarkerShape.cropHeight).toBe(26);
+  expect(paddedMobMarkerShape.width).toBeCloseTo((20 * 2.3) / 32, 4);
+  expect(paddedMobMarkerShape.height).toBeCloseTo((26 * 2.3) / 32, 4);
+  expect(paddedMobMarkerShape.height).toBeLessThan(2.3);
 
   const testMobVisible = await page.evaluate(() => {
     window.__synthWorldviewDebug.updateMobsForTest([{
@@ -426,7 +480,10 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#metric-mobs')).toHaveText('hidden');
   await expect.poll(async () => page.evaluate(() => window.__synthWorldviewDebug.entityStreamState().mobs)).toBe(false);
   await page.locator('#show-mobs').check();
-  await expect.poll(async () => page.evaluate(() => window.__synthWorldviewDebug.entityStreamState().mobs)).toBe(false);
+  await expect.poll(async () => page.evaluate(() => {
+    const state = window.__synthWorldviewDebug.entityStreamState();
+    return state.mobs === state.liveMobFeed;
+  })).toBe(true);
 
   const predatorMobVisible = await page.evaluate(() => {
     window.__synthWorldviewDebug.updateMobsForTest([{
@@ -505,9 +562,10 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
     }
   }
   await setControlChecked('#show-players', true);
-  await page.evaluate(() => {
+  const avatarTesterTileState = await page.evaluate(() => {
+    const uuid = '00000000-0000-0000-0000-000000000001';
     window.__synthWorldviewDebug.updatePlayersForTest([{
-      uuid: '00000000-0000-0000-0000-000000000001',
+      uuid,
       name: 'Avatar Tester',
       avatarUrl: '/api/player-avatar/00000000-0000-0000-0000-000000000001.png?name=Avatar%20Tester',
       x: 0,
@@ -515,10 +573,14 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       z: 0,
       yaw: 0,
     }]);
+    const tile = window.__synthWorldviewDebug.playerTiles.get(uuid);
+    return {
+      avatarText: tile?.avatar?.textContent ?? '',
+      nameText: tile?.name?.textContent ?? '',
+    };
   });
-  await expect(page.locator('.player-avatar').first()).toBeVisible();
-  await expect(page.locator('.player-avatar').first()).toHaveText(/AT/);
-  await expect(page.locator('.player-name').first()).toHaveText('Avatar Tester');
+  expect(avatarTesterTileState.avatarText).toContain('AT');
+  expect(avatarTesterTileState.nameText).toBe('Avatar Tester');
   const pitchedEyePose = await page.evaluate(() => {
     window.__synthWorldviewDebug.updatePlayersForTest([{
       uuid: '00000000-0000-0000-0000-000000000001',

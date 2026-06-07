@@ -120,7 +120,39 @@ public final class TerrainSampler {
             ground = new TerrainColumn(localX, localZ, height, safeBlockId(chunk, localX, height, localZ),
                     safeFluidId(chunk, localX, height, localZ), topBlockKey, topColor, false);
         }
-        return new SampledColumn(ground, List.of());
+        return new SampledColumn(ground, collectVegetationDetails(chunk, localX, localZ, ground.y() + 1, height));
+    }
+
+    private static List<TerrainDetail> collectVegetationDetails(
+            @Nonnull WorldChunk chunk,
+            int localX,
+            int localZ,
+            int minY,
+            int maxY
+    ) {
+        if (maxY < minY) {
+            return List.of();
+        }
+
+        List<TerrainDetail> details = new ArrayList<>();
+        for (int y = minY; y <= maxY; y++) {
+            int blockId = safeBlockId(chunk, localX, y, localZ);
+            BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+            if (blockType == null || blockId == BlockType.EMPTY_ID) {
+                continue;
+            }
+            String blockKey = blockType.getId();
+            if (!isVegetationDetail(blockKey) || isFluidBlock(blockKey)) {
+                continue;
+            }
+            details.add(new TerrainDetail(
+                    localX,
+                    localZ,
+                    y,
+                    TerrainDetail.Kind.CANOPY_VOXEL,
+                    colorFor(blockType, blockKey, chunk.getTint(localX, localZ))));
+        }
+        return details;
     }
 
     private static boolean isFloatingDetailBlock(@Nonnull WorldChunk chunk, int localX, int localZ, int y) {
@@ -218,7 +250,7 @@ public final class TerrainSampler {
     }
 
     private static boolean isOverlandDetail(String blockKey) {
-        return isTrunkBlock(blockKey);
+        return isTrunkBlock(blockKey) || isVegetationDetail(blockKey);
     }
 
     private static boolean isTrunkBlock(String blockKey) {
@@ -226,6 +258,27 @@ public final class TerrainSampler {
         return key.contains("trunk")
                 || key.contains("log")
                 || key.contains("wood");
+    }
+
+    private static boolean isVegetationDetail(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
+        if (key.contains("grass")
+                || key.contains("flower")
+                || key.contains("mushroom")
+                || key.contains("bush")
+                || key.contains("shrub")) {
+            return false;
+        }
+        return key.contains("leaf")
+                || key.contains("leaves")
+                || key.contains("foliage")
+                || key.contains("needle")
+                || key.contains("branch")
+                || key.contains("bough")
+                || (key.contains("fir") && !isTrunkBlock(key))
+                || (key.contains("pine") && !isTrunkBlock(key))
+                || (key.contains("spruce") && !isTrunkBlock(key))
+                || (key.contains("conifer") && !isTrunkBlock(key));
     }
 
     private static int waterColor(String blockKey) {
