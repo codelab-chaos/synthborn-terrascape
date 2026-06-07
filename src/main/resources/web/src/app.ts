@@ -14,6 +14,7 @@ import {
   coordTargetEl,
   coordChunkEl,
   coordCameraEl,
+  cosmeticBlocksModeInput,
   debugBoundsInput,
   experimentalDetailsStateEl,
   hudEl,
@@ -518,6 +519,7 @@ function applyInitialParams() {
   applyBooleanParam('sun', sunLightingInput);
   applyBooleanParam('shade', treeShadeInput);
   applyBooleanParam('mapTiles', mapTilesInput);
+  applyCosmeticModeParam();
   applyBooleanParam('landMotion', landMotionInput);
   applyBooleanParam('mapTime', mapTimeInput);
   applyNumberParam('terrainLoadSlots', terrainLoadSlotsValueInput);
@@ -550,6 +552,10 @@ function applyStoredInputs() {
   if (typeof storedViewState.shade === 'boolean') treeShadeInput.checked = storedViewState.shade;
   if (typeof storedViewState.mapTime === 'boolean') mapTimeInput.checked = storedViewState.mapTime;
   if (typeof storedViewState.mapTiles === 'boolean') mapTilesInput.checked = storedViewState.mapTiles;
+  if (typeof storedViewState.cosmeticsMode === 'string') applySelectValue(cosmeticBlocksModeInput, storedViewState.cosmeticsMode);
+  if (typeof storedViewState.cosmetics === 'boolean' && !storedViewState.cosmeticsMode) {
+    applySelectValue(cosmeticBlocksModeInput, storedViewState.cosmetics ? 'baked' : 'off');
+  }
   if (typeof storedViewState.landMotion === 'boolean') landMotionInput.checked = storedViewState.landMotion;
   if (typeof storedViewState.renderDetails === 'boolean') setRenderDetailsOpen(storedViewState.renderDetails);
   setPairedControlValue(terrainLoadSlotsInput, terrainLoadSlotsValueInput, storedViewState.terrainLoadSlots);
@@ -602,6 +608,20 @@ function applyBooleanParam(name, input) {
   input.checked = ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
 }
 
+function applyCosmeticModeParam() {
+  const mode = initialParams.get('cosmeticsMode');
+  if (mode === 'off' || mode === 'baked' || mode === 'split') {
+    applySelectValue(cosmeticBlocksModeInput, mode);
+    return;
+  }
+  const legacy = initialParams.get('cosmetics');
+  if (legacy === null) return;
+  applySelectValue(
+    cosmeticBlocksModeInput,
+    ['1', 'true', 'yes', 'on'].includes(legacy.toLowerCase()) ? 'baked' : 'off',
+  );
+}
+
 function syncMobBlocksInputs(checked) {
   mobBlocksInput.checked = checked === true;
   mobBlocksPanelInput.checked = checked === true;
@@ -609,6 +629,20 @@ function syncMobBlocksInputs(checked) {
 
 function mobBlocksEnabled() {
   return mobBlocksInput.checked === true;
+}
+
+function cosmeticBlocksMode() {
+  if (!experimentalDetailsEnabled) return 'off';
+  const value = cosmeticBlocksModeInput?.value;
+  return value === 'baked' || value === 'split' ? value : 'off';
+}
+
+function cosmeticBlocksBaked() {
+  return cosmeticBlocksMode() === 'baked';
+}
+
+function cosmeticBlocksSplit() {
+  return cosmeticBlocksMode() === 'split';
 }
 
 function applyFloatParam(name, ...inputs) {
@@ -901,7 +935,7 @@ async function loadGrid(options = {}) {
 async function loadChunk(world, chunkX, chunkZ, generation) {
   const id = chunkId(world, chunkX, chunkZ);
   if (loadedChunks.has(id)) return true;
-  const url = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
+  const url = terrainUrl(world, chunkX, chunkZ);
   const started = performance.now();
   const mapTilePromise = mapTilesInput.checked
     ? loadMapTilesForKeys(world, [{ chunkX, chunkZ }], { immediate: true })
@@ -912,7 +946,17 @@ async function loadChunk(world, chunkX, chunkZ, generation) {
   if (generation !== loadGeneration) return false;
   if (loadedChunks.has(id)) return true;
   writeTerrainCache(terrainCacheKey(world, chunkX, chunkZ), bytes.slice(0), { source: 'single' });
-  addChunkObject(world, chunkX, chunkZ, gltf.scene);
+  const entry = addChunkObject(world, chunkX, chunkZ, gltf.scene);
+  if (entry && cosmeticBlocksSplit()) {
+    void loadCosmeticOverlayForEntry(entry, generation).catch((error) => {
+      logClientEvent('terrain_cosmetic_overlay_failed', {
+        world,
+        chunkX,
+        chunkZ,
+        error: error?.message ?? error,
+      });
+    });
+  }
   logClientTiming('terrain_single_load', started, { world, chunkX, chunkZ });
   return true;
 }
@@ -953,7 +997,7 @@ async function loadTerrainChunkData(world, key, generation) {
     }
   }
 
-  const url = `/api/terrain/${encodeURIComponent(world)}/${key.chunkX}/${key.chunkZ}.glb`;
+  const url = terrainUrl(world, key.chunkX, key.chunkZ);
   const started = performance.now();
   const bytes = await fetchArrayBufferWithRetry(url);
   const parseStarted = performance.now();
@@ -1013,9 +1057,19 @@ function promoteTerrainResults(queue, generation, streamStats = null) {
     const resultWorld = result.world ?? worldSelect.value;
     const id = chunkId(resultWorld, result.key.chunkX, result.key.chunkZ);
     if (!loadedChunks.has(id)) {
-      addChunkObject(resultWorld, result.key.chunkX, result.key.chunkZ, result.gltf.scene);
+      const entry = addChunkObject(resultWorld, result.key.chunkX, result.key.chunkZ, result.gltf.scene);
       if (result.bytes) {
         writeTerrainCache(terrainCacheKey(resultWorld, result.key.chunkX, result.key.chunkZ), result.bytes.slice(0), { source: 'single' });
+      }
+      if (entry && cosmeticBlocksSplit()) {
+        void loadCosmeticOverlayForEntry(entry, generation).catch((error) => {
+          logClientEvent('terrain_cosmetic_overlay_failed', {
+            world: resultWorld,
+            chunkX: result.key.chunkX,
+            chunkZ: result.key.chunkZ,
+            error: error?.message ?? error,
+          });
+        });
       }
       if (mapTilesInput.checked) {
         void loadMapTilesForKeys(resultWorld, [result.key], { immediate: true });
@@ -1157,6 +1211,48 @@ function addChunkObject(world, chunkX, chunkZ, object) {
   chunkLandMotion.beginLoad(entry, landMotionEnabled());
   loadedChunks.set(id, entry);
   pruneOrphanChunkWrappers(wrapper);
+  return entry;
+}
+
+async function loadCosmeticOverlayForEntry(entry, generation) {
+  if (!cosmeticBlocksSplit() || generation !== loadGeneration) return false;
+  const cacheKey = terrainCosmeticOverlayCacheKey(entry.world, entry.chunkX, entry.chunkZ);
+  let bytes = null;
+  const cached = await readTerrainCache(cacheKey);
+  if (cached?.bytes) {
+    bytes = cached.bytes;
+  } else {
+    bytes = await fetchArrayBufferWithRetry(terrainCosmeticOverlayUrl(entry.world, entry.chunkX, entry.chunkZ));
+  }
+  if (!cosmeticBlocksSplit() || generation !== loadGeneration) return false;
+  const id = chunkId(entry.world, entry.chunkX, entry.chunkZ);
+  const current = loadedChunks.get(id);
+  if (current !== entry) return false;
+  const gltf = await parseGltfBytes(bytes);
+  if (!cosmeticBlocksSplit() || generation !== loadGeneration || loadedChunks.get(id) !== entry) return false;
+  attachCosmeticOverlay(entry, gltf.scene);
+  if (!cached?.bytes) {
+    writeTerrainCache(cacheKey, bytes.slice(0), { source: 'cosmetic-overlay' });
+  }
+  updateMetrics();
+  return true;
+}
+
+function attachCosmeticOverlay(entry, object) {
+  if (entry.cosmeticOverlay) {
+    entry.mesh.remove(entry.cosmeticOverlay);
+    const stats = disposeObjectTree(entry.cosmeticOverlay);
+    disposalStats.geometries += stats.geometries;
+    disposalStats.materials += stats.materials;
+    disposalStats.textures += stats.textures;
+  }
+  object.name = 'cosmetic-overlay';
+  object.position.set(0, 0, 0);
+  object.rotation.set(0, 0, 0);
+  object.scale.set(1, 1, 1);
+  applyLightingToObject(object, currentLightingOptions());
+  entry.mesh.add(object);
+  entry.cosmeticOverlay = object;
 }
 
 async function parseGltfBytes(arrayBuffer) {
@@ -1304,7 +1400,28 @@ function terrainCacheKey(world, chunkX, chunkZ) {
     chunkZ,
     formatVersion: terrainFormatVersion,
     detailsEnabled: experimentalDetailsEnabled,
+    cosmeticsMode: cosmeticBlocksBaked() ? 'baked' : 'plain',
   });
+}
+
+function terrainUrl(world, chunkX, chunkZ) {
+  const base = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
+  return cosmeticBlocksBaked() ? `${base}?cosmetics=1` : base;
+}
+
+function terrainCosmeticOverlayCacheKey(world, chunkX, chunkZ) {
+  return makeTerrainCacheKey({
+    world,
+    chunkX,
+    chunkZ,
+    formatVersion: terrainFormatVersion,
+    detailsEnabled: experimentalDetailsEnabled,
+    cosmeticsMode: 'split-overlay',
+  });
+}
+
+function terrainCosmeticOverlayUrl(world, chunkX, chunkZ) {
+  return `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb?cosmetics=only`;
 }
 
 function applyMapWaterTint() {
@@ -2225,6 +2342,7 @@ function exposeDebugState() {
     pruneOrphanChunkWrappers: () => pruneOrphanChunkWrappers(),
     viewState: () => ({
       mapTiles: mapTilesInput.checked,
+      cosmeticsMode: cosmeticBlocksModeInput.value,
       landMotion: landMotionInput.checked,
       terrainLoadSlots: terrainLoadConcurrency(),
       terrainSpawnFrame: terrainPromotionsPerFrame(),
@@ -2383,6 +2501,7 @@ function saveViewState() {
     shade: treeShadeInput.checked,
     mapTime: mapTimeInput.checked,
     mapTiles: mapTilesInput.checked,
+    cosmeticsMode: cosmeticBlocksModeInput.value,
     landMotion: landMotionInput.checked,
     terrainLoadSlots: terrainLoadConcurrency(),
     terrainSpawnFrame: terrainPromotionsPerFrame(),
@@ -2858,6 +2977,13 @@ mapTimeInput.addEventListener('change', () => {
 });
 mapTilesInput.addEventListener('change', () => {
   updateMapTileLayer();
+  saveViewState();
+});
+cosmeticBlocksModeInput.addEventListener('change', () => {
+  for (const [id, entry] of Array.from(loadedChunks.entries())) {
+    finishDisposeChunk(id, entry);
+  }
+  scheduleControlGridLoad();
   saveViewState();
 });
 landMotionInput.addEventListener('change', saveViewState);

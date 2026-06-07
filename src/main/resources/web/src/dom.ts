@@ -15,6 +15,7 @@ export const playerUpdateRateInput = document.querySelector('#player-update-rate
 export const sunLightingInput = document.querySelector('#sun-lighting');
 export const treeShadeInput = document.querySelector('#tree-shade');
 export const mapTilesInput = document.querySelector('#map-tiles');
+export const cosmeticBlocksModeInput = document.querySelector('#cosmetic-blocks-mode');
 export const landMotionInput = document.querySelector('#land-motion');
 export const terrainLoadSlotsInput = document.querySelector('#terrain-load-slots');
 export const terrainLoadSlotsValueInput = document.querySelector('#terrain-load-slots-value');

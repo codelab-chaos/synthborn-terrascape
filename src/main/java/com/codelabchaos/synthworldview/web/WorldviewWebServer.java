@@ -99,7 +99,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class WorldviewWebServer {
-    private static final String FORMAT_VERSION = "v14";
+    private static final String FORMAT_VERSION = "v15";
     private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
     private static final int MAX_BATCH_CHUNKS = 16;
@@ -669,7 +669,10 @@ public final class WorldviewWebServer {
             return;
         }
 
-        TerrainRequest request = parseTerrainRequest(exchange.getRequestURI().getPath(), experimentalDetailsEnabled);
+        TerrainRequest request = parseTerrainRequest(
+                exchange.getRequestURI().getPath(),
+                exchange.getRequestURI().getRawQuery(),
+                experimentalDetailsEnabled);
         if (request == null) {
             writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/terrain/{world}/{chunkX}/{chunkZ}.glb_or_.map.png\"}");
             return;
@@ -925,10 +928,12 @@ public final class WorldviewWebServer {
         activeGenerations.incrementAndGet();
         world.execute(() -> {
             try {
-                TerrainSnapshot snapshot = TerrainSampler.sample(world, request.chunkX(), request.chunkZ());
+                TerrainSnapshot snapshot = TerrainSampler.sample(world, request.chunkX(), request.chunkZ(), request.hasCosmeticDetails());
                 CompletableFuture.runAsync(() -> {
                     try {
-                        TerrainMesh mesh = TerrainMesher.mesh(snapshot, request.includeDetails());
+                        TerrainMesh mesh = request.cosmeticsOnly()
+                                ? TerrainMesher.cosmeticMesh(snapshot)
+                                : TerrainMesher.mesh(snapshot, request.includeDetails());
                         generatedChunks.incrementAndGet();
                         future.complete(TerrainResult.generated(snapshot, mesh, GltfWriter.writeGlb(mesh)));
                     } catch (Exception e) {
@@ -969,7 +974,9 @@ public final class WorldviewWebServer {
                         request.worldName(),
                         chunk.chunkX(),
                         chunk.chunkZ(),
-                        experimentalDetailsEnabled);
+                        experimentalDetailsEnabled,
+                        false,
+                        false);
                 results.add(new BatchTerrainResult(
                         chunk.chunkX(),
                         chunk.chunkZ(),
@@ -1180,7 +1187,7 @@ public final class WorldviewWebServer {
                 .resolve("terrain")
                 .resolve(FORMAT_VERSION)
                 .resolve(safeWorld)
-                .resolve(request.includeDetails() ? "surface-details" : "surface")
+                .resolve(request.cacheLayer())
                 .resolve(request.chunkX() + "_" + request.chunkZ() + ".glb");
     }
 
@@ -1512,7 +1519,7 @@ public final class WorldviewWebServer {
         return new TerrainMapTileRequest(decode(parts[0]), chunkX, chunkZ);
     }
 
-    private static TerrainRequest parseTerrainRequest(@Nonnull String path, boolean includeDetails) {
+    private static TerrainRequest parseTerrainRequest(@Nonnull String path, @Nullable String rawQuery, boolean includeDetails) {
         String prefix = "/api/terrain/";
         if (!path.startsWith(prefix)) {
             return null;
@@ -1526,7 +1533,10 @@ public final class WorldviewWebServer {
         if (chunkX == null || chunkZ == null) {
             return null;
         }
-        return new TerrainRequest(decode(parts[0]), chunkX, chunkZ, includeDetails);
+        String cosmeticsParam = queryParam(rawQuery, "cosmetics");
+        boolean cosmeticsOnly = includeDetails && "only".equalsIgnoreCase(cosmeticsParam);
+        boolean includeCosmetics = includeDetails && (cosmeticsOnly || queryFlag(rawQuery, "cosmetics"));
+        return new TerrainRequest(decode(parts[0]), chunkX, chunkZ, includeDetails, includeCosmetics, cosmeticsOnly);
     }
 
     private static MapRegionRequest parseMapRegionRequest(@Nonnull String path) {
@@ -3035,7 +3045,14 @@ public final class WorldviewWebServer {
     }
 
     private static boolean queryFlag(@Nonnull HttpExchange exchange, @Nonnull String name, boolean defaultValue) {
-        String query = exchange.getRequestURI().getRawQuery();
+        return queryFlag(exchange.getRequestURI().getRawQuery(), name, defaultValue);
+    }
+
+    private static boolean queryFlag(@Nullable String query, @Nonnull String name) {
+        return queryFlag(query, name, false);
+    }
+
+    private static boolean queryFlag(@Nullable String query, @Nonnull String name, boolean defaultValue) {
         if (query == null || query.isBlank()) {
             return defaultValue;
         }
@@ -3056,6 +3073,22 @@ public final class WorldviewWebServer {
                     || normalized.equals("on");
         }
         return defaultValue;
+    }
+
+    @Nullable
+    private static String queryParam(@Nullable String query, @Nonnull String name) {
+        if (query == null || query.isBlank()) {
+            return null;
+        }
+        for (String pair : query.split("&")) {
+            int equals = pair.indexOf('=');
+            String rawKey = equals >= 0 ? pair.substring(0, equals) : pair;
+            if (!name.equals(decode(rawKey))) {
+                continue;
+            }
+            return equals >= 0 ? decode(pair.substring(equals + 1)) : "true";
+        }
+        return null;
     }
 
     @Nullable
@@ -3161,9 +3194,30 @@ public final class WorldviewWebServer {
     public record MemoryCacheStats(int entries, long bytes) {
     }
 
-    private record TerrainRequest(String worldName, int chunkX, int chunkZ, boolean includeDetails) {
+    private record TerrainRequest(
+            String worldName,
+            int chunkX,
+            int chunkZ,
+            boolean includeDetails,
+            boolean includeCosmetics,
+            boolean cosmeticsOnly
+    ) {
         String key() {
-            return worldName + ":" + chunkX + ":" + chunkZ + ":" + includeDetails;
+            return worldName + ":" + chunkX + ":" + chunkZ + ":" + includeDetails + ":" + includeCosmetics + ":" + cosmeticsOnly;
+        }
+
+        boolean hasCosmeticDetails() {
+            return includeCosmetics || cosmeticsOnly;
+        }
+
+        String cacheLayer() {
+            if (cosmeticsOnly) {
+                return "surface-cosmetics-only";
+            }
+            if (includeDetails) {
+                return includeCosmetics ? "surface-details-cosmetics" : "surface-details";
+            }
+            return "surface";
         }
     }
 

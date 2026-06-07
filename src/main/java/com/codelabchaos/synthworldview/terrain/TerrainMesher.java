@@ -30,21 +30,38 @@ public final class TerrainMesher {
             addSideIfLower(builder, snapshot, column, 1, 0);
         }
         if (includeDetail) {
-            addDetails(detail, snapshot.details());
+            addDetails(detail, snapshot.details(), TerrainDetail.Kind.CANOPY_VOXEL, TerrainDetail.Kind.COSMETIC_VOXEL);
         }
         return new TerrainMesh(opaque.toPart(), water.toPart(), detail.toPart());
     }
 
-    private static void addDetails(MeshBuilder builder, TerrainDetail[] details) {
+    public static TerrainMesh cosmeticMesh(@Nonnull TerrainSnapshot snapshot) {
+        MeshBuilder opaque = new MeshBuilder("opaque");
+        MeshBuilder water = new MeshBuilder("water");
+        MeshBuilder detail = new MeshBuilder("detail");
+        addDetails(detail, snapshot.details(), TerrainDetail.Kind.COSMETIC_VOXEL);
+        return new TerrainMesh(opaque.toPart(), water.toPart(), detail.toPart());
+    }
+
+    private static void addDetails(MeshBuilder builder, TerrainDetail[] details, TerrainDetail.Kind... includedKinds) {
         Map<DetailKey, TerrainDetail> canopy = new HashMap<>();
         for (TerrainDetail detail : details) {
-            if (detail.kind() == TerrainDetail.Kind.CANOPY_VOXEL) {
+            if (includesKind(detail.kind(), includedKinds)) {
                 canopy.put(new DetailKey(detail.localX(), detail.y(), detail.localZ()), detail);
             }
         }
         for (TerrainDetail detail : canopy.values()) {
             addExposedDetail(builder, detail, canopy);
         }
+    }
+
+    private static boolean includesKind(TerrainDetail.Kind kind, TerrainDetail.Kind[] includedKinds) {
+        for (TerrainDetail.Kind includedKind : includedKinds) {
+            if (kind == includedKind) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void addExposedDetail(MeshBuilder builder, TerrainDetail detail, Map<DetailKey, TerrainDetail> canopy) {

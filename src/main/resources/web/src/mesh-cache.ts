@@ -8,9 +8,10 @@ let dbPromise = null;
 const mapTileWriteQueue = new Map();
 let mapTileWriteWorker = null;
 
-export function makeTerrainCacheKey({ world, chunkX, chunkZ, formatVersion, detailsEnabled }) {
+export function makeTerrainCacheKey({ world, chunkX, chunkZ, formatVersion, detailsEnabled, cosmeticsMode }) {
   const details = detailsEnabled ? 'details' : 'surface';
-  return `${formatVersion}:${details}:${world}:${chunkX}:${chunkZ}`;
+  const cosmetics = cosmeticsMode || 'plain';
+  return `${formatVersion}:${details}:${cosmetics}:${world}:${chunkX}:${chunkZ}`;
 }
 
 export async function readTerrainCache(key) {

@@ -8,6 +8,7 @@ public record TerrainDetail(
         int rgb
 ) {
     public enum Kind {
-        CANOPY_VOXEL
+        CANOPY_VOXEL,
+        COSMETIC_VOXEL
     }
 }
