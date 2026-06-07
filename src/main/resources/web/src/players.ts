@@ -10,6 +10,7 @@ const MOB_HEADSHOT_BLOCK_HEIGHT = 2.3;
 const MOB_HEADSHOT_BLOCK_MIN_SIZE = 0.2;
 const MOB_HEADSHOT_BLOCK_MAX_SIZE = 3.3;
 const MOB_HEADSHOT_BLOCK_PIXEL_PADDING = 1;
+const MOB_HEADSHOT_IMAGE_TINT = 0xffffff;
 const PLAYER_CARD_COLOR = new THREE.Color(0x5ef1b5);
 const fallbackMobHeadshotGeometry = createMobHeadshotGeometry({ width: 1, height: 1 });
 const mobHeadshotTextureLoader = new THREE.TextureLoader();
@@ -271,7 +272,7 @@ function mobHeadshotResource(mob) {
         entry.geometry = createMobHeadshotGeometry(cropBounds, imageWidth, imageHeight);
         const imageMaterial = new THREE.MeshBasicMaterial({
           map: texture,
-          color: 0x4f5f5b,
+          color: MOB_HEADSHOT_IMAGE_TINT,
           transparent: true,
           opacity: 1,
           depthWrite: true,

@@ -7,14 +7,19 @@ public record TerrainDetail(
         Kind kind,
         int rgb,
         Shape shape,
-        int rotationIndex
+        int rotationIndex,
+        String blockKey
 ) {
     public TerrainDetail(int localX, int localZ, int y, Kind kind, int rgb) {
-        this(localX, localZ, y, kind, rgb, defaultShape(kind), 0);
+        this(localX, localZ, y, kind, rgb, defaultShape(kind), 0, "");
     }
 
     public TerrainDetail(int localX, int localZ, int y, Kind kind, int rgb, Shape shape) {
-        this(localX, localZ, y, kind, rgb, shape, 0);
+        this(localX, localZ, y, kind, rgb, shape, 0, "");
+    }
+
+    public TerrainDetail(int localX, int localZ, int y, Kind kind, int rgb, Shape shape, int rotationIndex) {
+        this(localX, localZ, y, kind, rgb, shape, rotationIndex, "");
     }
 
     private static Shape defaultShape(Kind kind) {
@@ -41,6 +46,8 @@ public record TerrainDetail(
         SMALL_FOLIAGE,
         TOP_SLAB,
         THIN_PANEL,
-        HANGING_STRIP
+        WIDE_PANEL,
+        HANGING_STRIP,
+        RAIL
     }
 }

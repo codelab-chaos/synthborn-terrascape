@@ -118,6 +118,12 @@ const FLY_MAX_Y = 1200;
 const MOB_CARD_MIN_HEIGHT = 3.4;
 const MOB_CARD_PLAYER_HEIGHT = 4.8;
 const MOB_CARD_TREE_TOP_HEIGHT = 24;
+const MOB_MARKER_FADE_NEAR_DISTANCE = 140;
+const MOB_MARKER_FADE_FAR_DISTANCE = 980;
+const MOB_MARKER_CARD_MIN_OPACITY = 0.34;
+const MOB_MARKER_POINTER_MIN_OPACITY = 0.18;
+const MOB_MARKER_GLOW_MIN_OPACITY = 0.1;
+const MOB_MARKER_DISTANCE_OPACITY_LERP = 8;
 const NOON_LIGHTING_TIME = {
     dayProgress: 0.5,
     sunlightFactor: 1,
@@ -2605,6 +2611,7 @@ function updatePlayerMarkers(deltaSeconds) {
 }
 function updateMobMarkers(deltaSeconds) {
     const alpha = 1 - Math.exp(-deltaSeconds * 5);
+    const opacityAlpha = 1 - Math.exp(-deltaSeconds * MOB_MARKER_DISTANCE_OPACITY_LERP);
     const playerHeightSource = playerMarkers.get(viewPlayerUuid) ?? playerMarkers.get(followPlayerUuid);
     const desiredWorldY = playerHeightSource
         ? playerHeightSource.position.y + MOB_CARD_PLAYER_HEIGHT
@@ -2632,6 +2639,45 @@ function updateMobMarkers(deltaSeconds) {
         if (badge && updateBillboards) {
             badge.quaternion.copy(camera.quaternion);
         }
+        applyMobMarkerDistanceOpacity(marker, opacityAlpha);
+    }
+}
+function applyMobMarkerDistanceOpacity(marker, alpha = 1) {
+    const distance = marker.position.distanceTo(camera.position);
+    const cardOpacity = distanceOpacity(distance, MOB_MARKER_CARD_MIN_OPACITY);
+    const pointerOpacity = distanceOpacity(distance, MOB_MARKER_POINTER_MIN_OPACITY);
+    const glowOpacity = distanceOpacity(distance, MOB_MARKER_GLOW_MIN_OPACITY);
+    const current = Number.isFinite(marker.userData.distanceOpacity)
+        ? marker.userData.distanceOpacity
+        : cardOpacity;
+    const next = current + (cardOpacity - current) * (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(alpha, 0, 1);
+    marker.userData.distanceOpacity = next;
+    applyMaterialOpacity(marker.userData.badge, next);
+    applyMaterialOpacity(marker.userData.pointer, pointerOpacity);
+    applyMaterialOpacity(marker.getObjectByName('mob-ground-glow'), glowOpacity);
+}
+function distanceOpacity(distance, minOpacity) {
+    const t = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)((distance - MOB_MARKER_FADE_NEAR_DISTANCE) / (MOB_MARKER_FADE_FAR_DISTANCE - MOB_MARKER_FADE_NEAR_DISTANCE), 0, 1);
+    const smooth = t * t * (3 - 2 * t);
+    return 1 - smooth * (1 - minOpacity);
+}
+function applyMaterialOpacity(object, opacityScale) {
+    if (!object?.material)
+        return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+        if (!material || material.userData?.worldviewShared === true)
+            continue;
+        const baseOpacity = Number.isFinite(material.userData.worldviewBaseOpacity)
+            ? material.userData.worldviewBaseOpacity
+            : material.opacity;
+        material.userData.worldviewBaseOpacity = baseOpacity;
+        const nextOpacity = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(baseOpacity * opacityScale, 0, 1);
+        if (Math.abs((material.opacity ?? 1) - nextOpacity) < 0.003)
+            continue;
+        material.opacity = nextOpacity;
+        material.transparent = true;
+        material.needsUpdate = true;
     }
 }
 function updatePlayerCameraMode(deltaSeconds) {
@@ -5909,6 +5955,7 @@ const MOB_HEADSHOT_BLOCK_HEIGHT = 2.3;
 const MOB_HEADSHOT_BLOCK_MIN_SIZE = 0.2;
 const MOB_HEADSHOT_BLOCK_MAX_SIZE = 3.3;
 const MOB_HEADSHOT_BLOCK_PIXEL_PADDING = 1;
+const MOB_HEADSHOT_IMAGE_TINT = 0xffffff;
 const PLAYER_CARD_COLOR = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x5ef1b5);
 const fallbackMobHeadshotGeometry = createMobHeadshotGeometry({ width: 1, height: 1 });
 const mobHeadshotTextureLoader = new three__WEBPACK_IMPORTED_MODULE_0__.TextureLoader();
@@ -6122,7 +6169,7 @@ function mobHeadshotResource(mob) {
             entry.geometry = createMobHeadshotGeometry(cropBounds, imageWidth, imageHeight);
             const imageMaterial = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
                 map: texture,
-                color: 0x4f5f5b,
+                color: MOB_HEADSHOT_IMAGE_TINT,
                 transparent: true,
                 opacity: 1,
                 depthWrite: true,
