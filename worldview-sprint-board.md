@@ -822,24 +822,18 @@ Validation:
 
 Status: Experimental
 
-Note: the first tree-canopy proxy pass was useful enough to validate the idea, but it is
-now parked. The active experiment is leaf-column voxel detail: when a top-down column
-hits leaves, preserve the contiguous leaf run as detail voxels, then continue downward
-to recover the stable ground surface. Keep it available for visual exploration, but do
-not spend MVP time tuning canopy density or exact block classification unless it becomes
-product-critical.
-The feature is off by default and only runs when the server setting is enabled with
-`synthworldview.experimental.details=true` or
-`SYNTH_WORLDVIEW_EXPERIMENTAL_DETAILS=true`. The viewer only reports the server state;
-clients cannot enable this generation mode per request.
+Note: the first tree-canopy proxy pass and the later leaf-column voxel detail pass are
+both parked. Keep terrain on the conservative ground/water heightfield path for now.
+Do not emit leaf/bush canopy voxels or client-selectable alternate vegetation rendering
+until this approach is revisited.
 
 Candidate stories:
 
 - Greedy merge same-height/material top quads.
 - Scan bounded exposed faces below heightmap.
 - Add a config feature flag for enhanced structure mesh generation.
-- Classify block roles for ground, foliage, trunk, water, structure, and unknown blocks.
-- Capture overland vegetation as bounded leaf-column voxels.
+- Classify block roles for ground, trunk, water, structure, and unknown blocks.
+- Revisit overland vegetation only after the MVP terrain path is stable.
 - Validate whether a bounded scan around heightmap tops can capture trees acceptably
   without exploding triangle counts.
 - Add separate water primitives with solid and transparent display modes.
@@ -853,15 +847,15 @@ Status: Closed / Experimental
 
 Acceptance:
 
-- Block keys are categorized into at least `ground`, `foliage`, `trunk`, `water`,
-  `structure`, and `unknown`.
+- Block keys are categorized into at least `ground`, `trunk`, `water`, `structure`,
+  and `unknown`.
 - Classification is reported in `/worldview sample` or scale-test output.
 - Meshing policy can choose different geometry budgets per category.
 
 Validation:
 
-- `TerrainSampler` classifies foliage-like block keys (`leaf`, `leaves`, `foliage`,
-  `bush`) and trunk-like block keys (`trunk`, `log`, `wood`) as overland detail.
+- `TerrainSampler` classifies trunk-like block keys (`trunk`, `log`, `wood`) as
+  overland detail. Foliage/bush detail is parked.
 - When overland detail is the top block, the sampler scans down up to `18` blocks to
   recover a ground terrain surface instead of turning the canopy into a terrain column.
 - Unknown block count remains a follow-up when a broader block-role report exists.
@@ -933,31 +927,20 @@ Validation:
 
 #### Story 7.3a - Fill First Canopy Leaf Runs As Detail Voxels
 
-Status: Closed / Experimental
+Status: Parked / Backed Out
 
 Acceptance:
 
-- Experimental sampler treats leaves similarly to the existing water pass: when a
-  top-down column hits leaves, record the contiguous leaf run as detail voxels, but
-  continue scanning downward.
-- Terrain heightfield uses the first stable ground block found below canopy, not the
-  leaf height.
-- Output keeps canopy as a separate detail primitive/material so it can be disabled or
-  tuned independently.
-- Experimental mode remains server-gated and off by default.
+- Backed-out story retained for history only.
+- Current terrain generation does not emit leaf/bush canopy voxels.
+- Current viewer does not expose a foliage mode or alternate vegetation renderer.
 
 Validation:
 
-- `TerrainSampler` records the real leaf and wood blocks hit by the downward column ray,
-  then emits those exact detail voxels. If the ray never resolves into ground, captured
-  tree detail is still emitted as floating detail instead of becoming a terrain column.
-- The overland downward scan currently allows up to `64` blocks below the heightmap so
-  tall tree canopies are not clipped by the scan ceiling.
-- `TerrainMesher` emits canopy detail as colored voxels in the `worldview-detail`
-  primitive, culling hidden faces between adjacent leaf voxels.
-- Terrain cache format was bumped to `v8` so terrain GLBs cannot reuse older
-  proxy-detail, giant-canopy-column, or unculled leaf-voxel cache entries.
-- Confirm default non-experimental terrain output remains unchanged.
+- Backed out for now. `TerrainSampler` no longer emits leaf/bush canopy voxels, and the
+  viewer no longer has a foliage mode selector.
+- Keep the generic `worldview-detail` primitive infrastructure available for future
+  non-foliage experiments.
 
 #### Story 7.4 - Render Water As Solid Or Transparent
 

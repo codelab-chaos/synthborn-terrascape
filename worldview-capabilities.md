@@ -72,13 +72,11 @@ above-ground structures while keeping the conservative heightfield mesh as the d
 safe mode. The enhanced mode should be bounded by scan depth, block classification, and
 mesh budget settings.
 
-### [x] Experimental Tree Detail Can Fill Leaf Runs As Voxels
+### [ ] Experimental Tree Detail Is Parked
 
-Tree handling treats leaves and floating canopy-like top blocks similarly to water: when
-a column ray hits tree detail, it records that top run, keeps scanning downward until
-stable ground, and keeps the terrain mesh ground-based. Experimental mode can emit the
-top run as separate colored voxel detail in `worldview-detail`; with experimental mode
-off, the tree top is omitted instead of becoming a giant terrain column.
+Tree and leaf detail experiments are parked for now. Terrain generation should keep the
+conservative ground/water heightfield path active and avoid emitting alternate foliage
+render geometry until the vegetation approach is revisited.
 
 ### [ ] Worldview Can Invalidate Dirty Chunks
 
@@ -294,31 +292,19 @@ the viewer exposes a `Water` selector with `Transparent`, `Solid`, and `Hidden` 
 Nearby validation did not find water in the `-5..5` chunk grid, so visual validation
 against a known shoreline remains a follow-up.
 
-### [x] Worldview Can Show Experimental Overland Vegetation Detail
+### [x] Worldview Keeps Experimental Detail Generation Server-Gated
 
-The sampler separates foliage-like and floating canopy-like top blocks from the terrain
-heightfield, records the top run in each column, scans down to recover nearby ground,
-and emits leaf voxels as a separate `worldview-detail` GLB material when experimental
-details are enabled. The sampler does not invent canopy geometry: it records the leaf
-and wood blocks encountered on the downward ray, then emits those exact voxels as detail.
-If the ray never resolves into ground, the captured tree detail is still emitted as
-floating detail instead of becoming a terrain-height column. The mesher culls hidden
-faces between adjacent detail voxels. The earlier cheap canopy/trunk proxy experiment is
-parked in favor of this more literal column-detail model.
-
-Current caveat: this is explicitly experimental. The leaf-voxel approach is not a
-polished vegetation renderer and should not block MVP progress on visual tuning. It is
-off by default and can only be enabled as a server setting because it changes mesh
-generation and cache identity:
-`synthworldview.experimental.details=true` or `SYNTH_WORLDVIEW_EXPERIMENTAL_DETAILS=true`.
-The viewer only displays whether the server has the experiment enabled.
+Experimental detail generation remains server-gated and off by default. The current
+viewer does not expose a foliage mode or client-side alternate vegetation renderer, and
+the sampler does not emit leaf/bush canopy voxels. The generic detail mesh
+infrastructure remains available for future experiments that need a separate
+`worldview-detail` primitive.
 
 ### [x] Worldview Can Classify Terrain Versus Overland Detail Blocks
 
-The first block-role policy distinguishes ground-like terrain from foliage and trunk
-detail using conservative block-key matching. Water remains separately classified and
-meshed through the existing water path. Broader categories such as structure and unknown
-reporting remain backlog work.
+The current block-role policy keeps water separately classified and treats trunk-like
+blocks as overland detail for ground recovery. Foliage and bush alternate rendering is
+parked. Broader categories such as structure and unknown reporting remain backlog work.
 
 ### [x] Viewer Sees Online Players In The 3D Scene
 

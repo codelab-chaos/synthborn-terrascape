@@ -1,6 +1,7 @@
 package com.codelabchaos.synthworldview.web;
 
 import com.codelabchaos.synthworldview.SynthWorldviewPlugin;
+import com.codelabchaos.synthworldview.PlayerLookTracker;
 import com.codelabchaos.synthworldview.terrain.GltfWriter;
 import com.codelabchaos.synthworldview.terrain.TerrainMesh;
 import com.codelabchaos.synthworldview.terrain.TerrainMesher;
@@ -114,6 +115,13 @@ public final class WorldviewWebServer {
     private static final String MAP_REGION_CACHE_CONTROL = "public, max-age=31536000, immutable";
     private static final Duration MAP_REGION_TIMEOUT = Duration.ofSeconds(60);
     private static final int MAX_CLIENT_LOG_BYTES = 16 * 1024;
+    private static final String[] PERF_CLIENT_LOG_TYPES = {
+            "\"type\":\"frame_hitch\"",
+            "\"type\":\"grid_load\"",
+            "\"type\":\"terrain_single_load\"",
+            "\"type\":\"map_tile_single_load\"",
+            "\"type\":\"map_tiles_stream\""
+    };
     private static final int STATIC_HTTP_THREADS = 2;
     private static final int API_HTTP_THREADS = 8;
     private static final int MAX_MOB_SNAPSHOTS = 256;
@@ -309,10 +317,26 @@ public final class WorldviewWebServer {
         if (message.length() > MAX_CLIENT_LOG_BYTES) {
             message = message.substring(0, MAX_CLIENT_LOG_BYTES);
         }
+        if (isUnrequestedPerfClientLog(message)) {
+            writeJson(exchange, 200, "{\"ok\":true}");
+            return;
+        }
         if (!message.isBlank()) {
             plugin.getLogger().at(Level.INFO).log("client-log " + message);
         }
         writeJson(exchange, 200, "{\"ok\":true}");
+    }
+
+    private boolean isUnrequestedPerfClientLog(String message) {
+        if (message.contains("\"perfTelemetry\":true")) {
+            return false;
+        }
+        for (String eventType : PERF_CLIENT_LOG_TYPES) {
+            if (message.contains(eventType)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void handleNpcIndex(@Nonnull HttpExchange exchange) throws IOException {
@@ -1576,7 +1600,14 @@ public final class WorldviewWebServer {
                     continue;
                 }
                 Vector3d position = transform.getPosition();
-                Rotation3f rotation = transform.getRotation();
+                Rotation3f transformRotation = transform.getRotation();
+                PlayerLookTracker tracker = SynthWorldviewPlugin.get() == null
+                        ? null
+                        : SynthWorldviewPlugin.get().playerLookTracker();
+                PlayerLookTracker.Snapshot look = tracker == null
+                        ? null
+                        : tracker.snapshot(playerRef, transformRotation);
+                Rotation3f rotation = look == null ? transformRotation : look.rotation();
                 PlayerSkinSnapshot skin = PlayerSkinSnapshot.from(playerRef);
                 players.add(new PlayerSnapshot(
                         playerRef.getUuid().toString(),
@@ -1585,6 +1616,7 @@ public final class WorldviewWebServer {
                         position.y,
                         position.z,
                         rotation == null ? 0.0f : rotation.yaw(),
+                        rotation == null ? 0.0f : rotation.pitch(),
                         skin));
             } catch (Exception ignored) {
                 // Player may disconnect while the world-thread snapshot is being copied.
@@ -3171,7 +3203,7 @@ public final class WorldviewWebServer {
     private record ChunkCoord(int chunkX, int chunkZ) {
     }
 
-    private record PlayerSnapshot(String uuid, String name, double x, double y, double z, float yaw,
+    private record PlayerSnapshot(String uuid, String name, double x, double y, double z, float yaw, float pitch,
                                   @Nullable PlayerSkinSnapshot skin) {
         String toJson() {
             return "{\"uuid\":\"" + escapeJson(uuid) + "\""
@@ -3182,6 +3214,7 @@ public final class WorldviewWebServer {
                     + ",\"y\":" + y
                     + ",\"z\":" + z
                     + ",\"yaw\":" + yaw
+                    + ",\"pitch\":" + pitch
                     + "}";
         }
 

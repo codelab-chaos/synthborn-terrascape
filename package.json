@@ -12,6 +12,7 @@
     "perf:wet": "node tools/run-worldview-perf.js --wet",
     "perf:smoke": "node tools/run-worldview-perf.js --quick --dry --runs 1",
     "perf:radius": "node tools/run-worldview-perf.js --extensive --config tools/perf-suite-radius-sweep.json --dry --runs 1",
+    "perf:mob": "node tools/run-worldview-mob-view-perf.js",
     "perf:extensive": "node tools/run-worldview-perf.js --extensive --runs 2",
     "perf:extensive:wet": "node tools/run-worldview-perf.js --extensive --wet --runs 2",
     "perf:postdeploy": "node tools/run-worldview-perf.js --post-deploy --both",

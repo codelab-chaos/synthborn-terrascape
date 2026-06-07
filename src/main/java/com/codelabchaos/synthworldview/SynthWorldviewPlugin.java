@@ -21,6 +21,7 @@ public class SynthWorldviewPlugin extends JavaPlugin {
     private Instant startedAt;
     private WorldviewWebServer webServer;
     private NpcRoleIndex npcRoleIndex;
+    private PlayerLookTracker playerLookTracker;
     private boolean experimentalDetailsEnabled;
 
     public SynthWorldviewPlugin(@Nonnull JavaPluginInit init) {
@@ -55,6 +56,10 @@ public class SynthWorldviewPlugin extends JavaPlugin {
         return npcRoleIndex;
     }
 
+    public PlayerLookTracker playerLookTracker() {
+        return playerLookTracker;
+    }
+
     public boolean experimentalDetailsEnabled() {
         return experimentalDetailsEnabled;
     }
@@ -64,6 +69,8 @@ public class SynthWorldviewPlugin extends JavaPlugin {
         instance = this;
         npcRoleIndex = new NpcRoleIndex();
         npcRoleIndex.subscribe(getEventRegistry());
+        playerLookTracker = new PlayerLookTracker(this);
+        playerLookTracker.register();
         getCommandRegistry().registerCommand(new WorldviewCommand(this));
         getLogger().at(Level.INFO).log("SynthWorldview setup complete.");
     }
@@ -96,6 +103,10 @@ public class SynthWorldviewPlugin extends JavaPlugin {
         if (webServer != null) {
             webServer.stop();
             webServer = null;
+        }
+        if (playerLookTracker != null) {
+            playerLookTracker.shutdown();
+            playerLookTracker = null;
         }
         npcRoleIndex = null;
         startedAt = null;

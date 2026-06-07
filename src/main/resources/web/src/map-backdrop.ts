@@ -7,15 +7,15 @@ import { chunkId } from './utils.js';
 
 const CHUNK_SIZE = 32;
 /** Map tiles extend this many chunks beyond the voxel terrain square on each side. */
-export const MAP_HORIZON_MARGIN = 40;
+export const MAP_HORIZON_MARGIN = 8;
 const SKY_RGB = { r: 23, g: 52, b: 84 };
 const RISE_START_Y = -48;
 const RISE_MS = 140;
 const RISE_FAILSAFE_MULTIPLIER = 1.5;
-const PROMOTE_PER_FRAME = 512;
-const TILE_LOAD_CONCURRENCY = 6;
-const IMMEDIATE_TILE_LOAD_LIMIT = 256;
-const TILE_QUEUE_SLICE_SIZE = 96;
+const PROMOTE_PER_FRAME = 96;
+const TILE_LOAD_CONCURRENCY = 4;
+const IMMEDIATE_TILE_LOAD_LIMIT = 96;
+const TILE_QUEUE_SLICE_SIZE = 48;
 
 type RisingTile = {
   mesh: THREE.Mesh;
@@ -167,7 +167,6 @@ function createTileMesh(texture: THREE.Texture, chunkX: number, chunkZ: number) 
   applyTileHeight(mesh, chunkX, chunkZ);
   mesh.name = `map-tile:${chunkX}:${chunkZ}`;
   mesh.renderOrder = 0;
-  mesh.frustumCulled = false;
   return mesh;
 }
 

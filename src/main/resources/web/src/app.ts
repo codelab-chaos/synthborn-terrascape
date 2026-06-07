@@ -30,6 +30,8 @@ import {
   metricDisposedEl,
   metricMobsEl,
   metricCenterEl,
+  mobBlocksInput,
+  mobBlocksPanelInput,
   playersEl,
   playerUpdateRateInput,
   radiusDiameterEl,
@@ -49,6 +51,12 @@ import {
   skySunEl,
   skyMoonEl,
   skyStarsEl,
+  terrainLoadSlotsInput,
+  terrainLoadSlotsValueInput,
+  terrainSpawnBudgetInput,
+  terrainSpawnBudgetValueInput,
+  terrainSpawnFrameInput,
+  terrainSpawnFrameValueInput,
   treeShadeInput,
   waterModeInput,
   worldSelect,
@@ -115,9 +123,10 @@ const EMPTY_GRID_CHUNK_SNAP = 32;
 const EMPTY_GRID_Y = 96;
 const AUTO_STREAM_DEBOUNCE_MS = 250;
 const AUTO_STREAM_RETAIN_MARGIN = 1;
-const TERRAIN_LOAD_CONCURRENCY = 4;
-const TERRAIN_PROMOTION_BUDGET_MS = 4;
-const TERRAIN_PROMOTIONS_PER_FRAME = 2;
+const DEFAULT_TERRAIN_LOAD_CONCURRENCY = 4;
+const DEFAULT_TERRAIN_PROMOTION_BUDGET_MS = 4;
+const DEFAULT_TERRAIN_PROMOTIONS_PER_FRAME = 2;
+const TERRAIN_STREAM_PROGRESS_LOG_MS = 1000;
 const METRICS_UPDATE_INTERVAL_MS = 250;
 
 function yieldToMain() {
@@ -134,9 +143,13 @@ const FOCUSED_PLAYER_POLL_MIN_MS = 1000;
 const EMPTY_PLAYER_POLL_MS = 15000;
 const HIDDEN_PLAYER_POLL_MS = 30000;
 const PLAYER_POLL_ERROR_MS = 10000;
+const PLAYER_EYE_ROTATION_LERP = 14;
 const MOB_POLL_MS = 5000;
-const EMPTY_MOB_POLL_MS = 12000;
+const EMPTY_MOB_POLL_MS = 30000;
 const MOB_POLL_ERROR_MS = 15000;
+const MOB_MARKER_FRAME_BUDGET_MS = 3;
+const MOB_MARKER_UPSERTS_PER_FRAME = 4;
+const MOB_MARKER_REMOVALS_PER_FRAME = 96;
 const ENTITY_STREAM_FALLBACK_DELAY_MS = 4000;
 const MAP_TIME_ACTIVE_POLL_MS = 5000;
 const MAP_TIME_VISIBLE_POLL_MS = 10000;
@@ -270,6 +283,11 @@ let timePollTimer = null;
 let viewPlayerUuid = null;
 let followPlayerUuid = null;
 const cameraModeStack = [];
+const playerEyeState = {
+  uuid: null,
+  yawRad: 0,
+  pitchRad: 0,
+};
 let isRefreshingPlayers = false;
 let lastPlayerCount = 0;
 let lastPlayerPollFailed = false;
@@ -278,11 +296,17 @@ let lastMobCount = 0;
 let lastMobPollFailed = false;
 let entityStreamConnected = false;
 let lastMobSourceStats = null;
+let pendingMobMarkerUpdate = null;
+let mobMarkerUpdateScheduled = false;
+let mobMarkerUpdateGeneration = 0;
 
 const tempPlayerTarget = new THREE.Vector3();
 const tempMobTarget = new THREE.Vector3();
+const lastMobBillboardQuaternion = new THREE.Quaternion();
+let hasMobBillboardQuaternion = false;
 const tempPlayerCamera = new THREE.Vector3();
 const tempPlayerLook = new THREE.Vector3();
+const tempPlayerForward = new THREE.Vector3();
 const tempPlayerCardQuaternion = new THREE.Quaternion();
 const tempPlayerParentQuaternion = new THREE.Quaternion();
 const tempFollowDelta = new THREE.Vector3();
@@ -311,6 +335,100 @@ function mapTileRetainRadius(terrainRadius, streamLoad = false) {
   return streamLoad
     ? terrainRadius + AUTO_STREAM_RETAIN_MARGIN + MAP_HORIZON_MARGIN
     : terrainRadius + MAP_HORIZON_MARGIN;
+}
+
+function terrainLoadConcurrency() {
+  return terrainTuningValue(terrainLoadSlotsValueInput, DEFAULT_TERRAIN_LOAD_CONCURRENCY);
+}
+
+function terrainPromotionBudgetMs() {
+  return terrainTuningValue(terrainSpawnBudgetValueInput, DEFAULT_TERRAIN_PROMOTION_BUDGET_MS);
+}
+
+function terrainPromotionsPerFrame() {
+  return terrainTuningValue(terrainSpawnFrameValueInput, DEFAULT_TERRAIN_PROMOTIONS_PER_FRAME);
+}
+
+function terrainTuningValue(input, fallback) {
+  const parsed = Number.parseInt(input?.value, 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  const min = Number.parseInt(input.min, 10);
+  const max = Number.parseInt(input.max, 10);
+  return clamp(parsed, Number.isFinite(min) ? min : 1, Number.isFinite(max) ? max : 64);
+}
+
+function createTerrainStreamStats(world, centerX, centerZ, radius, needed, alreadyLoaded, missing, startedAt) {
+  return {
+    world,
+    centerX,
+    centerZ,
+    radius,
+    needed,
+    alreadyLoaded,
+    missing,
+    startedAt,
+    lastProgressLogAt: startedAt,
+    requested: 0,
+    dataReady: 0,
+    promoted: alreadyLoaded,
+    failed: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    networkChunks: 0,
+    maxQueue: 0,
+    maxReadyWaitMs: 0,
+    totalReadyWaitMs: 0,
+  };
+}
+
+function terrainStreamSnapshot(stats, queueLength, inFlightCount, final = false) {
+  const elapsedMs = Math.max(1, performance.now() - stats.startedAt);
+  const spawnedMissing = Math.max(0, stats.promoted - stats.alreadyLoaded);
+  const avgReadyWaitMs = spawnedMissing > 0 ? stats.totalReadyWaitMs / spawnedMissing : 0;
+  return {
+    world: stats.world,
+    centerX: stats.centerX,
+    centerZ: stats.centerZ,
+    radius: stats.radius,
+    needed: stats.needed,
+    alreadyLoaded: stats.alreadyLoaded,
+    missing: stats.missing,
+    requested: stats.requested,
+    dataReady: stats.dataReady,
+    promoted: stats.promoted,
+    spawnedMissing,
+    failed: stats.failed,
+    queued: queueLength,
+    inFlight: inFlightCount,
+    cacheHits: stats.cacheHits,
+    cacheMisses: stats.cacheMisses,
+    networkChunks: stats.networkChunks,
+    maxQueue: stats.maxQueue,
+    maxReadyWaitMs: Math.round(stats.maxReadyWaitMs),
+    avgReadyWaitMs: Math.round(avgReadyWaitMs),
+    requestedPerSec: Math.round((stats.requested * 1000 / elapsedMs) * 10) / 10,
+    readyPerSec: Math.round((stats.dataReady * 1000 / elapsedMs) * 10) / 10,
+    spawnPerSec: Math.round((spawnedMissing * 1000 / elapsedMs) * 10) / 10,
+    loadSlots: terrainLoadConcurrency(),
+    spawnFrame: terrainPromotionsPerFrame(),
+    spawnBudgetMs: terrainPromotionBudgetMs(),
+    elapsedMs: Math.round(elapsedMs),
+    final,
+  };
+}
+
+function maybeLogTerrainStreamProgress(stats, queueLength, inFlightCount, force = false, final = false) {
+  const now = performance.now();
+  if (!force && now - stats.lastProgressLogAt < TERRAIN_STREAM_PROGRESS_LOG_MS) {
+    return;
+  }
+  stats.lastProgressLogAt = now;
+  logClientEvent(
+    final ? 'terrain_stream_summary' : 'terrain_stream_progress',
+    terrainStreamSnapshot(stats, queueLength, inFlightCount, final),
+  );
 }
 
 function updateMetrics() {
@@ -395,11 +513,19 @@ function applyInitialParams() {
   applyBooleanParam('bounds', debugBoundsInput);
   applyBooleanParam('players', showPlayersInput);
   applyBooleanParam('mobs', showMobsInput);
+  applyBooleanParam('mobBlocks', mobBlocksInput);
+  syncMobBlocksInputs(mobBlocksInput.checked);
   applyBooleanParam('sun', sunLightingInput);
   applyBooleanParam('shade', treeShadeInput);
   applyBooleanParam('mapTiles', mapTilesInput);
   applyBooleanParam('landMotion', landMotionInput);
   applyBooleanParam('mapTime', mapTimeInput);
+  applyNumberParam('terrainLoadSlots', terrainLoadSlotsValueInput);
+  terrainLoadSlotsInput.value = terrainLoadSlotsValueInput.value;
+  applyNumberParam('terrainSpawnFrame', terrainSpawnFrameValueInput);
+  terrainSpawnFrameInput.value = terrainSpawnFrameValueInput.value;
+  applyNumberParam('terrainSpawnMs', terrainSpawnBudgetValueInput);
+  terrainSpawnBudgetInput.value = terrainSpawnBudgetValueInput.value;
   applyFloatParam('shadeSize', shadeSizeInput, shadeSizeValueInput);
   applyFloatParam('shadeDarkness', shadeDarknessInput, shadeDarknessValueInput);
   applySelectParam('water', waterModeInput);
@@ -407,6 +533,7 @@ function applyInitialParams() {
   applySelectParam('playerRate', playerUpdateRateInput);
   setShaderEffect(postProcessing, shaderEffectInput.value);
   applyLighting();
+  updateEntityVisibility();
 }
 
 function applyStoredInputs() {
@@ -418,12 +545,16 @@ function applyStoredInputs() {
   if (typeof storedViewState.bounds === 'boolean') debugBoundsInput.checked = storedViewState.bounds;
   if (typeof storedViewState.players === 'boolean') showPlayersInput.checked = storedViewState.players;
   if (typeof storedViewState.mobs === 'boolean') showMobsInput.checked = storedViewState.mobs;
+  if (typeof storedViewState.mobBlocks === 'boolean') syncMobBlocksInputs(storedViewState.mobBlocks);
   if (typeof storedViewState.sun === 'boolean') sunLightingInput.checked = storedViewState.sun;
   if (typeof storedViewState.shade === 'boolean') treeShadeInput.checked = storedViewState.shade;
   if (typeof storedViewState.mapTime === 'boolean') mapTimeInput.checked = storedViewState.mapTime;
   if (typeof storedViewState.mapTiles === 'boolean') mapTilesInput.checked = storedViewState.mapTiles;
   if (typeof storedViewState.landMotion === 'boolean') landMotionInput.checked = storedViewState.landMotion;
   if (typeof storedViewState.renderDetails === 'boolean') setRenderDetailsOpen(storedViewState.renderDetails);
+  setPairedControlValue(terrainLoadSlotsInput, terrainLoadSlotsValueInput, storedViewState.terrainLoadSlots);
+  setPairedControlValue(terrainSpawnFrameInput, terrainSpawnFrameValueInput, storedViewState.terrainSpawnFrame);
+  setPairedControlValue(terrainSpawnBudgetInput, terrainSpawnBudgetValueInput, storedViewState.terrainSpawnMs);
   setPairedControlValue(shadeSizeInput, shadeSizeValueInput, storedViewState.shadeSize);
   setPairedControlValue(shadeDarknessInput, shadeDarknessValueInput, storedViewState.shadeDarkness);
   if (typeof storedViewState.water === 'string') {
@@ -469,6 +600,15 @@ function applyBooleanParam(name, input) {
   const value = initialParams.get(name);
   if (value === null) return;
   input.checked = ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+}
+
+function syncMobBlocksInputs(checked) {
+  mobBlocksInput.checked = checked === true;
+  mobBlocksPanelInput.checked = checked === true;
+}
+
+function mobBlocksEnabled() {
+  return mobBlocksInput.checked === true;
 }
 
 function applyFloatParam(name, ...inputs) {
@@ -618,30 +758,59 @@ async function loadGrid(options = {}) {
     const promotionQueue = [];
     let nextMissing = 0;
     const inFlight = new Set();
+    const loadConcurrency = terrainLoadConcurrency();
+    const streamStats = createTerrainStreamStats(
+      world,
+      centerX,
+      centerZ,
+      radius,
+      needed.length,
+      completed,
+      missing.length,
+      gridStarted,
+    );
 
     const enqueueNext = () => {
       if (nextMissing >= missing.length || generation !== loadGeneration) return;
       const key = missing[nextMissing++];
+      streamStats.requested++;
       const task = loadTerrainChunkData(world, key, generation)
         .then((result) => {
           if (result.cacheReadMs) cacheReadMs += result.cacheReadMs;
           if (result.cacheParseMs) cacheParseMs += result.cacheParseMs;
-          if (result.cacheHit) cacheHits++;
-          if (result.cacheMiss) cacheMisses++;
-          if (result.network) networkChunks++;
+          if (result.cacheHit) {
+            cacheHits++;
+            streamStats.cacheHits++;
+          }
+          if (result.cacheMiss) {
+            cacheMisses++;
+            streamStats.cacheMisses++;
+          }
+          if (result.network) {
+            networkChunks++;
+            streamStats.networkChunks++;
+          }
+          result.readyAt = performance.now();
+          streamStats.dataReady++;
           promotionQueue.push(result);
+          streamStats.maxQueue = Math.max(streamStats.maxQueue, promotionQueue.length);
+          maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size);
         })
         .catch((error) => {
+          streamStats.dataReady++;
           promotionQueue.push({
             ok: false,
             key,
             error,
+            readyAt: performance.now(),
             cacheReadMs: 0,
             cacheParseMs: 0,
             cacheHit: false,
             cacheMiss: true,
             network: false,
           });
+          streamStats.maxQueue = Math.max(streamStats.maxQueue, promotionQueue.length);
+          maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size);
         })
         .finally(() => {
           inFlight.delete(task);
@@ -649,21 +818,22 @@ async function loadGrid(options = {}) {
       inFlight.add(task);
     };
 
-    while (inFlight.size < TERRAIN_LOAD_CONCURRENCY && nextMissing < missing.length) {
+    while (inFlight.size < loadConcurrency && nextMissing < missing.length) {
       enqueueNext();
     }
 
     while ((inFlight.size > 0 || promotionQueue.length > 0) && generation === loadGeneration) {
-      while (inFlight.size < TERRAIN_LOAD_CONCURRENCY && nextMissing < missing.length) {
+      while (inFlight.size < loadConcurrency && nextMissing < missing.length) {
         enqueueNext();
       }
 
-      const promoted = promoteTerrainResults(promotionQueue, generation);
+      const promoted = promoteTerrainResults(promotionQueue, generation, streamStats);
       completed += promoted.completed;
       failed += promoted.failed;
       if (promoted.completed > 0 || promoted.failed > 0) {
         setStatus(`Loaded ${completed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
         maybeUpdateMetrics(true);
+        maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size, promoted.yielded);
         if (promoted.yielded) {
           await yieldToMain();
           continue;
@@ -678,6 +848,7 @@ async function loadGrid(options = {}) {
     }
 
     if (generation !== loadGeneration) return;
+    maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size, true, true);
 
   if (generation !== loadGeneration) return;
   retainOnly(world, retainKeys);
@@ -704,6 +875,15 @@ async function loadGrid(options = {}) {
     failed,
     cacheReadMs: Math.round(cacheReadMs),
     cacheParseMs: Math.round(cacheParseMs),
+    terrainLoadSlots: loadConcurrency,
+    terrainSpawnFrame: terrainPromotionsPerFrame(),
+    terrainSpawnBudgetMs: terrainPromotionBudgetMs(),
+    terrainRequested: streamStats.requested,
+    terrainDataReady: streamStats.dataReady,
+    terrainPromoted: streamStats.promoted,
+    terrainSpawnedMissing: Math.max(0, streamStats.promoted - streamStats.alreadyLoaded),
+    terrainMaxQueue: streamStats.maxQueue,
+    terrainMaxReadyWaitMs: Math.round(streamStats.maxReadyWaitMs),
     streamAnchorX: streamAnchor.chunkX,
     streamAnchorZ: streamAnchor.chunkZ,
     ms: Math.round(performance.now() - gridStarted),
@@ -794,16 +974,18 @@ async function loadTerrainChunkData(world, key, generation) {
   };
 }
 
-function promoteTerrainResults(queue, generation) {
+function promoteTerrainResults(queue, generation, streamStats = null) {
   const started = performance.now();
+  const promotionsPerFrame = terrainPromotionsPerFrame();
+  const promotionBudgetMs = terrainPromotionBudgetMs();
   let completed = 0;
   let failed = 0;
   let promoted = 0;
 
   while (queue.length > 0 && generation === loadGeneration) {
     if (
-      promoted >= TERRAIN_PROMOTIONS_PER_FRAME
-      || (promoted > 0 && performance.now() - started >= TERRAIN_PROMOTION_BUDGET_MS)
+      promoted >= promotionsPerFrame
+      || (promoted > 0 && performance.now() - started >= promotionBudgetMs)
     ) {
       break;
     }
@@ -814,6 +996,7 @@ function promoteTerrainResults(queue, generation) {
     }
     if (!result.ok) {
       failed++;
+      if (streamStats) streamStats.failed++;
       console.warn(`Failed to load chunk ${result.key.chunkX},${result.key.chunkZ}`, result.error);
       logClientEvent('terrain_stream_chunk_failed', {
         world: worldSelect.value,
@@ -838,6 +1021,12 @@ function promoteTerrainResults(queue, generation) {
         void loadMapTilesForKeys(resultWorld, [result.key], { immediate: true });
       }
       promoted++;
+      if (streamStats) {
+        streamStats.promoted++;
+        const readyWaitMs = result.readyAt ? performance.now() - result.readyAt : 0;
+        streamStats.totalReadyWaitMs += readyWaitMs;
+        streamStats.maxReadyWaitMs = Math.max(streamStats.maxReadyWaitMs, readyWaitMs);
+      }
     }
     completed++;
   }
@@ -1299,7 +1488,7 @@ function restartPlayerPolling(delayMs = playerPollDelayMs()) {
 }
 
 async function refreshMobs() {
-  if (!worldSelect.value || !showMobsInput.checked || isRefreshingMobs) {
+  if (!worldSelect.value || !liveMobFeedEnabled() || isRefreshingMobs) {
     return;
   }
   isRefreshingMobs = true;
@@ -1311,7 +1500,7 @@ async function refreshMobs() {
     const data = await response.json();
     lastMobPollFailed = false;
     lastMobSourceStats = data.sourceStats ?? null;
-    updateMobs(data.mobs ?? []);
+    scheduleMobMarkerUpdate(data.mobs ?? []);
   } catch (error) {
     lastMobPollFailed = true;
     console.warn('Mob refresh failed', error);
@@ -1324,6 +1513,9 @@ async function refreshMobs() {
 function mobPollDelayMs() {
   if (!showMobsInput.checked) {
     return null;
+  }
+  if (!liveMobFeedEnabled()) {
+    return EMPTY_MOB_POLL_MS;
   }
   if (lastMobPollFailed) {
     return MOB_POLL_ERROR_MS;
@@ -1341,8 +1533,12 @@ function restartMobPolling(delayMs = mobPollDelayMs()) {
   }, delayMs);
 }
 
+function liveMobFeedEnabled() {
+  return showMobsInput.checked && lastPlayerCount > 0;
+}
+
 function wantsEntityStream() {
-  return worldSelect.value && (showPlayersInput.checked || showMobsInput.checked);
+  return worldSelect.value && (showPlayersInput.checked || liveMobFeedEnabled());
 }
 
 function restartEntityStream() {
@@ -1355,7 +1551,7 @@ function restartEntityStream() {
   }
 
   const includePlayers = showPlayersInput.checked;
-  const includeMobs = showMobsInput.checked;
+  const includeMobs = liveMobFeedEnabled();
   if (entityStream
       && entityStreamWorld === worldSelect.value
       && entityStreamPlayers === includePlayers
@@ -1422,9 +1618,9 @@ function applyEntitySnapshot(snapshot) {
   if (showPlayersInput.checked) {
     updatePlayers(snapshot.players ?? []);
   }
-  if (showMobsInput.checked) {
+  if (liveMobFeedEnabled()) {
     lastMobSourceStats = snapshot.mobSourceStats ?? null;
-    updateMobs(snapshot.mobs ?? []);
+    scheduleMobMarkerUpdate(snapshot.mobs ?? []);
   }
 }
 
@@ -1439,6 +1635,13 @@ function updatePlayers(players) {
     restartWorldTimePolling();
     if (lastPlayerCount > previousPlayerCount) {
       schedulePlayerConnectMobSample(players);
+    }
+    if (showMobsInput.checked) {
+      if (lastPlayerCount <= 0) {
+        clearMobs();
+      }
+      restartEntityStream();
+      restartMobPolling(lastPlayerCount > 0 ? 0 : mobPollDelayMs());
     }
   }
   const seen = new Set();
@@ -1466,11 +1669,13 @@ function updatePlayers(players) {
     const marker = playerMarkers.get(player.uuid) ?? createPlayerMarker(player);
     if (!existingMarker || markerIsLegacy) {
       marker.position.set(player.x, player.y, player.z);
-      marker.rotation.y = player.yaw ?? 0;
+      marker.rotation.y = playerCameraYawRad(player.yaw ?? 0);
     }
     marker.userData.targetPosition ??= new THREE.Vector3();
     marker.userData.targetPosition.set(player.x, player.y, player.z);
-    marker.userData.targetYaw = player.yaw ?? marker.userData.targetYaw ?? 0;
+    marker.userData.targetYaw = playerCameraYawRad(player.yaw ?? marker.userData.targetYawDeg ?? 0);
+    marker.userData.targetYawDeg = player.yaw ?? marker.userData.targetYawDeg ?? 0;
+    marker.userData.targetPitch = player.pitch ?? marker.userData.targetPitch ?? 0;
     marker.visible = showPlayersInput.checked;
     marker.userData.player = player;
     updatePlayerMarkerCard(marker, player);
@@ -1649,36 +1854,15 @@ function compactObject(object) {
 }
 
 function updateMobs(mobs) {
+  cancelPendingMobMarkerUpdate();
   if (!showMobsInput.checked && mobs.length > 0) {
     return;
   }
-  const previousMobCount = lastMobCount;
-  lastMobCount = mobs.length;
-  if (previousMobCount !== lastMobCount) {
-    logClientEvent('mob_count_changed', {
-      mobs: lastMobCount,
-      nextPollMs: mobPollDelayMs(),
-    });
-  }
+  setMobCount(mobs.length);
 
   const seen = new Set();
   for (const mob of mobs) {
-    const id = String(mob.id ?? `${mob.type}:${mob.x}:${mob.y}:${mob.z}`);
-    const enrichedMob = npcCatalog.enrich(mob, id);
-    seen.add(id);
-    const marker = mobMarkers.get(id) ?? createMobMarker(enrichedMob);
-    if (!mobMarkers.has(id)) {
-      marker.position.set(mob.x, mob.y, mob.z);
-    }
-    marker.userData.targetPosition ??= new THREE.Vector3();
-    marker.userData.targetPosition.set(mob.x, mob.y, mob.z);
-    marker.userData.mob = enrichedMob;
-    updateMobMarkerCard(marker, enrichedMob);
-    marker.visible = showMobsInput.checked;
-    mobMarkers.set(id, marker);
-    if (!marker.parent) {
-      scene.add(marker);
-    }
+    seen.add(upsertMobMarker(mob));
   }
 
   for (const [id, marker] of mobMarkers) {
@@ -1690,6 +1874,120 @@ function updateMobs(mobs) {
   }
 
   updateEntityVisibility();
+}
+
+function scheduleMobMarkerUpdate(mobs) {
+  if (!showMobsInput.checked && mobs.length > 0) {
+    return;
+  }
+  const generation = ++mobMarkerUpdateGeneration;
+  pendingMobMarkerUpdate = {
+    generation,
+    mobs,
+    index: 0,
+    seen: new Set(),
+    removals: null,
+    removalIndex: 0,
+  };
+  setMobCount(mobs.length);
+  if (!mobMarkerUpdateScheduled) {
+    mobMarkerUpdateScheduled = true;
+    requestAnimationFrame(() => processPendingMobMarkerUpdate(generation));
+  }
+}
+
+function cancelPendingMobMarkerUpdate() {
+  mobMarkerUpdateGeneration++;
+  pendingMobMarkerUpdate = null;
+  mobMarkerUpdateScheduled = false;
+}
+
+function processPendingMobMarkerUpdate(generation) {
+  mobMarkerUpdateScheduled = false;
+  const update = pendingMobMarkerUpdate;
+  if (!update) return;
+  if (update.generation !== generation) {
+    schedulePendingMobMarkerUpdate(update.generation);
+    return;
+  }
+
+  const start = performance.now();
+  let processed = 0;
+  while (update.index < update.mobs.length) {
+    const id = upsertMobMarker(update.mobs[update.index]);
+    update.seen.add(id);
+    update.index += 1;
+    processed += 1;
+    if (processed >= MOB_MARKER_UPSERTS_PER_FRAME
+        || performance.now() - start >= MOB_MARKER_FRAME_BUDGET_MS) {
+      schedulePendingMobMarkerUpdate(generation);
+      return;
+    }
+  }
+
+  if (!update.removals) {
+    update.removals = Array.from(mobMarkers.keys()).filter((id) => !update.seen.has(id));
+  }
+  processed = 0;
+  while (update.removalIndex < update.removals.length) {
+    const id = update.removals[update.removalIndex];
+    const marker = mobMarkers.get(id);
+    if (marker) {
+      scene.remove(marker);
+      disposeObject(marker);
+      mobMarkers.delete(id);
+    }
+    update.removalIndex += 1;
+    processed += 1;
+    if (processed >= MOB_MARKER_REMOVALS_PER_FRAME
+        || performance.now() - start >= MOB_MARKER_FRAME_BUDGET_MS) {
+      schedulePendingMobMarkerUpdate(generation);
+      return;
+    }
+  }
+
+  pendingMobMarkerUpdate = null;
+  updateEntityVisibility();
+}
+
+function schedulePendingMobMarkerUpdate(generation) {
+  mobMarkerUpdateScheduled = true;
+  requestAnimationFrame(() => processPendingMobMarkerUpdate(generation));
+}
+
+function setMobCount(count) {
+  const previousMobCount = lastMobCount;
+  lastMobCount = count;
+  if (previousMobCount !== lastMobCount) {
+    logClientEvent('mob_count_changed', {
+      mobs: lastMobCount,
+      nextPollMs: mobPollDelayMs(),
+    });
+  }
+}
+
+function upsertMobMarker(mob) {
+  const id = String(mob.id ?? `${mob.type}:${mob.x}:${mob.y}:${mob.z}`);
+  const enrichedMob = npcCatalog.enrich(mob, id);
+  const existingMarker = mobMarkers.get(id);
+  const marker = existingMarker ?? createMobMarker(enrichedMob);
+  if (!existingMarker) {
+    marker.position.set(mob.x, mob.y, mob.z);
+  }
+  marker.userData.targetPosition ??= new THREE.Vector3();
+  marker.userData.targetPosition.set(mob.x, mob.y, mob.z);
+  marker.userData.mob = enrichedMob;
+  updateMobMarkerCard(marker, enrichedMob);
+  marker.visible = showMobsInput.checked;
+  const headshotBlock = marker.userData.headshotBlock;
+  if (headshotBlock) {
+    headshotBlock.visible = mobBlocksEnabled();
+  }
+  mobMarkers.set(id, marker);
+  if (!marker.parent) {
+    scene.add(marker);
+  }
+  return id;
 }
 
 function clearMobs() {
@@ -1716,7 +2014,8 @@ function setPlayerEyeView(uuid) {
   if (uuid && !playerMarkers.has(uuid)) return;
   if (uuid) {
     pushCameraMode('eye', uuid);
-    updateEyeCamera();
+    resetPlayerEyeState(uuid);
+    updateEyeCamera(0);
   } else if (viewPlayerUuid) {
     popCameraMode();
   }
@@ -1765,6 +2064,7 @@ function resetCameraModes() {
   cameraModeStack.length = 0;
   viewPlayerUuid = null;
   followPlayerUuid = null;
+  playerEyeState.uuid = null;
   setFollowControlsEnabled(false);
 }
 
@@ -1787,6 +2087,11 @@ function restoreCameraModeState(state) {
   controls.target.copy(state.target);
   viewPlayerUuid = state.viewPlayerUuid;
   followPlayerUuid = state.followPlayerUuid;
+  if (viewPlayerUuid) {
+    resetPlayerEyeState(viewPlayerUuid);
+  } else {
+    playerEyeState.uuid = null;
+  }
   setFollowControlsEnabled(Boolean(followPlayerUuid));
   controls.update();
   syncFlyLookFromCamera();
@@ -1835,6 +2140,9 @@ function updateEntityVisibility() {
   }
   for (const marker of mobMarkers.values()) {
     marker.visible = showMobsInput.checked;
+    if (marker.userData.headshotBlock) {
+      marker.userData.headshotBlock.visible = mobBlocksEnabled();
+    }
   }
   if (!showPlayersInput.checked) {
     playersEl.textContent = 'Players hidden';
@@ -1853,6 +2161,7 @@ function exposeDebugState() {
       world: entityStreamWorld,
       players: entityStreamPlayers,
       mobs: entityStreamMobs,
+      liveMobFeed: liveMobFeedEnabled(),
       available: 'EventSource' in window,
     }),
     npcDetailsState: () => npcCatalog.state(),
@@ -1873,7 +2182,9 @@ function exposeDebugState() {
     activeCenterId: () => activeCenterId,
     requestedCenterId: () => requestedCenterId,
     updatePlayersForTest: (players) => updatePlayers(players),
+    setPlayerEyeViewForTest: (uuid) => setPlayerEyeView(uuid),
     updateMobsForTest: (mobs) => updateMobs(mobs),
+    scheduleMobsForTest: (mobs) => scheduleMobMarkerUpdate(mobs),
     waterMaterialSummary: () => waterMaterialSummary(),
     cameraPose: () => ({
       camera: vectorState(camera.position),
@@ -1894,6 +2205,11 @@ function exposeDebugState() {
       terrainBatch: null,
       terrainStream: lastTerrainStreamTiming,
     }),
+    terrainTuning: () => ({
+      loadSlots: terrainLoadConcurrency(),
+      spawnFrame: terrainPromotionsPerFrame(),
+      spawnBudgetMs: terrainPromotionBudgetMs(),
+    }),
     gridLoadCount: () => gridLoadCount,
     resetGridLoadCount: () => {
       gridLoadCount = 0;
@@ -1910,6 +2226,9 @@ function exposeDebugState() {
     viewState: () => ({
       mapTiles: mapTilesInput.checked,
       landMotion: landMotionInput.checked,
+      terrainLoadSlots: terrainLoadConcurrency(),
+      terrainSpawnFrame: terrainPromotionsPerFrame(),
+      terrainSpawnMs: terrainPromotionBudgetMs(),
       sun: sunLightingInput.checked,
       shade: treeShadeInput.checked,
       mapTime: mapTimeInput.checked,
@@ -1917,6 +2236,7 @@ function exposeDebugState() {
       shader: shaderEffectInput.value,
       players: showPlayersInput.checked,
       mobs: showMobsInput.checked,
+      mobBlocks: mobBlocksEnabled(),
       auto: autoStreamInput.checked,
       bounds: debugBoundsInput.checked,
     }),
@@ -2057,12 +2377,16 @@ function saveViewState() {
     bounds: debugBoundsInput.checked,
     players: showPlayersInput.checked,
     mobs: showMobsInput.checked,
+    mobBlocks: mobBlocksEnabled(),
     renderDetails: !infoCardEl.classList.contains('collapsed'),
     sun: sunLightingInput.checked,
     shade: treeShadeInput.checked,
     mapTime: mapTimeInput.checked,
     mapTiles: mapTilesInput.checked,
     landMotion: landMotionInput.checked,
+    terrainLoadSlots: terrainLoadConcurrency(),
+    terrainSpawnFrame: terrainPromotionsPerFrame(),
+    terrainSpawnMs: terrainPromotionBudgetMs(),
     shadeSize: Number.parseFloat(shadeSizeValueInput.value),
     shadeDarkness: Number.parseFloat(shadeDarknessValueInput.value),
     water: waterModeInput.value,
@@ -2279,27 +2603,37 @@ function updatePlayerMarkers(deltaSeconds) {
   }
 }
 
-function updateMobMarkers(deltaSeconds, elapsedSeconds) {
+function updateMobMarkers(deltaSeconds) {
   const alpha = 1 - Math.exp(-deltaSeconds * 5);
   const playerHeightSource = playerMarkers.get(viewPlayerUuid) ?? playerMarkers.get(followPlayerUuid);
   const desiredWorldY = playerHeightSource
     ? playerHeightSource.position.y + MOB_CARD_PLAYER_HEIGHT
     : camera.position.y;
+  const updateBillboards = !hasMobBillboardQuaternion
+    || lastMobBillboardQuaternion.angleTo(camera.quaternion) > 0.0005;
+  if (updateBillboards) {
+    lastMobBillboardQuaternion.copy(camera.quaternion);
+    hasMobBillboardQuaternion = true;
+  }
   for (const marker of mobMarkers.values()) {
     const targetPosition = marker.userData.targetPosition;
     if (targetPosition) {
       tempMobTarget.copy(targetPosition);
-      tempMobTarget.y += 0.25 + Math.sin(elapsedSeconds * 3.2 + marker.name.length) * 0.08;
+      tempMobTarget.y += 0.25;
       marker.position.lerp(tempMobTarget, alpha);
       const cardHeight = clamp(
         desiredWorldY - targetPosition.y,
         MOB_CARD_MIN_HEIGHT,
         MOB_CARD_TREE_TOP_HEIGHT,
       );
-      updateMobMarkerHeight(marker, cardHeight);
+      if (!Number.isFinite(marker.userData.cardHeight)
+          || Math.abs(marker.userData.cardHeight - cardHeight) > 0.05) {
+        updateMobMarkerHeight(marker, cardHeight);
+        marker.userData.cardHeight = cardHeight;
+      }
     }
     const badge = marker.userData.badge;
-    if (badge) {
+    if (badge && updateBillboards) {
       badge.quaternion.copy(camera.quaternion);
     }
   }
@@ -2307,7 +2641,7 @@ function updateMobMarkers(deltaSeconds, elapsedSeconds) {
 
 function updatePlayerCameraMode(deltaSeconds) {
   if (viewPlayerUuid) {
-    updateEyeCamera();
+    updateEyeCamera(deltaSeconds);
     return;
   }
   if (followPlayerUuid) {
@@ -2315,19 +2649,53 @@ function updatePlayerCameraMode(deltaSeconds) {
   }
 }
 
-function updateEyeCamera() {
+function resetPlayerEyeState(uuid) {
+  const marker = playerMarkers.get(uuid);
+  if (!marker) return;
+  playerEyeState.uuid = uuid;
+  playerEyeState.yawRad = Number.isFinite(marker.userData.targetYaw) ? marker.userData.targetYaw : 0;
+  playerEyeState.pitchRad = playerCameraPitchRad(marker.userData.targetPitch ?? 0);
+}
+
+function updateEyeCamera(deltaSeconds = 0) {
   const marker = playerMarkers.get(viewPlayerUuid);
   if (!marker) {
     setPlayerEyeView(null);
     return;
   }
-  tempPlayerCamera.set(0, 2.45, -0.44);
-  tempPlayerLook.set(0, 2.45, -12);
-  marker.localToWorld(tempPlayerCamera);
-  marker.localToWorld(tempPlayerLook);
+  if (playerEyeState.uuid !== viewPlayerUuid) {
+    resetPlayerEyeState(viewPlayerUuid);
+  }
+  const targetYawRad = Number.isFinite(marker.userData.targetYaw) ? marker.userData.targetYaw : playerEyeState.yawRad;
+  const targetPitchRad = playerCameraPitchRad(marker.userData.targetPitch ?? 0);
+  const alpha = deltaSeconds > 0 ? 1 - Math.exp(-deltaSeconds * PLAYER_EYE_ROTATION_LERP) : 1;
+  playerEyeState.yawRad = lerpAngle(playerEyeState.yawRad, targetYawRad, alpha);
+  playerEyeState.pitchRad = THREE.MathUtils.lerp(playerEyeState.pitchRad, targetPitchRad, alpha);
+
+  const lookDistance = 12;
+  const cosPitch = Math.cos(playerEyeState.pitchRad);
+  tempPlayerForward.set(
+    -Math.sin(playerEyeState.yawRad) * cosPitch,
+    Math.sin(playerEyeState.pitchRad),
+    -Math.cos(playerEyeState.yawRad) * cosPitch,
+  );
+  tempPlayerCamera.copy(marker.position);
+  tempPlayerCamera.y += 2.45;
+  tempPlayerCamera.addScaledVector(tempPlayerForward, 0.44);
+  tempPlayerLook.copy(tempPlayerCamera).addScaledVector(tempPlayerForward, lookDistance);
   camera.position.copy(tempPlayerCamera);
   controls.target.copy(tempPlayerLook);
   camera.lookAt(tempPlayerLook);
+}
+
+function playerCameraYawRad(yawDeg) {
+  // Hytale client yaw arrives in degrees. Keep the sign direct for this FPV rig:
+  // negating it makes real left turns render as right turns.
+  return THREE.MathUtils.degToRad(Number(yawDeg || 0));
+}
+
+function playerCameraPitchRad(pitchDeg) {
+  return THREE.MathUtils.degToRad(clamp(Number(pitchDeg || 0), -89, 89));
 }
 
 function updateWalkFollowCamera(deltaSeconds) {
@@ -2457,6 +2825,13 @@ showMobsInput.addEventListener('change', () => {
   }
   saveViewState();
 });
+function onMobBlocksToggle(event) {
+  syncMobBlocksInputs(event.target.checked);
+  updateEntityVisibility();
+  saveViewState();
+}
+mobBlocksInput.addEventListener('change', onMobBlocksToggle);
+mobBlocksPanelInput.addEventListener('change', onMobBlocksToggle);
 waterModeInput.addEventListener('change', () => {
   applyWaterMode();
   saveViewState();
@@ -2487,6 +2862,9 @@ mapTilesInput.addEventListener('change', () => {
 });
 landMotionInput.addEventListener('change', saveViewState);
 syncRadiusControl();
+syncPairedControl(terrainLoadSlotsInput, terrainLoadSlotsValueInput, () => {});
+syncPairedControl(terrainSpawnFrameInput, terrainSpawnFrameValueInput, () => {});
+syncPairedControl(terrainSpawnBudgetInput, terrainSpawnBudgetValueInput, () => {});
 syncPairedControl(shadeSizeInput, shadeSizeValueInput);
 syncPairedControl(shadeDarknessInput, shadeDarknessValueInput);
 worldSelect.addEventListener('change', () => {

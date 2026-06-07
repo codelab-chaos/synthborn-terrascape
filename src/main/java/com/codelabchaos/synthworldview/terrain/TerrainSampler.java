@@ -101,14 +101,8 @@ public final class TerrainSampler {
             String topBlockKey,
             int topColor
     ) {
-        LeafScan leafScan = new LeafScan(height, List.of(), false);
-        if (isFoliageBlock(topBlockKey) || hasAirGapBelowTop(chunk, localX, localZ, height)) {
-            leafScan = collectOverlandUntilGround(chunk, localX, localZ, height, topColor);
-        }
-
-        int scanStartY = Math.min(height, leafScan.anchorY());
         TerrainColumn ground = null;
-        for (int y = scanStartY; y >= Math.max(0, height - OVERLAND_SCAN_BELOW_HEIGHTMAP); y--) {
+        for (int y = height; y >= Math.max(0, height - OVERLAND_SCAN_BELOW_HEIGHTMAP); y--) {
             int blockId = safeBlockId(chunk, localX, y, localZ);
             BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
             if (blockType == null || blockId == BlockType.EMPTY_ID) {
@@ -122,48 +116,11 @@ public final class TerrainSampler {
             }
         }
 
-        List<TerrainDetail> details = leafScan.details();
-        if (ground == null && !details.isEmpty()) {
-            return new SampledColumn(new TerrainColumn(localX, localZ, -1, 0, 0, "EMPTY", 0x000000, false), details);
-        }
         if (ground == null) {
             ground = new TerrainColumn(localX, localZ, height, safeBlockId(chunk, localX, height, localZ),
                     safeFluidId(chunk, localX, height, localZ), topBlockKey, topColor, false);
         }
-        return new SampledColumn(ground, details);
-    }
-
-    private static LeafScan collectOverlandUntilGround(
-            @Nonnull WorldChunk chunk,
-            int localX,
-            int localZ,
-            int height,
-            int fallbackColor
-    ) {
-        List<TerrainDetail> pending = new ArrayList<>();
-        int bottomY = Math.max(0, height - OVERLAND_SCAN_BELOW_HEIGHTMAP);
-        for (int y = height; y >= bottomY; y--) {
-            int blockId = safeBlockId(chunk, localX, y, localZ);
-            BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
-            if (blockType == null || blockId == BlockType.EMPTY_ID) {
-                continue;
-            }
-            String blockKey = blockType.getId();
-            if (isFoliageBlock(blockKey) || isTrunkBlock(blockKey)) {
-                int color = colorFor(blockType, blockKey, chunk.getTint(localX, localZ));
-                pending.add(new TerrainDetail(
-                        localX,
-                        localZ,
-                        y,
-                        TerrainDetail.Kind.CANOPY_VOXEL,
-                        color == 0 ? fallbackColor : color));
-                continue;
-            }
-            if (!isFluidBlock(blockKey)) {
-                return new LeafScan(y, pending, true);
-            }
-        }
-        return new LeafScan(bottomY - 1, pending, false);
+        return new SampledColumn(ground, List.of());
     }
 
     private static boolean isFloatingDetailBlock(@Nonnull WorldChunk chunk, int localX, int localZ, int y) {
@@ -261,15 +218,7 @@ public final class TerrainSampler {
     }
 
     private static boolean isOverlandDetail(String blockKey) {
-        return isFoliageBlock(blockKey) || isTrunkBlock(blockKey);
-    }
-
-    private static boolean isFoliageBlock(String blockKey) {
-        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
-        return key.contains("leaf")
-                || key.contains("leaves")
-                || key.contains("foliage")
-                || key.contains("bush");
+        return isTrunkBlock(blockKey);
     }
 
     private static boolean isTrunkBlock(String blockKey) {
@@ -326,9 +275,6 @@ public final class TerrainSampler {
         boolean present() {
             return y >= 0 && fluidId != 0;
         }
-    }
-
-    private record LeafScan(int anchorY, List<TerrainDetail> details, boolean anchored) {
     }
 
     private record SampledColumn(TerrainColumn column, List<TerrainDetail> details) {
