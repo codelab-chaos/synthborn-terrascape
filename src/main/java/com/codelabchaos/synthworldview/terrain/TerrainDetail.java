@@ -5,10 +5,42 @@ public record TerrainDetail(
         int localZ,
         int y,
         Kind kind,
-        int rgb
+        int rgb,
+        Shape shape,
+        int rotationIndex
 ) {
+    public TerrainDetail(int localX, int localZ, int y, Kind kind, int rgb) {
+        this(localX, localZ, y, kind, rgb, defaultShape(kind), 0);
+    }
+
+    public TerrainDetail(int localX, int localZ, int y, Kind kind, int rgb, Shape shape) {
+        this(localX, localZ, y, kind, rgb, shape, 0);
+    }
+
+    private static Shape defaultShape(Kind kind) {
+        return switch (kind) {
+            case COSMETIC_THIN -> Shape.POST;
+            case COSMETIC_LIGHT -> Shape.LIGHT;
+            case FOLIAGE_SMALL -> Shape.SMALL_FOLIAGE;
+            default -> Shape.FULL;
+        };
+    }
+
     public enum Kind {
         CANOPY_VOXEL,
-        COSMETIC_VOXEL
+        COSMETIC_VOXEL,
+        COSMETIC_THIN,
+        COSMETIC_LIGHT,
+        FOLIAGE_SMALL
+    }
+
+    public enum Shape {
+        FULL,
+        POST,
+        LIGHT,
+        SMALL_FOLIAGE,
+        TOP_SLAB,
+        THIN_PANEL,
+        HANGING_STRIP
     }
 }

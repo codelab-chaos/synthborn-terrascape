@@ -14,6 +14,7 @@ import {
   coordTargetEl,
   coordChunkEl,
   coordCameraEl,
+  clearMeshCacheButton,
   cosmeticBlocksModeInput,
   debugBoundsInput,
   experimentalDetailsStateEl,
@@ -59,6 +60,7 @@ import {
   terrainSpawnFrameInput,
   terrainSpawnFrameValueInput,
   treeShadeInput,
+  visualDetailModeInput,
   waterModeInput,
   worldSelect,
 } from './dom.js';
@@ -113,7 +115,8 @@ import {
   tintWaterMaterialsFromMap,
   updateWaterMaterials,
 } from './water.js';
-import { makeTerrainCacheKey, readTerrainCache, writeTerrainCache } from './mesh-cache.js';
+import { confirmAction } from './library/confirm-dialog.js';
+import { clearMeshCache, getMeshCacheStats, makeTerrainCacheKey, readTerrainCache, writeTerrainCache } from './mesh-cache.js';
 
 const SKY_COLOR = 0x173454;
 const EMPTY_GRID_AXIS_COLOR = 0x1faa6a;
@@ -127,6 +130,7 @@ const AUTO_STREAM_RETAIN_MARGIN = 1;
 const DEFAULT_TERRAIN_LOAD_CONCURRENCY = 4;
 const DEFAULT_TERRAIN_PROMOTION_BUDGET_MS = 4;
 const DEFAULT_TERRAIN_PROMOTIONS_PER_FRAME = 2;
+const VISUAL_DEFAULTS_VERSION = 2;
 const TERRAIN_STREAM_PROGRESS_LOG_MS = 1000;
 const METRICS_UPDATE_INTERVAL_MS = 250;
 
@@ -332,6 +336,50 @@ function setStatus(text) {
   statusEl.textContent = text;
 }
 
+async function handleClearMeshCache() {
+  const stats = await getMeshCacheStats();
+  const entryLabel = stats.total === 1 ? 'entry' : 'entries';
+  const confirmed = await confirmAction({
+    title: 'Clear mesh cache?',
+    message: stats.total > 0
+      ? `Delete ${stats.total} cached ${entryLabel} from this browser (${stats.terrain} terrain meshes, ${stats.mapTiles} map tiles). Visible chunks will reload from the server.`
+      : 'No cached mesh data was found in this browser. Reload visible chunks anyway?',
+    confirmLabel: 'Clear cache',
+    cancelLabel: 'Cancel',
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  clearMeshCacheButton.disabled = true;
+  setStatus('Clearing mesh cache…');
+  try {
+    const cleared = await clearMeshCache();
+    for (const [id, entry] of Array.from(loadedChunks.entries())) {
+      finishDisposeChunk(id, entry);
+    }
+    mapTileLayerKey = null;
+    updateMapTileLayer({ force: true });
+    scheduleControlGridLoad();
+    const clearedLabel = cleared.total === 1 ? 'entry' : 'entries';
+    setStatus(cleared.total > 0
+      ? `Cleared ${cleared.total} cached ${clearedLabel}; reloading meshes`
+      : 'Mesh cache already empty; reloading from server');
+    logClientEvent('mesh_cache_cleared', {
+      terrain: cleared.terrain,
+      mapTiles: cleared.mapTiles,
+      total: cleared.total,
+    });
+  } catch (error) {
+    setStatus(`Mesh cache clear failed: ${error?.message || error}`);
+    logClientEvent('mesh_cache_clear_failed', {
+      message: error?.message || String(error),
+    });
+  } finally {
+    clearMeshCacheButton.disabled = false;
+  }
+}
+
 function mapTileRetainRadius(terrainRadius, streamLoad = false) {
   return streamLoad
     ? terrainRadius + AUTO_STREAM_RETAIN_MARGIN + MAP_HORIZON_MARGIN
@@ -520,6 +568,7 @@ function applyInitialParams() {
   applyBooleanParam('shade', treeShadeInput);
   applyBooleanParam('mapTiles', mapTilesInput);
   applyCosmeticModeParam();
+  applySelectParam('visualDetail', visualDetailModeInput);
   applyBooleanParam('landMotion', landMotionInput);
   applyBooleanParam('mapTime', mapTimeInput);
   applyNumberParam('terrainLoadSlots', terrainLoadSlotsValueInput);
@@ -540,6 +589,10 @@ function applyInitialParams() {
 
 function applyStoredInputs() {
   if (!storedViewState) return;
+  if (storedViewState.visualDefaultsVersion !== VISUAL_DEFAULTS_VERSION) {
+    applySelectValue(cosmeticBlocksModeInput, 'split');
+    applySelectValue(visualDetailModeInput, 'all');
+  }
   setNumberInput(chunkXInput, storedViewState.chunkX);
   setNumberInput(chunkZInput, storedViewState.chunkZ);
   setRadiusControlValue(storedViewState.radius);
@@ -552,9 +605,14 @@ function applyStoredInputs() {
   if (typeof storedViewState.shade === 'boolean') treeShadeInput.checked = storedViewState.shade;
   if (typeof storedViewState.mapTime === 'boolean') mapTimeInput.checked = storedViewState.mapTime;
   if (typeof storedViewState.mapTiles === 'boolean') mapTilesInput.checked = storedViewState.mapTiles;
-  if (typeof storedViewState.cosmeticsMode === 'string') applySelectValue(cosmeticBlocksModeInput, storedViewState.cosmeticsMode);
-  if (typeof storedViewState.cosmetics === 'boolean' && !storedViewState.cosmeticsMode) {
+  if (storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof storedViewState.cosmeticsMode === 'string') {
+    applySelectValue(cosmeticBlocksModeInput, storedViewState.cosmeticsMode);
+  }
+  if (storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof storedViewState.cosmetics === 'boolean' && !storedViewState.cosmeticsMode) {
     applySelectValue(cosmeticBlocksModeInput, storedViewState.cosmetics ? 'baked' : 'off');
+  }
+  if (storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof storedViewState.visualDetailMode === 'string') {
+    applySelectValue(visualDetailModeInput, storedViewState.visualDetailMode);
   }
   if (typeof storedViewState.landMotion === 'boolean') landMotionInput.checked = storedViewState.landMotion;
   if (typeof storedViewState.renderDetails === 'boolean') setRenderDetailsOpen(storedViewState.renderDetails);
@@ -643,6 +701,11 @@ function cosmeticBlocksBaked() {
 
 function cosmeticBlocksSplit() {
   return cosmeticBlocksMode() === 'split';
+}
+
+function visualDetailMode() {
+  const value = visualDetailModeInput?.value;
+  return value === 'basic' || value === 'structures' || value === 'all' ? value : 'all';
 }
 
 function applyFloatParam(name, ...inputs) {
@@ -1401,12 +1464,13 @@ function terrainCacheKey(world, chunkX, chunkZ) {
     formatVersion: terrainFormatVersion,
     detailsEnabled: experimentalDetailsEnabled,
     cosmeticsMode: cosmeticBlocksBaked() ? 'baked' : 'plain',
+    visualDetailMode: cosmeticBlocksBaked() ? visualDetailMode() : 'basic',
   });
 }
 
 function terrainUrl(world, chunkX, chunkZ) {
   const base = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
-  return cosmeticBlocksBaked() ? `${base}?cosmetics=1` : base;
+  return cosmeticBlocksBaked() ? `${base}?cosmetics=1&visualDetail=${encodeURIComponent(visualDetailMode())}` : base;
 }
 
 function terrainCosmeticOverlayCacheKey(world, chunkX, chunkZ) {
@@ -1417,11 +1481,12 @@ function terrainCosmeticOverlayCacheKey(world, chunkX, chunkZ) {
     formatVersion: terrainFormatVersion,
     detailsEnabled: experimentalDetailsEnabled,
     cosmeticsMode: 'split-overlay',
+    visualDetailMode: visualDetailMode(),
   });
 }
 
 function terrainCosmeticOverlayUrl(world, chunkX, chunkZ) {
-  return `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb?cosmetics=only`;
+  return `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb?cosmetics=only&visualDetail=${encodeURIComponent(visualDetailMode())}`;
 }
 
 function applyMapWaterTint() {
@@ -2343,6 +2408,7 @@ function exposeDebugState() {
     viewState: () => ({
       mapTiles: mapTilesInput.checked,
       cosmeticsMode: cosmeticBlocksModeInput.value,
+      visualDetailMode: visualDetailMode(),
       landMotion: landMotionInput.checked,
       terrainLoadSlots: terrainLoadConcurrency(),
       terrainSpawnFrame: terrainPromotionsPerFrame(),
@@ -2488,6 +2554,7 @@ function saveViewState() {
   const chunk = playerChunk();
   const state = {
     world: worldSelect.value,
+    visualDefaultsVersion: VISUAL_DEFAULTS_VERSION,
     chunkX: Number.parseInt(chunkXInput.value, 10) || chunk.chunkX,
     chunkZ: Number.parseInt(chunkZInput.value, 10) || chunk.chunkZ,
     radius: radiusValue(),
@@ -2502,6 +2569,7 @@ function saveViewState() {
     mapTime: mapTimeInput.checked,
     mapTiles: mapTilesInput.checked,
     cosmeticsMode: cosmeticBlocksModeInput.value,
+    visualDetailMode: visualDetailMode(),
     landMotion: landMotionInput.checked,
     terrainLoadSlots: terrainLoadConcurrency(),
     terrainSpawnFrame: terrainPromotionsPerFrame(),
@@ -2985,6 +3053,16 @@ cosmeticBlocksModeInput.addEventListener('change', () => {
   }
   scheduleControlGridLoad();
   saveViewState();
+});
+visualDetailModeInput.addEventListener('change', () => {
+  for (const [id, entry] of Array.from(loadedChunks.entries())) {
+    finishDisposeChunk(id, entry);
+  }
+  scheduleControlGridLoad();
+  saveViewState();
+});
+clearMeshCacheButton?.addEventListener('click', () => {
+  void handleClearMeshCache();
 });
 landMotionInput.addEventListener('change', saveViewState);
 syncRadiusControl();

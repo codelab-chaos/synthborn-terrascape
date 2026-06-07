@@ -99,7 +99,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class WorldviewWebServer {
-    private static final String FORMAT_VERSION = "v15";
+    private static final String FORMAT_VERSION = "v21";
     private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
     private static final int MAX_BATCH_CHUNKS = 16;
@@ -928,7 +928,12 @@ public final class WorldviewWebServer {
         activeGenerations.incrementAndGet();
         world.execute(() -> {
             try {
-                TerrainSnapshot snapshot = TerrainSampler.sample(world, request.chunkX(), request.chunkZ(), request.hasCosmeticDetails());
+                TerrainSnapshot snapshot = TerrainSampler.sample(
+                        world,
+                        request.chunkX(),
+                        request.chunkZ(),
+                        request.hasCosmeticDetails(),
+                        request.visualDetailMode());
                 CompletableFuture.runAsync(() -> {
                     try {
                         TerrainMesh mesh = request.cosmeticsOnly()
@@ -976,7 +981,8 @@ public final class WorldviewWebServer {
                         chunk.chunkZ(),
                         experimentalDetailsEnabled,
                         false,
-                        false);
+                        false,
+                        TerrainSampler.VisualDetailMode.BASIC);
                 results.add(new BatchTerrainResult(
                         chunk.chunkX(),
                         chunk.chunkZ(),
@@ -1536,7 +1542,8 @@ public final class WorldviewWebServer {
         String cosmeticsParam = queryParam(rawQuery, "cosmetics");
         boolean cosmeticsOnly = includeDetails && "only".equalsIgnoreCase(cosmeticsParam);
         boolean includeCosmetics = includeDetails && (cosmeticsOnly || queryFlag(rawQuery, "cosmetics"));
-        return new TerrainRequest(decode(parts[0]), chunkX, chunkZ, includeDetails, includeCosmetics, cosmeticsOnly);
+        TerrainSampler.VisualDetailMode visualDetailMode = TerrainSampler.VisualDetailMode.fromQuery(queryParam(rawQuery, "visualDetail"));
+        return new TerrainRequest(decode(parts[0]), chunkX, chunkZ, includeDetails, includeCosmetics, cosmeticsOnly, visualDetailMode);
     }
 
     private static MapRegionRequest parseMapRegionRequest(@Nonnull String path) {
@@ -3200,10 +3207,11 @@ public final class WorldviewWebServer {
             int chunkZ,
             boolean includeDetails,
             boolean includeCosmetics,
-            boolean cosmeticsOnly
+            boolean cosmeticsOnly,
+            TerrainSampler.VisualDetailMode visualDetailMode
     ) {
         String key() {
-            return worldName + ":" + chunkX + ":" + chunkZ + ":" + includeDetails + ":" + includeCosmetics + ":" + cosmeticsOnly;
+            return worldName + ":" + chunkX + ":" + chunkZ + ":" + includeDetails + ":" + includeCosmetics + ":" + cosmeticsOnly + ":" + visualDetailMode.queryValue();
         }
 
         boolean hasCosmeticDetails() {
@@ -3212,10 +3220,10 @@ public final class WorldviewWebServer {
 
         String cacheLayer() {
             if (cosmeticsOnly) {
-                return "surface-cosmetics-only";
+                return "surface-cosmetics-only-" + visualDetailMode.queryValue();
             }
             if (includeDetails) {
-                return includeCosmetics ? "surface-details-cosmetics" : "surface-details";
+                return includeCosmetics ? "surface-details-cosmetics-" + visualDetailMode.queryValue() : "surface-details";
             }
             return "surface";
         }

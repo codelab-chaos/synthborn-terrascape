@@ -164,10 +164,16 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#tree-shade')).toBeChecked();
   await expect(page.locator('#lod-horizon')).toHaveCount(0);
   await expect(page.locator('#map-tiles')).toBeChecked();
-  await expect(page.locator('#cosmetic-blocks-mode')).toHaveValue('off');
+  await expect(page.locator('#cosmetic-blocks-mode')).toHaveValue('split');
+  await expect(page.locator('#visual-detail-mode')).toHaveValue('all');
   await setControlValue('#cosmetic-blocks-mode', 'baked');
   await expect(page.locator('#cosmetic-blocks-mode')).toHaveValue('baked');
   expect(await page.evaluate(() => window.__synthWorldviewDebug.viewState().cosmeticsMode)).toBe('baked');
+  await setControlValue('#visual-detail-mode', 'basic');
+  await expect(page.locator('#visual-detail-mode')).toHaveValue('basic');
+  expect(await page.evaluate(() => window.__synthWorldviewDebug.viewState().visualDetailMode)).toBe('basic');
+  await setControlValue('#visual-detail-mode', 'all');
+  await expect(page.locator('#visual-detail-mode')).toHaveValue('all');
   await setControlValue('#cosmetic-blocks-mode', 'split');
   await expect(page.locator('#cosmetic-blocks-mode')).toHaveValue('split');
   await setControlValue('#cosmetic-blocks-mode', 'off');
@@ -853,7 +859,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   }
   expect(detailResponse.headers()['x-worldview-cache']).toBe('memory');
 
-  const cosmeticDetailResponse = await page.request.get('/api/terrain/default/0/-7.glb?cosmetics=1');
+  const cosmeticDetailResponse = await page.request.get('/api/terrain/default/0/-7.glb?cosmetics=1&visualDetail=all');
   expect(cosmeticDetailResponse.ok()).toBeTruthy();
   const cosmeticDetails = Number(cosmeticDetailResponse.headers()['x-worldview-details'] ?? 0);
   if (experimentalDetailsEnabled) {
@@ -863,7 +869,11 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   }
   expect(['generated', 'disk', 'memory']).toContain(cosmeticDetailResponse.headers()['x-worldview-cache']);
 
-  const cosmeticOnlyResponse = await page.request.get('/api/terrain/default/0/-7.glb?cosmetics=only');
+  const cosmeticBasicResponse = await page.request.get('/api/terrain/default/0/-7.glb?cosmetics=1&visualDetail=basic');
+  expect(cosmeticBasicResponse.ok()).toBeTruthy();
+  expect(['generated', 'disk', 'memory']).toContain(cosmeticBasicResponse.headers()['x-worldview-cache']);
+
+  const cosmeticOnlyResponse = await page.request.get('/api/terrain/default/0/-7.glb?cosmetics=only&visualDetail=all');
   expect(cosmeticOnlyResponse.ok()).toBeTruthy();
   const cosmeticOnlyVertices = Number(cosmeticOnlyResponse.headers()['x-worldview-vertices'] ?? 0);
   if (experimentalDetailsEnabled) {

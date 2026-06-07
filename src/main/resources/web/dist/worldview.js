@@ -40,7 +40,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./utils.js */ "./src/main/resources/web/src/utils.ts");
 /* harmony import */ var _view_state_js__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./view-state.js */ "./src/main/resources/web/src/view-state.ts");
 /* harmony import */ var _water_js__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./water.js */ "./src/main/resources/web/src/water.ts");
-/* harmony import */ var _mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./mesh-cache.js */ "./src/main/resources/web/src/mesh-cache.ts");
+/* harmony import */ var _library_confirm_dialog_js__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./library/confirm-dialog.js */ "./src/main/resources/web/src/library/confirm-dialog.ts");
+/* harmony import */ var _mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./mesh-cache.js */ "./src/main/resources/web/src/mesh-cache.ts");
+
 
 
 
@@ -75,6 +77,7 @@ const AUTO_STREAM_RETAIN_MARGIN = 1;
 const DEFAULT_TERRAIN_LOAD_CONCURRENCY = 4;
 const DEFAULT_TERRAIN_PROMOTION_BUDGET_MS = 4;
 const DEFAULT_TERRAIN_PROMOTIONS_PER_FRAME = 2;
+const VISUAL_DEFAULTS_VERSION = 2;
 const TERRAIN_STREAM_PROGRESS_LOG_MS = 1000;
 const METRICS_UPDATE_INTERVAL_MS = 250;
 function yieldToMain() {
@@ -269,6 +272,50 @@ function currentLightingOptions() {
 function setStatus(text) {
     _dom_js__WEBPACK_IMPORTED_MODULE_8__.statusEl.textContent = text;
 }
+async function handleClearMeshCache() {
+    const stats = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.getMeshCacheStats)();
+    const entryLabel = stats.total === 1 ? 'entry' : 'entries';
+    const confirmed = await (0,_library_confirm_dialog_js__WEBPACK_IMPORTED_MODULE_20__.confirmAction)({
+        title: 'Clear mesh cache?',
+        message: stats.total > 0
+            ? `Delete ${stats.total} cached ${entryLabel} from this browser (${stats.terrain} terrain meshes, ${stats.mapTiles} map tiles). Visible chunks will reload from the server.`
+            : 'No cached mesh data was found in this browser. Reload visible chunks anyway?',
+        confirmLabel: 'Clear cache',
+        cancelLabel: 'Cancel',
+    });
+    if (!confirmed) {
+        return;
+    }
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.clearMeshCacheButton.disabled = true;
+    setStatus('Clearing mesh cache…');
+    try {
+        const cleared = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.clearMeshCache)();
+        for (const [id, entry] of Array.from(loadedChunks.entries())) {
+            finishDisposeChunk(id, entry);
+        }
+        mapTileLayerKey = null;
+        updateMapTileLayer({ force: true });
+        scheduleControlGridLoad();
+        const clearedLabel = cleared.total === 1 ? 'entry' : 'entries';
+        setStatus(cleared.total > 0
+            ? `Cleared ${cleared.total} cached ${clearedLabel}; reloading meshes`
+            : 'Mesh cache already empty; reloading from server');
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mesh_cache_cleared', {
+            terrain: cleared.terrain,
+            mapTiles: cleared.mapTiles,
+            total: cleared.total,
+        });
+    }
+    catch (error) {
+        setStatus(`Mesh cache clear failed: ${error?.message || error}`);
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mesh_cache_clear_failed', {
+            message: error?.message || String(error),
+        });
+    }
+    finally {
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.clearMeshCacheButton.disabled = false;
+    }
+}
 function mapTileRetainRadius(terrainRadius, streamLoad = false) {
     return streamLoad
         ? terrainRadius + AUTO_STREAM_RETAIN_MARGIN + _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.MAP_HORIZON_MARGIN
@@ -441,6 +488,7 @@ function applyInitialParams() {
     applyBooleanParam('shade', _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput);
     applyBooleanParam('mapTiles', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput);
     applyCosmeticModeParam();
+    applySelectParam('visualDetail', _dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput);
     applyBooleanParam('landMotion', _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput);
     applyBooleanParam('mapTime', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput);
     applyNumberParam('terrainLoadSlots', _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput);
@@ -461,6 +509,10 @@ function applyInitialParams() {
 function applyStoredInputs() {
     if (!storedViewState)
         return;
+    if (storedViewState.visualDefaultsVersion !== VISUAL_DEFAULTS_VERSION) {
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, 'split');
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput, 'all');
+    }
     setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput, storedViewState.chunkX);
     setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput, storedViewState.chunkZ);
     setRadiusControlValue(storedViewState.radius);
@@ -482,10 +534,14 @@ function applyStoredInputs() {
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked = storedViewState.mapTime;
     if (typeof storedViewState.mapTiles === 'boolean')
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked = storedViewState.mapTiles;
-    if (typeof storedViewState.cosmeticsMode === 'string')
+    if (storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof storedViewState.cosmeticsMode === 'string') {
         applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, storedViewState.cosmeticsMode);
-    if (typeof storedViewState.cosmetics === 'boolean' && !storedViewState.cosmeticsMode) {
+    }
+    if (storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof storedViewState.cosmetics === 'boolean' && !storedViewState.cosmeticsMode) {
         applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, storedViewState.cosmetics ? 'baked' : 'off');
+    }
+    if (storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof storedViewState.visualDetailMode === 'string') {
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput, storedViewState.visualDetailMode);
     }
     if (typeof storedViewState.landMotion === 'boolean')
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked = storedViewState.landMotion;
@@ -570,6 +626,10 @@ function cosmeticBlocksBaked() {
 }
 function cosmeticBlocksSplit() {
     return cosmeticBlocksMode() === 'split';
+}
+function visualDetailMode() {
+    const value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput?.value;
+    return value === 'basic' || value === 'structures' || value === 'all' ? value : 'all';
 }
 function applyFloatParam(name, ...inputs) {
     const value = initialParams.get(name);
@@ -854,7 +914,7 @@ async function loadChunk(world, chunkX, chunkZ, generation) {
         return false;
     if (loadedChunks.has(id))
         return true;
-    (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.writeTerrainCache)(terrainCacheKey(world, chunkX, chunkZ), bytes.slice(0), { source: 'single' });
+    (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.writeTerrainCache)(terrainCacheKey(world, chunkX, chunkZ), bytes.slice(0), { source: 'single' });
     const entry = addChunkObject(world, chunkX, chunkZ, gltf.scene);
     if (entry && cosmeticBlocksSplit()) {
         void loadCosmeticOverlayForEntry(entry, generation).catch((error) => {
@@ -872,7 +932,7 @@ async function loadChunk(world, chunkX, chunkZ, generation) {
 async function loadTerrainChunkData(world, key, generation) {
     const cacheKey = terrainCacheKey(world, key.chunkX, key.chunkZ);
     const readStarted = performance.now();
-    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.readTerrainCache)(cacheKey);
+    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.readTerrainCache)(cacheKey);
     const cacheReadMs = performance.now() - readStarted;
     if (generation !== loadGeneration) {
         return { ok: false, key, stale: true, cacheReadMs, cacheParseMs: 0, cacheHit: false, cacheMiss: false, network: false };
@@ -960,7 +1020,7 @@ function promoteTerrainResults(queue, generation, streamStats = null) {
         if (!loadedChunks.has(id)) {
             const entry = addChunkObject(resultWorld, result.key.chunkX, result.key.chunkZ, result.gltf.scene);
             if (result.bytes) {
-                (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.writeTerrainCache)(terrainCacheKey(resultWorld, result.key.chunkX, result.key.chunkZ), result.bytes.slice(0), { source: 'single' });
+                (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.writeTerrainCache)(terrainCacheKey(resultWorld, result.key.chunkX, result.key.chunkZ), result.bytes.slice(0), { source: 'single' });
             }
             if (entry && cosmeticBlocksSplit()) {
                 void loadCosmeticOverlayForEntry(entry, generation).catch((error) => {
@@ -1120,7 +1180,7 @@ async function loadCosmeticOverlayForEntry(entry, generation) {
         return false;
     const cacheKey = terrainCosmeticOverlayCacheKey(entry.world, entry.chunkX, entry.chunkZ);
     let bytes = null;
-    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.readTerrainCache)(cacheKey);
+    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.readTerrainCache)(cacheKey);
     if (cached?.bytes) {
         bytes = cached.bytes;
     }
@@ -1138,7 +1198,7 @@ async function loadCosmeticOverlayForEntry(entry, generation) {
         return false;
     attachCosmeticOverlay(entry, gltf.scene);
     if (!cached?.bytes) {
-        (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.writeTerrainCache)(cacheKey, bytes.slice(0), { source: 'cosmetic-overlay' });
+        (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.writeTerrainCache)(cacheKey, bytes.slice(0), { source: 'cosmetic-overlay' });
     }
     updateMetrics();
     return true;
@@ -1289,31 +1349,33 @@ function applyWaterMode() {
     }
 }
 function terrainCacheKey(world, chunkX, chunkZ) {
-    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.makeTerrainCacheKey)({
+    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.makeTerrainCacheKey)({
         world,
         chunkX,
         chunkZ,
         formatVersion: terrainFormatVersion,
         detailsEnabled: experimentalDetailsEnabled,
         cosmeticsMode: cosmeticBlocksBaked() ? 'baked' : 'plain',
+        visualDetailMode: cosmeticBlocksBaked() ? visualDetailMode() : 'basic',
     });
 }
 function terrainUrl(world, chunkX, chunkZ) {
     const base = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
-    return cosmeticBlocksBaked() ? `${base}?cosmetics=1` : base;
+    return cosmeticBlocksBaked() ? `${base}?cosmetics=1&visualDetail=${encodeURIComponent(visualDetailMode())}` : base;
 }
 function terrainCosmeticOverlayCacheKey(world, chunkX, chunkZ) {
-    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.makeTerrainCacheKey)({
+    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.makeTerrainCacheKey)({
         world,
         chunkX,
         chunkZ,
         formatVersion: terrainFormatVersion,
         detailsEnabled: experimentalDetailsEnabled,
         cosmeticsMode: 'split-overlay',
+        visualDetailMode: visualDetailMode(),
     });
 }
 function terrainCosmeticOverlayUrl(world, chunkX, chunkZ) {
-    return `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb?cosmetics=only`;
+    return `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb?cosmetics=only&visualDetail=${encodeURIComponent(visualDetailMode())}`;
 }
 function applyMapWaterTint() {
     for (const entry of loadedChunks.values()) {
@@ -2174,6 +2236,7 @@ function exposeDebugState() {
         viewState: () => ({
             mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
             cosmeticsMode: _dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput.value,
+            visualDetailMode: visualDetailMode(),
             landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked,
             terrainLoadSlots: terrainLoadConcurrency(),
             terrainSpawnFrame: terrainPromotionsPerFrame(),
@@ -2315,6 +2378,7 @@ function saveViewState() {
     const chunk = playerChunk();
     const state = {
         world: _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value,
+        visualDefaultsVersion: VISUAL_DEFAULTS_VERSION,
         chunkX: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10) || chunk.chunkX,
         chunkZ: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10) || chunk.chunkZ,
         radius: radiusValue(),
@@ -2329,6 +2393,7 @@ function saveViewState() {
         mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked,
         mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
         cosmeticsMode: _dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput.value,
+        visualDetailMode: visualDetailMode(),
         landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked,
         terrainLoadSlots: terrainLoadConcurrency(),
         terrainSpawnFrame: terrainPromotionsPerFrame(),
@@ -2785,6 +2850,16 @@ _dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput.addEventListener('c
     }
     scheduleControlGridLoad();
     saveViewState();
+});
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput.addEventListener('change', () => {
+    for (const [id, entry] of Array.from(loadedChunks.entries())) {
+        finishDisposeChunk(id, entry);
+    }
+    scheduleControlGridLoad();
+    saveViewState();
+});
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.clearMeshCacheButton?.addEventListener('click', () => {
+    void handleClearMeshCache();
 });
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.addEventListener('change', saveViewState);
 syncRadiusControl();
@@ -3268,6 +3343,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   canvas: () => (/* binding */ canvas),
 /* harmony export */   chunkXInput: () => (/* binding */ chunkXInput),
 /* harmony export */   chunkZInput: () => (/* binding */ chunkZInput),
+/* harmony export */   clearMeshCacheButton: () => (/* binding */ clearMeshCacheButton),
 /* harmony export */   coordCameraEl: () => (/* binding */ coordCameraEl),
 /* harmony export */   coordChunkEl: () => (/* binding */ coordChunkEl),
 /* harmony export */   coordTargetEl: () => (/* binding */ coordTargetEl),
@@ -3316,6 +3392,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   terrainSpawnFrameValueInput: () => (/* binding */ terrainSpawnFrameValueInput),
 /* harmony export */   timeCycleLabelEl: () => (/* binding */ timeCycleLabelEl),
 /* harmony export */   treeShadeInput: () => (/* binding */ treeShadeInput),
+/* harmony export */   visualDetailModeInput: () => (/* binding */ visualDetailModeInput),
 /* harmony export */   waterModeInput: () => (/* binding */ waterModeInput),
 /* harmony export */   worldSelect: () => (/* binding */ worldSelect)
 /* harmony export */ });
@@ -3336,7 +3413,9 @@ const playerUpdateRateInput = document.querySelector('#player-update-rate');
 const sunLightingInput = document.querySelector('#sun-lighting');
 const treeShadeInput = document.querySelector('#tree-shade');
 const mapTilesInput = document.querySelector('#map-tiles');
+const clearMeshCacheButton = document.querySelector('#clear-mesh-cache');
 const cosmeticBlocksModeInput = document.querySelector('#cosmetic-blocks-mode');
+const visualDetailModeInput = document.querySelector('#visual-detail-mode');
 const landMotionInput = document.querySelector('#land-motion');
 const terrainLoadSlotsInput = document.querySelector('#terrain-load-slots');
 const terrainLoadSlotsValueInput = document.querySelector('#terrain-load-slots-value');
@@ -3704,6 +3783,43 @@ function createChunkLandMotion() {
             return count;
         },
     };
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/library/confirm-dialog.ts"
+/*!**************************************************************!*\
+  !*** ./src/main/resources/web/src/library/confirm-dialog.ts ***!
+  \**************************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   confirmAction: () => (/* binding */ confirmAction)
+/* harmony export */ });
+const dialogEl = document.querySelector('#confirm-dialog');
+const titleEl = document.querySelector('#confirm-dialog-title');
+const messageEl = document.querySelector('#confirm-dialog-message');
+const confirmButtonEl = document.querySelector('#confirm-dialog-confirm');
+const cancelButtonEl = document.querySelector('#confirm-dialog-cancel');
+async function confirmAction({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', } = {}) {
+    if (!dialogEl || !titleEl || !messageEl || !confirmButtonEl || !cancelButtonEl) {
+        return window.confirm(message || title || 'Continue?');
+    }
+    titleEl.textContent = title || 'Confirm';
+    messageEl.textContent = message || '';
+    confirmButtonEl.textContent = confirmLabel;
+    cancelButtonEl.textContent = cancelLabel;
+    dialogEl.returnValue = 'cancel';
+    dialogEl.showModal();
+    return new Promise((resolve) => {
+        const onClose = () => {
+            dialogEl.removeEventListener('close', onClose);
+            resolve(dialogEl.returnValue === 'confirm');
+        };
+        dialogEl.addEventListener('close', onClose);
+    });
 }
 
 
@@ -4961,6 +5077,8 @@ function sampleMapBackdropColor(worldX, worldZ) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   clearMeshCache: () => (/* binding */ clearMeshCache),
+/* harmony export */   getMeshCacheStats: () => (/* binding */ getMeshCacheStats),
 /* harmony export */   makeMapTileCacheKey: () => (/* binding */ makeMapTileCacheKey),
 /* harmony export */   makeTerrainCacheKey: () => (/* binding */ makeTerrainCacheKey),
 /* harmony export */   readMapTileCache: () => (/* binding */ readMapTileCache),
@@ -4976,10 +5094,11 @@ const MAX_RECORD_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 let dbPromise = null;
 const mapTileWriteQueue = new Map();
 let mapTileWriteWorker = null;
-function makeTerrainCacheKey({ world, chunkX, chunkZ, formatVersion, detailsEnabled, cosmeticsMode }) {
+function makeTerrainCacheKey({ world, chunkX, chunkZ, formatVersion, detailsEnabled, cosmeticsMode, visualDetailMode }) {
     const details = detailsEnabled ? 'details' : 'surface';
     const cosmetics = cosmeticsMode || 'plain';
-    return `${formatVersion}:${details}:${cosmetics}:${world}:${chunkX}:${chunkZ}`;
+    const visualDetail = visualDetailMode || 'basic';
+    return `${formatVersion}:${details}:${cosmetics}:${visualDetail}:${world}:${chunkX}:${chunkZ}`;
 }
 async function readTerrainCache(key) {
     try {
@@ -5062,6 +5181,42 @@ async function writeTerrainCache(key, bytes, meta = {}) {
     catch {
         return false;
     }
+}
+async function getMeshCacheStats() {
+    try {
+        const db = await openDb();
+        const terrain = await countStore(db, TERRAIN_STORE);
+        const mapTiles = await countStore(db, MAP_TILE_STORE);
+        return { terrain, mapTiles, total: terrain + mapTiles };
+    }
+    catch {
+        return { terrain: 0, mapTiles: 0, total: 0 };
+    }
+}
+async function clearMeshCache() {
+    mapTileWriteQueue.clear();
+    mapTileWriteWorker = null;
+    try {
+        const db = await openDb();
+        const terrain = await clearStore(db, TERRAIN_STORE);
+        const mapTiles = await clearStore(db, MAP_TILE_STORE);
+        return { terrain, mapTiles, total: terrain + mapTiles };
+    }
+    catch (error) {
+        dbPromise = null;
+        throw error;
+    }
+}
+async function countStore(db, storeName) {
+    const store = db.transaction(storeName, 'readonly').objectStore(storeName);
+    return requestPromise(store.count());
+}
+async function clearStore(db, storeName) {
+    const count = await countStore(db, storeName);
+    const transaction = db.transaction(storeName, 'readwrite');
+    transaction.objectStore(storeName).clear();
+    await transactionPromise(transaction);
+    return count;
 }
 function openDb() {
     if (dbPromise)
