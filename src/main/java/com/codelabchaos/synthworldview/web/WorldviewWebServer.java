@@ -99,7 +99,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class WorldviewWebServer {
-    private static final String FORMAT_VERSION = "v13";
+    private static final String FORMAT_VERSION = "v14";
     private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
     private static final int MAX_BATCH_CHUNKS = 16;

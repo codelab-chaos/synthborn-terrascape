@@ -4994,6 +4994,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var three__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! three */ "three");
 
 const ICON_REDRAWS_PER_FRAME = 8;
+const MOB_BADGE_WIDTH = 3.6;
+const MOB_BADGE_HEIGHT = 4.8;
+const PLAYER_BADGE_WIDTH = 4.8;
+const PLAYER_BADGE_HEIGHT = 6.4;
 const iconCache = new Map();
 const pendingIconRedraws = [];
 let iconRedrawScheduled = false;
@@ -5188,7 +5192,10 @@ function drawMobBadge(sprite, mob, image = null) {
     texture.needsUpdate = true;
 }
 function configureMobBadgeScale(sprite) {
-    sprite.scale.set(4.8, 6.4, 1);
+    const mob = sprite.userData.mob;
+    const width = mob?.playerCard === true ? PLAYER_BADGE_WIDTH : MOB_BADGE_WIDTH;
+    const height = mob?.playerCard === true ? PLAYER_BADGE_HEIGHT : MOB_BADGE_HEIGHT;
+    sprite.scale.set(width, height, 1);
 }
 function drawSlateCardBackground(ctx, x, y, width, height, radius) {
     const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
@@ -5620,10 +5627,11 @@ const PLAYER_CARD_POINTER_MIN_LENGTH = 0.9;
 const CARD_POINTER_CARD_OVERLAP = 0.08;
 const MOB_POINTER_ANCHOR_Y = 0.65;
 const MOB_HEADSHOT_BLOCK_HEIGHT = 2.3;
-const MOB_HEADSHOT_BLOCK_MIN_SIZE = 1.25;
+const MOB_HEADSHOT_BLOCK_MIN_SIZE = 0.2;
 const MOB_HEADSHOT_BLOCK_MAX_SIZE = 3.3;
+const MOB_HEADSHOT_BLOCK_PIXEL_PADDING = 1;
 const PLAYER_CARD_COLOR = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x5ef1b5);
-const fallbackMobHeadshotGeometry = createMobHeadshotGeometry(1, 1);
+const fallbackMobHeadshotGeometry = createMobHeadshotGeometry({ width: 1, height: 1 });
 const mobHeadshotTextureLoader = new three__WEBPACK_IMPORTED_MODULE_0__.TextureLoader();
 const mobHeadshotMaterials = new Map();
 function createPlayerMarker(player) {
@@ -5799,7 +5807,7 @@ function updateMobHeadshotBlockMesh(mesh, mob) {
     entry?.meshes.add(mesh);
     mesh.geometry = entry?.geometry ?? fallbackMobHeadshotGeometry;
     mesh.scale.set(1, 1, 1);
-    mesh.position.set(0, 0.12 + MOB_HEADSHOT_BLOCK_HEIGHT / 2, 0);
+    positionMobHeadshotBlock(mesh);
 }
 function mobHeadshotMaterialKey(mob) {
     return typeof mob?.iconUrl === 'string' && mob.iconUrl ? mob.iconUrl : `color:${mob?.color ?? 'default'}`;
@@ -5825,15 +5833,20 @@ function mobHeadshotResource(mob) {
             texture.colorSpace = three__WEBPACK_IMPORTED_MODULE_0__.SRGBColorSpace;
             texture.userData.worldviewShared = true;
             const image = texture.image;
-            const aspect = image?.width && image?.height ? image.width / image.height : 1;
+            const imageWidth = image?.width ?? 1;
+            const imageHeight = image?.height ?? 1;
+            const iconBounds = mobHeadshotIconBounds(image);
+            const cropBounds = paddedMobHeadshotBounds(iconBounds, imageWidth, imageHeight);
+            applyMobHeadshotTextureCrop(texture, cropBounds, imageWidth, imageHeight);
+            const aspect = cropBounds.width && cropBounds.height ? cropBounds.width / cropBounds.height : 1;
             entry.aspect = aspect;
-            entry.geometry = createMobHeadshotGeometry(image?.width ?? 1, image?.height ?? 1);
+            entry.geometry = createMobHeadshotGeometry(cropBounds, imageWidth, imageHeight);
             const imageMaterial = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
                 map: texture,
                 color: 0x4f5f5b,
                 transparent: true,
-                opacity: 0.72,
-                depthWrite: false,
+                opacity: 1,
+                depthWrite: true,
             });
             imageMaterial.userData.worldviewShared = true;
             entry.materials = mobHeadshotFaceMaterials(imageMaterial, capMaterial);
@@ -5842,6 +5855,7 @@ function mobHeadshotResource(mob) {
                     continue;
                 mesh.geometry = entry.geometry;
                 mesh.material = entry.materials;
+                positionMobHeadshotBlock(mesh);
             }
         }, undefined, () => {
             entry.meshes.clear();
@@ -5849,30 +5863,103 @@ function mobHeadshotResource(mob) {
     }
     return entry;
 }
-function createMobHeadshotGeometry(imageWidth, imageHeight) {
-    const safeWidth = Math.max(1, Number(imageWidth) || 1);
-    const safeHeight = Math.max(1, Number(imageHeight) || 1);
-    const pixelWorldSize = MOB_HEADSHOT_BLOCK_HEIGHT / safeHeight;
-    const width = (0,_utils_js__WEBPACK_IMPORTED_MODULE_2__.clamp)((safeWidth + 2) * pixelWorldSize, MOB_HEADSHOT_BLOCK_MIN_SIZE, MOB_HEADSHOT_BLOCK_MAX_SIZE);
+function createMobHeadshotGeometry(bounds, imageWidth = bounds?.width, imageHeight = bounds?.height) {
+    const safeWidth = Math.max(1, Number(bounds?.width) || 1);
+    const safeHeight = Math.max(1, Number(bounds?.height) || 1);
+    const sourceHeight = Math.max(1, Number(imageHeight) || safeHeight);
+    const pixelWorldSize = MOB_HEADSHOT_BLOCK_HEIGHT / sourceHeight;
+    const width = (0,_utils_js__WEBPACK_IMPORTED_MODULE_2__.clamp)(safeWidth * pixelWorldSize, MOB_HEADSHOT_BLOCK_MIN_SIZE, MOB_HEADSHOT_BLOCK_MAX_SIZE);
+    const height = (0,_utils_js__WEBPACK_IMPORTED_MODULE_2__.clamp)(safeHeight * pixelWorldSize, MOB_HEADSHOT_BLOCK_MIN_SIZE, MOB_HEADSHOT_BLOCK_HEIGHT);
     const depth = width;
-    const geometry = new three__WEBPACK_IMPORTED_MODULE_0__.BoxGeometry(width, MOB_HEADSHOT_BLOCK_HEIGHT, depth);
+    const geometry = new three__WEBPACK_IMPORTED_MODULE_0__.BoxGeometry(width, height, depth);
     geometry.userData.worldviewShared = true;
     geometry.userData.mobHeadshotSize = {
-        imageWidth: safeWidth,
-        imageHeight: safeHeight,
+        imageWidth: Math.max(1, Number(imageWidth) || safeWidth),
+        imageHeight: sourceHeight,
+        cropX: Math.max(0, Number(bounds?.x) || 0),
+        cropY: Math.max(0, Number(bounds?.y) || 0),
+        cropWidth: safeWidth,
+        cropHeight: safeHeight,
         width,
-        height: MOB_HEADSHOT_BLOCK_HEIGHT,
+        height,
         depth,
     };
     return geometry;
+}
+function positionMobHeadshotBlock(mesh) {
+    const height = Number(mesh.geometry?.userData?.mobHeadshotSize?.height) || MOB_HEADSHOT_BLOCK_HEIGHT;
+    mesh.position.set(0, 0.12 + height / 2, 0);
+}
+function mobHeadshotIconBounds(image) {
+    const width = Math.max(1, Number(image?.width) || 1);
+    const height = Math.max(1, Number(image?.height) || 1);
+    const fallback = { x: 0, y: 0, width, height };
+    if (!image || typeof document === 'undefined')
+        return fallback;
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx)
+            return fallback;
+        ctx.drawImage(image, 0, 0, width, height);
+        const { data } = ctx.getImageData(0, 0, width, height);
+        let minX = width;
+        let minY = height;
+        let maxX = -1;
+        let maxY = -1;
+        for (let y = 0; y < height; y += 1) {
+            for (let x = 0; x < width; x += 1) {
+                if (data[(y * width + x) * 4 + 3] <= 8)
+                    continue;
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            }
+        }
+        if (maxX < minX || maxY < minY)
+            return fallback;
+        return {
+            x: minX,
+            y: minY,
+            width: maxX - minX + 1,
+            height: maxY - minY + 1,
+        };
+    }
+    catch {
+        return fallback;
+    }
+}
+function paddedMobHeadshotBounds(bounds, imageWidth, imageHeight) {
+    const width = Math.max(1, Number(imageWidth) || 1);
+    const height = Math.max(1, Number(imageHeight) || 1);
+    const x = Math.max(0, Math.floor(bounds.x) - MOB_HEADSHOT_BLOCK_PIXEL_PADDING);
+    const y = Math.max(0, Math.floor(bounds.y) - MOB_HEADSHOT_BLOCK_PIXEL_PADDING);
+    const right = Math.min(width, Math.ceil(bounds.x + bounds.width) + MOB_HEADSHOT_BLOCK_PIXEL_PADDING);
+    const bottom = Math.min(height, Math.ceil(bounds.y + bounds.height) + MOB_HEADSHOT_BLOCK_PIXEL_PADDING);
+    return {
+        x,
+        y,
+        width: Math.max(1, right - x),
+        height: Math.max(1, bottom - y),
+    };
+}
+function applyMobHeadshotTextureCrop(texture, bounds, imageWidth, imageHeight) {
+    const width = Math.max(1, Number(imageWidth) || 1);
+    const height = Math.max(1, Number(imageHeight) || 1);
+    texture.offset.set(bounds.x / width, 1 - ((bounds.y + bounds.height) / height));
+    texture.repeat.set(bounds.width / width, bounds.height / height);
+    texture.needsUpdate = true;
 }
 function sharedMobHeadshotSideMaterial(color) {
     const baseColor = new three__WEBPACK_IMPORTED_MODULE_0__.Color(color || '#1a2325');
     const material = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
         color: baseColor.multiplyScalar(0.32),
-        transparent: true,
-        opacity: 0.62,
-        depthWrite: false,
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
     });
     material.userData.worldviewShared = true;
     return material;
@@ -5881,9 +5968,9 @@ function sharedMobHeadshotCapMaterial(color) {
     const baseColor = new three__WEBPACK_IMPORTED_MODULE_0__.Color(color || '#1a2325');
     const material = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({
         color: baseColor.multiplyScalar(0.18),
-        transparent: true,
-        opacity: 0.38,
-        depthWrite: false,
+        transparent: false,
+        opacity: 1,
+        depthWrite: true,
     });
     material.userData.worldviewShared = true;
     return material;

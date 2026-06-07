@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 
 const ICON_REDRAWS_PER_FRAME = 8;
+const MOB_BADGE_WIDTH = 3.6;
+const MOB_BADGE_HEIGHT = 4.8;
+const PLAYER_BADGE_WIDTH = 4.8;
+const PLAYER_BADGE_HEIGHT = 6.4;
 const iconCache = new Map();
 const pendingIconRedraws = [];
 let iconRedrawScheduled = false;
@@ -209,7 +213,10 @@ function drawMobBadge(sprite, mob, image = null) {
 }
 
 function configureMobBadgeScale(sprite) {
-  sprite.scale.set(4.8, 6.4, 1);
+  const mob = sprite.userData.mob;
+  const width = mob?.playerCard === true ? PLAYER_BADGE_WIDTH : MOB_BADGE_WIDTH;
+  const height = mob?.playerCard === true ? PLAYER_BADGE_HEIGHT : MOB_BADGE_HEIGHT;
+  sprite.scale.set(width, height, 1);
 }
 
 function drawSlateCardBackground(ctx, x, y, width, height, radius) {
