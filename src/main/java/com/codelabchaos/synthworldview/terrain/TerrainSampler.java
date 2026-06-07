@@ -20,6 +20,10 @@ public final class TerrainSampler {
     }
 
     public static TerrainSnapshot sample(@Nonnull World world, int chunkX, int chunkZ) {
+        return sample(world, chunkX, chunkZ, false);
+    }
+
+    public static TerrainSnapshot sample(@Nonnull World world, int chunkX, int chunkZ, boolean includeCosmeticDetails) {
         long chunkIndex = ChunkUtil.indexChunk(chunkX, chunkZ);
         WorldChunk chunk = world.getChunkIfLoaded(chunkIndex);
         if (chunk == null) {
@@ -38,7 +42,7 @@ public final class TerrainSampler {
         for (int z = 0; z < TerrainSnapshot.CHUNK_SIZE; z++) {
             for (int x = 0; x < TerrainSnapshot.CHUNK_SIZE; x++) {
                 short height = chunk.getHeight(x, z);
-                SampledColumn sampled = sampleColumn(chunk, x, z, height);
+                SampledColumn sampled = sampleColumn(chunk, x, z, height, includeCosmeticDetails);
                 TerrainColumn column = sampled.column();
                 columns[z * TerrainSnapshot.CHUNK_SIZE + x] = column;
                 details.addAll(sampled.details());
@@ -58,7 +62,7 @@ public final class TerrainSampler {
         return new TerrainSnapshot(world.getName(), chunkX, chunkZ, columns, details.toArray(TerrainDetail[]::new), nonEmpty, minY, maxY);
     }
 
-    private static SampledColumn sampleColumn(@Nonnull WorldChunk chunk, int localX, int localZ, short height) {
+    private static SampledColumn sampleColumn(@Nonnull WorldChunk chunk, int localX, int localZ, short height, boolean includeCosmeticDetails) {
         if (height < 0) {
             return new SampledColumn(new TerrainColumn(localX, localZ, -1, 0, 0, "EMPTY", 0x000000, false), List.of());
         }
@@ -87,7 +91,7 @@ public final class TerrainSampler {
         boolean fluid = fluidId != 0 || isFluidBlock(blockKey);
         int color = fluid ? waterColor(blockKey) : colorFor(blockType, blockKey, chunk.getTint(localX, localZ));
         if (!fluid && (isOverlandDetail(blockKey) || hasAirGapBelowTop(chunk, localX, localZ, height))) {
-            return sampleOverlandColumn(chunk, localX, localZ, height, blockType, blockKey, color);
+            return sampleOverlandColumn(chunk, localX, localZ, height, blockType, blockKey, color, includeCosmeticDetails);
         }
         return new SampledColumn(new TerrainColumn(localX, localZ, height, blockId, fluidId, blockKey, color, fluid), List.of());
     }
@@ -99,7 +103,8 @@ public final class TerrainSampler {
             int height,
             BlockType topBlockType,
             String topBlockKey,
-            int topColor
+            int topColor,
+            boolean includeCosmeticDetails
     ) {
         TerrainColumn ground = null;
         for (int y = height; y >= Math.max(0, height - OVERLAND_SCAN_BELOW_HEIGHTMAP); y--) {
@@ -120,7 +125,11 @@ public final class TerrainSampler {
             ground = new TerrainColumn(localX, localZ, height, safeBlockId(chunk, localX, height, localZ),
                     safeFluidId(chunk, localX, height, localZ), topBlockKey, topColor, false);
         }
-        return new SampledColumn(ground, collectVegetationDetails(chunk, localX, localZ, ground.y() + 1, height));
+        List<TerrainDetail> details = new ArrayList<>(collectVegetationDetails(chunk, localX, localZ, ground.y() + 1, height));
+        if (includeCosmeticDetails) {
+            details.addAll(collectCosmeticDetails(chunk, localX, localZ, ground.y() + 1, height));
+        }
+        return new SampledColumn(ground, details);
     }
 
     private static List<TerrainDetail> collectVegetationDetails(
@@ -150,6 +159,38 @@ public final class TerrainSampler {
                     localZ,
                     y,
                     TerrainDetail.Kind.CANOPY_VOXEL,
+                    colorFor(blockType, blockKey, chunk.getTint(localX, localZ))));
+        }
+        return details;
+    }
+
+    private static List<TerrainDetail> collectCosmeticDetails(
+            @Nonnull WorldChunk chunk,
+            int localX,
+            int localZ,
+            int minY,
+            int maxY
+    ) {
+        if (maxY < minY) {
+            return List.of();
+        }
+
+        List<TerrainDetail> details = new ArrayList<>();
+        for (int y = minY; y <= maxY; y++) {
+            int blockId = safeBlockId(chunk, localX, y, localZ);
+            BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+            if (blockType == null || blockId == BlockType.EMPTY_ID) {
+                continue;
+            }
+            String blockKey = blockType.getId();
+            if (isFluidBlock(blockKey) || isVegetationDetail(blockKey) || !isCosmeticDetail(blockKey)) {
+                continue;
+            }
+            details.add(new TerrainDetail(
+                    localX,
+                    localZ,
+                    y,
+                    TerrainDetail.Kind.COSMETIC_VOXEL,
                     colorFor(blockType, blockKey, chunk.getTint(localX, localZ))));
         }
         return details;
@@ -279,6 +320,41 @@ public final class TerrainSampler {
                 || (key.contains("pine") && !isTrunkBlock(key))
                 || (key.contains("spruce") && !isTrunkBlock(key))
                 || (key.contains("conifer") && !isTrunkBlock(key));
+    }
+
+    private static boolean isCosmeticDetail(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
+        return key.contains("plank")
+                || key.contains("roof")
+                || key.contains("shingle")
+                || key.contains("thatch")
+                || key.contains("tile")
+                || key.contains("timber")
+                || key.contains("beam")
+                || key.contains("post")
+                || key.contains("pillar")
+                || key.contains("fence")
+                || key.contains("rail")
+                || key.contains("torch")
+                || key.contains("fire")
+                || key.contains("lantern")
+                || key.contains("candle")
+                || key.contains("crate")
+                || key.contains("barrel")
+                || key.contains("chair")
+                || key.contains("table")
+                || key.contains("bench")
+                || key.contains("bed")
+                || key.contains("door")
+                || key.contains("window")
+                || key.contains("glass")
+                || key.contains("carpet")
+                || key.contains("rug")
+                || key.contains("banner")
+                || key.contains("sign")
+                || key.contains("stair")
+                || key.contains("slab")
+                || (key.contains("wood") && !isTrunkBlock(key));
     }
 
     private static int waterColor(String blockKey) {

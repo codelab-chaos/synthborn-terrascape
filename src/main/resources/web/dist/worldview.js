@@ -440,6 +440,7 @@ function applyInitialParams() {
     applyBooleanParam('sun', _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput);
     applyBooleanParam('shade', _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput);
     applyBooleanParam('mapTiles', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput);
+    applyCosmeticModeParam();
     applyBooleanParam('landMotion', _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput);
     applyBooleanParam('mapTime', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput);
     applyNumberParam('terrainLoadSlots', _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput);
@@ -481,6 +482,11 @@ function applyStoredInputs() {
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked = storedViewState.mapTime;
     if (typeof storedViewState.mapTiles === 'boolean')
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked = storedViewState.mapTiles;
+    if (typeof storedViewState.cosmeticsMode === 'string')
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, storedViewState.cosmeticsMode);
+    if (typeof storedViewState.cosmetics === 'boolean' && !storedViewState.cosmeticsMode) {
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, storedViewState.cosmetics ? 'baked' : 'off');
+    }
     if (typeof storedViewState.landMotion === 'boolean')
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked = storedViewState.landMotion;
     if (typeof storedViewState.renderDetails === 'boolean')
@@ -535,12 +541,35 @@ function applyBooleanParam(name, input) {
         return;
     input.checked = ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
 }
+function applyCosmeticModeParam() {
+    const mode = initialParams.get('cosmeticsMode');
+    if (mode === 'off' || mode === 'baked' || mode === 'split') {
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, mode);
+        return;
+    }
+    const legacy = initialParams.get('cosmetics');
+    if (legacy === null)
+        return;
+    applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, ['1', 'true', 'yes', 'on'].includes(legacy.toLowerCase()) ? 'baked' : 'off');
+}
 function syncMobBlocksInputs(checked) {
     _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput.checked = checked === true;
     _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksPanelInput.checked = checked === true;
 }
 function mobBlocksEnabled() {
     return _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput.checked === true;
+}
+function cosmeticBlocksMode() {
+    if (!experimentalDetailsEnabled)
+        return 'off';
+    const value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput?.value;
+    return value === 'baked' || value === 'split' ? value : 'off';
+}
+function cosmeticBlocksBaked() {
+    return cosmeticBlocksMode() === 'baked';
+}
+function cosmeticBlocksSplit() {
+    return cosmeticBlocksMode() === 'split';
 }
 function applyFloatParam(name, ...inputs) {
     const value = initialParams.get(name);
@@ -813,7 +842,7 @@ async function loadChunk(world, chunkX, chunkZ, generation) {
     const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.chunkId)(world, chunkX, chunkZ);
     if (loadedChunks.has(id))
         return true;
-    const url = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
+    const url = terrainUrl(world, chunkX, chunkZ);
     const started = performance.now();
     const mapTilePromise = _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked
         ? (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(world, [{ chunkX, chunkZ }], { immediate: true })
@@ -826,7 +855,17 @@ async function loadChunk(world, chunkX, chunkZ, generation) {
     if (loadedChunks.has(id))
         return true;
     (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.writeTerrainCache)(terrainCacheKey(world, chunkX, chunkZ), bytes.slice(0), { source: 'single' });
-    addChunkObject(world, chunkX, chunkZ, gltf.scene);
+    const entry = addChunkObject(world, chunkX, chunkZ, gltf.scene);
+    if (entry && cosmeticBlocksSplit()) {
+        void loadCosmeticOverlayForEntry(entry, generation).catch((error) => {
+            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_cosmetic_overlay_failed', {
+                world,
+                chunkX,
+                chunkZ,
+                error: error?.message ?? error,
+            });
+        });
+    }
     (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientTiming)('terrain_single_load', started, { world, chunkX, chunkZ });
     return true;
 }
@@ -864,7 +903,7 @@ async function loadTerrainChunkData(world, key, generation) {
             });
         }
     }
-    const url = `/api/terrain/${encodeURIComponent(world)}/${key.chunkX}/${key.chunkZ}.glb`;
+    const url = terrainUrl(world, key.chunkX, key.chunkZ);
     const started = performance.now();
     const bytes = await fetchArrayBufferWithRetry(url);
     const parseStarted = performance.now();
@@ -919,9 +958,19 @@ function promoteTerrainResults(queue, generation, streamStats = null) {
         const resultWorld = result.world ?? _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
         const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.chunkId)(resultWorld, result.key.chunkX, result.key.chunkZ);
         if (!loadedChunks.has(id)) {
-            addChunkObject(resultWorld, result.key.chunkX, result.key.chunkZ, result.gltf.scene);
+            const entry = addChunkObject(resultWorld, result.key.chunkX, result.key.chunkZ, result.gltf.scene);
             if (result.bytes) {
                 (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.writeTerrainCache)(terrainCacheKey(resultWorld, result.key.chunkX, result.key.chunkZ), result.bytes.slice(0), { source: 'single' });
+            }
+            if (entry && cosmeticBlocksSplit()) {
+                void loadCosmeticOverlayForEntry(entry, generation).catch((error) => {
+                    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_cosmetic_overlay_failed', {
+                        world: resultWorld,
+                        chunkX: result.key.chunkX,
+                        chunkZ: result.key.chunkZ,
+                        error: error?.message ?? error,
+                    });
+                });
             }
             if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
                 void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(resultWorld, [result.key], { immediate: true });
@@ -1064,6 +1113,51 @@ function addChunkObject(world, chunkX, chunkZ, object) {
     chunkLandMotion.beginLoad(entry, landMotionEnabled());
     loadedChunks.set(id, entry);
     pruneOrphanChunkWrappers(wrapper);
+    return entry;
+}
+async function loadCosmeticOverlayForEntry(entry, generation) {
+    if (!cosmeticBlocksSplit() || generation !== loadGeneration)
+        return false;
+    const cacheKey = terrainCosmeticOverlayCacheKey(entry.world, entry.chunkX, entry.chunkZ);
+    let bytes = null;
+    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.readTerrainCache)(cacheKey);
+    if (cached?.bytes) {
+        bytes = cached.bytes;
+    }
+    else {
+        bytes = await fetchArrayBufferWithRetry(terrainCosmeticOverlayUrl(entry.world, entry.chunkX, entry.chunkZ));
+    }
+    if (!cosmeticBlocksSplit() || generation !== loadGeneration)
+        return false;
+    const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.chunkId)(entry.world, entry.chunkX, entry.chunkZ);
+    const current = loadedChunks.get(id);
+    if (current !== entry)
+        return false;
+    const gltf = await parseGltfBytes(bytes);
+    if (!cosmeticBlocksSplit() || generation !== loadGeneration || loadedChunks.get(id) !== entry)
+        return false;
+    attachCosmeticOverlay(entry, gltf.scene);
+    if (!cached?.bytes) {
+        (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.writeTerrainCache)(cacheKey, bytes.slice(0), { source: 'cosmetic-overlay' });
+    }
+    updateMetrics();
+    return true;
+}
+function attachCosmeticOverlay(entry, object) {
+    if (entry.cosmeticOverlay) {
+        entry.mesh.remove(entry.cosmeticOverlay);
+        const stats = disposeObjectTree(entry.cosmeticOverlay);
+        disposalStats.geometries += stats.geometries;
+        disposalStats.materials += stats.materials;
+        disposalStats.textures += stats.textures;
+    }
+    object.name = 'cosmetic-overlay';
+    object.position.set(0, 0, 0);
+    object.rotation.set(0, 0, 0);
+    object.scale.set(1, 1, 1);
+    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.applyLightingToObject)(object, currentLightingOptions());
+    entry.mesh.add(object);
+    entry.cosmeticOverlay = object;
 }
 async function parseGltfBytes(arrayBuffer) {
     return await loader.parseAsync(arrayBuffer, '');
@@ -1201,7 +1295,25 @@ function terrainCacheKey(world, chunkX, chunkZ) {
         chunkZ,
         formatVersion: terrainFormatVersion,
         detailsEnabled: experimentalDetailsEnabled,
+        cosmeticsMode: cosmeticBlocksBaked() ? 'baked' : 'plain',
     });
+}
+function terrainUrl(world, chunkX, chunkZ) {
+    const base = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
+    return cosmeticBlocksBaked() ? `${base}?cosmetics=1` : base;
+}
+function terrainCosmeticOverlayCacheKey(world, chunkX, chunkZ) {
+    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_20__.makeTerrainCacheKey)({
+        world,
+        chunkX,
+        chunkZ,
+        formatVersion: terrainFormatVersion,
+        detailsEnabled: experimentalDetailsEnabled,
+        cosmeticsMode: 'split-overlay',
+    });
+}
+function terrainCosmeticOverlayUrl(world, chunkX, chunkZ) {
+    return `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb?cosmetics=only`;
 }
 function applyMapWaterTint() {
     for (const entry of loadedChunks.values()) {
@@ -2061,6 +2173,7 @@ function exposeDebugState() {
         pruneOrphanChunkWrappers: () => pruneOrphanChunkWrappers(),
         viewState: () => ({
             mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
+            cosmeticsMode: _dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput.value,
             landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked,
             terrainLoadSlots: terrainLoadConcurrency(),
             terrainSpawnFrame: terrainPromotionsPerFrame(),
@@ -2215,6 +2328,7 @@ function saveViewState() {
         shade: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked,
         mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked,
         mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
+        cosmeticsMode: _dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput.value,
         landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked,
         terrainLoadSlots: terrainLoadConcurrency(),
         terrainSpawnFrame: terrainPromotionsPerFrame(),
@@ -2663,6 +2777,13 @@ _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.addEventListener('change', () 
 });
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.addEventListener('change', () => {
     updateMapTileLayer();
+    saveViewState();
+});
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput.addEventListener('change', () => {
+    for (const [id, entry] of Array.from(loadedChunks.entries())) {
+        finishDisposeChunk(id, entry);
+    }
+    scheduleControlGridLoad();
     saveViewState();
 });
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.addEventListener('change', saveViewState);
@@ -3150,6 +3271,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   coordCameraEl: () => (/* binding */ coordCameraEl),
 /* harmony export */   coordChunkEl: () => (/* binding */ coordChunkEl),
 /* harmony export */   coordTargetEl: () => (/* binding */ coordTargetEl),
+/* harmony export */   cosmeticBlocksModeInput: () => (/* binding */ cosmeticBlocksModeInput),
 /* harmony export */   debugBoundsInput: () => (/* binding */ debugBoundsInput),
 /* harmony export */   experimentalDetailsStateEl: () => (/* binding */ experimentalDetailsStateEl),
 /* harmony export */   hudEl: () => (/* binding */ hudEl),
@@ -3214,6 +3336,7 @@ const playerUpdateRateInput = document.querySelector('#player-update-rate');
 const sunLightingInput = document.querySelector('#sun-lighting');
 const treeShadeInput = document.querySelector('#tree-shade');
 const mapTilesInput = document.querySelector('#map-tiles');
+const cosmeticBlocksModeInput = document.querySelector('#cosmetic-blocks-mode');
 const landMotionInput = document.querySelector('#land-motion');
 const terrainLoadSlotsInput = document.querySelector('#terrain-load-slots');
 const terrainLoadSlotsValueInput = document.querySelector('#terrain-load-slots-value');
@@ -4853,9 +4976,10 @@ const MAX_RECORD_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 let dbPromise = null;
 const mapTileWriteQueue = new Map();
 let mapTileWriteWorker = null;
-function makeTerrainCacheKey({ world, chunkX, chunkZ, formatVersion, detailsEnabled }) {
+function makeTerrainCacheKey({ world, chunkX, chunkZ, formatVersion, detailsEnabled, cosmeticsMode }) {
     const details = detailsEnabled ? 'details' : 'surface';
-    return `${formatVersion}:${details}:${world}:${chunkX}:${chunkZ}`;
+    const cosmetics = cosmeticsMode || 'plain';
+    return `${formatVersion}:${details}:${cosmetics}:${world}:${chunkX}:${chunkZ}`;
 }
 async function readTerrainCache(key) {
     try {
