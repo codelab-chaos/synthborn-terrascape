@@ -16,12 +16,12 @@ public final class CosmeticShapeRules {
         return containsAny(key,
                 "plank", "roof", "shingle", "thatch", "tile", "timber",
                 "bridge", "boardwalk", "walkway", "platform", "deck", "board", "floor",
-                "scaffold", "beam", "post", "pillar", "fence",
-                "rope", "ladder", "chain", "hanging",
+                "scaffold", "beam", "post", "pillar", "fence", "railing", "handrail", "banister",
+                "rope", "ladder", "chain", "hanging", "vine", "liana",
                 "torch", "fire", "lantern", "candle",
                 "crate", "barrel", "chair", "table", "bench", "bed",
                 "door", "window", "glass", "gate", "trapdoor", "hatch", "shutter", "portcullis",
-                "carpet", "rug", "banner", "sign", "stair", "slab")
+                "carpet", "rug", "banner", "sign", "stair", "slab", "moss_wall")
                 || isWoodRail(key)
                 || isStructuralWood(key);
     }
@@ -31,6 +31,15 @@ public final class CosmeticShapeRules {
         if (isLightDetail(key)) {
             return TerrainDetail.Shape.LIGHT;
         }
+        if (isRailDetail(key)) {
+            return TerrainDetail.Shape.RAIL;
+        }
+        if (isPostDetail(key)) {
+            return TerrainDetail.Shape.POST;
+        }
+        if (isWidePanelDetail(key)) {
+            return TerrainDetail.Shape.WIDE_PANEL;
+        }
         if (isTopSlabDetail(key)) {
             return TerrainDetail.Shape.TOP_SLAB;
         }
@@ -39,9 +48,6 @@ public final class CosmeticShapeRules {
         }
         if (isHangingStripDetail(key)) {
             return TerrainDetail.Shape.HANGING_STRIP;
-        }
-        if (isPostDetail(key)) {
-            return TerrainDetail.Shape.POST;
         }
         return TerrainDetail.Shape.FULL;
     }
@@ -56,8 +62,10 @@ public final class CosmeticShapeRules {
         }
         TerrainDetail.Shape shape = shapeFor(blockKey);
         if (shape == TerrainDetail.Shape.THIN_PANEL
+                || shape == TerrainDetail.Shape.WIDE_PANEL
                 || shape == TerrainDetail.Shape.HANGING_STRIP
                 || shape == TerrainDetail.Shape.POST
+                || shape == TerrainDetail.Shape.RAIL
                 || shape == TerrainDetail.Shape.LIGHT) {
             return TerrainDetail.Kind.COSMETIC_THIN;
         }
@@ -69,14 +77,14 @@ public final class CosmeticShapeRules {
             return false;
         }
         return switch (shapeFor(blockKey)) {
-            case THIN_PANEL, POST, HANGING_STRIP, LIGHT -> true;
+            case THIN_PANEL, WIDE_PANEL, POST, HANGING_STRIP, RAIL, LIGHT -> true;
             default -> false;
         };
     }
 
     public static boolean usesBlockRotation(@Nullable String blockKey) {
         return switch (shapeFor(blockKey)) {
-            case THIN_PANEL, HANGING_STRIP, POST -> true;
+            case THIN_PANEL, WIDE_PANEL, HANGING_STRIP, POST, RAIL -> true;
             default -> false;
         };
     }
@@ -89,19 +97,31 @@ public final class CosmeticShapeRules {
 
     private static boolean isThinPanelDetail(String key) {
         return containsAny(key,
-                "door", "window", "glass", "ladder", "banner", "sign",
-                "gate", "trapdoor", "hatch", "shutter", "portcullis");
+                "door", "window", "glass", "banner", "sign",
+                "gate", "trapdoor", "hatch", "shutter", "portcullis", "vine_wall", "moss_wall");
+    }
+
+    private static boolean isWidePanelDetail(String key) {
+        return key.contains("ladder");
     }
 
     private static boolean isHangingStripDetail(String key) {
-        return containsAny(key, "rope", "chain", "hanging");
+        return containsAny(key, "rope", "chain", "hanging", "vine_hanging", "liana");
+    }
+
+    private static boolean isRailDetail(String key) {
+        if (isMinecartRail(key)) {
+            return false;
+        }
+        return containsAny(key, "rail", "railing", "handrail", "banister")
+                || (key.contains("fence") && !containsAny(key, "post", "pillar"));
     }
 
     private static boolean isPostDetail(String key) {
-        if (containsAny(key, "post", "pillar", "fence", "scaffold", "beam")) {
+        if (containsAny(key, "post", "pillar", "scaffold", "beam", "support", "sticks")) {
             return true;
         }
-        return isWoodRail(key);
+        return false;
     }
 
     private static boolean isLightDetail(String key) {

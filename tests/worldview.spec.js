@@ -342,6 +342,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       headshotGeometryDepth: block?.geometry?.userData?.mobHeadshotSize?.depth,
       headshotImageOpacity: block?.material?.[0]?.opacity,
       headshotImageTransparent: block?.material?.[0]?.transparent,
+      headshotImageTint: block?.material?.[0]?.color?.getHex(),
       headshotCapOpacity: block?.material?.[2]?.opacity,
       headshotCapTransparent: block?.material?.[2]?.transparent,
       headshotMaterialCount: Array.isArray(block?.material)
@@ -374,6 +375,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(mobMarkerShape.headshotGeometryDepth).toBeCloseTo(mobMarkerShape.headshotGeometryWidth, 4);
   expect(mobMarkerShape.headshotImageOpacity).toBe(1);
   expect(mobMarkerShape.headshotImageTransparent).toBe(true);
+  expect(mobMarkerShape.headshotImageTint).toBe(0xffffff);
   expect(mobMarkerShape.headshotCapOpacity).toBe(1);
   expect(mobMarkerShape.headshotCapTransparent).toBe(false);
   expect(mobMarkerShape.headshotMaterialCount).toBe(6);
@@ -455,6 +457,50 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(testMobVisible.iconUrl).toBe('/mob-icons/Chicken.png');
   expect(testMobVisible.headshotVisible).toBe(true);
   expect(testMobVisible.headshotName).toBe('mob-headshot-block');
+
+  const mobDistanceOpacity = await page.evaluate(async () => {
+    window.__synthWorldviewDebug.setCameraPose({
+      camera: { x: 0, y: 120, z: 0 },
+      target: { x: 32, y: 120, z: 32 },
+      lookAt: { x: 32, y: 120, z: 32 },
+    });
+    window.__synthWorldviewDebug.updateMobsForTest([
+      {
+        id: 'test-near-card',
+        type: 'Chicken',
+        label: 'Near',
+        x: 10,
+        y: 120,
+        z: 10,
+        color: '#80f2bd',
+        source: 'test',
+      },
+      {
+        id: 'test-far-card',
+        type: 'Chicken',
+        label: 'Far',
+        x: 1200,
+        y: 120,
+        z: 10,
+        color: '#80f2bd',
+        source: 'test',
+      },
+    ]);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const near = window.__synthWorldviewDebug.mobMarkers.get('test-near-card');
+    const far = window.__synthWorldviewDebug.mobMarkers.get('test-far-card');
+    return {
+      nearCardOpacity: near?.userData.badge?.material?.opacity,
+      farCardOpacity: far?.userData.badge?.material?.opacity,
+      nearPointerOpacity: near?.userData.pointer?.material?.opacity,
+      farPointerOpacity: far?.userData.pointer?.material?.opacity,
+    };
+  });
+  expect(mobDistanceOpacity.nearCardOpacity).toBeCloseTo(1, 2);
+  expect(mobDistanceOpacity.farCardOpacity).toBeGreaterThanOrEqual(0.33);
+  expect(mobDistanceOpacity.farCardOpacity).toBeLessThan(0.45);
+  expect(mobDistanceOpacity.farPointerOpacity).toBeLessThan(mobDistanceOpacity.nearPointerOpacity);
 
   await page.locator('#mob-blocks').uncheck();
   await expect(page.locator('#mob-blocks-panel')).not.toBeChecked();

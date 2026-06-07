@@ -207,7 +207,10 @@ public final class TerrainSampler {
                     localZ,
                     y,
                     TerrainDetail.Kind.CANOPY_VOXEL,
-                    colorFor(blockType, blockKey, chunk.getTint(localX, localZ))));
+                    colorFor(blockType, blockKey, chunk.getTint(localX, localZ)),
+                    TerrainDetail.Shape.FULL,
+                    0,
+                    blockKey));
         }
         return details;
     }
@@ -259,7 +262,8 @@ public final class TerrainSampler {
                     kind,
                     colorFor(blockType, blockKey, chunk.getTint(localX, localZ)),
                     shape,
-                    rotationIndex));
+                    rotationIndex,
+                    blockKey));
         }
         return details;
     }
@@ -292,7 +296,9 @@ public final class TerrainSampler {
                     y,
                     TerrainDetail.Kind.FOLIAGE_SMALL,
                     colorFor(blockType, blockKey, chunk.getTint(localX, localZ)),
-                    TerrainDetail.Shape.SMALL_FOLIAGE));
+                    TerrainDetail.Shape.SMALL_FOLIAGE,
+                    0,
+                    blockKey));
         }
         return details;
     }

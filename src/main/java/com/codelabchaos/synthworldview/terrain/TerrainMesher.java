@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Map;
 
 public final class TerrainMesher {
+    private static final float AO_STEP = 0.09f;
+    private static final float AO_MIN = 0.70f;
+
     private TerrainMesher() {
     }
 
@@ -30,7 +33,7 @@ public final class TerrainMesher {
             addSideIfLower(builder, snapshot, column, 1, 0);
         }
         if (includeDetail) {
-            addDetails(detail, snapshot.details(),
+            addDetails(detail, snapshot, snapshot.details(),
                     TerrainDetail.Kind.CANOPY_VOXEL,
                     TerrainDetail.Kind.COSMETIC_VOXEL,
                     TerrainDetail.Kind.COSMETIC_THIN,
@@ -44,7 +47,7 @@ public final class TerrainMesher {
         MeshBuilder opaque = new MeshBuilder("opaque");
         MeshBuilder water = new MeshBuilder("water");
         MeshBuilder detail = new MeshBuilder("detail");
-        addDetails(detail, snapshot.details(),
+        addDetails(detail, snapshot, snapshot.details(),
                 TerrainDetail.Kind.COSMETIC_VOXEL,
                 TerrainDetail.Kind.COSMETIC_THIN,
                 TerrainDetail.Kind.COSMETIC_LIGHT,
@@ -52,7 +55,7 @@ public final class TerrainMesher {
         return new TerrainMesh(opaque.toPart(), water.toPart(), detail.toPart());
     }
 
-    private static void addDetails(MeshBuilder builder, TerrainDetail[] details, TerrainDetail.Kind... includedKinds) {
+    private static void addDetails(MeshBuilder builder, TerrainSnapshot snapshot, TerrainDetail[] details, TerrainDetail.Kind... includedKinds) {
         Map<DetailKey, TerrainDetail> canopy = new HashMap<>();
         for (TerrainDetail detail : details) {
             if (includesKind(detail.kind(), includedKinds)) {
@@ -60,7 +63,7 @@ public final class TerrainMesher {
             }
         }
         for (TerrainDetail detail : canopy.values()) {
-            addExposedDetail(builder, detail, canopy);
+            addExposedDetail(builder, snapshot, detail, canopy);
         }
     }
 
@@ -73,7 +76,7 @@ public final class TerrainMesher {
         return false;
     }
 
-    private static void addExposedDetail(MeshBuilder builder, TerrainDetail detail, Map<DetailKey, TerrainDetail> canopy) {
+    private static void addExposedDetail(MeshBuilder builder, TerrainSnapshot snapshot, TerrainDetail detail, Map<DetailKey, TerrainDetail> canopy) {
         int x = detail.localX();
         int y = detail.y();
         int z = detail.localZ();
@@ -94,22 +97,46 @@ public final class TerrainMesher {
         int rgb = detail.rgb();
 
         if (!hasDetail(canopy, x, y + 1, z)) {
-            builder.addQuad(x0, y1, z0, x0, y1, z1, x1, y1, z1, x1, y1, z0, 0, 1, 0, shade(rgb, 1.06f));
+            builder.addQuadShaded(x0, y1, z0, x0, y1, z1, x1, y1, z1, x1, y1, z0, 0, 1, 0, rgb,
+                    detailTopAo(snapshot, canopy, x, y, z, -1, -1) * 1.06f,
+                    detailTopAo(snapshot, canopy, x, y, z, -1, 1) * 1.06f,
+                    detailTopAo(snapshot, canopy, x, y, z, 1, 1) * 1.06f,
+                    detailTopAo(snapshot, canopy, x, y, z, 1, -1) * 1.06f);
         }
         if (!hasDetail(canopy, x, y - 1, z)) {
-            builder.addQuad(x0, y0, z1, x0, y0, z0, x1, y0, z0, x1, y0, z1, 0, -1, 0, shade(rgb, 0.48f));
+            builder.addQuadShaded(x0, y0, z1, x0, y0, z0, x1, y0, z0, x1, y0, z1, 0, -1, 0, rgb,
+                    detailBottomAo(snapshot, canopy, x, y, z, -1, 1) * 0.48f,
+                    detailBottomAo(snapshot, canopy, x, y, z, -1, -1) * 0.48f,
+                    detailBottomAo(snapshot, canopy, x, y, z, 1, -1) * 0.48f,
+                    detailBottomAo(snapshot, canopy, x, y, z, 1, 1) * 0.48f);
         }
         if (!hasDetail(canopy, x + 1, y, z)) {
-            builder.addQuad(x1, y0, z1, x1, y1, z1, x1, y1, z0, x1, y0, z0, 1, 0, 0, shade(rgb, 0.76f));
+            builder.addQuadShaded(x1, y0, z1, x1, y1, z1, x1, y1, z0, x1, y0, z0, 1, 0, 0, rgb,
+                    detailSideAo(snapshot, canopy, x, y, z, 1, 0, -1, 1) * 0.76f,
+                    detailSideAo(snapshot, canopy, x, y, z, 1, 0, 1, 1) * 0.76f,
+                    detailSideAo(snapshot, canopy, x, y, z, 1, 0, 1, -1) * 0.76f,
+                    detailSideAo(snapshot, canopy, x, y, z, 1, 0, -1, -1) * 0.76f);
         }
         if (!hasDetail(canopy, x - 1, y, z)) {
-            builder.addQuad(x0, y0, z0, x0, y1, z0, x0, y1, z1, x0, y0, z1, -1, 0, 0, shade(rgb, 0.68f));
+            builder.addQuadShaded(x0, y0, z0, x0, y1, z0, x0, y1, z1, x0, y0, z1, -1, 0, 0, rgb,
+                    detailSideAo(snapshot, canopy, x, y, z, -1, 0, -1, -1) * 0.68f,
+                    detailSideAo(snapshot, canopy, x, y, z, -1, 0, 1, -1) * 0.68f,
+                    detailSideAo(snapshot, canopy, x, y, z, -1, 0, 1, 1) * 0.68f,
+                    detailSideAo(snapshot, canopy, x, y, z, -1, 0, -1, 1) * 0.68f);
         }
         if (!hasDetail(canopy, x, y, z + 1)) {
-            builder.addQuad(x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1, 0, 0, 1, shade(rgb, 0.72f));
+            builder.addQuadShaded(x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1, 0, 0, 1, rgb,
+                    detailSideAo(snapshot, canopy, x, y, z, 0, 1, -1, -1) * 0.72f,
+                    detailSideAo(snapshot, canopy, x, y, z, 0, 1, -1, 1) * 0.72f,
+                    detailSideAo(snapshot, canopy, x, y, z, 0, 1, 1, 1) * 0.72f,
+                    detailSideAo(snapshot, canopy, x, y, z, 0, 1, 1, -1) * 0.72f);
         }
         if (!hasDetail(canopy, x, y, z - 1)) {
-            builder.addQuad(x1, y0, z0, x0, y0, z0, x0, y1, z0, x1, y1, z0, 0, 0, -1, shade(rgb, 0.62f));
+            builder.addQuadShaded(x1, y0, z0, x0, y0, z0, x0, y1, z0, x1, y1, z0, 0, 0, -1, rgb,
+                    detailSideAo(snapshot, canopy, x, y, z, 0, -1, -1, 1) * 0.62f,
+                    detailSideAo(snapshot, canopy, x, y, z, 0, -1, -1, -1) * 0.62f,
+                    detailSideAo(snapshot, canopy, x, y, z, 0, -1, 1, -1) * 0.62f,
+                    detailSideAo(snapshot, canopy, x, y, z, 0, -1, 1, 1) * 0.62f);
         }
     }
 
@@ -130,10 +157,10 @@ public final class TerrainMesher {
                 x1, y, z0,
                 0.0f, 1.0f, 0.0f,
                 column.rgb(),
-                topCornerShade(snapshot, column, -1, -1),
-                topCornerShade(snapshot, column, -1, 1),
-                topCornerShade(snapshot, column, 1, 1),
-                topCornerShade(snapshot, column, 1, -1));
+                topCornerShade(snapshot, column, -1, -1) * terrainTopAo(snapshot, column, -1, -1),
+                topCornerShade(snapshot, column, -1, 1) * terrainTopAo(snapshot, column, -1, 1),
+                topCornerShade(snapshot, column, 1, 1) * terrainTopAo(snapshot, column, 1, 1),
+                topCornerShade(snapshot, column, 1, -1) * terrainTopAo(snapshot, column, 1, -1));
     }
 
     private static void addSideIfLower(MeshBuilder builder, TerrainSnapshot snapshot, TerrainColumn column, int dx, int dz) {
@@ -151,14 +178,125 @@ public final class TerrainMesher {
         float y1 = column.y() + 1.0f;
 
         if (dx == 1) {
-            builder.addQuad(x1, y0, z1, x1, y1, z1, x1, y1, z0, x1, y0, z0, 1, 0, 0, shade(column.rgb(), 0.74f));
+            builder.addQuadShaded(x1, y0, z1, x1, y1, z1, x1, y1, z0, x1, y0, z0, 1, 0, 0, column.rgb(),
+                    terrainSideAo(snapshot, column, neighborY, 1, 0, -1, 1) * 0.74f,
+                    terrainSideAo(snapshot, column, neighborY, 1, 0, 1, 1) * 0.74f,
+                    terrainSideAo(snapshot, column, neighborY, 1, 0, 1, -1) * 0.74f,
+                    terrainSideAo(snapshot, column, neighborY, 1, 0, -1, -1) * 0.74f);
         } else if (dx == -1) {
-            builder.addQuad(x0, y0, z0, x0, y1, z0, x0, y1, z1, x0, y0, z1, -1, 0, 0, shade(column.rgb(), 0.66f));
+            builder.addQuadShaded(x0, y0, z0, x0, y1, z0, x0, y1, z1, x0, y0, z1, -1, 0, 0, column.rgb(),
+                    terrainSideAo(snapshot, column, neighborY, -1, 0, -1, -1) * 0.66f,
+                    terrainSideAo(snapshot, column, neighborY, -1, 0, 1, -1) * 0.66f,
+                    terrainSideAo(snapshot, column, neighborY, -1, 0, 1, 1) * 0.66f,
+                    terrainSideAo(snapshot, column, neighborY, -1, 0, -1, 1) * 0.66f);
         } else if (dz == 1) {
-            builder.addQuad(x0, y0, z1, x0, y1, z1, x1, y1, z1, x1, y0, z1, 0, 0, 1, shade(column.rgb(), 0.70f));
+            builder.addQuadShaded(x0, y0, z1, x0, y1, z1, x1, y1, z1, x1, y0, z1, 0, 0, 1, column.rgb(),
+                    terrainSideAo(snapshot, column, neighborY, 0, 1, -1, -1) * 0.70f,
+                    terrainSideAo(snapshot, column, neighborY, 0, 1, 1, -1) * 0.70f,
+                    terrainSideAo(snapshot, column, neighborY, 0, 1, 1, 1) * 0.70f,
+                    terrainSideAo(snapshot, column, neighborY, 0, 1, -1, 1) * 0.70f);
         } else if (dz == -1) {
-            builder.addQuad(x1, y0, z0, x1, y1, z0, x0, y1, z0, x0, y0, z0, 0, 0, -1, shade(column.rgb(), 0.60f));
+            builder.addQuadShaded(x1, y0, z0, x1, y1, z0, x0, y1, z0, x0, y0, z0, 0, 0, -1, column.rgb(),
+                    terrainSideAo(snapshot, column, neighborY, 0, -1, -1, 1) * 0.60f,
+                    terrainSideAo(snapshot, column, neighborY, 0, -1, 1, 1) * 0.60f,
+                    terrainSideAo(snapshot, column, neighborY, 0, -1, 1, -1) * 0.60f,
+                    terrainSideAo(snapshot, column, neighborY, 0, -1, -1, -1) * 0.60f);
         }
+    }
+
+    private static float terrainTopAo(TerrainSnapshot snapshot, TerrainColumn column, int sx, int sz) {
+        int x = column.localX();
+        int z = column.localZ();
+        int y = column.y() + 1;
+        return voxelAo(
+                solidColumnAt(snapshot, x + sx, z, y),
+                solidColumnAt(snapshot, x, z + sz, y),
+                solidColumnAt(snapshot, x + sx, z + sz, y));
+    }
+
+    private static float terrainSideAo(
+            TerrainSnapshot snapshot,
+            TerrainColumn column,
+            int neighborY,
+            int dx,
+            int dz,
+            int sy,
+            int lateral
+    ) {
+        int y = sy > 0 ? column.y() + 1 : neighborY;
+        int edgeY = sy > 0 ? column.y() : neighborY;
+        if (dx != 0) {
+            int outsideX = column.localX() + dx;
+            int sideZ = column.localZ() + lateral;
+            return voxelAo(
+                    solidColumnAt(snapshot, outsideX, column.localZ(), y),
+                    solidColumnAt(snapshot, outsideX, sideZ, edgeY),
+                    solidColumnAt(snapshot, outsideX, sideZ, y));
+        }
+        int outsideZ = column.localZ() + dz;
+        int sideX = column.localX() + lateral;
+        return voxelAo(
+                solidColumnAt(snapshot, column.localX(), outsideZ, y),
+                solidColumnAt(snapshot, sideX, outsideZ, edgeY),
+                solidColumnAt(snapshot, sideX, outsideZ, y));
+    }
+
+    private static float detailTopAo(TerrainSnapshot snapshot, Map<DetailKey, TerrainDetail> details, int x, int y, int z, int sx, int sz) {
+        int sampleY = y + 1;
+        return voxelAo(
+                solidDetailOrColumnAt(snapshot, details, x + sx, sampleY, z),
+                solidDetailOrColumnAt(snapshot, details, x, sampleY, z + sz),
+                solidDetailOrColumnAt(snapshot, details, x + sx, sampleY, z + sz));
+    }
+
+    private static float detailBottomAo(TerrainSnapshot snapshot, Map<DetailKey, TerrainDetail> details, int x, int y, int z, int sx, int sz) {
+        int sampleY = y - 1;
+        return voxelAo(
+                solidDetailOrColumnAt(snapshot, details, x + sx, sampleY, z),
+                solidDetailOrColumnAt(snapshot, details, x, sampleY, z + sz),
+                solidDetailOrColumnAt(snapshot, details, x + sx, sampleY, z + sz));
+    }
+
+    private static float detailSideAo(
+            TerrainSnapshot snapshot,
+            Map<DetailKey, TerrainDetail> details,
+            int x,
+            int y,
+            int z,
+            int dx,
+            int dz,
+            int sy,
+            int lateral
+    ) {
+        int sampleY = sy > 0 ? y + 1 : y - 1;
+        if (dx != 0) {
+            int outsideX = x + dx;
+            int sideZ = z + lateral;
+            return voxelAo(
+                    solidDetailOrColumnAt(snapshot, details, outsideX, sampleY, z),
+                    solidDetailOrColumnAt(snapshot, details, outsideX, y, sideZ),
+                    solidDetailOrColumnAt(snapshot, details, outsideX, sampleY, sideZ));
+        }
+        int outsideZ = z + dz;
+        int sideX = x + lateral;
+        return voxelAo(
+                solidDetailOrColumnAt(snapshot, details, x, sampleY, outsideZ),
+                solidDetailOrColumnAt(snapshot, details, sideX, y, outsideZ),
+                solidDetailOrColumnAt(snapshot, details, sideX, sampleY, outsideZ));
+    }
+
+    private static float voxelAo(boolean sideA, boolean sideB, boolean corner) {
+        int occluders = sideA && sideB ? 3 : (sideA ? 1 : 0) + (sideB ? 1 : 0) + (corner ? 1 : 0);
+        return Math.max(AO_MIN, 1.0f - occluders * AO_STEP);
+    }
+
+    private static boolean solidDetailOrColumnAt(TerrainSnapshot snapshot, Map<DetailKey, TerrainDetail> details, int x, int y, int z) {
+        return details.containsKey(new DetailKey(x, y, z)) || solidColumnAt(snapshot, x, z, y);
+    }
+
+    private static boolean solidColumnAt(TerrainSnapshot snapshot, int x, int z, int y) {
+        TerrainColumn column = snapshot.column(x, z);
+        return column != null && !column.empty() && column.y() >= y;
     }
 
     private static float topCornerShade(TerrainSnapshot snapshot, TerrainColumn column, int sx, int sz) {
@@ -187,17 +325,6 @@ public final class TerrainMesher {
     private static float liftFor(int neighborY, int y) {
         if (neighborY >= y) return 0.0f;
         return Math.min(0.035f, (y - neighborY) * 0.008f);
-    }
-
-    private static int shade(int rgb, float factor) {
-        int r = clampChannel(((rgb >>> 16) & 0xff) * factor);
-        int g = clampChannel(((rgb >>> 8) & 0xff) * factor);
-        int b = clampChannel((rgb & 0xff) * factor);
-        return (r << 16) | (g << 8) | b;
-    }
-
-    private static int clampChannel(float value) {
-        return Math.max(0, Math.min(255, Math.round(value)));
     }
 
     private static float clamp(float value, float min, float max) {
@@ -257,12 +384,21 @@ public final class TerrainMesher {
             addVertex(bx, by, bz, nx, ny, nz, rgb, shadeB);
             addVertex(cx, cy, cz, nx, ny, nz, rgb, shadeC);
             addVertex(dx, dy, dz, nx, ny, nz, rgb, shadeD);
-            indices.add(base);
-            indices.add(base + 1);
-            indices.add(base + 2);
-            indices.add(base);
-            indices.add(base + 2);
-            indices.add(base + 3);
+            if (shadeA + shadeC > shadeB + shadeD) {
+                indices.add(base);
+                indices.add(base + 1);
+                indices.add(base + 3);
+                indices.add(base + 1);
+                indices.add(base + 2);
+                indices.add(base + 3);
+            } else {
+                indices.add(base);
+                indices.add(base + 1);
+                indices.add(base + 2);
+                indices.add(base);
+                indices.add(base + 2);
+                indices.add(base + 3);
+            }
         }
 
         private void addVertex(float x, float y, float z, float nx, float ny, float nz, int rgb, float shade) {

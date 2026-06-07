@@ -3,6 +3,7 @@ package com.codelabchaos.synthworldview.web;
 import com.codelabchaos.synthworldview.SynthWorldviewPlugin;
 import com.codelabchaos.synthworldview.PlayerLookTracker;
 import com.codelabchaos.synthworldview.terrain.GltfWriter;
+import com.codelabchaos.synthworldview.terrain.TerrainDetail;
 import com.codelabchaos.synthworldview.terrain.TerrainMesh;
 import com.codelabchaos.synthworldview.terrain.TerrainMesher;
 import com.codelabchaos.synthworldview.terrain.TerrainSampler;
@@ -99,7 +100,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class WorldviewWebServer {
-    private static final String FORMAT_VERSION = "v22";
+    private static final String FORMAT_VERSION = "v26";
     private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
     private static final int MAX_BATCH_CHUNKS = 16;
@@ -697,6 +698,9 @@ public final class WorldviewWebServer {
             exchange.getResponseHeaders().set("X-Worldview-Vertices", Integer.toString(result.vertices()));
             exchange.getResponseHeaders().set("X-Worldview-Triangles", Integer.toString(result.triangles()));
             exchange.getResponseHeaders().set("X-Worldview-Details", Integer.toString(result.details()));
+            if (!result.detailKeys().isBlank()) {
+                exchange.getResponseHeaders().set("X-Worldview-Detail-Keys", result.detailKeys());
+            }
             exchange.getResponseHeaders().set("X-Worldview-Cache", result.source());
             exchange.sendResponseHeaders(200, result.glb().length);
             try (OutputStream outputStream = exchange.getResponseBody()) {
@@ -710,6 +714,7 @@ public final class WorldviewWebServer {
                     + " vertices=" + result.vertices()
                     + " triangles=" + result.triangles()
                     + " details=" + result.details()
+                    + (result.detailKeys().isBlank() ? "" : " detailKeys=" + result.detailKeys())
                     + " ms=" + elapsedMillis);
         } catch (Exception e) {
             plugin.getLogger().at(Level.WARNING).withCause(e).log("Terrain request failed: " + request);
@@ -1249,7 +1254,7 @@ public final class WorldviewWebServer {
         try {
             byte[] glb = Files.readAllBytes(glbPath);
             TerrainMetadata metadata = TerrainMetadata.parse(Files.readString(metadataPath));
-            return new TerrainResult(glb, metadata.columns(), metadata.vertices(), metadata.triangles(), metadata.details(), "disk");
+            return new TerrainResult(glb, metadata.columns(), metadata.vertices(), metadata.triangles(), metadata.details(), metadata.detailKeys(), "disk");
         } catch (Exception e) {
             plugin.getLogger().at(Level.FINE).log("Ignoring invalid terrain cache entry " + glbPath + ": " + e.getMessage());
             return null;
@@ -3674,7 +3679,7 @@ public final class WorldviewWebServer {
         }
     }
 
-    private record TerrainResult(byte[] glb, int columns, int vertices, int triangles, int details, String source) {
+    private record TerrainResult(byte[] glb, int columns, int vertices, int triangles, int details, String detailKeys, String source) {
         static TerrainResult generated(TerrainSnapshot snapshot, TerrainMesh mesh, byte[] glb) {
             int details = mesh.detail().vertexCount() == 0 ? 0 : snapshot.details().length;
             return new TerrainResult(
@@ -3683,11 +3688,12 @@ public final class WorldviewWebServer {
                     mesh.vertexCount(),
                     mesh.triangleCount(),
                     details,
+                    detailKeySummary(snapshot.details()),
                     "generated");
         }
 
         TerrainResult withSource(@Nonnull String source) {
-            return new TerrainResult(glb, columns, vertices, triangles, details, source);
+            return new TerrainResult(glb, columns, vertices, triangles, details, detailKeys, source);
         }
 
         String metadataJson() {
@@ -3696,7 +3702,42 @@ public final class WorldviewWebServer {
                     + ",\"vertices\":" + vertices
                     + ",\"triangles\":" + triangles
                     + ",\"details\":" + details
+                    + ",\"detailKeys\":\"" + escapeJson(detailKeys) + "\""
                     + "}";
+        }
+
+        private static String detailKeySummary(@Nonnull TerrainDetail[] details) {
+            Map<String, Long> counts = java.util.Arrays.stream(details)
+                    .map(TerrainDetail::blockKey)
+                    .filter(key -> key != null && !key.isBlank())
+                    .collect(Collectors.groupingBy(
+                            TerrainResult::compactDetailKey,
+                            LinkedHashMap::new,
+                            Collectors.counting()));
+            if (counts.isEmpty()) {
+                return "";
+            }
+            String summary = counts.entrySet()
+                    .stream()
+                    .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                    .limit(24)
+                    .map(entry -> entry.getKey() + "=" + entry.getValue())
+                    .collect(Collectors.joining("|"));
+            return summary.length() <= 1600 ? summary : summary.substring(0, 1600);
+        }
+
+        private static String compactDetailKey(@Nonnull String blockKey) {
+            String key = blockKey
+                    .replace('\r', ' ')
+                    .replace('\n', ' ')
+                    .replace('|', '/')
+                    .replace('=', ':')
+                    .trim();
+            int slash = key.lastIndexOf('/');
+            if (slash >= 0 && slash < key.length() - 1) {
+                key = key.substring(slash + 1);
+            }
+            return key.length() <= 80 ? key : key.substring(0, 80);
         }
     }
 
@@ -3716,18 +3757,32 @@ public final class WorldviewWebServer {
             long details) {
     }
 
-    private record TerrainMetadata(int columns, int vertices, int triangles, int details) {
+    private record TerrainMetadata(int columns, int vertices, int triangles, int details, String detailKeys) {
         private static final Pattern COLUMNS_PATTERN = Pattern.compile("\"columns\"\\s*:\\s*(-?\\d+)");
         private static final Pattern VERTICES_PATTERN = Pattern.compile("\"vertices\"\\s*:\\s*(-?\\d+)");
         private static final Pattern TRIANGLES_PATTERN = Pattern.compile("\"triangles\"\\s*:\\s*(-?\\d+)");
         private static final Pattern DETAILS_META_PATTERN = Pattern.compile("\"details\"\\s*:\\s*(-?\\d+)");
+        private static final Pattern DETAIL_KEYS_PATTERN = Pattern.compile("\"detailKeys\"\\s*:\\s*\"([^\"]*)\"");
 
         static TerrainMetadata parse(@Nonnull String json) {
             return new TerrainMetadata(
                     findInt(COLUMNS_PATTERN, json, "columns"),
                     findInt(VERTICES_PATTERN, json, "vertices"),
                     findInt(TRIANGLES_PATTERN, json, "triangles"),
-                    findInt(DETAILS_META_PATTERN, json, "details"));
+                    findInt(DETAILS_META_PATTERN, json, "details"),
+                    unescapeMetadataString(findOptionalString(DETAIL_KEYS_PATTERN, json)));
+        }
+
+        private static String findOptionalString(@Nonnull Pattern pattern, @Nonnull String body) {
+            Matcher matcher = pattern.matcher(body);
+            return matcher.find() ? matcher.group(1) : "";
+        }
+
+        private static String unescapeMetadataString(@Nullable String value) {
+            if (value == null) {
+                return "";
+            }
+            return value.replace("\\\"", "\"").replace("\\\\", "\\");
         }
     }
 

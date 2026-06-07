@@ -13,6 +13,10 @@ public final class DetailBoundsOriented {
     private static final float POST_TOP = 0.96f;
     private static final float HANG_MIN = 0.40f;
     private static final float HANG_MAX = 0.60f;
+    private static final float RAIL_LOW = 0.36f;
+    private static final float RAIL_HIGH = 0.74f;
+    private static final float RAIL_THIN_MIN = 0.35f;
+    private static final float RAIL_THIN_MAX = 0.65f;
 
     private DetailBoundsOriented() {
     }
@@ -34,12 +38,21 @@ public final class DetailBoundsOriented {
     ) {
         return switch (shape) {
             case THIN_PANEL -> thinPanel(yaw);
+            case WIDE_PANEL -> widePanel(yaw);
             case HANGING_STRIP -> hangingStrip(yaw);
             case POST -> orientedPost(yaw, pitch, roll);
+            case RAIL -> rail(yaw);
             case LIGHT -> new DetailBounds(0.26f, 0.08f, 0.26f, 0.74f, 0.88f, 0.74f);
             case SMALL_FOLIAGE -> new DetailBounds(0.18f, 0.0f, 0.18f, 0.82f, 0.72f, 0.82f);
             case TOP_SLAB -> new DetailBounds(0.0f, 0.64f, 0.0f, 1.0f, 1.0f, 1.0f);
             default -> new DetailBounds(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+        };
+    }
+
+    private static DetailBounds rail(Rotation yaw) {
+        return switch (yaw) {
+            case Ninety, TwoSeventy -> new DetailBounds(RAIL_THIN_MIN, RAIL_LOW, 0.0f, RAIL_THIN_MAX, RAIL_HIGH, 1.0f);
+            default -> new DetailBounds(0.0f, RAIL_LOW, RAIL_THIN_MIN, 1.0f, RAIL_HIGH, RAIL_THIN_MAX);
         };
     }
 
@@ -50,6 +63,15 @@ public final class DetailBoundsOriented {
             case OneEighty -> new DetailBounds(PANEL_WIDE_MIN, 0.0f, 1.0f - PANEL_THIN, PANEL_WIDE_MAX, 1.0f, 1.0f);
             case TwoSeventy -> new DetailBounds(0.0f, 0.0f, PANEL_WIDE_MIN, PANEL_THIN, 1.0f, PANEL_WIDE_MAX);
             default -> new DetailBounds(PANEL_WIDE_MIN, 0.0f, 0.0f, PANEL_WIDE_MAX, 1.0f, PANEL_THIN);
+        };
+    }
+
+    private static DetailBounds widePanel(Rotation yaw) {
+        return switch (yaw) {
+            case Ninety -> new DetailBounds(1.0f - PANEL_THIN, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+            case OneEighty -> new DetailBounds(0.0f, 0.0f, 1.0f - PANEL_THIN, 1.0f, 1.0f, 1.0f);
+            case TwoSeventy -> new DetailBounds(0.0f, 0.0f, 0.0f, PANEL_THIN, 1.0f, 1.0f);
+            default -> new DetailBounds(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, PANEL_THIN);
         };
     }
 
