@@ -14,7 +14,7 @@ const {
   printRunComparison,
   printFeatureIsolation,
 } = require('./library/perf-suite');
-const { resolveWorldviewUrl } = require('../../../tools/library/remote-host');
+const { resolveTerrascapeUrl } = require('../../../tools/library/remote-host');
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const projectRoot = path.resolve(__dirname, '..');
@@ -151,12 +151,12 @@ if (options.deploy) {
   run(isWindows ? '.\\gradlew.bat' : './gradlew', ['deploy'], projectRoot);
 }
 
-const baseUrl = resolveWorldviewUrl();
+const baseUrl = resolveTerrascapeUrl();
 const runReports = [];
 
 for (let runIndex = 1; runIndex <= options.runs; runIndex++) {
   const runId = `run-${runIndex}`;
-  const reportFile = path.join(options.reportDir, `worldview-perf-${runId}.json`);
+  const reportFile = path.join(options.reportDir, `terrascape-perf-${runId}.json`);
   const meshProbeFile = path.join(options.reportDir, `mesh-probe-${runId}.json`);
 
   if (options.clearServerCache) {
@@ -211,10 +211,10 @@ for (let runIndex = 1; runIndex <= options.runs; runIndex++) {
 if (runReports.length === 2 && suiteConfig) {
   const comparisons = compareRuns(runReports[0], runReports[1]);
   printRunComparison(comparisons);
-  const comparisonFile = path.join(options.reportDir, 'worldview-perf-run-comparison.json');
+  const comparisonFile = path.join(options.reportDir, 'terrascape-perf-run-comparison.json');
   fs.mkdirSync(options.reportDir, { recursive: true });
   fs.writeFileSync(comparisonFile, `${JSON.stringify({
-    kind: 'worldview-perf-comparison',
+    kind: 'terrascape-perf-comparison',
     timestamp: new Date().toISOString(),
     run1: runReports[0].runId,
     run2: runReports[1].runId,
@@ -225,28 +225,28 @@ if (runReports.length === 2 && suiteConfig) {
 
 function runPlaywright({ runId, reportFile, scenariosPayload }) {
   const playwright = path.join(projectRoot, 'node_modules', '.bin', isWindows ? 'playwright.cmd' : 'playwright');
-  const playwrightArgs = ['test', 'tests/worldview-perf.spec.js'];
+  const playwrightArgs = ['test', 'tests/terrascape-perf.spec.js'];
   if (options.headed) {
     playwrightArgs.push('--headed');
   }
 
   const env = {
     ...process.env,
-    WORLDVIEW_URL: baseUrl,
-    WORLDVIEW_PERF_MODE: options.mode,
-    WORLDVIEW_PERF_ENFORCE: options.enforce ? '1' : (process.env.WORLDVIEW_PERF_ENFORCE ?? ''),
-    WORLDVIEW_PERF_RUN_ID: runId,
-    WORLDVIEW_PERF_REPORT_FILE: reportFile,
+    TERRASCAPE_URL: baseUrl,
+    TERRASCAPE_PERF_MODE: options.mode,
+    TERRASCAPE_PERF_ENFORCE: options.enforce ? '1' : (process.env.TERRASCAPE_PERF_ENFORCE ?? ''),
+    TERRASCAPE_PERF_RUN_ID: runId,
+    TERRASCAPE_PERF_REPORT_FILE: reportFile,
   };
-  if (options.threshold) env.WORLDVIEW_PERF_REGRESSION_FACTOR = options.threshold;
-  if (options.centerX) env.WORLDVIEW_PERF_CENTER_X = options.centerX;
-  if (options.centerZ) env.WORLDVIEW_PERF_CENTER_Z = options.centerZ;
-  if (options.radius) env.WORLDVIEW_PERF_RADIUS = options.radius;
-  if (options.steps) env.WORLDVIEW_PERF_STEPS = options.steps;
-  if (options.flyChunks) env.WORLDVIEW_PERF_FLY_CHUNKS = options.flyChunks;
-  if (options.flySampleMs) env.WORLDVIEW_PERF_FLY_SAMPLE_MS = options.flySampleMs;
+  if (options.threshold) env.TERRASCAPE_PERF_REGRESSION_FACTOR = options.threshold;
+  if (options.centerX) env.TERRASCAPE_PERF_CENTER_X = options.centerX;
+  if (options.centerZ) env.TERRASCAPE_PERF_CENTER_Z = options.centerZ;
+  if (options.radius) env.TERRASCAPE_PERF_RADIUS = options.radius;
+  if (options.steps) env.TERRASCAPE_PERF_STEPS = options.steps;
+  if (options.flyChunks) env.TERRASCAPE_PERF_FLY_CHUNKS = options.flyChunks;
+  if (options.flySampleMs) env.TERRASCAPE_PERF_FLY_SAMPLE_MS = options.flySampleMs;
   if (scenariosPayload) {
-    env.WORLDVIEW_PERF_SCENARIOS = JSON.stringify(scenariosPayload);
+    env.TERRASCAPE_PERF_SCENARIOS = JSON.stringify(scenariosPayload);
   }
 
   run(playwright, playwrightArgs, projectRoot, env);
@@ -270,7 +270,7 @@ function clearServerCache() {
     'tools/rcon/synth-rcon.js',
     '--save',
     'synth-worldview-mvp',
-    'worldview',
+    'terrascape',
     'clearcache',
   ], repoRoot);
 }
@@ -292,7 +292,7 @@ function run(command, commandArgs, cwd, env = process.env) {
 }
 
 function usage(exitCode) {
-  console.log(`Usage: node tools/run-worldview-perf.js [options]
+  console.log(`Usage: node tools/run-terrascape-perf.js [options]
 
 Options:
   --wet                  Clear browser mesh cache, then measure server/network load.
@@ -309,7 +309,7 @@ Options:
   --build                Run Gradle build before the browser perf test.
   --deploy               Run Gradle deploy before the browser perf test.
   --post-deploy          Alias for --build --deploy.
-  --clear-server-cache   Run /worldview clearcache through SynthRCON before each run.
+  --clear-server-cache   Run /terrascape clearcache through SynthRCON before each run.
   --headed               Show the browser.
   --enforce              Fail when history comparison exceeds the threshold.
   --threshold N          Regression factor. Default 1.5 (per-scenario overrides in config).

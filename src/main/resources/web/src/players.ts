@@ -198,7 +198,7 @@ function createMobHeadshotBlock(mob) {
   mesh.renderOrder = 20;
   mesh.castShadow = false;
   mesh.receiveShadow = false;
-  mesh.userData.worldviewMobHeadshot = true;
+  mesh.userData.terrascapeMobHeadshot = true;
   updateMobHeadshotBlockMesh(mesh, mob);
   return mesh;
 }
@@ -260,7 +260,7 @@ function mobHeadshotResource(mob) {
       iconUrl,
       (texture) => {
         texture.colorSpace = THREE.SRGBColorSpace;
-        texture.userData.worldviewShared = true;
+        texture.userData.terrascapeShared = true;
         const image = texture.image;
         const imageWidth = image?.width ?? 1;
         const imageHeight = image?.height ?? 1;
@@ -277,7 +277,7 @@ function mobHeadshotResource(mob) {
           opacity: 1,
           depthWrite: true,
         });
-        imageMaterial.userData.worldviewShared = true;
+        imageMaterial.userData.terrascapeShared = true;
         entry.materials = mobHeadshotFaceMaterials(imageMaterial, capMaterial);
         for (const mesh of entry.meshes) {
           if (mesh.userData.materialKey !== key) continue;
@@ -305,7 +305,7 @@ function createMobHeadshotGeometry(bounds, imageWidth = bounds?.width, imageHeig
   const height = clamp(safeHeight * pixelWorldSize, MOB_HEADSHOT_BLOCK_MIN_SIZE, MOB_HEADSHOT_BLOCK_HEIGHT);
   const depth = width;
   const geometry = new THREE.BoxGeometry(width, height, depth);
-  geometry.userData.worldviewShared = true;
+  geometry.userData.terrascapeShared = true;
   geometry.userData.mobHeadshotSize = {
     imageWidth: Math.max(1, Number(imageWidth) || safeWidth),
     imageHeight: sourceHeight,
@@ -395,7 +395,7 @@ function sharedMobHeadshotSideMaterial(color) {
     opacity: 1,
     depthWrite: true,
   });
-  material.userData.worldviewShared = true;
+  material.userData.terrascapeShared = true;
   return material;
 }
 
@@ -407,7 +407,7 @@ function sharedMobHeadshotCapMaterial(color) {
     opacity: 1,
     depthWrite: true,
   });
-  material.userData.worldviewShared = true;
+  material.userData.terrascapeShared = true;
   return material;
 }
 
@@ -472,16 +472,16 @@ function updateMarkerCardHeight(marker, cardHeight) {
 
 export function disposeObject(root) {
   root.traverse((object) => {
-    if (object.userData?.worldviewMobHeadshot && object.userData.materialKey) {
+    if (object.userData?.terrascapeMobHeadshot && object.userData.materialKey) {
       mobHeadshotMaterials.get(object.userData.materialKey)?.meshes.delete(object);
     }
-    if (object.geometry && object.geometry.userData?.worldviewShared !== true) object.geometry.dispose();
+    if (object.geometry && object.geometry.userData?.terrascapeShared !== true) object.geometry.dispose();
     if (object.material) {
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of materials) {
-        if (material?.userData?.worldviewShared === true) continue;
+        if (material?.userData?.terrascapeShared === true) continue;
         for (const value of Object.values(material)) {
-          if (value?.isTexture && value.userData?.worldviewShared !== true) value.dispose();
+          if (value?.isTexture && value.userData?.terrascapeShared !== true) value.dispose();
         }
         material.dispose();
       }

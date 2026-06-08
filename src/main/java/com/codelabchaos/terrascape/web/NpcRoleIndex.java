@@ -1,4 +1,4 @@
-package com.codelabchaos.synthworldview.web;
+package com.codelabchaos.terrascape.web;
 
 import com.hypixel.hytale.server.npc.AllNPCsLoadedEvent;
 import com.hypixel.hytale.server.npc.asset.builder.BuilderInfo;
@@ -18,7 +18,7 @@ import java.util.logging.Logger;
  *
  * <p>This mirrors the SynthOverseer pattern: keep a tiny id -> source path map from
  * {@link AllNPCsLoadedEvent}, then let richer consumers decide how much detail to read.
- * Worldview uses it to confirm map-card role ids against the running server instead of
+ * Terrascape uses it to confirm map-card role ids against the running server instead of
  * relying only on the generated asset snapshot.
  */
 public final class NpcRoleIndex {
@@ -56,7 +56,7 @@ public final class NpcRoleIndex {
         }
         entries = Collections.unmodifiableMap(next);
         lowerToCanonical = Collections.unmodifiableMap(lower);
-        LOG.info("[worldview-npc-index] indexed " + next.size() + " NPC ids ("
+        LOG.info("[terrascape-npc-index] indexed " + next.size() + " NPC ids ("
                 + withPath + " with source path, " + withoutPath + " path-less)");
     }
 

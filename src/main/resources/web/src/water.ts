@@ -157,7 +157,7 @@ export function tintWaterMaterialsFromMap(root, sampleMapColor) {
       if (material.uniforms?.waterColor) {
         material.uniforms.waterColor.value.copy(tint);
       }
-      material.userData.worldviewWaterColor = tint.clone();
+      material.userData.terrascapeWaterColor = tint.clone();
       material.needsUpdate = true;
     }
   });
@@ -196,18 +196,18 @@ export function updateWaterMaterials(scene, renderer, elapsedSeconds, camera) {
 }
 
 function isWaterMaterial(material) {
-  return material?.userData?.worldviewWater === true || material?.name === 'worldview-water';
+  return material?.userData?.terrascapeWater === true || material?.name === 'terrascape-water';
 }
 
 function prepareWaterMaterial(material) {
   if (!isWaterMaterial(material)) return material;
-  if (material.isShaderMaterial && material.userData?.worldviewWater === true) {
+  if (material.isShaderMaterial && material.userData?.terrascapeWater === true) {
     trackWaterMaterial(material);
     return material;
   }
   const waterColor = material.color?.clone?.() ?? FALLBACK_MAP_WATER_COLOR.clone();
   const waterMaterial = new THREE.ShaderMaterial({
-    name: 'worldview-water',
+    name: 'terrascape-water',
     vertexShader: waterVertexShader,
     fragmentShader: waterFragmentShader,
     uniforms: {
@@ -232,10 +232,10 @@ function prepareWaterMaterial(material) {
     fog: false,
     toneMapped: false,
   });
-  waterMaterial.name = 'worldview-water';
-  waterMaterial.userData.worldviewWater = true;
-  waterMaterial.userData.worldviewOriginalVertexColors = material.vertexColors;
-  waterMaterial.userData.worldviewWaterColor = waterColor.clone();
+  waterMaterial.name = 'terrascape-water';
+  waterMaterial.userData.terrascapeWater = true;
+  waterMaterial.userData.terrascapeOriginalVertexColors = material.vertexColors;
+  waterMaterial.userData.terrascapeWaterColor = waterColor.clone();
   waterMaterial.transparent = true;
   waterMaterial.opacity = WATER_DEFAULTS.waterOpacity;
   waterMaterial.toneMapped = false;
@@ -246,8 +246,8 @@ function prepareWaterMaterial(material) {
 
 function trackWaterMaterial(material) {
   trackedWaterMaterials.add(material);
-  if (material.userData.worldviewWaterDisposeTracked === true) return;
-  material.userData.worldviewWaterDisposeTracked = true;
+  if (material.userData.terrascapeWaterDisposeTracked === true) return;
+  material.userData.terrascapeWaterDisposeTracked = true;
   material.addEventListener('dispose', () => trackedWaterMaterials.delete(material));
 }
 
@@ -262,7 +262,7 @@ function reflectionTexture() {
 function ensureReflectionTarget() {
   if (!reflectionTarget) {
     reflectionTarget = new THREE.WebGLRenderTarget(512, 512);
-    reflectionTarget.texture.name = 'worldview-water-reflection';
+    reflectionTarget.texture.name = 'terrascape-water-reflection';
   }
   return reflectionTarget;
 }
@@ -345,7 +345,7 @@ function setWaterAlpha(material, alpha) {
 }
 
 function setWaterShaderActive(material, active) {
-  material.userData.worldviewWaterShaderActive = active;
+  material.userData.terrascapeWaterShaderActive = active;
   if (material.uniforms?.shaderMix) {
     material.uniforms.shaderMix.value = active ? 1.0 : 0.0;
   }
@@ -359,7 +359,7 @@ function setWaterShaderActive(material, active) {
 
 function hasActiveShaderWater() {
   for (const material of trackedWaterMaterials) {
-    if (material.visible !== false && material.userData?.worldviewWaterShaderActive === true) {
+    if (material.visible !== false && material.userData?.terrascapeWaterShaderActive === true) {
       return true;
     }
   }

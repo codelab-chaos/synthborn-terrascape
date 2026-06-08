@@ -1,6 +1,6 @@
-# SynthWorldview Proposed Design
+# SynthTerrascape Proposed Design
 
-SynthWorldview is a proposed Hytale server mod for a live, navigable 3D view of a
+SynthTerrascape is a proposed Hytale server mod for a live, navigable 3D view of a
 running world. It takes the useful shape of EasyWebMap - embedded web server, chunk
 addressing, cache-backed asset generation, player tracking, and browser rendering - and
 changes the streamed asset from a 2D PNG tile to a conservative 3D terrain mesh.
@@ -53,7 +53,7 @@ Browser Three.js client
         |
         | GET static app, GET worlds, WS players, POST mesh batch
         v
-Netty web server inside SynthWorldview
+Netty web server inside SynthTerrascape
         |
         +--> PlayerTracker
         |
@@ -70,7 +70,7 @@ Netty web server inside SynthWorldview
 
 The mod can start by copying the EasyWebMap server structure:
 
-- `SynthWorldviewPlugin`
+- `SynthTerrascapePlugin`
 - `WorldviewConfig`
 - `WebServer`
 - `HttpRequestHandler`
@@ -305,10 +305,10 @@ The early validation loop should answer these questions:
 The validation commands can start as operator commands:
 
 ```text
-/worldview status
-/worldview sample <chunkX> <chunkZ>
-/worldview clearcache
-/worldview pregenerate <radius> <lod>
+/terrascape status
+/terrascape sample <chunkX> <chunkZ>
+/terrascape clearcache
+/terrascape pregenerate <radius> <lod>
 ```
 
 ## MVP Cut
@@ -340,7 +340,7 @@ The MVP is complete when:
 
 ## Relationship To EasyWebMap
 
-EasyWebMap proves the web-server and tile-streaming skeleton. SynthWorldview should copy
+EasyWebMap proves the web-server and tile-streaming skeleton. SynthTerrascape should copy
 that architecture shamelessly, but keep a sharper MVP line:
 
 - 2D PNG tiles become 3D GLB chunks.

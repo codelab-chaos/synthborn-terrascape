@@ -3,9 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const worldviewRoot = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(worldviewRoot, '..', '..');
-const outputDir = path.join(worldviewRoot, 'tools', 'mob-feed-samples');
+const terrascapeRoot = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(terrascapeRoot, '..', '..');
+const outputDir = path.join(terrascapeRoot, 'tools', 'mob-feed-samples');
 
 const options = parseArgs(process.argv.slice(2));
 const baseUrl = options.url ?? 'http://127.0.0.1:5960';

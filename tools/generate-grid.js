@@ -24,7 +24,7 @@ async function main() {
   const results = [];
   let cursor = 0;
 
-  console.log('SynthWorldview terrain grid scale test');
+  console.log('SynthTerrascape terrain grid scale test');
   console.log(`  url        : ${baseUrl}`);
   console.log(`  world      : ${world}`);
   console.log(`  center     : ${centerX}, ${centerZ}`);
@@ -63,7 +63,7 @@ async function main() {
   const jsonOut = args['json-out'] ?? args.jsonOut;
   if (jsonOut) {
     const report = {
-      kind: 'worldview-mesh-probe',
+      kind: 'terrascape-mesh-probe',
       timestamp: new Date().toISOString(),
       url: baseUrl,
       world,
@@ -133,8 +133,8 @@ function fetchChunk(chunkX, chunkZ) {
           status: res.statusCode,
           ok: res.statusCode >= 200 && res.statusCode < 300,
           bytes,
-          vertices: numberHeader(res.headers['x-worldview-vertices']),
-          triangles: numberHeader(res.headers['x-worldview-triangles']),
+          vertices: numberHeader(res.headers['x-terrascape-vertices']),
+          triangles: numberHeader(res.headers['x-terrascape-triangles']),
           ms: performance.now() - started,
         });
       });

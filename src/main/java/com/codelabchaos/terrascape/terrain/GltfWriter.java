@@ -1,4 +1,4 @@
-package com.codelabchaos.synthworldview.terrain;
+package com.codelabchaos.terrascape.terrain;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
@@ -100,7 +100,7 @@ public final class GltfWriter {
         }
 
         return """
-                {"asset":{"version":"2.0","generator":"SynthWorldview"},"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"name":"worldview-terrain","mesh":0}],"meshes":[{"name":"worldview-terrain","primitives":[%s]}],"materials":[{"name":"worldview-opaque","doubleSided":true,"pbrMetallicRoughness":{"baseColorFactor":[1,1,1,1],"metallicFactor":0,"roughnessFactor":1}},{"name":"worldview-water","doubleSided":true,"alphaMode":"BLEND","pbrMetallicRoughness":{"baseColorFactor":[0.78,0.96,1,0.86],"metallicFactor":0,"roughnessFactor":0.42}},{"name":"worldview-detail","doubleSided":true,"pbrMetallicRoughness":{"baseColorFactor":[1,1,1,1],"metallicFactor":0,"roughnessFactor":0.95}}],"buffers":[{"byteLength":%d}],"bufferViews":[%s],"accessors":[%s]}
+                {"asset":{"version":"2.0","generator":"SynthTerrascape"},"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"name":"terrascape-terrain","mesh":0}],"meshes":[{"name":"terrascape-terrain","primitives":[%s]}],"materials":[{"name":"terrascape-opaque","doubleSided":true,"pbrMetallicRoughness":{"baseColorFactor":[1,1,1,1],"metallicFactor":0,"roughnessFactor":1}},{"name":"terrascape-water","doubleSided":true,"alphaMode":"BLEND","pbrMetallicRoughness":{"baseColorFactor":[0.78,0.96,1,0.86],"metallicFactor":0,"roughnessFactor":0.42}},{"name":"terrascape-detail","doubleSided":true,"pbrMetallicRoughness":{"baseColorFactor":[1,1,1,1],"metallicFactor":0,"roughnessFactor":0.95}}],"buffers":[{"byteLength":%d}],"bufferViews":[%s],"accessors":[%s]}
                 """.formatted(
                 primitives,
                 binLength,

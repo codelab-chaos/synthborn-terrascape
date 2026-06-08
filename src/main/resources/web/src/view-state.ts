@@ -1,8 +1,16 @@
-export const VIEW_STATE_KEY = 'synthworldview.viewState.v1';
+export const VIEW_STATE_KEY = 'synthborn-terrascape.viewState.v1';
+const LEGACY_VIEW_STATE_KEY = 'synthworldview.viewState.v1';
 
 export function loadStoredViewState() {
   try {
-    const raw = window.localStorage.getItem(VIEW_STATE_KEY);
+    let raw = window.localStorage.getItem(VIEW_STATE_KEY);
+    if (!raw) {
+      raw = window.localStorage.getItem(LEGACY_VIEW_STATE_KEY);
+      if (raw) {
+        window.localStorage.setItem(VIEW_STATE_KEY, raw);
+        window.localStorage.removeItem(LEGACY_VIEW_STATE_KEY);
+      }
+    }
     return raw ? JSON.parse(raw) : null;
   } catch (error) {
     console.warn('Failed to load view state', error);

@@ -153,7 +153,7 @@ export function createMapTileLayer(options: CreateMapTileLayerOptions): MapTileL
     maxAnisotropy,
   );
   const mesh = new THREE.InstancedMesh(geometry, material, cells.length);
-  mesh.name = 'worldview-map-backdrop';
+  mesh.name = 'terrascape-map-backdrop';
   // Neutral order: terrain depth buffer occludes distant map cells behind hills.
   mesh.renderOrder = 0;
   mesh.frustumCulled = false;

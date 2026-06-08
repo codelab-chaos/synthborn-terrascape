@@ -314,7 +314,7 @@ function analyzeRun(run, config) {
 
 function printRunSummary(run, config) {
   console.log('');
-  console.log(`=== Worldview perf run ${run.runId ?? '?'} ===`);
+  console.log(`=== Terrascape perf run ${run.runId ?? '?'} ===`);
   console.log(`  baseURL : ${run.baseURL ?? 'unknown'}`);
   console.log(`  started : ${run.startedAt ?? 'unknown'}`);
   if (run.meshProbe) {
@@ -447,7 +447,7 @@ function analyzeFeatureIsolation(run, config) {
   removals.sort((a, b) => (b.savingsVsFullMs ?? 0) - (a.savingsVsFullMs ?? 0));
 
   return {
-    kind: 'worldview-feature-isolation',
+    kind: 'terrascape-feature-isolation',
     timestamp: new Date().toISOString(),
     runId: run.runId,
     mode,

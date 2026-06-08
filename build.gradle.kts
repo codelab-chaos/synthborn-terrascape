@@ -49,7 +49,7 @@ tasks.named<ProcessResources>("processResources") {
 }
 
 tasks.register<Jar>("fatJar") {
-    archiveBaseName.set("SynthWorldview")
+    archiveBaseName.set("SynthTerrascape")
     archiveVersion.set(version.toString())
     archiveClassifier.set("")
 

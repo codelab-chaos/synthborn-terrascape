@@ -1,4 +1,4 @@
-package com.codelabchaos.synthworldview;
+package com.codelabchaos.terrascape;
 
 import com.hypixel.hytale.math.vector.Rotation3f;
 import com.hypixel.hytale.protocol.Direction;
@@ -25,11 +25,11 @@ import java.util.logging.Level;
 public final class PlayerLookTracker {
     private static final long FRESH_MS = 5 * 60_000L;
 
-    private final SynthWorldviewPlugin plugin;
+    private final SynthTerrascapePlugin plugin;
     private final Map<UUID, Look> latest = new ConcurrentHashMap<>();
     private PacketFilter inboundFilter;
 
-    public PlayerLookTracker(@Nonnull SynthWorldviewPlugin plugin) {
+    public PlayerLookTracker(@Nonnull SynthTerrascapePlugin plugin) {
         this.plugin = plugin;
     }
 
