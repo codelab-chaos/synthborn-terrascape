@@ -3,14 +3,15 @@ const fs = require('fs');
 const path = require('path');
 
 const terrascapeRoot = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(terrascapeRoot, '..', '..');
-const serverRoot = path.join(repoRoot, '_Assets', 'Server');
-const rolesRoot = path.join(repoRoot, '_Assets', 'Server', 'NPC', 'Roles');
-const iconsRoot = path.join(repoRoot, '_Assets', 'Common', 'Icons', 'ModelsGenerated');
+const workspaceRoot = path.resolve(terrascapeRoot, '..');
+const basecampRoot = path.join(workspaceRoot, 'synthborn-basecamp');
+const repoRoot = basecampRoot;
+const serverRoot = path.join(basecampRoot, '_Assets', 'Server');
+const rolesRoot = path.join(basecampRoot, '_Assets', 'Server', 'NPC', 'Roles');
+const iconsRoot = path.join(basecampRoot, '_Assets', 'Common', 'Icons', 'ModelsGenerated');
 const labelsPath = path.join(
-  repoRoot,
-  'mods',
-  'SynthOverseer',
+  workspaceRoot,
+  'synthborn-overseer',
   'src',
   'main',
   'resources',

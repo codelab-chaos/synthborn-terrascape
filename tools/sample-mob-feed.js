@@ -4,7 +4,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const terrascapeRoot = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(terrascapeRoot, '..', '..');
+const repoRoot = path.resolve(terrascapeRoot, '..', 'synthborn-basecamp');
 const outputDir = path.join(terrascapeRoot, 'tools', 'mob-feed-samples');
 
 const options = parseArgs(process.argv.slice(2));

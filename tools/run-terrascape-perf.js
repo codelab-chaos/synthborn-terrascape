@@ -14,9 +14,10 @@ const {
   printRunComparison,
   printFeatureIsolation,
 } = require('./library/perf-suite');
-const { resolveTerrascapeUrl } = require('../../../tools/library/remote-host');
+const basecampRoot = path.resolve(__dirname, '..', '..', 'synthborn-basecamp');
+const { resolveTerrascapeUrl } = require(path.join(basecampRoot, 'tools', 'library', 'remote-host'));
 
-const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const repoRoot = basecampRoot;
 const projectRoot = path.resolve(__dirname, '..');
 const isWindows = process.platform === 'win32';
 const args = process.argv.slice(2);

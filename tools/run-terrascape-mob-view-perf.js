@@ -3,7 +3,7 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
 const projectRoot = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(projectRoot, '..', '..');
+const repoRoot = path.resolve(projectRoot, '..', 'synthborn-basecamp');
 const isWindows = process.platform === 'win32';
 
 const CHUNK_LOADER = {
