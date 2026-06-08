@@ -15,13 +15,13 @@ command, endpoint, UI surface, or validation that proves it.
 
 ## Capability Guardrail
 
-Worldview must never generate or expose arbitrary unexplored world data by default.
+Terrascape must never generate or expose arbitrary unexplored world data by default.
 Every terrain capability must be bounded by world allowlists, explored/on-disk chunk
 checks, cache limits, and generation concurrency limits. Web-triggered chunk reads must
 not accidentally force broad world generation.
 
-Capabilities should be specific. Prefer "Worldview streams vertex-colored GLB terrain
-for explored chunks" over "Worldview renders the world."
+Capabilities should be specific. Prefer "Terrascape streams vertex-colored GLB terrain
+for explored chunks" over "Terrascape renders the world."
 
 ## Needed Capabilities
 
@@ -30,12 +30,12 @@ for explored chunks" over "Worldview renders the world."
 The config can allow all worlds or whitelist specific worlds. Hidden worlds do not appear
 in `/api/worlds` and cannot serve terrain.
 
-### [ ] Worldview Blocks Unexplored Chunks By Default
+### [ ] Terrascape Blocks Unexplored Chunks By Default
 
 Requests for chunks outside the explored/on-disk index return empty or unexplored
 responses without forcing terrain generation.
 
-### [ ] Worldview Enforces Disk Cache Limits
+### [ ] Terrascape Enforces Disk Cache Limits
 
 Generated terrain cache files are bounded by count, bytes, age, or explicit operator
 policy so scale tests and browser sessions cannot grow disk usage indefinitely.
@@ -46,21 +46,21 @@ The visible-radius field does not impose a client-side maximum while the project
 stress-test mode. Operators can intentionally enter large values to test loading,
 rendering, cache growth, and failure behavior.
 
-### [ ] Worldview Unloads Distant Chunks In The Browser
+### [ ] Terrascape Unloads Distant Chunks In The Browser
 
 The client disposes geometry/material resources for chunks outside the retain radius.
 
-### [ ] Worldview Marks Stale Chunks For Refresh Near Players
+### [ ] Terrascape Marks Stale Chunks For Refresh Near Players
 
 Stale cached terrain is regenerated only when a player is near enough that the terrain
 could plausibly have changed.
 
-### [ ] Worldview Can Add Texture Atlas Rendering
+### [ ] Terrascape Can Add Texture Atlas Rendering
 
 Terrain can graduate from vertex colors to real block texture UVs and atlas-backed
 materials.
 
-### [ ] Worldview Can Show Limited Exposed Faces Below The Heightmap
+### [ ] Terrascape Can Show Limited Exposed Faces Below The Heightmap
 
 The terrain mesh can include cliffs, holes, and built structures by scanning a bounded
 depth below the top surface.
@@ -78,7 +78,7 @@ Tree and leaf detail experiments are parked for now. Terrain generation should k
 conservative ground/water heightfield path active and avoid emitting alternate foliage
 render geometry until the vegetation approach is revisited.
 
-### [ ] Worldview Can Invalidate Dirty Chunks
+### [ ] Terrascape Can Invalidate Dirty Chunks
 
 The server can detect chunk/block updates and tell connected browsers to reload affected
 terrain.
@@ -106,7 +106,7 @@ known, and avoid pretending spawn markers are live mobs. Clicking or hovering an
 show the short mob type, category, and coordinates, but the first pass should prioritize
 spatial awareness over labels everywhere.
 
-### [ ] Worldview Streams Live Entity Snapshots
+### [ ] Terrascape Streams Live Entity Snapshots
 
 Players and mobs should use one push-style browser connection for live position updates
 instead of independent high-frequency polling loops. Server-Sent Events are the preferred
@@ -114,7 +114,7 @@ first transport because the embedded JDK HTTP server does not natively support W
 upgrades and the feed is server-to-browser only. The existing `/api/players/{world}` and
 `/api/mobs/{world}` routes remain useful fallback/debug endpoints.
 
-### [ ] Worldview Can Resolve Mob Types To Icon Categories
+### [ ] Terrascape Can Resolve Mob Types To Icon Categories
 
 Mob snapshots should include enough metadata for the browser to choose an icon without
 hard-coding every Hytale asset name. Useful first categories are `hostile`, `passive`,
@@ -123,18 +123,18 @@ hard-coding every Hytale asset name. Useful first categories are `hostile`, `pas
 Skeleton, Zombie, Goblin, Outlander, Wolf, Cow, Rabbit, Duck, Frog, Mouse, and Kweebec
 until a richer asset metadata table exists.
 
-### [ ] Worldview Can Use Creature Headshot Icons
+### [ ] Terrascape Can Use Creature Headshot Icons
 
 The asset tree already contains generated creature/NPC icon PNGs under
-`_Assets/Common/Icons/ModelsGenerated`. This should be Worldview's primary icon source:
+`_Assets/Common/Icons/ModelsGenerated`. This should be Terrascape's primary icon source:
 copy or atlas selected PNGs into web resources, map runtime mob type ids to matching
 filenames, and fall back to category badges when no generated icon exists. A separate
 blockymodel/headshot renderer is still useful for gaps, but it should be a fallback
 pipeline rather than the first implementation.
 
-### [ ] Worldview Can Load Static NPC Detail Metadata
+### [ ] Terrascape Can Load Static NPC Detail Metadata
 
-Worldview should ship a generated `npc-details.json` lookup built from
+Terrascape should ship a generated `npc-details.json` lookup built from
 `_Assets/Server/NPC/Roles/**/*.json` and `_Assets/Common/Icons/ModelsGenerated/*.png`.
 The table should map runtime mob ids and common aliases to max health, attack metadata
 when safely discoverable, display label, category path, appearance id, drop list, flock
@@ -143,9 +143,9 @@ slots from static data while live position data continues to come from the entit
 
 ## Implemented Capabilities
 
-### [x] Operator Can Start A Local Worldview Web Server
+### [x] Operator Can Start A Local Terrascape Web Server
 
-Validated on `synth-terrascape-mvp`: SynthTerrascape starts a local HTTP server at
+Validated on `synth-worldview-mvp`: SynthTerrascape starts a local HTTP server at
 `http://127.0.0.1:5960`, serves the browser app, and exposes `/api/worlds` plus
 `/api/terrain/{world}/{lod}/{chunkX}/{chunkZ}.glb`.
 
@@ -181,7 +181,7 @@ camera and controls target together so auto-streaming follows the moved viewpoin
 Middle mouse drag pans the map without requiring a mode toggle, matching common
 3D/editor viewport expectations.
 
-### [x] Worldview Renders Heightfield Terrain From Real Chunk Data
+### [x] Terrascape Renders Heightfield Terrain From Real Chunk Data
 
 Validated by loading `GET /api/terrain/default/0/0/0.glb` in the Three.js viewer. The
 rendered scene shows the same terrain generated from `WorldChunk` height/block data.
@@ -205,13 +205,13 @@ coordinates, and auto-loads the retained grid when the target crosses into a new
 Validated live with the `Auto` toggle enabled and a radius `3` grid reaching
 `49 chunks loaded`.
 
-### [x] Worldview Batches Terrain Requests
+### [x] Terrascape Batches Terrain Requests
 
 The browser requests missing terrain chunks through capped `POST /api/terrain/batch`
 calls instead of one HTTP request per chunk. Each batch returns per-chunk success or
 failure data so failed chunks do not poison the whole batch.
 
-### [x] Worldview Can Generate Low-Detail Terrain On Demand
+### [x] Terrascape Can Generate Low-Detail Terrain On Demand
 
 The server has an experimental `lod=1` terrain generator, but LOD serving is disabled
 for now. `lod > 0` terrain requests return `410 lod_disabled`, and the viewer disables
@@ -220,15 +220,15 @@ validation on chunk `-7,3` showed the parked generator reduced `lod=0` from `342
 vertices to `568` vertices at `lod=1`; re-enable only after the retain/load policy is
 fixed.
 
-### [x] Worldview Caches Generated Terrain In Memory
+### [x] Terrascape Caches Generated Terrain In Memory
 
 Recent GLB terrain chunks are served from a bounded access-order memory cache. The cache
 is capped at `128` entries or `128 MiB`, and `/terrascape status` reports entries,
-bytes, and memory-hit count. Validated on `synth-terrascape-mvp`: after clearcache, the
+bytes, and memory-hit count. Validated on `synth-worldview-mvp`: after clearcache, the
 first request to chunk `-7,3` returned `X-Terrascape-Cache: generated`, and the second
 returned `X-Terrascape-Cache: memory`.
 
-### [x] Worldview Caches Generated Terrain On Disk
+### [x] Terrascape Caches Generated Terrain On Disk
 
 Generated GLB terrain chunks persist under the plugin data directory with metadata
 sidecars for response headers. Disk cache paths include terrain format version, world,
@@ -236,18 +236,18 @@ lod, chunk coordinates, and experimental detail mode. Validated across restart: 
 `-7,3` returned `X-Terrascape-Cache: disk`, then subsequent requests returned
 `X-Terrascape-Cache: memory`.
 
-### [x] Worldview Coalesces Duplicate Terrain Requests
+### [x] Terrascape Coalesces Duplicate Terrain Requests
 
 Multiple simultaneous requests for the same `world/lod/chunkX/chunkZ` terrain key reuse
 one pending generation future. `/terrascape status` reports coalesced request count and
 pending request count. Live fast-path validation completed concurrent requests cleanly;
 observing a nonzero coalesced count still needs a slower stress case.
 
-### [x] Worldview Limits Concurrent Mesh Generation
+### [x] Terrascape Limits Concurrent Mesh Generation
 
 Terrain generation uses a semaphore so web viewers cannot saturate server CPU or flood
 the world execution path. `/terrascape status` reports active and maximum concurrent
-generations. Live validation on `synth-terrascape-mvp` reported `active 0/2, pending 0`
+generations. Live validation on `synth-worldview-mvp` reported `active 0/2, pending 0`
 after successful batch terrain generation.
 
 ### [x] Viewer Can See Chunk Debug Bounds
@@ -292,7 +292,7 @@ the viewer exposes a `Water` selector with `Transparent`, `Solid`, and `Hidden` 
 Nearby validation did not find water in the `-5..5` chunk grid, so visual validation
 against a known shoreline remains a follow-up.
 
-### [x] Worldview Keeps Experimental Detail Generation Server-Gated
+### [x] Terrascape Keeps Experimental Detail Generation Server-Gated
 
 Experimental detail generation remains server-gated and off by default. The current
 viewer does not expose a foliage mode or client-side alternate vegetation renderer, and
@@ -300,7 +300,7 @@ the sampler does not emit leaf/bush canopy voxels. The generic detail mesh
 infrastructure remains available for future experiments that need a separate
 `terrascape-detail` primitive.
 
-### [x] Worldview Can Classify Terrain Versus Overland Detail Blocks
+### [x] Terrascape Can Classify Terrain Versus Overland Detail Blocks
 
 The current block-role policy keeps water separately classified and treats trunk-like
 blocks as overland detail for ground recovery. Foliage and bush alternate rendering is
@@ -310,7 +310,7 @@ parked. Broader categories such as structure and unknown reporting remain backlo
 
 The server exposes `GET /api/players/{world}` with player UUID, name, position, and yaw.
 The viewer polls that route, renders one 3D marker per UUID, and removes stale markers.
-Validated on `synth-terrascape-mvp` with online player `Gigantomancer` returned from
+Validated on `synth-worldview-mvp` with online player `Gigantomancer` returned from
 `/api/players/default`.
 
 Current caveat: this MVP uses HTTP polling instead of a WebSocket feed because the
@@ -342,9 +342,9 @@ around chunk `16,16`: `121` chunks, `0` failures, `38,601,176` GLB bytes,
 `916,112` vertices, and `458,056` triangles. The current disk cache reached `218`
 GLBs totaling `67,233,924` bytes.
 
-### [x] Operator Can Inspect Worldview Status In-Game
+### [x] Operator Can Inspect Terrascape Status In-Game
 
-Validated with `/terrascape status` through SynthRCON on the `synth-terrascape-mvp` save.
+Validated with `/terrascape status` through SynthRCON on the `synth-worldview-mvp` save.
 It reports plugin load state, uptime, enabled worlds, and terrain sample availability.
 
 ### [x] Operator Can Generate A Sample Chunk For Validation
@@ -359,7 +359,7 @@ from the plugin data directory, then reports deleted file count, directory count
 bytes. The command only deletes known SynthTerrascape cache folders under the plugin data
 directory.
 
-### [x] Worldview Generates A GLB For One Real Chunk
+### [x] Terrascape Generates A GLB For One Real Chunk
 
 Validated with chunk `0,0` in world `default`: `1024/1024` non-empty columns, height
 range `107..144`, `7732` vertices, `3866` triangles, and a `325772` byte GLB written to
@@ -368,7 +368,7 @@ range `107..144`, `7732` vertices, `3866` triangles, and a `325772` byte GLB wri
 Current caveat: this first pass samples through the runtime chunk APIs and does not yet
 guard against unexplored chunks by index.
 
-### [x] Worldview Uses Block Metadata Vertex Colors
+### [x] Terrascape Uses Block Metadata Vertex Colors
 
 The sample mesher assigns vertex colors from `BlockType.getTextureComputedColor()`,
 falls back through block tint/particle metadata where available, and keeps a stable

@@ -330,7 +330,7 @@ Proposed TypeScript boundaries:
 src/
   app.ts                         composition only
   runtime/
-    worldview-state.ts           selected world, center, radius, feature flags
+    view-state.ts           selected world, center, radius, feature flags
     frame-budget.ts              cooperative queues
   terrain/
     terrain-controller.ts        desired chunks, cache/network/decode/promote

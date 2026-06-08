@@ -71,7 +71,7 @@ Netty web server inside SynthTerrascape
 The mod can start by copying the EasyWebMap server structure:
 
 - `SynthTerrascapePlugin`
-- `WorldviewConfig`
+- `TerrascapeConfig`
 - `WebServer`
 - `HttpRequestHandler`
 - `StaticHandler`
@@ -258,7 +258,7 @@ The browser app should be the actual tool, not a landing page:
 
 Core client modules:
 
-- `WorldviewApp`: bootstraps renderer, scene, camera, controls.
+- `TerrascapeApp`: bootstraps renderer, scene, camera, controls.
 - `ChunkStreamer`: computes visible chunk set and desired LOD.
 - `TerrainClient`: fetches GLBs and handles batch requests.
 - `ChunkScene`: owns loaded chunk objects and disposal.
