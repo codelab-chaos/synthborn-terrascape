@@ -60,7 +60,7 @@ Status: Closed
 
 Acceptance:
 
-- Gradle/Maven build exists for `mods/SynthTerrascape`.
+- Gradle/Maven build exists for `mods/SynthWorldview`.
 - Plugin manifest loads in Hytale.
 - Startup and shutdown log clear `SynthTerrascape` messages.
 - Plugin data directory is created.
@@ -68,7 +68,7 @@ Acceptance:
 Validation:
 
 - `.\gradlew.bat build` succeeds.
-- `synth-terrascape-mvp` boot log shows `SynthTerrascape setup complete`,
+- `synth-worldview-mvp` boot log shows `SynthTerrascape setup complete`,
   `SynthTerrascape started`, and `Enabled plugin com.codelabchaos:SynthTerrascape`.
 - Live MVP server has repeatedly booted with `SynthTerrascape listening on
   http://127.0.0.1:5960` and `Enabled plugin com.codelabchaos:SynthTerrascape`.
@@ -268,7 +268,7 @@ Validation:
 
 - Pending future coalescing is implemented for `world/lod/chunkX/chunkZ`.
 - `/terrascape status` reports pending terrain requests and coalesced request count.
-- Live validation on `synth-terrascape-mvp` after restart showed `gen: active 0/2,
+- Live validation on `synth-worldview-mvp` after restart showed `gen: active 0/2,
   pending 0` and `chunks: generated 2, coalesced 0, failed 0` after a radius-free
   batch API request.
 - A fast local overlap test with four concurrent one-chunk batch requests completed
@@ -581,7 +581,7 @@ Validation:
 
 - MVP transport is a one-second browser poll against `GET /api/players/{world}` because
   the current JDK HTTP server does not provide WebSocket support.
-- `GET /api/players/default` on `synth-terrascape-mvp` returned `ok=true` with online
+- `GET /api/players/default` on `synth-worldview-mvp` returned `ok=true` with online
   player `Gigantomancer` at approximately `-168, 123, 109`.
 - Player transform snapshotting runs through `world.execute(...)` and returns UUID,
   username, position, and yaw.
@@ -663,7 +663,7 @@ Validation:
 - Playwright validates the endpoint shape and validates mob fields when a live NPC is
   present.
 - Build validated with `.\gradlew.bat build`.
-- Deployed to `synth-terrascape-mvp`, restarted the server, and validated
+- Deployed to `synth-worldview-mvp`, restarted the server, and validated
   `GET /api/mobs/default` returned `{"ok":true,"world":"default","max":256,"mobs":[]}`.
 - `npm.cmd test` passed after deployment.
 - Follow-up fix after hostile testing: widened the feed from `NPCEntity` only to
@@ -689,7 +689,7 @@ Validation:
   generic transform actors for skeleton/fox/mouse investigation.
 - Research follow-up: SynthUnits already validated real `Skeleton` detection through
   `Query.and(NPCEntity.getComponentType(), TransformComponent.getComponentType())`.
-  Worldview now uses that `NPCEntity + TransformComponent` query for the live mob feed
+  Terrascape now uses that `NPCEntity + TransformComponent` query for the live mob feed
   instead of the broader transform fallback.
 - Spawn-marker follow-up: the broad transform fallback surfaced Hytale spawn-marker
   NPCs such as `PC_Spawn_Mark` / `NPC_Spawn_Marker`, which are useful for spawn-region
@@ -755,7 +755,7 @@ Validation:
 - Requests beyond the active generation limit wait for a permit instead of immediately
   scheduling additional world execution work.
 - `/terrascape status` reports active and maximum concurrent generations.
-- Live validation on `synth-terrascape-mvp` reported `active 0/2, pending 0` after
+- Live validation on `synth-worldview-mvp` reported `active 0/2, pending 0` after
   generating real terrain through `POST /api/terrain/batch`.
 - Configurable limit remains a follow-up under config loader work.
 
@@ -896,7 +896,7 @@ Validation:
 - The feature is opt-in at server startup. Default terrain requests omit detail geometry
   and cache under normal `lod-0`; server-enabled experimental detail requests cache
   separately under `lod-0-details`.
-- `GET /api/terrain/default/0/-7/3.glb` on `synth-terrascape-mvp` returned
+- `GET /api/terrain/default/0/-7/3.glb` on `synth-worldview-mvp` returned
   `X-Terrascape-Details: 0` and `300628` bytes after the feature was defaulted off.
 - `GET /api/terrain/default/0/-7/3.glb?details=1` also returned
   `X-Terrascape-Details: 0`, proving clients cannot override the server setting.
@@ -1019,7 +1019,7 @@ Validation:
   and has since been disabled entirely for normal server sessions.
 - `TerrascapeWebServer` returns `410 lod_disabled` for `lod > 0` terrain requests while
   the experiment is parked.
-- Live validation on `synth-terrascape-mvp`: `/api/terrain/default/0/-7/3.glb` returned
+- Live validation on `synth-worldview-mvp`: `/api/terrain/default/0/-7/3.glb` returned
   `34296` vertices / `17148` triangles, while `/api/terrain/default/1/-7/3.glb`
   returned `568` vertices / `284` triangles.
 - Playwright validation asserts `lod=1` returns fewer vertices than `lod=0`.
@@ -1036,7 +1036,7 @@ Follow-up acceptance before re-enabling:
 
 Status: Parked
 
-Note: while debugging the live mob feed, Worldview discovered Hytale spawn-marker
+Note: while debugging the live mob feed, Terrascape discovered Hytale spawn-marker
 entities such as `PC_Spawn_Mark` / `NPC_Spawn_Marker`. These are not live mobs, but they
 may be valuable as an operator/debug overlay for understanding where wildlife and
 hostiles can appear.
@@ -1064,7 +1064,7 @@ Validation:
 Status: Open
 
 Goal: show animals, NPCs, and monsters on the map as compact, readable icons wherever
-Worldview can honestly observe loaded live entities. The first pass should be useful
+Terrascape can honestly observe loaded live entities. The first pass should be useful
 operator radar: "what is near me or in my loaded view?" not a perfect full-world bestiary.
 
 Research notes:
@@ -1133,7 +1133,7 @@ Progress:
 - Mob snapshots include `id`, `type`, `label`, `category`, `x/y/z`, `color`, and
   `source`.
 - Build/deploy validation passed with `.\gradlew.bat build` and `.\gradlew.bat deploy`.
-  After restarting `synth-terrascape-mvp`, `GET /api/mobs/default` returned
+  After restarting `synth-worldview-mvp`, `GET /api/mobs/default` returned
   `ok=true`, `max=256`, `radar=500`, `players=0`, an empty bounded `mobs` array, and
   `sourceStats.source=NPCEntity`. `npm.cmd test` passed against the deployed server.
 - Follow-up in progress: added `/api/entities/stream/{world}` as a Server-Sent Events
@@ -1183,7 +1183,7 @@ Validation:
 - Playwright fixtures a mob payload with a hostile and passive mob, verifies icons are
   created, verifies the `Mobs` toggle hides/shows them, and verifies stale mobs are
   removed.
-- Deployed browser validation on `synth-terrascape-mvp` passes after restart.
+- Deployed browser validation on `synth-worldview-mvp` passes after restart.
 
 Progress:
 

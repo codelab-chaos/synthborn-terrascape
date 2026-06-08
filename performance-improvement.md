@@ -44,13 +44,13 @@ Telemetry: `map_backdrop_reuse` client-log events; `mapBackdropStats()` now expo
 
 ### Perf logs
 
-- Before: `perf-history/map-pan-before/worldview-perf-run-1.json`
-- After: `perf-history/map-pan-after/worldview-perf-run-1.json`
+- Before: `perf-history/map-pan-before/terrascape-perf-run-1.json`
+- After: `perf-history/map-pan-after/terrascape-perf-run-1.json`
 
 ### Reproduce
 
 ```bash
-cd mods/SynthTerrascape
+cd mods/SynthWorldview
 WORLDVIEW_URL=http://<host>:5960 node tools/run-terrascape-perf.js \
   --extensive --config tools/perf-suite-map-pan.json --runs 1 --wet \
   --report-dir perf-history/map-pan-after

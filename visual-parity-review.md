@@ -119,7 +119,7 @@ Without textures, we can still make block colors feel closer by calibrating vert
 
 - Capture representative in-game screenshots and map screenshots at the same locations/time.
 - Sample broad color groups: grass, dirt, bark, roof/planks, snow, stone, water, foliage.
-- Build a small material color correction table for worldview terrain IDs.
+- Build a small material color correction table for Terrascape terrain IDs.
 - Apply corrections server-side before GLB color output.
 
 This is cheaper and more controllable than texture projection. It also avoids making the map look like an unrelated renderer.
