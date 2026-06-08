@@ -5,6 +5,7 @@ node_modules/
 playwright-report/
 test-results/
 perf-history/
+visual-examples/
 *.class
 *.log
 *.tmp
