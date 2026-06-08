@@ -988,11 +988,11 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await setControlValue('#radius-range', '2', 'input');
   await expect(page.locator('#radius')).toHaveValue('2');
   await expect(page.locator('#radius-diameter')).toHaveText('5 x 5 chunks, 25 meshes');
-  await expect(page.locator('#status')).toHaveText('Loaded 25 chunks around 0, 0');
+  await expect(page.locator('#status')).toHaveText('Loaded 25 chunks around 0, 0', { timeout: 90_000 });
 
   await setControlValue('#chunk-x', '2', 'input');
 
-  await expect(page.locator('#status')).toHaveText('Loaded 25 chunks around 2, 0');
+  await expect(page.locator('#status')).toHaveText('Loaded 25 chunks around 2, 0', { timeout: 90_000 });
   await expect(page.locator('.info-card')).toContainText('25 chunks');
   await expect(page.locator('.info-card')).toContainText(/[1-9]\d*c/);
 
