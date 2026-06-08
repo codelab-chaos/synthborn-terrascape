@@ -1,24 +1,22 @@
+import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
-export const SHADER_EFFECTS = Object.freeze({
-  none: 0,
-  tiltShift: 1,
-  pixelMap: 2,
-  vignette: 3,
-  bloomLite: 4,
-  cartographicInk: 5,
-  nightScan: 6,
-});
+const DEFAULT_FOG_COLOR = new THREE.Color(0xd9f3f2);
 
-const CATALOG_SHADER = {
-  name: 'SynthWorldviewShaderCatalog',
+const DEPTH_FOG_SHADER = {
+  name: 'SynthWorldviewDepthFog',
   uniforms: {
     tDiffuse: { value: null },
-    mode: { value: SHADER_EFFECTS.none },
-    resolution: { value: [1, 1] },
-    time: { value: 0 },
+    tDepth: { value: null },
+    cameraNear: { value: 0.1 },
+    cameraFar: { value: 6000 },
+    fogNear: { value: 150 },
+    fogFar: { value: 620 },
+    fogColor: { value: DEFAULT_FOG_COLOR.clone() },
+    fogStrength: { value: 0.9 },
+    horizonStrength: { value: 0.65 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -28,133 +26,127 @@ const CATALOG_SHADER = {
     }
   `,
   fragmentShader: `
+    #include <packing>
+
     uniform sampler2D tDiffuse;
-    uniform int mode;
-    uniform vec2 resolution;
-    uniform float time;
+    uniform sampler2D tDepth;
+    uniform float cameraNear;
+    uniform float cameraFar;
+    uniform float fogNear;
+    uniform float fogFar;
+    uniform vec3 fogColor;
+    uniform float fogStrength;
+    uniform float horizonStrength;
     varying vec2 vUv;
 
-    vec3 sampleColor(vec2 uv) {
-      return texture2D(tDiffuse, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
-    }
-
-    float luma(vec3 color) {
-      return dot(color, vec3(0.299, 0.587, 0.114));
-    }
-
-    vec3 tiltShift(vec2 uv) {
-      float distanceFromFocus = abs(uv.y - 0.53);
-      float blur = smoothstep(0.18, 0.48, distanceFromFocus);
-      vec2 texel = vec2(1.0) / resolution;
-      vec3 color = sampleColor(uv) * 0.28;
-      color += sampleColor(uv + vec2(texel.x * 1.5, 0.0) * blur) * 0.18;
-      color += sampleColor(uv - vec2(texel.x * 1.5, 0.0) * blur) * 0.18;
-      color += sampleColor(uv + vec2(0.0, texel.y * 2.2) * blur) * 0.18;
-      color += sampleColor(uv - vec2(0.0, texel.y * 2.2) * blur) * 0.18;
-      color += vec3(0.025, 0.016, 0.0);
-      return mix(sampleColor(uv), color, 0.88);
-    }
-
-    vec3 pixelMap(vec2 uv) {
-      float pixelSize = 3.0;
-      vec2 pixelUv = (floor(uv * resolution / pixelSize) * pixelSize + pixelSize * 0.5) / resolution;
-      vec3 color = sampleColor(pixelUv);
-      color = floor(color * 14.0) / 14.0;
-      return color * vec3(1.04, 1.02, 0.96);
-    }
-
-    vec3 vignette(vec2 uv) {
-      vec3 color = sampleColor(uv);
-      float distanceFromCenter = distance(uv, vec2(0.5));
-      float edge = smoothstep(0.36, 0.76, distanceFromCenter);
-      color *= mix(1.08, 0.62, edge);
-      color = mix(color, vec3(luma(color)), 0.08);
-      return color;
-    }
-
-    vec3 bloomLite(vec2 uv) {
-      vec2 texel = vec2(1.0) / resolution;
-      vec3 color = sampleColor(uv);
-      vec3 glow = vec3(0.0);
-      glow += sampleColor(uv + texel * vec2(2.0, 0.0));
-      glow += sampleColor(uv + texel * vec2(-2.0, 0.0));
-      glow += sampleColor(uv + texel * vec2(0.0, 2.0));
-      glow += sampleColor(uv + texel * vec2(0.0, -2.0));
-      glow += sampleColor(uv + texel * vec2(2.0, 2.0));
-      glow += sampleColor(uv + texel * vec2(-2.0, -2.0));
-      glow /= 6.0;
-      float bright = smoothstep(0.48, 0.92, luma(glow));
-      return color + glow * bright * 0.28;
-    }
-
-    vec3 cartographicInk(vec2 uv) {
-      vec2 texel = vec2(1.0) / resolution;
-      vec3 color = sampleColor(uv);
-      float c = luma(color);
-      float dx = abs(c - luma(sampleColor(uv + vec2(texel.x, 0.0)))) + abs(c - luma(sampleColor(uv - vec2(texel.x, 0.0))));
-      float dy = abs(c - luma(sampleColor(uv + vec2(0.0, texel.y)))) + abs(c - luma(sampleColor(uv - vec2(0.0, texel.y))));
-      float edge = smoothstep(0.08, 0.22, dx + dy);
-      vec3 ink = vec3(0.025, 0.045, 0.045);
-      color = floor(color * 18.0) / 18.0;
-      return mix(color * vec3(1.05, 1.03, 0.94), ink, edge * 0.56);
-    }
-
-    vec3 nightScan(vec2 uv) {
-      vec3 color = sampleColor(uv);
-      float scan = sin((uv.y * resolution.y + time * 26.0) * 0.72) * 0.5 + 0.5;
-      color = mix(color, color * vec3(0.58, 0.96, 0.86), 0.42);
-      color += vec3(0.0, 0.03, 0.02) * scan;
-      color *= 0.86 + scan * 0.08;
-      return color;
+    float readViewZ(sampler2D depthSampler, vec2 coord) {
+      float fragCoordZ = texture2D(depthSampler, coord).x;
+      float viewZ = perspectiveDepthToViewZ(fragCoordZ, cameraNear, cameraFar);
+      return -viewZ;
     }
 
     void main() {
-      vec3 color = sampleColor(vUv);
-      if (mode == 1) {
-        color = tiltShift(vUv);
-      } else if (mode == 2) {
-        color = pixelMap(vUv);
-      } else if (mode == 3) {
-        color = vignette(vUv);
-      } else if (mode == 4) {
-        color = bloomLite(vUv);
-      } else if (mode == 5) {
-        color = cartographicInk(vUv);
-      } else if (mode == 6) {
-        color = nightScan(vUv);
-      }
-      gl_FragColor = vec4(color, 1.0);
+      vec4 source = texture2D(tDiffuse, vUv);
+      float rawDepth = texture2D(tDepth, vUv).x;
+      float viewDistance = readViewZ(tDepth, vUv);
+      float range = max(1.0, fogFar - fogNear);
+      float distanceFog = smoothstep(fogNear, fogNear + range, viewDistance);
+      float skyPixel = step(0.9999, rawDepth);
+      float skyHaze = skyPixel * smoothstep(0.72, 0.34, vUv.y) * horizonStrength;
+      float terrainHaze = (1.0 - skyPixel) * distanceFog * smoothstep(0.62, 0.24, vUv.y) * horizonStrength * 0.3;
+      float fogAmount = clamp(max(distanceFog, skyHaze) * fogStrength + terrainHaze, 0.0, 1.0);
+      vec3 hazeColor = max(fogColor, source.rgb);
+      vec3 color = mix(source.rgb, hazeColor, fogAmount);
+      gl_FragColor = vec4(color, source.a);
     }
   `,
 };
 
 export function createPostProcessing(renderer, scene, camera) {
-  const composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-  const shaderPass = new ShaderPass(CATALOG_SHADER);
-  shaderPass.enabled = false;
-  composer.addPass(shaderPass);
-  return { composer, shaderPass, mode: 'none' };
+  const renderTarget = createDepthRenderTarget(renderer);
+  const composer = new EffectComposer(renderer, renderTarget);
+  const renderPass = new RenderPass(scene, camera);
+  const fogPass = new ShaderPass(DEPTH_FOG_SHADER);
+  composer.addPass(renderPass);
+  composer.addPass(fogPass);
+  fogPass.enabled = true;
+  setDepthTextureUniform(composer, fogPass);
+  updateCameraUniforms(fogPass, camera);
+  return { composer, fogPass, renderPass, enabled: true };
 }
 
-export function setShaderEffect(post, value) {
-  const mode = SHADER_EFFECTS[value] ?? SHADER_EFFECTS.none;
-  post.mode = value in SHADER_EFFECTS ? value : 'none';
-  post.shaderPass.uniforms.mode.value = mode;
-  post.shaderPass.enabled = mode !== SHADER_EFFECTS.none;
+export function setFogOptions(post, options = {}) {
+  post.enabled = options.enabled !== false;
+  post.fogPass.enabled = post.enabled;
+  post.fogPass.uniforms.fogNear.value = finiteNumber(options.near, 150);
+  post.fogPass.uniforms.fogFar.value = Math.max(
+    post.fogPass.uniforms.fogNear.value + 1,
+    finiteNumber(options.far, 620),
+  );
+  post.fogPass.uniforms.fogStrength.value = finiteNumber(options.strength, 0.9);
+  post.fogPass.uniforms.horizonStrength.value = finiteNumber(options.horizonStrength, 0.65);
+  if (options.color?.isColor) {
+    post.fogPass.uniforms.fogColor.value.copy(options.color);
+  }
 }
 
 export function resizePostProcessing(post, width, height, pixelRatio) {
   post.composer.setPixelRatio(pixelRatio);
   post.composer.setSize(width, height);
-  post.shaderPass.uniforms.resolution.value = [Math.max(1, width * pixelRatio), Math.max(1, height * pixelRatio)];
+  ensureDepthTexture(post.composer.renderTarget1);
+  ensureDepthTexture(post.composer.renderTarget2);
+  setDepthTextureUniform(post.composer, post.fogPass);
 }
 
-export function renderPostProcessing(post, renderer, scene, camera, deltaSeconds, elapsedSeconds) {
-  if (post.shaderPass.enabled) {
-    post.shaderPass.uniforms.time.value = elapsedSeconds;
-    post.composer.render(deltaSeconds);
+export function renderPostProcessing(post, renderer, scene, camera, deltaSeconds) {
+  if (!post.enabled) {
+    renderer.render(scene, camera);
     return;
   }
-  renderer.render(scene, camera);
+  updateCameraUniforms(post.fogPass, camera);
+  setDepthTextureUniform(post.composer, post.fogPass);
+  post.composer.render(deltaSeconds);
+}
+
+function createDepthRenderTarget(renderer) {
+  const size = renderer.getSize(new THREE.Vector2());
+  const pixelRatio = renderer.getPixelRatio();
+  const renderTarget = new THREE.WebGLRenderTarget(
+    Math.max(1, Math.floor(size.x * pixelRatio)),
+    Math.max(1, Math.floor(size.y * pixelRatio)),
+    {
+      type: THREE.HalfFloatType,
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      stencilBuffer: false,
+      depthBuffer: true,
+    },
+  );
+  ensureDepthTexture(renderTarget);
+  return renderTarget;
+}
+
+function ensureDepthTexture(target) {
+  if (!target) return;
+  if (target.depthTexture) return;
+  target.depthBuffer = true;
+  target.depthTexture = new THREE.DepthTexture(target.width, target.height);
+  target.depthTexture.format = THREE.DepthFormat;
+  target.depthTexture.type = THREE.UnsignedShortType;
+  target.depthTexture.name = 'worldview-postprocess-depth';
+}
+
+function setDepthTextureUniform(composer, fogPass) {
+  ensureDepthTexture(composer.readBuffer);
+  fogPass.uniforms.tDepth.value = composer.readBuffer.depthTexture;
+}
+
+function updateCameraUniforms(fogPass, camera) {
+  fogPass.uniforms.cameraNear.value = camera.near;
+  fogPass.uniforms.cameraFar.value = camera.far;
+}
+
+function finiteNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
 }

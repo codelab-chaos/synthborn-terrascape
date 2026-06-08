@@ -41,7 +41,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _view_state_js__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./view-state.js */ "./src/main/resources/web/src/view-state.ts");
 /* harmony import */ var _water_js__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./water.js */ "./src/main/resources/web/src/water.ts");
 /* harmony import */ var _library_confirm_dialog_js__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./library/confirm-dialog.js */ "./src/main/resources/web/src/library/confirm-dialog.ts");
-/* harmony import */ var _mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./mesh-cache.js */ "./src/main/resources/web/src/mesh-cache.ts");
+/* harmony import */ var _library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./library/collapsible-section.js */ "./src/main/resources/web/src/library/collapsible-section.ts");
+/* harmony import */ var _library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./library/tri-state-control.js */ "./src/main/resources/web/src/library/tri-state-control.ts");
+/* harmony import */ var _mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./mesh-cache.js */ "./src/main/resources/web/src/mesh-cache.ts");
 
 
 
@@ -65,6 +67,10 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+
+
+const COSMETIC_MODE_VALUES = ['off', 'baked', 'split'];
+const VISUAL_DETAIL_VALUES = ['basic', 'structures', 'all'];
 const SKY_COLOR = 0x173454;
 const EMPTY_GRID_AXIS_COLOR = 0x1faa6a;
 const EMPTY_GRID_LINE_COLOR = 0x15965a;
@@ -136,7 +142,7 @@ renderer.setPixelRatio(rendererPixelRatio);
 renderer.setClearColor(SKY_COLOR, 1);
 const scene = new three__WEBPACK_IMPORTED_MODULE_0__.Scene();
 scene.background = new three__WEBPACK_IMPORTED_MODULE_0__.Color(SKY_COLOR);
-scene.fog = new three__WEBPACK_IMPORTED_MODULE_0__.Fog(SKY_COLOR, 620, 4200);
+scene.fog = null;
 const camera = new three__WEBPACK_IMPORTED_MODULE_0__.PerspectiveCamera(70, 1, 0.1, 6000);
 camera.position.set(88, 188, 88);
 const controls = new three_addons_controls_OrbitControls_js__WEBPACK_IMPORTED_MODULE_2__.OrbitControls(camera, renderer.domElement);
@@ -268,18 +274,37 @@ const tempFlyZoom = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempFlyEuler = new three__WEBPACK_IMPORTED_MODULE_0__.Euler(0, 0, 0, 'YXZ');
 function currentLightingOptions() {
     return (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.lightingOptionsFromInputs)({
-        sunLightingInput: _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput,
         treeShadeInput: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput,
         shadeSizeInput: _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput,
         shadeDarknessInput: _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput,
         time: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked ? worldTime : NOON_LIGHTING_TIME,
+        fogRange: fogControlRange(),
     });
+}
+function fogControlRange() {
+    const near = terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearValueInput, 150);
+    const far = Math.max(near + 1, terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarValueInput, 620));
+    return {
+        near,
+        far,
+    };
+}
+function fogControlOptions() {
+    const range = fogControlRange();
+    return {
+        enabled: _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput.checked,
+        near: range.near,
+        far: range.far,
+        strength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, 0.9),
+        horizonStrength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, 0.65),
+        color: scene.userData.worldviewFog?.color ?? scene.background,
+    };
 }
 function setStatus(text) {
     _dom_js__WEBPACK_IMPORTED_MODULE_8__.statusEl.textContent = text;
 }
 async function handleClearMeshCache() {
-    const stats = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.getMeshCacheStats)();
+    const stats = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.getMeshCacheStats)();
     const entryLabel = stats.total === 1 ? 'entry' : 'entries';
     const confirmed = await (0,_library_confirm_dialog_js__WEBPACK_IMPORTED_MODULE_20__.confirmAction)({
         title: 'Clear mesh cache?',
@@ -295,7 +320,7 @@ async function handleClearMeshCache() {
     _dom_js__WEBPACK_IMPORTED_MODULE_8__.clearMeshCacheButton.disabled = true;
     setStatus('Clearing mesh cache…');
     try {
-        const cleared = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.clearMeshCache)();
+        const cleared = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.clearMeshCache)();
         for (const [id, entry] of Array.from(loadedChunks.entries())) {
             finishDisposeChunk(id, entry);
         }
@@ -344,6 +369,15 @@ function terrainTuningValue(input, fallback) {
     const min = Number.parseInt(input.min, 10);
     const max = Number.parseInt(input.max, 10);
     return (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(parsed, Number.isFinite(min) ? min : 1, Number.isFinite(max) ? max : 64);
+}
+function readFloatControl(input, fallback) {
+    const parsed = Number.parseFloat(input?.value);
+    if (!Number.isFinite(parsed)) {
+        return fallback;
+    }
+    const min = Number.parseFloat(input.min);
+    const max = Number.parseFloat(input.max);
+    return (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(parsed, Number.isFinite(min) ? min : -Infinity, Number.isFinite(max) ? max : Infinity);
 }
 function createTerrainStreamStats(world, centerX, centerZ, radius, needed, alreadyLoaded, missing, startedAt) {
     return {
@@ -464,10 +498,6 @@ async function loadWorlds() {
     const data = await response.json();
     experimentalDetailsEnabled = data.features?.experimentalDetails === true;
     terrainFormatVersion = data.features?.terrainFormatVersion ?? terrainFormatVersion;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.experimentalDetailsStateEl.textContent = experimentalDetailsEnabled
-        ? 'Detailed trees: server on'
-        : 'Detailed trees: server off';
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.experimentalDetailsStateEl.classList.toggle('enabled', experimentalDetailsEnabled);
     _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.replaceChildren();
     for (const world of data.worlds ?? []) {
         const option = document.createElement('option');
@@ -490,7 +520,6 @@ function applyInitialParams() {
     applyBooleanParam('mobs', _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput);
     applyBooleanParam('mobBlocks', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput);
     syncMobBlocksInputs(_dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput.checked);
-    applyBooleanParam('sun', _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput);
     applyBooleanParam('shade', _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput);
     applyBooleanParam('mapTiles', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput);
     applyCosmeticModeParam();
@@ -506,9 +535,12 @@ function applyInitialParams() {
     applyFloatParam('shadeSize', _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput);
     applyFloatParam('shadeDarkness', _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput);
     applySelectParam('water', _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput);
-    applySelectParam('shader', _dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput);
+    applyBooleanParam('fog', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput);
+    applyFloatParam('fogNear', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearValueInput);
+    applyFloatParam('fogFar', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarValueInput);
+    applyFloatParam('fogStrength', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput);
+    applyFloatParam('fogHorizon', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput);
     applySelectParam('playerRate', _dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput);
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.setShaderEffect)(postProcessing, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput.value);
     applyLighting();
     updateEntityVisibility();
 }
@@ -532,8 +564,6 @@ function applyStoredInputs() {
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked = storedViewState.mobs;
     if (typeof storedViewState.mobBlocks === 'boolean')
         syncMobBlocksInputs(storedViewState.mobBlocks);
-    if (typeof storedViewState.sun === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput.checked = storedViewState.sun;
     if (typeof storedViewState.shade === 'boolean')
         _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked = storedViewState.shade;
     if (typeof storedViewState.mapTime === 'boolean')
@@ -561,9 +591,12 @@ function applyStoredInputs() {
     if (typeof storedViewState.water === 'string') {
         applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput, storedViewState.water);
     }
-    if (typeof storedViewState.shader === 'string') {
-        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput, storedViewState.shader);
-    }
+    if (typeof storedViewState.fog === 'boolean')
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput.checked = storedViewState.fog;
+    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearValueInput, storedViewState.fogNear);
+    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarValueInput, storedViewState.fogFar);
+    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, storedViewState.fogStrength);
+    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, storedViewState.fogHorizon);
     if (typeof storedViewState.playerRate === 'string') {
         applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput, storedViewState.playerRate);
     }
@@ -655,12 +688,26 @@ function applySelectParam(name, input) {
     applySelectValue(input, value);
 }
 function applySelectValue(input, value) {
-    for (const option of input.options) {
-        if (option.value === value) {
-            input.value = value;
-            return;
-        }
+    if (!input)
+        return;
+    if (input.id === 'cosmetic-blocks-mode') {
+        (0,_library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_22__.applyTriStateValue)(input, value, COSMETIC_MODE_VALUES);
+        return;
     }
+    if (input.id === 'visual-detail-mode') {
+        (0,_library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_22__.applyTriStateValue)(input, value, VISUAL_DETAIL_VALUES);
+        return;
+    }
+    if (input.tagName === 'SELECT') {
+        for (const option of input.options) {
+            if (option.value === value) {
+                input.value = value;
+                return;
+            }
+        }
+        return;
+    }
+    input.value = value;
 }
 function setNumberInput(input, value) {
     if (Number.isFinite(value)) {
@@ -920,7 +967,7 @@ async function loadChunk(world, chunkX, chunkZ, generation) {
         return false;
     if (loadedChunks.has(id))
         return true;
-    (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.writeTerrainCache)(terrainCacheKey(world, chunkX, chunkZ), bytes.slice(0), { source: 'single' });
+    (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.writeTerrainCache)(terrainCacheKey(world, chunkX, chunkZ), bytes.slice(0), { source: 'single' });
     const entry = addChunkObject(world, chunkX, chunkZ, gltf.scene);
     if (entry && cosmeticBlocksSplit()) {
         void loadCosmeticOverlayForEntry(entry, generation).catch((error) => {
@@ -938,7 +985,7 @@ async function loadChunk(world, chunkX, chunkZ, generation) {
 async function loadTerrainChunkData(world, key, generation) {
     const cacheKey = terrainCacheKey(world, key.chunkX, key.chunkZ);
     const readStarted = performance.now();
-    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.readTerrainCache)(cacheKey);
+    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.readTerrainCache)(cacheKey);
     const cacheReadMs = performance.now() - readStarted;
     if (generation !== loadGeneration) {
         return { ok: false, key, stale: true, cacheReadMs, cacheParseMs: 0, cacheHit: false, cacheMiss: false, network: false };
@@ -1026,7 +1073,7 @@ function promoteTerrainResults(queue, generation, streamStats = null) {
         if (!loadedChunks.has(id)) {
             const entry = addChunkObject(resultWorld, result.key.chunkX, result.key.chunkZ, result.gltf.scene);
             if (result.bytes) {
-                (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.writeTerrainCache)(terrainCacheKey(resultWorld, result.key.chunkX, result.key.chunkZ), result.bytes.slice(0), { source: 'single' });
+                (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.writeTerrainCache)(terrainCacheKey(resultWorld, result.key.chunkX, result.key.chunkZ), result.bytes.slice(0), { source: 'single' });
             }
             if (entry && cosmeticBlocksSplit()) {
                 void loadCosmeticOverlayForEntry(entry, generation).catch((error) => {
@@ -1186,7 +1233,7 @@ async function loadCosmeticOverlayForEntry(entry, generation) {
         return false;
     const cacheKey = terrainCosmeticOverlayCacheKey(entry.world, entry.chunkX, entry.chunkZ);
     let bytes = null;
-    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.readTerrainCache)(cacheKey);
+    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.readTerrainCache)(cacheKey);
     if (cached?.bytes) {
         bytes = cached.bytes;
     }
@@ -1204,7 +1251,7 @@ async function loadCosmeticOverlayForEntry(entry, generation) {
         return false;
     attachCosmeticOverlay(entry, gltf.scene);
     if (!cached?.bytes) {
-        (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.writeTerrainCache)(cacheKey, bytes.slice(0), { source: 'cosmetic-overlay' });
+        (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.writeTerrainCache)(cacheKey, bytes.slice(0), { source: 'cosmetic-overlay' });
     }
     updateMetrics();
     return true;
@@ -1349,13 +1396,21 @@ function collectResourceStats() {
     };
 }
 function applyWaterMode() {
+    const mode = waterModeValue();
+    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value !== mode) {
+        _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value = mode;
+    }
     for (const entry of loadedChunks.values()) {
         (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.sampleMapBackdropColor);
-        (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.applyWaterModeToObject)(entry.object, _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value);
+        (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.applyWaterModeToObject)(entry.object, mode);
     }
 }
+function waterModeValue() {
+    const value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value;
+    return value === 'solid' || value === 'transparent' || value === 'hidden' ? value : 'solid';
+}
 function terrainCacheKey(world, chunkX, chunkZ) {
-    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.makeTerrainCacheKey)({
+    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.makeTerrainCacheKey)({
         world,
         chunkX,
         chunkZ,
@@ -1370,7 +1425,7 @@ function terrainUrl(world, chunkX, chunkZ) {
     return cosmeticBlocksBaked() ? `${base}?cosmetics=1&visualDetail=${encodeURIComponent(visualDetailMode())}` : base;
 }
 function terrainCosmeticOverlayCacheKey(world, chunkX, chunkZ) {
-    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_21__.makeTerrainCacheKey)({
+    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.makeTerrainCacheKey)({
         world,
         chunkX,
         chunkZ,
@@ -1456,10 +1511,19 @@ function cameraChunk() {
 function applyLighting() {
     const options = currentLightingOptions();
     (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.applyLightingEnvironment)(scene, renderer, lightingRig, options);
+    applyFogSettings();
     for (const entry of loadedChunks.values()) {
         (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.applyLightingToObject)(entry.object, options);
         (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.updateTreeShadeObject)(entry.shade, options);
     }
+}
+function applyFogSettings() {
+    const options = fogControlOptions();
+    scene.fog = null;
+    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.setFogOptions)(postProcessing, options);
+}
+function updateMapDistanceFog() {
+    scene.fog = null;
 }
 async function refreshWorldTime() {
     if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value) {
@@ -2195,6 +2259,7 @@ function exposeDebugState() {
         mapTileSceneStats: _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapTileSceneStats,
         probeMapTilePixel: (chunkX, chunkZ) => (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.probeMapTilePixel)(scene, renderer, camera, () => (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.renderPostProcessing)(postProcessing, renderer, scene, camera, 0, 0), chunkX, chunkZ),
         terrainFormatVersion: () => terrainFormatVersion,
+        experimentalDetailsEnabled: () => experimentalDetailsEnabled,
         activeCenterId: () => activeCenterId,
         requestedCenterId: () => requestedCenterId,
         updatePlayersForTest: (players) => updatePlayers(players),
@@ -2247,11 +2312,16 @@ function exposeDebugState() {
             terrainLoadSlots: terrainLoadConcurrency(),
             terrainSpawnFrame: terrainPromotionsPerFrame(),
             terrainSpawnMs: terrainPromotionBudgetMs(),
-            sun: _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput.checked,
             shade: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked,
             mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked,
-            water: _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value,
-            shader: _dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput.value,
+            water: waterModeValue(),
+            fog: {
+                enabled: _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput.checked,
+                near: fogControlRange().near,
+                far: fogControlRange().far,
+                strength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, 0.9),
+                horizon: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, 0.65),
+            },
             players: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked,
             mobs: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked,
             mobBlocks: mobBlocksEnabled(),
@@ -2265,6 +2335,12 @@ function exposeDebugState() {
             fogFar: scene.fog?.far ?? null,
             fogDensity: scene.fog?.density ?? null,
             fogColor: displayColor(scene.fog?.color),
+            postFogEnabled: postProcessing.enabled,
+            postFogNear: postProcessing.fogPass.uniforms.fogNear.value,
+            postFogFar: postProcessing.fogPass.uniforms.fogFar.value,
+            postFogStrength: postProcessing.fogPass.uniforms.fogStrength.value,
+            postFogHorizon: postProcessing.fogPass.uniforms.horizonStrength.value,
+            postFogColor: displayColor(postProcessing.fogPass.uniforms.fogColor.value),
             starsVisible: lightingRig.stars.visible === true,
             skyVisible: lightingRig.sky.visible === true,
         }),
@@ -2340,6 +2416,8 @@ function waterMaterialSummary() {
     return summaries;
 }
 function displayColor(color) {
+    if (!color?.clone)
+        return null;
     const srgb = color.clone().convertLinearToSRGB();
     return {
         r: Math.round(srgb.r * 255),
@@ -2394,7 +2472,6 @@ function saveViewState() {
         mobs: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked,
         mobBlocks: mobBlocksEnabled(),
         renderDetails: !_dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardEl.classList.contains('collapsed'),
-        sun: _dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput.checked,
         shade: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked,
         mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked,
         mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
@@ -2406,8 +2483,12 @@ function saveViewState() {
         terrainSpawnMs: terrainPromotionBudgetMs(),
         shadeSize: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput.value),
         shadeDarkness: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput.value),
-        water: _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value,
-        shader: _dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput.value,
+        water: waterModeValue(),
+        fog: _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput.checked,
+        fogNear: fogControlRange().near,
+        fogFar: fogControlRange().far,
+        fogStrength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, 0.9),
+        fogHorizon: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, 0.65),
         playerRate: _dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput.value,
         camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.vectorState)(camera.position),
         target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.vectorState)(target),
@@ -2775,6 +2856,7 @@ function animate() {
         controls.update();
     }
     (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.positionSkyObjects)(lightingRig, camera.position);
+    updateMapDistanceFog();
     updateEmptyGrid();
     updateChunkPlaceholders();
     chunkPlaceholderManager.update(deltaSeconds);
@@ -2788,7 +2870,23 @@ function animate() {
     requestAnimationFrame(animate);
 }
 window.addEventListener('resize', resize);
+function setSettingsPanelOpen(open) {
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.hudEl.classList.toggle('open', open);
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.panelToggle.classList.toggle('active', open);
+    _dom_js__WEBPACK_IMPORTED_MODULE_8__.panelToggle.setAttribute('aria-expanded', String(open));
+}
 window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        const confirmDialog = document.querySelector('#confirm-dialog');
+        if (confirmDialog?.open)
+            return;
+        if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.hudEl.classList.contains('open'))
+            return;
+        event.preventDefault();
+        blurFocusedHudControl();
+        setSettingsPanelOpen(false);
+        return;
+    }
     if (isTypingInHud())
         return;
     if ([
@@ -2870,11 +2968,7 @@ _dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput.addEventListener('cha
     restartPlayerPolling();
     saveViewState();
 });
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput.addEventListener('change', () => {
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.setShaderEffect)(postProcessing, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shaderEffectInput.value);
-    saveViewState();
-});
-for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_8__.sunLightingInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput]) {
+for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput]) {
     const eventName = input.type === 'range' ? 'input' : 'change';
     input.addEventListener(eventName, () => {
         applyLighting();
@@ -2914,6 +3008,14 @@ syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameInput, _
 syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput, () => { });
 syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput);
 syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput);
+_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput.addEventListener('change', () => {
+    applyFogSettings();
+    saveViewState();
+});
+syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearValueInput, applyFogSettings);
+syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarValueInput, applyFogSettings);
+syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, applyFogSettings);
+syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, applyFogSettings);
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.addEventListener('change', () => {
     closeEntityStream();
     updatePlayers([]);
@@ -2926,14 +3028,25 @@ _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.addEventListener('change', () =
     scheduleControlGridLoad();
     saveViewState();
 });
+(0,_library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_21__.bindHudSectionCollapsibles)(document);
+(0,_library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_22__.bindTriStateControl)(document, 'cosmetic-blocks-mode', [
+    { value: 'off', label: 'Off' },
+    { value: 'baked', label: 'Baked' },
+    { value: 'split', label: 'Split' },
+]);
+(0,_library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_22__.bindTriStateControl)(document, 'visual-detail-mode', [
+    { value: 'basic', label: 'Basic' },
+    { value: 'structures', label: 'Struct' },
+    { value: 'all', label: 'Foliage' },
+]);
 for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput]) {
+    if (!input)
+        continue;
     input.addEventListener('input', scheduleControlGridLoad);
     input.addEventListener('change', scheduleControlGridLoad);
 }
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.panelToggle.addEventListener('click', () => {
-    const open = _dom_js__WEBPACK_IMPORTED_MODULE_8__.hudEl.classList.toggle('open');
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.panelToggle.classList.toggle('active', open);
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.panelToggle.setAttribute('aria-expanded', String(open));
+    setSettingsPanelOpen(!_dom_js__WEBPACK_IMPORTED_MODULE_8__.hudEl.classList.contains('open'));
 });
 setRenderDetailsOpen(!storedViewState || storedViewState.renderDetails !== false);
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardHeadEl.addEventListener('click', toggleRenderDetails);
@@ -3395,7 +3508,15 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   coordTargetEl: () => (/* binding */ coordTargetEl),
 /* harmony export */   cosmeticBlocksModeInput: () => (/* binding */ cosmeticBlocksModeInput),
 /* harmony export */   debugBoundsInput: () => (/* binding */ debugBoundsInput),
-/* harmony export */   experimentalDetailsStateEl: () => (/* binding */ experimentalDetailsStateEl),
+/* harmony export */   fogEnabledInput: () => (/* binding */ fogEnabledInput),
+/* harmony export */   fogFarInput: () => (/* binding */ fogFarInput),
+/* harmony export */   fogFarValueInput: () => (/* binding */ fogFarValueInput),
+/* harmony export */   fogHorizonInput: () => (/* binding */ fogHorizonInput),
+/* harmony export */   fogHorizonValueInput: () => (/* binding */ fogHorizonValueInput),
+/* harmony export */   fogNearInput: () => (/* binding */ fogNearInput),
+/* harmony export */   fogNearValueInput: () => (/* binding */ fogNearValueInput),
+/* harmony export */   fogStrengthInput: () => (/* binding */ fogStrengthInput),
+/* harmony export */   fogStrengthValueInput: () => (/* binding */ fogStrengthValueInput),
 /* harmony export */   hudEl: () => (/* binding */ hudEl),
 /* harmony export */   infoCardEl: () => (/* binding */ infoCardEl),
 /* harmony export */   infoCardHeadEl: () => (/* binding */ infoCardHeadEl),
@@ -3421,7 +3542,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   shadeDarknessValueInput: () => (/* binding */ shadeDarknessValueInput),
 /* harmony export */   shadeSizeInput: () => (/* binding */ shadeSizeInput),
 /* harmony export */   shadeSizeValueInput: () => (/* binding */ shadeSizeValueInput),
-/* harmony export */   shaderEffectInput: () => (/* binding */ shaderEffectInput),
 /* harmony export */   showMobsInput: () => (/* binding */ showMobsInput),
 /* harmony export */   showPlayersInput: () => (/* binding */ showPlayersInput),
 /* harmony export */   skyMoonEl: () => (/* binding */ skyMoonEl),
@@ -3429,7 +3549,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   skyStarsEl: () => (/* binding */ skyStarsEl),
 /* harmony export */   skySunEl: () => (/* binding */ skySunEl),
 /* harmony export */   statusEl: () => (/* binding */ statusEl),
-/* harmony export */   sunLightingInput: () => (/* binding */ sunLightingInput),
 /* harmony export */   terrainLoadSlotsInput: () => (/* binding */ terrainLoadSlotsInput),
 /* harmony export */   terrainLoadSlotsValueInput: () => (/* binding */ terrainLoadSlotsValueInput),
 /* harmony export */   terrainSpawnBudgetInput: () => (/* binding */ terrainSpawnBudgetInput),
@@ -3456,7 +3575,6 @@ const showMobsInput = document.querySelector('#show-mobs');
 const mobBlocksInput = document.querySelector('#mob-blocks');
 const mobBlocksPanelInput = document.querySelector('#mob-blocks-panel');
 const playerUpdateRateInput = document.querySelector('#player-update-rate');
-const sunLightingInput = document.querySelector('#sun-lighting');
 const treeShadeInput = document.querySelector('#tree-shade');
 const mapTilesInput = document.querySelector('#map-tiles');
 const clearMeshCacheButton = document.querySelector('#clear-mesh-cache');
@@ -3473,9 +3591,16 @@ const shadeSizeInput = document.querySelector('#shade-size');
 const shadeSizeValueInput = document.querySelector('#shade-size-value');
 const shadeDarknessInput = document.querySelector('#shade-darkness');
 const shadeDarknessValueInput = document.querySelector('#shade-darkness-value');
-const experimentalDetailsStateEl = document.querySelector('#experimental-details-state');
 const waterModeInput = document.querySelector('#water-mode');
-const shaderEffectInput = document.querySelector('#shader-effect');
+const fogEnabledInput = document.querySelector('#fog-enabled');
+const fogNearInput = document.querySelector('#fog-near');
+const fogNearValueInput = document.querySelector('#fog-near-value');
+const fogFarInput = document.querySelector('#fog-far');
+const fogFarValueInput = document.querySelector('#fog-far-value');
+const fogStrengthInput = document.querySelector('#fog-strength');
+const fogStrengthValueInput = document.querySelector('#fog-strength-value');
+const fogHorizonInput = document.querySelector('#fog-horizon');
+const fogHorizonValueInput = document.querySelector('#fog-horizon-value');
 const mapTimeInput = document.querySelector('#map-time');
 const timeCycleLabelEl = document.querySelector('#time-cycle-label');
 const skySceneEl = document.querySelector('#sky-scene');
@@ -3834,6 +3959,51 @@ function createChunkLandMotion() {
 
 /***/ },
 
+/***/ "./src/main/resources/web/src/library/collapsible-section.ts"
+/*!*******************************************************************!*\
+  !*** ./src/main/resources/web/src/library/collapsible-section.ts ***!
+  \*******************************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   bindHudSectionCollapsibles: () => (/* binding */ bindHudSectionCollapsibles),
+/* harmony export */   setHudSectionCollapsed: () => (/* binding */ setHudSectionCollapsed)
+/* harmony export */ });
+function setHudSectionOpen(section, open) {
+    const head = section.querySelector('.hud-section-head');
+    if (!head)
+        return;
+    section.classList.toggle('collapsed', !open);
+    head.setAttribute('aria-expanded', String(open));
+}
+function toggleHudSection(section) {
+    setHudSectionOpen(section, section.classList.contains('collapsed'));
+}
+function bindHudSectionCollapsibles(root = document) {
+    for (const head of root.querySelectorAll('.hud-section-head')) {
+        const section = head.closest('.hud-section');
+        if (!section)
+            continue;
+        head.addEventListener('click', () => toggleHudSection(section));
+        head.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ')
+                return;
+            event.preventDefault();
+            toggleHudSection(section);
+        });
+    }
+}
+function setHudSectionCollapsed(sectionId, collapsed) {
+    const section = document.querySelector(`.hud-section[data-section="${sectionId}"]`);
+    if (!section)
+        return;
+    setHudSectionOpen(section, !collapsed);
+}
+
+
+/***/ },
+
 /***/ "./src/main/resources/web/src/library/confirm-dialog.ts"
 /*!**************************************************************!*\
   !*** ./src/main/resources/web/src/library/confirm-dialog.ts ***!
@@ -3899,6 +4069,71 @@ async function loadMapTilePng(world, chunkX, chunkZ) {
 
 /***/ },
 
+/***/ "./src/main/resources/web/src/library/tri-state-control.ts"
+/*!*****************************************************************!*\
+  !*** ./src/main/resources/web/src/library/tri-state-control.ts ***!
+  \*****************************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   applyTriStateValue: () => (/* binding */ applyTriStateValue),
+/* harmony export */   bindTriStateControl: () => (/* binding */ bindTriStateControl),
+/* harmony export */   setTriStateValue: () => (/* binding */ setTriStateValue)
+/* harmony export */ });
+function dispatchInputChange(input) {
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+function syncTriStateButtons(group, value) {
+    for (const button of group.querySelectorAll('[data-tri-value]')) {
+        const active = button.dataset.triValue === value;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+}
+function bindTriStateControl(root, inputId, options) {
+    const input = root.querySelector(`#${inputId}`);
+    const group = root.querySelector(`[data-tri-state-for="${inputId}"]`);
+    if (!input || !group)
+        return;
+    const allowed = new Set(options.map((option) => option.value));
+    if (!allowed.has(input.value) && options[0]) {
+        input.value = options[0].value;
+    }
+    syncTriStateButtons(group, input.value);
+    for (const button of group.querySelectorAll('[data-tri-value]')) {
+        button.addEventListener('click', () => {
+            const next = button.dataset.triValue;
+            if (!next || !allowed.has(next) || input.value === next)
+                return;
+            input.value = next;
+            syncTriStateButtons(group, next);
+            dispatchInputChange(input);
+        });
+    }
+}
+function setTriStateValue(root, inputId, value) {
+    const input = root.querySelector(`#${inputId}`);
+    const group = root.querySelector(`[data-tri-state-for="${inputId}"]`);
+    if (!input || !group)
+        return;
+    input.value = value;
+    syncTriStateButtons(group, value);
+}
+function applyTriStateValue(input, value, allowed) {
+    if (!input)
+        return;
+    if (!allowed.includes(value))
+        return;
+    input.value = value;
+    const group = document.querySelector(`[data-tri-state-for="${input.id}"]`);
+    if (group)
+        syncTriStateButtons(group, value);
+}
+
+
+/***/ },
+
 /***/ "./src/main/resources/web/src/lighting.ts"
 /*!************************************************!*\
   !*** ./src/main/resources/web/src/lighting.ts ***!
@@ -3923,16 +4158,16 @@ const MAX_SHADES_PER_CHUNK = 72;
 const TREE_SHADE_KEY = 'worldviewTreeShade';
 const DAY_SKY_TOP = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x3d86cf);
 const DAY_SKY_HORIZON = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x88badd);
-const NIGHT_SKY_TOP = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x07111f);
-const NIGHT_SKY_HORIZON = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x151f34);
+const NIGHT_SKY_TOP = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x0b182a);
+const NIGHT_SKY_HORIZON = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x25364d);
 const DAWN_SKY_TOP = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x7d91c4);
 const DAWN_SKY_HORIZON = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xe9a18a);
 const DAWN_SUN_GLOW = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xffdf92);
 const DAWN_HAZE = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xd9a4bd);
-const FOG_DAY = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x547b93);
-const FOG_NIGHT = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x071321);
+const FOG_DAY = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xd9f3f2);
+const FOG_NIGHT = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x5f7d84);
 const FOG_DAWN = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xc39698);
-const NIGHT_TERRAIN_TINT = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x243225);
+const NIGHT_TERRAIN_TINT = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x60745f);
 const DAY_TERRAIN_TINT = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xffffff);
 let shadeTexture;
 function createLightingRig(scene, skyColor) {
@@ -3955,13 +4190,14 @@ function createLightingRig(scene, skyColor) {
     scene.add(sun);
     return { ambient, sun, sky, stars, sunDisc, moonDisc, skyColor };
 }
-function lightingOptionsFromInputs({ sunLightingInput, treeShadeInput, shadeSizeInput, shadeDarknessInput, time }) {
+function lightingOptionsFromInputs({ treeShadeInput, shadeSizeInput, shadeDarknessInput, time, fogRange }) {
     return {
-        sun: sunLightingInput.checked,
+        sun: true,
         shade: treeShadeInput.checked,
         shadeSize: readRange(shadeSizeInput, 1.85),
         shadeDarkness: readRange(shadeDarknessInput, 0.4),
         time,
+        fogRange,
     };
 }
 function applyLightingEnvironment(scene, renderer, rig, options) {
@@ -3977,12 +4213,15 @@ function applyLightingEnvironment(scene, renderer, rig, options) {
     const fogColor = FOG_NIGHT.clone()
         .lerp(FOG_DAY, daylight)
         .lerp(FOG_DAWN, dawn * (1 - daylight * 0.22));
+    if (daylight > 0.25) {
+        fogColor.lerp(skyHorizon, daylight * 0.12);
+    }
     if (options.sun) {
-        rig.ambient.intensity = three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.lerp(0.24, 1.55, daylight) + dawn * 0.12;
-        rig.ambient.color.copy(new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x24364f).lerp(new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xe7f4ff), daylight));
-        rig.ambient.groundColor.copy(new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x07110d).lerp(new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x405638), daylight));
-        rig.sun.intensity = three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.lerp(0.0, 3.9, daylight);
-        rig.sun.color.copy(new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x8fb5ff).lerp(new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xffddb0), Math.max(daylight, dawn)));
+        rig.ambient.intensity = three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.lerp(0.72, 1.55, daylight) + dawn * 0.12;
+        rig.ambient.color.copy(new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x8ca9c4).lerp(new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xe7f4ff), daylight));
+        rig.ambient.groundColor.copy(new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x324436).lerp(new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x405638), daylight));
+        rig.sun.intensity = three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.lerp(0.16, 3.9, daylight);
+        rig.sun.color.copy(new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x9ebcff).lerp(new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xffddb0), Math.max(daylight, dawn)));
         rig.sun.position.copy(sunPosition).multiplyScalar(240);
     }
     else {
@@ -4007,8 +4246,27 @@ function applyLightingEnvironment(scene, renderer, rig, options) {
     updateSkyDisc(rig.sunDisc, sunPosition, three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.clamp(daylight + dawn * 0.26, 0, 1), 980);
     updateSkyDisc(rig.moonDisc, sunPosition.clone().negate(), night, 980);
     scene.background = skyHorizon.clone().lerp(skyTop, 0.38);
-    scene.fog = new three__WEBPACK_IMPORTED_MODULE_0__.Fog(fogColor, three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.lerp(1100, 1500, daylight), three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.lerp(3600, 5200, daylight));
+    const fogRange = normalizeFogRange(options.fogRange, daylight);
+    scene.userData.worldviewFog = {
+        color: fogColor.clone(),
+        near: fogRange.near,
+        far: fogRange.far,
+    };
+    scene.fog = null;
     renderer.setClearColor(scene.background, 1);
+}
+function normalizeFogRange(range, daylight) {
+    const fallbackNear = three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.lerp(1100, 1500, daylight);
+    const fallbackFar = three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.lerp(3600, 5200, daylight);
+    const near = Number(range?.near);
+    const far = Number(range?.far);
+    if (!Number.isFinite(near) || !Number.isFinite(far) || far <= near + 1) {
+        return { near: fallbackNear, far: fallbackFar };
+    }
+    return {
+        near: three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.clamp(near, 1, 10000),
+        far: three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.clamp(far, near + 1, 20000),
+    };
 }
 function applyLightingToObject(object, options) {
     object.traverse((node) => {
@@ -4313,7 +4571,7 @@ function applyMaterialLightResponse(mesh, options) {
     const time = normalizeTime(options.time);
     const daylight = visualDaylight(time.dayProgress);
     const nightGrade = three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.clamp((0.72 - daylight) / 0.72, 0, 1);
-    const terrainTint = DAY_TERRAIN_TINT.clone().lerp(NIGHT_TERRAIN_TINT, nightGrade * 0.72);
+    const terrainTint = DAY_TERRAIN_TINT.clone().lerp(NIGHT_TERRAIN_TINT, nightGrade * 0.55);
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     for (const material of materials) {
         if (!material)
@@ -4598,7 +4856,7 @@ function createTileMesh(texture, chunkX, chunkZ) {
         polygonOffsetFactor: 1,
         polygonOffsetUnits: 1,
         side: three__WEBPACK_IMPORTED_MODULE_0__.DoubleSide,
-        fog: false,
+        fog: true,
         toneMapped: false,
     });
     const mesh = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(geometry, material);
@@ -5052,6 +5310,8 @@ function probeMapTilePixel(scene, renderer, camera, renderFrame, chunkX, chunkZ)
     const savedPosition = camera.position.clone();
     const savedQuaternion = camera.quaternion.clone();
     const savedUp = camera.up.clone();
+    const savedBackground = scene.background;
+    const savedFog = scene.fog;
     camera.position.set(worldX, 12, worldZ);
     camera.up.set(0, 0, -1);
     camera.lookAt(worldX, _water_js__WEBPACK_IMPORTED_MODULE_4__.MAP_BACKDROP_Y, worldZ);
@@ -5072,6 +5332,8 @@ function probeMapTilePixel(scene, renderer, camera, renderFrame, chunkX, chunkZ)
     camera.quaternion.copy(savedQuaternion);
     camera.up.copy(savedUp);
     camera.updateMatrixWorld(true);
+    scene.background = savedBackground;
+    scene.fog = savedFog;
     const sampled = sampleMapBackdropColor(worldX, worldZ);
     const skyDistance = Math.hypot(pixel[0] - SKY_RGB.r, pixel[1] - SKY_RGB.g, pixel[2] - SKY_RGB.b);
     const sampleDistance = sampled
@@ -6387,34 +6649,32 @@ function disposeObject(root) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   SHADER_EFFECTS: () => (/* binding */ SHADER_EFFECTS),
 /* harmony export */   createPostProcessing: () => (/* binding */ createPostProcessing),
 /* harmony export */   renderPostProcessing: () => (/* binding */ renderPostProcessing),
 /* harmony export */   resizePostProcessing: () => (/* binding */ resizePostProcessing),
-/* harmony export */   setShaderEffect: () => (/* binding */ setShaderEffect)
+/* harmony export */   setFogOptions: () => (/* binding */ setFogOptions)
 /* harmony export */ });
-/* harmony import */ var three_addons_postprocessing_EffectComposer_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! three/addons/postprocessing/EffectComposer.js */ "three/addons/postprocessing/EffectComposer.js");
-/* harmony import */ var three_addons_postprocessing_RenderPass_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! three/addons/postprocessing/RenderPass.js */ "three/addons/postprocessing/RenderPass.js");
-/* harmony import */ var three_addons_postprocessing_ShaderPass_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! three/addons/postprocessing/ShaderPass.js */ "three/addons/postprocessing/ShaderPass.js");
+/* harmony import */ var three__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! three */ "three");
+/* harmony import */ var three_addons_postprocessing_EffectComposer_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! three/addons/postprocessing/EffectComposer.js */ "three/addons/postprocessing/EffectComposer.js");
+/* harmony import */ var three_addons_postprocessing_RenderPass_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! three/addons/postprocessing/RenderPass.js */ "three/addons/postprocessing/RenderPass.js");
+/* harmony import */ var three_addons_postprocessing_ShaderPass_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! three/addons/postprocessing/ShaderPass.js */ "three/addons/postprocessing/ShaderPass.js");
 
 
 
-const SHADER_EFFECTS = Object.freeze({
-    none: 0,
-    tiltShift: 1,
-    pixelMap: 2,
-    vignette: 3,
-    bloomLite: 4,
-    cartographicInk: 5,
-    nightScan: 6,
-});
-const CATALOG_SHADER = {
-    name: 'SynthWorldviewShaderCatalog',
+
+const DEFAULT_FOG_COLOR = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xd9f3f2);
+const DEPTH_FOG_SHADER = {
+    name: 'SynthWorldviewDepthFog',
     uniforms: {
         tDiffuse: { value: null },
-        mode: { value: SHADER_EFFECTS.none },
-        resolution: { value: [1, 1] },
-        time: { value: 0 },
+        tDepth: { value: null },
+        cameraNear: { value: 0.1 },
+        cameraFar: { value: 6000 },
+        fogNear: { value: 150 },
+        fogFar: { value: 620 },
+        fogColor: { value: DEFAULT_FOG_COLOR.clone() },
+        fogStrength: { value: 0.9 },
+        horizonStrength: { value: 0.65 },
     },
     vertexShader: `
     varying vec2 vUv;
@@ -6424,131 +6684,115 @@ const CATALOG_SHADER = {
     }
   `,
     fragmentShader: `
+    #include <packing>
+
     uniform sampler2D tDiffuse;
-    uniform int mode;
-    uniform vec2 resolution;
-    uniform float time;
+    uniform sampler2D tDepth;
+    uniform float cameraNear;
+    uniform float cameraFar;
+    uniform float fogNear;
+    uniform float fogFar;
+    uniform vec3 fogColor;
+    uniform float fogStrength;
+    uniform float horizonStrength;
     varying vec2 vUv;
 
-    vec3 sampleColor(vec2 uv) {
-      return texture2D(tDiffuse, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
-    }
-
-    float luma(vec3 color) {
-      return dot(color, vec3(0.299, 0.587, 0.114));
-    }
-
-    vec3 tiltShift(vec2 uv) {
-      float distanceFromFocus = abs(uv.y - 0.53);
-      float blur = smoothstep(0.18, 0.48, distanceFromFocus);
-      vec2 texel = vec2(1.0) / resolution;
-      vec3 color = sampleColor(uv) * 0.28;
-      color += sampleColor(uv + vec2(texel.x * 1.5, 0.0) * blur) * 0.18;
-      color += sampleColor(uv - vec2(texel.x * 1.5, 0.0) * blur) * 0.18;
-      color += sampleColor(uv + vec2(0.0, texel.y * 2.2) * blur) * 0.18;
-      color += sampleColor(uv - vec2(0.0, texel.y * 2.2) * blur) * 0.18;
-      color += vec3(0.025, 0.016, 0.0);
-      return mix(sampleColor(uv), color, 0.88);
-    }
-
-    vec3 pixelMap(vec2 uv) {
-      float pixelSize = 3.0;
-      vec2 pixelUv = (floor(uv * resolution / pixelSize) * pixelSize + pixelSize * 0.5) / resolution;
-      vec3 color = sampleColor(pixelUv);
-      color = floor(color * 14.0) / 14.0;
-      return color * vec3(1.04, 1.02, 0.96);
-    }
-
-    vec3 vignette(vec2 uv) {
-      vec3 color = sampleColor(uv);
-      float distanceFromCenter = distance(uv, vec2(0.5));
-      float edge = smoothstep(0.36, 0.76, distanceFromCenter);
-      color *= mix(1.08, 0.62, edge);
-      color = mix(color, vec3(luma(color)), 0.08);
-      return color;
-    }
-
-    vec3 bloomLite(vec2 uv) {
-      vec2 texel = vec2(1.0) / resolution;
-      vec3 color = sampleColor(uv);
-      vec3 glow = vec3(0.0);
-      glow += sampleColor(uv + texel * vec2(2.0, 0.0));
-      glow += sampleColor(uv + texel * vec2(-2.0, 0.0));
-      glow += sampleColor(uv + texel * vec2(0.0, 2.0));
-      glow += sampleColor(uv + texel * vec2(0.0, -2.0));
-      glow += sampleColor(uv + texel * vec2(2.0, 2.0));
-      glow += sampleColor(uv + texel * vec2(-2.0, -2.0));
-      glow /= 6.0;
-      float bright = smoothstep(0.48, 0.92, luma(glow));
-      return color + glow * bright * 0.28;
-    }
-
-    vec3 cartographicInk(vec2 uv) {
-      vec2 texel = vec2(1.0) / resolution;
-      vec3 color = sampleColor(uv);
-      float c = luma(color);
-      float dx = abs(c - luma(sampleColor(uv + vec2(texel.x, 0.0)))) + abs(c - luma(sampleColor(uv - vec2(texel.x, 0.0))));
-      float dy = abs(c - luma(sampleColor(uv + vec2(0.0, texel.y)))) + abs(c - luma(sampleColor(uv - vec2(0.0, texel.y))));
-      float edge = smoothstep(0.08, 0.22, dx + dy);
-      vec3 ink = vec3(0.025, 0.045, 0.045);
-      color = floor(color * 18.0) / 18.0;
-      return mix(color * vec3(1.05, 1.03, 0.94), ink, edge * 0.56);
-    }
-
-    vec3 nightScan(vec2 uv) {
-      vec3 color = sampleColor(uv);
-      float scan = sin((uv.y * resolution.y + time * 26.0) * 0.72) * 0.5 + 0.5;
-      color = mix(color, color * vec3(0.58, 0.96, 0.86), 0.42);
-      color += vec3(0.0, 0.03, 0.02) * scan;
-      color *= 0.86 + scan * 0.08;
-      return color;
+    float readViewZ(sampler2D depthSampler, vec2 coord) {
+      float fragCoordZ = texture2D(depthSampler, coord).x;
+      float viewZ = perspectiveDepthToViewZ(fragCoordZ, cameraNear, cameraFar);
+      return -viewZ;
     }
 
     void main() {
-      vec3 color = sampleColor(vUv);
-      if (mode == 1) {
-        color = tiltShift(vUv);
-      } else if (mode == 2) {
-        color = pixelMap(vUv);
-      } else if (mode == 3) {
-        color = vignette(vUv);
-      } else if (mode == 4) {
-        color = bloomLite(vUv);
-      } else if (mode == 5) {
-        color = cartographicInk(vUv);
-      } else if (mode == 6) {
-        color = nightScan(vUv);
-      }
-      gl_FragColor = vec4(color, 1.0);
+      vec4 source = texture2D(tDiffuse, vUv);
+      float rawDepth = texture2D(tDepth, vUv).x;
+      float viewDistance = readViewZ(tDepth, vUv);
+      float range = max(1.0, fogFar - fogNear);
+      float distanceFog = smoothstep(fogNear, fogNear + range, viewDistance);
+      float skyPixel = step(0.9999, rawDepth);
+      float skyHaze = skyPixel * smoothstep(0.72, 0.34, vUv.y) * horizonStrength;
+      float terrainHaze = (1.0 - skyPixel) * distanceFog * smoothstep(0.62, 0.24, vUv.y) * horizonStrength * 0.3;
+      float fogAmount = clamp(max(distanceFog, skyHaze) * fogStrength + terrainHaze, 0.0, 1.0);
+      vec3 hazeColor = max(fogColor, source.rgb);
+      vec3 color = mix(source.rgb, hazeColor, fogAmount);
+      gl_FragColor = vec4(color, source.a);
     }
   `,
 };
 function createPostProcessing(renderer, scene, camera) {
-    const composer = new three_addons_postprocessing_EffectComposer_js__WEBPACK_IMPORTED_MODULE_0__.EffectComposer(renderer);
-    composer.addPass(new three_addons_postprocessing_RenderPass_js__WEBPACK_IMPORTED_MODULE_1__.RenderPass(scene, camera));
-    const shaderPass = new three_addons_postprocessing_ShaderPass_js__WEBPACK_IMPORTED_MODULE_2__.ShaderPass(CATALOG_SHADER);
-    shaderPass.enabled = false;
-    composer.addPass(shaderPass);
-    return { composer, shaderPass, mode: 'none' };
+    const renderTarget = createDepthRenderTarget(renderer);
+    const composer = new three_addons_postprocessing_EffectComposer_js__WEBPACK_IMPORTED_MODULE_1__.EffectComposer(renderer, renderTarget);
+    const renderPass = new three_addons_postprocessing_RenderPass_js__WEBPACK_IMPORTED_MODULE_2__.RenderPass(scene, camera);
+    const fogPass = new three_addons_postprocessing_ShaderPass_js__WEBPACK_IMPORTED_MODULE_3__.ShaderPass(DEPTH_FOG_SHADER);
+    composer.addPass(renderPass);
+    composer.addPass(fogPass);
+    fogPass.enabled = true;
+    setDepthTextureUniform(composer, fogPass);
+    updateCameraUniforms(fogPass, camera);
+    return { composer, fogPass, renderPass, enabled: true };
 }
-function setShaderEffect(post, value) {
-    const mode = SHADER_EFFECTS[value] ?? SHADER_EFFECTS.none;
-    post.mode = value in SHADER_EFFECTS ? value : 'none';
-    post.shaderPass.uniforms.mode.value = mode;
-    post.shaderPass.enabled = mode !== SHADER_EFFECTS.none;
+function setFogOptions(post, options = {}) {
+    post.enabled = options.enabled !== false;
+    post.fogPass.enabled = post.enabled;
+    post.fogPass.uniforms.fogNear.value = finiteNumber(options.near, 150);
+    post.fogPass.uniforms.fogFar.value = Math.max(post.fogPass.uniforms.fogNear.value + 1, finiteNumber(options.far, 620));
+    post.fogPass.uniforms.fogStrength.value = finiteNumber(options.strength, 0.9);
+    post.fogPass.uniforms.horizonStrength.value = finiteNumber(options.horizonStrength, 0.65);
+    if (options.color?.isColor) {
+        post.fogPass.uniforms.fogColor.value.copy(options.color);
+    }
 }
 function resizePostProcessing(post, width, height, pixelRatio) {
     post.composer.setPixelRatio(pixelRatio);
     post.composer.setSize(width, height);
-    post.shaderPass.uniforms.resolution.value = [Math.max(1, width * pixelRatio), Math.max(1, height * pixelRatio)];
+    ensureDepthTexture(post.composer.renderTarget1);
+    ensureDepthTexture(post.composer.renderTarget2);
+    setDepthTextureUniform(post.composer, post.fogPass);
 }
-function renderPostProcessing(post, renderer, scene, camera, deltaSeconds, elapsedSeconds) {
-    if (post.shaderPass.enabled) {
-        post.shaderPass.uniforms.time.value = elapsedSeconds;
-        post.composer.render(deltaSeconds);
+function renderPostProcessing(post, renderer, scene, camera, deltaSeconds) {
+    if (!post.enabled) {
+        renderer.render(scene, camera);
         return;
     }
-    renderer.render(scene, camera);
+    updateCameraUniforms(post.fogPass, camera);
+    setDepthTextureUniform(post.composer, post.fogPass);
+    post.composer.render(deltaSeconds);
+}
+function createDepthRenderTarget(renderer) {
+    const size = renderer.getSize(new three__WEBPACK_IMPORTED_MODULE_0__.Vector2());
+    const pixelRatio = renderer.getPixelRatio();
+    const renderTarget = new three__WEBPACK_IMPORTED_MODULE_0__.WebGLRenderTarget(Math.max(1, Math.floor(size.x * pixelRatio)), Math.max(1, Math.floor(size.y * pixelRatio)), {
+        type: three__WEBPACK_IMPORTED_MODULE_0__.HalfFloatType,
+        minFilter: three__WEBPACK_IMPORTED_MODULE_0__.LinearFilter,
+        magFilter: three__WEBPACK_IMPORTED_MODULE_0__.LinearFilter,
+        stencilBuffer: false,
+        depthBuffer: true,
+    });
+    ensureDepthTexture(renderTarget);
+    return renderTarget;
+}
+function ensureDepthTexture(target) {
+    if (!target)
+        return;
+    if (target.depthTexture)
+        return;
+    target.depthBuffer = true;
+    target.depthTexture = new three__WEBPACK_IMPORTED_MODULE_0__.DepthTexture(target.width, target.height);
+    target.depthTexture.format = three__WEBPACK_IMPORTED_MODULE_0__.DepthFormat;
+    target.depthTexture.type = three__WEBPACK_IMPORTED_MODULE_0__.UnsignedShortType;
+    target.depthTexture.name = 'worldview-postprocess-depth';
+}
+function setDepthTextureUniform(composer, fogPass) {
+    ensureDepthTexture(composer.readBuffer);
+    fogPass.uniforms.tDepth.value = composer.readBuffer.depthTexture;
+}
+function updateCameraUniforms(fogPass, camera) {
+    fogPass.uniforms.cameraNear.value = camera.near;
+    fogPass.uniforms.cameraFar.value = camera.far;
+}
+function finiteNumber(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
 }
 
 

@@ -160,7 +160,7 @@ function createTileMesh(texture: THREE.Texture, chunkX: number, chunkZ: number) 
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
     side: THREE.DoubleSide,
-    fog: false,
+    fog: true,
     toneMapped: false,
   });
   const mesh = new THREE.Mesh(geometry, material);
@@ -658,6 +658,8 @@ export function probeMapTilePixel(
   const savedPosition = camera.position.clone();
   const savedQuaternion = camera.quaternion.clone();
   const savedUp = camera.up.clone();
+  const savedBackground = scene.background;
+  const savedFog = scene.fog;
 
   camera.position.set(worldX, 12, worldZ);
   camera.up.set(0, 0, -1);
@@ -682,6 +684,8 @@ export function probeMapTilePixel(
   camera.quaternion.copy(savedQuaternion);
   camera.up.copy(savedUp);
   camera.updateMatrixWorld(true);
+  scene.background = savedBackground;
+  scene.fog = savedFog;
 
   const sampled = sampleMapBackdropColor(worldX, worldZ);
   const skyDistance = Math.hypot(
