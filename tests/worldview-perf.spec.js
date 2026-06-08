@@ -294,13 +294,11 @@ function buildPerfUrl({ world, centerX, centerZ, radius, features }) {
     players: String(features.players !== false),
     mobs: String(features.mobs === true),
     mapTiles: String(features.mapTiles !== false),
-    sun: String(features.sun !== false),
     shade: String(features.shade !== false),
     mapTime: String(features.mapTime === true),
     bounds: String(features.bounds === true),
     perfTelemetry: 'true',
     water: features.water ?? 'solid',
-    shader: features.shader ?? 'none',
   });
   return `/?${params.toString()}`;
 }

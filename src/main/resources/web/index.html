@@ -51,21 +51,18 @@
   </header>
   <div class="hud">
     <div class="brand">Settings</div>
-    <div class="hud-section world-controls">
+    <input id="chunk-x" type="hidden" value="0">
+    <input id="chunk-z" type="hidden" value="0">
+    <div class="hud-section hud-section-world world-controls" data-section="world">
+      <button type="button" class="hud-section-head" aria-expanded="true">
+        <span class="hud-section-title">World</span>
+        <span class="hud-section-chevron" aria-hidden="true"></span>
+      </button>
+      <div class="hud-section-body">
       <label>
         <span>World</span>
         <select id="world"></select>
       </label>
-      <div class="field-row">
-        <label>
-          <span>Chunk X</span>
-          <input id="chunk-x" type="number" value="0" step="1">
-        </label>
-        <label>
-          <span>Chunk Z</span>
-          <input id="chunk-z" type="number" value="0" step="1">
-        </label>
-      </div>
       <label class="paired-control mesh-distance-control">
         <span>Voxel Mesh Distance <output id="radius-diameter" for="radius-range radius">9 x 9 chunks, 81 meshes</output></span>
         <div class="range-number">
@@ -91,13 +88,21 @@
           <span>Mob Blocks</span>
         </label>
       </div>
+      <div class="cache-clear-row">
+        <button id="clear-mesh-cache" type="button" title="Delete cached terrain GLBs and map tile textures stored in this browser">
+          Clear mesh cache
+        </button>
+        <span class="cache-clear-hint">IndexedDB · terrain + map tiles</span>
+      </div>
+      </div>
     </div>
-    <div class="hud-section render-controls">
+    <div class="hud-section hud-section-render render-controls" data-section="render">
+      <button type="button" class="hud-section-head" aria-expanded="true">
+        <span class="hud-section-title">Render</span>
+        <span class="hud-section-chevron" aria-hidden="true"></span>
+      </button>
+      <div class="hud-section-body">
       <div class="toggle-row">
-        <label class="toggle">
-          <input id="sun-lighting" type="checkbox" checked>
-          <span>Sun</span>
-        </label>
         <label class="toggle">
           <input id="tree-shade" type="checkbox" checked>
           <span>Shade</span>
@@ -118,22 +123,32 @@
           <input id="terrain-load-slots-value" type="number" min="1" max="12" step="1" value="4">
         </div>
       </label>
-      <label title="How decorative floating blocks such as roofs, planks, torches, fire, doors, and furniture are loaded">
+      <div class="tri-state-field" title="How decorative floating blocks such as roofs, planks, torches, fire, doors, and furniture are loaded">
         <span>Cosmetic Blocks</span>
-        <select id="cosmetic-blocks-mode">
-          <option value="off">Off</option>
-          <option value="baked">Baked</option>
-          <option value="split" selected>Split</option>
-        </select>
-      </label>
-      <label title="How much shape-aware visual detail is included when cosmetic blocks are enabled">
+        <input id="cosmetic-blocks-mode" type="hidden" value="split">
+        <div class="tri-state-track" data-tri-state-for="cosmetic-blocks-mode" role="group" aria-label="Cosmetic blocks mode">
+          <button type="button" data-tri-value="off">Off</button>
+          <button type="button" data-tri-value="baked">Baked</button>
+          <button type="button" data-tri-value="split" class="active" aria-pressed="true">Split</button>
+        </div>
+      </div>
+      <div class="tri-state-field" title="How much shape-aware visual detail is included when cosmetic blocks are enabled">
         <span>Visual Detail</span>
-        <select id="visual-detail-mode">
-          <option value="basic">Basic voxels</option>
-          <option value="structures">Structures</option>
-          <option value="all" selected>Structures + foliage</option>
-        </select>
-      </label>
+        <input id="visual-detail-mode" type="hidden" value="all">
+        <div class="tri-state-track" data-tri-state-for="visual-detail-mode" role="group" aria-label="Visual detail mode">
+          <button type="button" data-tri-value="basic">Basic</button>
+          <button type="button" data-tri-value="structures">Struct</button>
+          <button type="button" data-tri-value="all" class="active" aria-pressed="true">Foliage</button>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="hud-section hud-section-experimental experimental-controls" data-section="experimental">
+      <button type="button" class="hud-section-head" aria-expanded="true">
+        <span class="hud-section-title">Experimental</span>
+        <span class="hud-section-chevron" aria-hidden="true"></span>
+      </button>
+      <div class="hud-section-body">
       <label class="paired-control" title="Maximum ready voxel meshes added to the scene each frame">
         <span>Voxel Spawn/frame</span>
         <div class="range-number">
@@ -167,28 +182,40 @@
         <select id="water-mode">
           <option value="solid" selected>Solid</option>
           <option value="transparent">Transparent</option>
-          <option value="shader">Shader</option>
           <option value="hidden">Hidden</option>
         </select>
       </label>
-      <label>
-        <span>Shader</span>
-        <select id="shader-effect">
-          <option value="none" selected>None</option>
-          <option value="tiltShift">Tilt Shift</option>
-          <option value="pixelMap">Pixel Map</option>
-          <option value="vignette">Vignette</option>
-          <option value="bloomLite">Bloom Lite</option>
-          <option value="cartographicInk">Cartographic Ink</option>
-          <option value="nightScan">Night Scan</option>
-        </select>
-      </label>
-      <div id="experimental-details-state" class="feature-tag">Detailed trees: server off</div>
-      <div class="cache-clear-row">
-        <button id="clear-mesh-cache" type="button" title="Delete cached terrain GLBs and map tile textures stored in this browser">
-          Clear mesh cache
-        </button>
-        <span class="cache-clear-hint">IndexedDB · terrain + map tiles</span>
+      <div class="fog-panel">
+        <div class="fog-panel-head">
+          <span>Fog</span>
+          <label class="toggle fog-enable-toggle">
+            <input id="fog-enabled" type="checkbox" checked>
+            <span>Distance</span>
+          </label>
+        </div>
+        <div class="fog-sliders-row">
+          <div class="fog-slider-col">
+            <span class="fog-slider-label">Near</span>
+            <input id="fog-near" class="fog-range" type="range" min="40" max="1200" step="10" value="150" orient="vertical" aria-label="Fog near distance">
+            <input id="fog-near-value" class="fog-number" type="number" min="40" max="1200" step="10" value="150" aria-label="Fog near distance value">
+          </div>
+          <div class="fog-slider-col">
+            <span class="fog-slider-label">Far</span>
+            <input id="fog-far" class="fog-range" type="range" min="120" max="2600" step="10" value="620" orient="vertical" aria-label="Fog far distance">
+            <input id="fog-far-value" class="fog-number" type="number" min="120" max="2600" step="10" value="620" aria-label="Fog far distance value">
+          </div>
+          <div class="fog-slider-col">
+            <span class="fog-slider-label">Strength</span>
+            <input id="fog-strength" class="fog-range" type="range" min="0" max="1.25" step="0.01" value="0.9" orient="vertical" aria-label="Fog strength">
+            <input id="fog-strength-value" class="fog-number" type="number" min="0" max="1.25" step="0.01" value="0.9" aria-label="Fog strength value">
+          </div>
+          <div class="fog-slider-col">
+            <span class="fog-slider-label">Haze</span>
+            <input id="fog-horizon" class="fog-range" type="range" min="0" max="1.5" step="0.01" value="0.65" orient="vertical" aria-label="Horizon haze">
+            <input id="fog-horizon-value" class="fog-number" type="number" min="0" max="1.5" step="0.01" value="0.65" aria-label="Horizon haze value">
+          </div>
+        </div>
+      </div>
       </div>
     </div>
   </div>

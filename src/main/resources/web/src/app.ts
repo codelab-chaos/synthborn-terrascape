@@ -17,7 +17,15 @@ import {
   clearMeshCacheButton,
   cosmeticBlocksModeInput,
   debugBoundsInput,
-  experimentalDetailsStateEl,
+  fogEnabledInput,
+  fogFarInput,
+  fogFarValueInput,
+  fogHorizonInput,
+  fogHorizonValueInput,
+  fogNearInput,
+  fogNearValueInput,
+  fogStrengthInput,
+  fogStrengthValueInput,
   hudEl,
   infoCardEl,
   infoCardHeadEl,
@@ -43,10 +51,8 @@ import {
   shadeDarknessValueInput,
   shadeSizeInput,
   shadeSizeValueInput,
-  shaderEffectInput,
   showPlayersInput,
   showMobsInput,
-  sunLightingInput,
   statusEl,
   timeCycleLabelEl,
   skySceneEl,
@@ -103,7 +109,7 @@ import {
   createPostProcessing,
   renderPostProcessing,
   resizePostProcessing,
-  setShaderEffect,
+  setFogOptions,
 } from './postprocessing.js';
 import { createTimeRibbon } from './time-ribbon.js';
 import { centerId, chunkId, clamp, delay, formatBytes, formatCoord, numberOr } from './utils.js';
@@ -116,7 +122,12 @@ import {
   updateWaterMaterials,
 } from './water.js';
 import { confirmAction } from './library/confirm-dialog.js';
+import { bindHudSectionCollapsibles } from './library/collapsible-section.js';
+import { applyTriStateValue, bindTriStateControl } from './library/tri-state-control.js';
 import { clearMeshCache, getMeshCacheStats, makeTerrainCacheKey, readTerrainCache, writeTerrainCache } from './mesh-cache.js';
+
+const COSMETIC_MODE_VALUES = ['off', 'baked', 'split'];
+const VISUAL_DETAIL_VALUES = ['basic', 'structures', 'all'];
 
 const SKY_COLOR = 0x173454;
 const EMPTY_GRID_AXIS_COLOR = 0x1faa6a;
@@ -191,7 +202,7 @@ renderer.setClearColor(SKY_COLOR, 1);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY_COLOR);
-scene.fog = new THREE.Fog(SKY_COLOR, 620, 4200);
+scene.fog = null;
 
 const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 6000);
 camera.position.set(88, 188, 88);
@@ -330,12 +341,33 @@ const tempFlyEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 function currentLightingOptions() {
   return lightingOptionsFromInputs({
-    sunLightingInput,
     treeShadeInput,
     shadeSizeInput: shadeSizeValueInput,
     shadeDarknessInput: shadeDarknessValueInput,
     time: mapTimeInput.checked ? worldTime : NOON_LIGHTING_TIME,
+    fogRange: fogControlRange(),
   });
+}
+
+function fogControlRange() {
+  const near = terrainTuningValue(fogNearValueInput, 150);
+  const far = Math.max(near + 1, terrainTuningValue(fogFarValueInput, 620));
+  return {
+    near,
+    far,
+  };
+}
+
+function fogControlOptions() {
+  const range = fogControlRange();
+  return {
+    enabled: fogEnabledInput.checked,
+    near: range.near,
+    far: range.far,
+    strength: readFloatControl(fogStrengthValueInput, 0.9),
+    horizonStrength: readFloatControl(fogHorizonValueInput, 0.65),
+    color: scene.userData.worldviewFog?.color ?? scene.background,
+  };
 }
 
 function setStatus(text) {
@@ -412,6 +444,20 @@ function terrainTuningValue(input, fallback) {
   const min = Number.parseInt(input.min, 10);
   const max = Number.parseInt(input.max, 10);
   return clamp(parsed, Number.isFinite(min) ? min : 1, Number.isFinite(max) ? max : 64);
+}
+
+function readFloatControl(input, fallback) {
+  const parsed = Number.parseFloat(input?.value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  const min = Number.parseFloat(input.min);
+  const max = Number.parseFloat(input.max);
+  return clamp(
+    parsed,
+    Number.isFinite(min) ? min : -Infinity,
+    Number.isFinite(max) ? max : Infinity,
+  );
 }
 
 function createTerrainStreamStats(world, centerX, centerZ, radius, needed, alreadyLoaded, missing, startedAt) {
@@ -543,10 +589,6 @@ async function loadWorlds() {
   const data = await response.json();
   experimentalDetailsEnabled = data.features?.experimentalDetails === true;
   terrainFormatVersion = data.features?.terrainFormatVersion ?? terrainFormatVersion;
-  experimentalDetailsStateEl.textContent = experimentalDetailsEnabled
-    ? 'Detailed trees: server on'
-    : 'Detailed trees: server off';
-  experimentalDetailsStateEl.classList.toggle('enabled', experimentalDetailsEnabled);
   worldSelect.replaceChildren();
   for (const world of data.worlds ?? []) {
     const option = document.createElement('option');
@@ -570,7 +612,6 @@ function applyInitialParams() {
   applyBooleanParam('mobs', showMobsInput);
   applyBooleanParam('mobBlocks', mobBlocksInput);
   syncMobBlocksInputs(mobBlocksInput.checked);
-  applyBooleanParam('sun', sunLightingInput);
   applyBooleanParam('shade', treeShadeInput);
   applyBooleanParam('mapTiles', mapTilesInput);
   applyCosmeticModeParam();
@@ -586,9 +627,12 @@ function applyInitialParams() {
   applyFloatParam('shadeSize', shadeSizeInput, shadeSizeValueInput);
   applyFloatParam('shadeDarkness', shadeDarknessInput, shadeDarknessValueInput);
   applySelectParam('water', waterModeInput);
-  applySelectParam('shader', shaderEffectInput);
+  applyBooleanParam('fog', fogEnabledInput);
+  applyFloatParam('fogNear', fogNearInput, fogNearValueInput);
+  applyFloatParam('fogFar', fogFarInput, fogFarValueInput);
+  applyFloatParam('fogStrength', fogStrengthInput, fogStrengthValueInput);
+  applyFloatParam('fogHorizon', fogHorizonInput, fogHorizonValueInput);
   applySelectParam('playerRate', playerUpdateRateInput);
-  setShaderEffect(postProcessing, shaderEffectInput.value);
   applyLighting();
   updateEntityVisibility();
 }
@@ -607,7 +651,6 @@ function applyStoredInputs() {
   if (typeof storedViewState.players === 'boolean') showPlayersInput.checked = storedViewState.players;
   if (typeof storedViewState.mobs === 'boolean') showMobsInput.checked = storedViewState.mobs;
   if (typeof storedViewState.mobBlocks === 'boolean') syncMobBlocksInputs(storedViewState.mobBlocks);
-  if (typeof storedViewState.sun === 'boolean') sunLightingInput.checked = storedViewState.sun;
   if (typeof storedViewState.shade === 'boolean') treeShadeInput.checked = storedViewState.shade;
   if (typeof storedViewState.mapTime === 'boolean') mapTimeInput.checked = storedViewState.mapTime;
   if (typeof storedViewState.mapTiles === 'boolean') mapTilesInput.checked = storedViewState.mapTiles;
@@ -630,9 +673,11 @@ function applyStoredInputs() {
   if (typeof storedViewState.water === 'string') {
     applySelectValue(waterModeInput, storedViewState.water);
   }
-  if (typeof storedViewState.shader === 'string') {
-    applySelectValue(shaderEffectInput, storedViewState.shader);
-  }
+  if (typeof storedViewState.fog === 'boolean') fogEnabledInput.checked = storedViewState.fog;
+  setPairedControlValue(fogNearInput, fogNearValueInput, storedViewState.fogNear);
+  setPairedControlValue(fogFarInput, fogFarValueInput, storedViewState.fogFar);
+  setPairedControlValue(fogStrengthInput, fogStrengthValueInput, storedViewState.fogStrength);
+  setPairedControlValue(fogHorizonInput, fogHorizonValueInput, storedViewState.fogHorizon);
   if (typeof storedViewState.playerRate === 'string') {
     applySelectValue(playerUpdateRateInput, storedViewState.playerRate);
   }
@@ -732,12 +777,25 @@ function applySelectParam(name, input) {
 }
 
 function applySelectValue(input, value) {
-  for (const option of input.options) {
-    if (option.value === value) {
-      input.value = value;
-      return;
-    }
+  if (!input) return;
+  if (input.id === 'cosmetic-blocks-mode') {
+    applyTriStateValue(input, value, COSMETIC_MODE_VALUES);
+    return;
   }
+  if (input.id === 'visual-detail-mode') {
+    applyTriStateValue(input, value, VISUAL_DETAIL_VALUES);
+    return;
+  }
+  if (input.tagName === 'SELECT') {
+    for (const option of input.options) {
+      if (option.value === value) {
+        input.value = value;
+        return;
+      }
+    }
+    return;
+  }
+  input.value = value;
 }
 
 function setNumberInput(input, value) {
@@ -1456,10 +1514,19 @@ function collectResourceStats() {
 }
 
 function applyWaterMode() {
+  const mode = waterModeValue();
+  if (waterModeInput.value !== mode) {
+    waterModeInput.value = mode;
+  }
   for (const entry of loadedChunks.values()) {
     tintWaterMaterialsFromMap(entry.object, sampleMapBackdropColor);
-    applyWaterModeToObject(entry.object, waterModeInput.value);
+    applyWaterModeToObject(entry.object, mode);
   }
+}
+
+function waterModeValue() {
+  const value = waterModeInput.value;
+  return value === 'solid' || value === 'transparent' || value === 'hidden' ? value : 'solid';
 }
 
 function terrainCacheKey(world, chunkX, chunkZ) {
@@ -1581,10 +1648,21 @@ function cameraChunk() {
 function applyLighting() {
   const options = currentLightingOptions();
   applyLightingEnvironment(scene, renderer, lightingRig, options);
+  applyFogSettings();
   for (const entry of loadedChunks.values()) {
     applyLightingToObject(entry.object, options);
     updateTreeShadeObject(entry.shade, options);
   }
+}
+
+function applyFogSettings() {
+  const options = fogControlOptions();
+  scene.fog = null;
+  setFogOptions(postProcessing, options);
+}
+
+function updateMapDistanceFog() {
+  scene.fog = null;
 }
 
 async function refreshWorldTime() {
@@ -2367,6 +2445,7 @@ function exposeDebugState() {
       chunkZ,
     ),
     terrainFormatVersion: () => terrainFormatVersion,
+    experimentalDetailsEnabled: () => experimentalDetailsEnabled,
     activeCenterId: () => activeCenterId,
     requestedCenterId: () => requestedCenterId,
     updatePlayersForTest: (players) => updatePlayers(players),
@@ -2419,11 +2498,16 @@ function exposeDebugState() {
       terrainLoadSlots: terrainLoadConcurrency(),
       terrainSpawnFrame: terrainPromotionsPerFrame(),
       terrainSpawnMs: terrainPromotionBudgetMs(),
-      sun: sunLightingInput.checked,
       shade: treeShadeInput.checked,
       mapTime: mapTimeInput.checked,
-      water: waterModeInput.value,
-      shader: shaderEffectInput.value,
+      water: waterModeValue(),
+      fog: {
+        enabled: fogEnabledInput.checked,
+        near: fogControlRange().near,
+        far: fogControlRange().far,
+        strength: readFloatControl(fogStrengthValueInput, 0.9),
+        horizon: readFloatControl(fogHorizonValueInput, 0.65),
+      },
       players: showPlayersInput.checked,
       mobs: showMobsInput.checked,
       mobBlocks: mobBlocksEnabled(),
@@ -2437,6 +2521,12 @@ function exposeDebugState() {
       fogFar: scene.fog?.far ?? null,
       fogDensity: scene.fog?.density ?? null,
       fogColor: displayColor(scene.fog?.color),
+      postFogEnabled: postProcessing.enabled,
+      postFogNear: postProcessing.fogPass.uniforms.fogNear.value,
+      postFogFar: postProcessing.fogPass.uniforms.fogFar.value,
+      postFogStrength: postProcessing.fogPass.uniforms.fogStrength.value,
+      postFogHorizon: postProcessing.fogPass.uniforms.horizonStrength.value,
+      postFogColor: displayColor(postProcessing.fogPass.uniforms.fogColor.value),
       starsVisible: lightingRig.stars.visible === true,
       skyVisible: lightingRig.sky.visible === true,
     }),
@@ -2512,6 +2602,7 @@ function waterMaterialSummary() {
 }
 
 function displayColor(color) {
+  if (!color?.clone) return null;
   const srgb = color.clone().convertLinearToSRGB();
   return {
     r: Math.round(srgb.r * 255),
@@ -2570,7 +2661,6 @@ function saveViewState() {
     mobs: showMobsInput.checked,
     mobBlocks: mobBlocksEnabled(),
     renderDetails: !infoCardEl.classList.contains('collapsed'),
-    sun: sunLightingInput.checked,
     shade: treeShadeInput.checked,
     mapTime: mapTimeInput.checked,
     mapTiles: mapTilesInput.checked,
@@ -2582,8 +2672,12 @@ function saveViewState() {
     terrainSpawnMs: terrainPromotionBudgetMs(),
     shadeSize: Number.parseFloat(shadeSizeValueInput.value),
     shadeDarkness: Number.parseFloat(shadeDarknessValueInput.value),
-    water: waterModeInput.value,
-    shader: shaderEffectInput.value,
+    water: waterModeValue(),
+    fog: fogEnabledInput.checked,
+    fogNear: fogControlRange().near,
+    fogFar: fogControlRange().far,
+    fogStrength: readFloatControl(fogStrengthValueInput, 0.9),
+    fogHorizon: readFloatControl(fogHorizonValueInput, 0.65),
     playerRate: playerUpdateRateInput.value,
     camera: vectorState(camera.position),
     target: vectorState(target),
@@ -2984,6 +3078,7 @@ function animate() {
     controls.update();
   }
   positionSkyObjects(lightingRig, camera.position);
+  updateMapDistanceFog();
   updateEmptyGrid();
   updateChunkPlaceholders();
   chunkPlaceholderManager.update(deltaSeconds);
@@ -2998,7 +3093,22 @@ function animate() {
 }
 
 window.addEventListener('resize', resize);
+function setSettingsPanelOpen(open: boolean) {
+  hudEl.classList.toggle('open', open);
+  panelToggle.classList.toggle('active', open);
+  panelToggle.setAttribute('aria-expanded', String(open));
+}
+
 window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    const confirmDialog = document.querySelector<HTMLDialogElement>('#confirm-dialog');
+    if (confirmDialog?.open) return;
+    if (!hudEl.classList.contains('open')) return;
+    event.preventDefault();
+    blurFocusedHudControl();
+    setSettingsPanelOpen(false);
+    return;
+  }
   if (isTypingInHud()) return;
   if ([
     'KeyW',
@@ -3077,11 +3187,7 @@ playerUpdateRateInput.addEventListener('change', () => {
   restartPlayerPolling();
   saveViewState();
 });
-shaderEffectInput.addEventListener('change', () => {
-  setShaderEffect(postProcessing, shaderEffectInput.value);
-  saveViewState();
-});
-for (const input of [sunLightingInput, treeShadeInput]) {
+for (const input of [treeShadeInput]) {
   const eventName = input.type === 'range' ? 'input' : 'change';
   input.addEventListener(eventName, () => {
     applyLighting();
@@ -3121,6 +3227,14 @@ syncPairedControl(terrainSpawnFrameInput, terrainSpawnFrameValueInput, () => {})
 syncPairedControl(terrainSpawnBudgetInput, terrainSpawnBudgetValueInput, () => {});
 syncPairedControl(shadeSizeInput, shadeSizeValueInput);
 syncPairedControl(shadeDarknessInput, shadeDarknessValueInput);
+fogEnabledInput.addEventListener('change', () => {
+  applyFogSettings();
+  saveViewState();
+});
+syncPairedControl(fogNearInput, fogNearValueInput, applyFogSettings);
+syncPairedControl(fogFarInput, fogFarValueInput, applyFogSettings);
+syncPairedControl(fogStrengthInput, fogStrengthValueInput, applyFogSettings);
+syncPairedControl(fogHorizonInput, fogHorizonValueInput, applyFogSettings);
 worldSelect.addEventListener('change', () => {
   closeEntityStream();
   updatePlayers([]);
@@ -3133,14 +3247,24 @@ worldSelect.addEventListener('change', () => {
   scheduleControlGridLoad();
   saveViewState();
 });
+bindHudSectionCollapsibles(document);
+bindTriStateControl(document, 'cosmetic-blocks-mode', [
+  { value: 'off', label: 'Off' },
+  { value: 'baked', label: 'Baked' },
+  { value: 'split', label: 'Split' },
+]);
+bindTriStateControl(document, 'visual-detail-mode', [
+  { value: 'basic', label: 'Basic' },
+  { value: 'structures', label: 'Struct' },
+  { value: 'all', label: 'Foliage' },
+]);
 for (const input of [chunkXInput, chunkZInput]) {
+  if (!input) continue;
   input.addEventListener('input', scheduleControlGridLoad);
   input.addEventListener('change', scheduleControlGridLoad);
 }
 panelToggle.addEventListener('click', () => {
-  const open = hudEl.classList.toggle('open');
-  panelToggle.classList.toggle('active', open);
-  panelToggle.setAttribute('aria-expanded', String(open));
+  setSettingsPanelOpen(!hudEl.classList.contains('open'));
 });
 setRenderDetailsOpen(!storedViewState || storedViewState.renderDetails !== false);
 infoCardHeadEl.addEventListener('click', toggleRenderDetails);

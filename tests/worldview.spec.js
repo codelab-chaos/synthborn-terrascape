@@ -62,10 +62,13 @@ async function flyForwardDistance(page, sprint) {
   return Math.hypot(after.x - before.x, after.y - before.y, after.z - before.z);
 }
 
-test('renders shader water with map-matched wave shader', async ({ page }) => {
+test('renders water materials and ignores removed shader water mode', async ({ page }) => {
   await page.goto('/?radius=1&chunkX=7&chunkZ=-9&auto=false&mapTiles=true&water=shader');
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 7, -9');
-  await expect(page.locator('#water-mode')).toHaveValue('shader');
+  await expect(page.locator('#water-mode')).toHaveValue('solid');
+  await expect(page.locator('#water-mode option[value="shader"]')).toHaveCount(0);
+  await expect(page.locator('#shader-effect')).toHaveCount(0);
+  await expect(page.locator('#sun-lighting')).toHaveCount(0);
   await expect.poll(async () => page.evaluate(() => {
     return window.__synthWorldviewDebug.waterMaterialSummary().length;
   })).toBeGreaterThan(0);
@@ -76,13 +79,8 @@ test('renders shader water with map-matched wave shader', async ({ page }) => {
   expect(waterMaterials.every((material) => material.fog === false)).toBe(true);
   expect(waterMaterials.every((material) => material.vertexColors === false)).toBe(true);
   expect(waterMaterials.every((material) => material.color?.b > material.color?.r)).toBe(true);
-  expect(waterMaterials.every((material) => material.waveHeight === 0.35)).toBe(true);
-  expect(waterMaterials.every((material) => material.waveFrequency === 1)).toBe(true);
-  expect(waterMaterials.every((material) => material.alpha === 0.92)).toBe(true);
-  expect(waterMaterials.every((material) => material.shaderMix === 1)).toBe(true);
-  expect(waterMaterials.every((material) => material.distortionScale === 20)).toBe(true);
-  expect(waterMaterials.every((material) => material.hasNormalSampler === true)).toBe(true);
-  expect(waterMaterials.every((material) => material.hasReflectionSampler === true)).toBe(true);
+  expect(waterMaterials.every((material) => material.alpha === 1)).toBe(true);
+  expect(waterMaterials.every((material) => material.shaderMix === 0)).toBe(true);
 
   const firstTime = waterMaterials[0].time;
   await page.waitForTimeout(250);
@@ -91,7 +89,7 @@ test('renders shader water with map-matched wave shader', async ({ page }) => {
 });
 
 test('map tiles serve PNGs, bind textures, and render map pixels', async ({ page }) => {
-  await page.goto('/?radius=1&chunkX=0&chunkZ=0&auto=false&mapTiles=true&water=transparent');
+  await page.goto('/?radius=1&chunkX=0&chunkZ=0&auto=false&mapTiles=true&water=transparent&fog=false');
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 0, 0');
 
   const png = await page.request.get('/api/terrain/default/0/0.map.png');
@@ -150,14 +148,19 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
 
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 0, 0');
   await expect(page.locator('#water-mode')).toHaveValue('transparent');
-  await expect(page.locator('#shader-effect')).toHaveValue('none');
-  await expect(page.locator('#experimental-details-state')).toHaveText(/Detailed trees: server (on|off)/);
-  const experimentalDetailsEnabled = await page.locator('#experimental-details-state').evaluate((el) => {
-    return el.textContent?.includes('server on') === true;
-  });
+  await expect(page.locator('#shader-effect')).toHaveCount(0);
+  await expect(page.locator('#sun-lighting')).toHaveCount(0);
+  await expect(page.locator('#experimental-details-state')).toHaveCount(0);
+  const experimentalDetailsEnabled = await page.evaluate(
+    () => window.__synthWorldviewDebug.experimentalDetailsEnabled(),
+  );
   await expect(page.locator('#show-players')).toBeChecked();
-  await expect(page.locator('#sun-lighting')).toBeChecked();
   await expect(page.locator('#map-time')).not.toBeChecked();
+  await expect(page.locator('#fog-enabled')).toBeChecked();
+  await expect(page.locator('#fog-near')).toHaveValue('150');
+  await expect(page.locator('#fog-far')).toHaveValue('620');
+  await expect(page.locator('#fog-strength')).toHaveValue('0.9');
+  await expect(page.locator('#fog-horizon')).toHaveValue('0.65');
   expect(await page.evaluate(() => window.__synthWorldviewDebug.cameraPose().fov)).toBe(70);
   await expect(page.locator('#height-grade')).toHaveCount(0);
   await expect(page.locator('#atmosphere-lighting')).toHaveCount(0);
@@ -199,10 +202,11 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
     });
   }
   const mapTileFog = await page.evaluate(() => window.__synthWorldviewDebug.skySummary());
-  expect(mapTileFog.fogType).toBe('Fog');
-  expect(mapTileFog.fogNear).toBeGreaterThan(500);
-  expect(mapTileFog.fogFar).toBeGreaterThan(2000);
-  expect(typeof mapTileFog.fogColor.r).toBe('number');
+  expect(mapTileFog.fogType).toBe(null);
+  expect(mapTileFog.postFogEnabled).toBe(true);
+  expect(mapTileFog.postFogNear).toBe(150);
+  expect(mapTileFog.postFogFar).toBe(620);
+  expect(typeof mapTileFog.postFogColor.r).toBe('number');
   let mapBackdrop = null;
   await expect.poll(async () => {
     mapBackdrop = await page.evaluate(() => window.__synthWorldviewDebug.mapBackdropStats());
@@ -769,14 +773,6 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
     input.checked = true;
     input.dispatchEvent(new Event('change', { bubbles: true }));
   });
-  await page.locator('#sun-lighting').evaluate((input) => {
-    input.checked = false;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  });
-  await page.locator('#sun-lighting').evaluate((input) => {
-    input.checked = true;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  });
   const afternoonSky = await page.evaluate(() => {
     window.__synthWorldviewDebug.setWorldTimeForTest({
       dayProgress: 0.645,
@@ -788,6 +784,19 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   });
   expect(afternoonSky.starsVisible).toBe(false);
   expect(afternoonSky.background.b).toBeGreaterThan(afternoonSky.background.r);
+  const mapDistanceFog = await page.evaluate(async () => {
+    window.__synthWorldviewDebug.setCameraPose({
+      camera: { x: 80, y: 180, z: -40 },
+      target: { x: 40, y: 122, z: 40 },
+      lookAt: { x: 40, y: 122, z: 40 },
+    });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return window.__synthWorldviewDebug.skySummary();
+  });
+  expect(mapDistanceFog.fogType).toBe(null);
+  expect(mapDistanceFog.postFogEnabled).toBe(true);
+  expect(mapDistanceFog.postFogNear).toBe(150);
+  expect(mapDistanceFog.postFogFar).toBe(620);
   const sunsetSky = await page.evaluate(() => {
     window.__synthWorldviewDebug.setWorldTimeForTest({
       dayProgress: 0.758,
@@ -809,8 +818,9 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   });
   expect(nightSky.starsVisible).toBe(true);
   const nightLighting = await page.evaluate(() => window.__synthWorldviewDebug.lightingSummary());
-  expect(nightLighting.ambientIntensity).toBeLessThan(0.45);
-  expect(nightLighting.sunIntensity).toBeLessThan(0.05);
+  expect(nightLighting.ambientIntensity).toBeGreaterThan(0.65);
+  expect(nightLighting.ambientIntensity).toBeLessThan(0.9);
+  expect(nightLighting.sunIntensity).toBeLessThan(0.25);
 
   if (playersPayload.players.length > 0) {
     const player = playersPayload.players[0];
@@ -938,22 +948,16 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect.poll(async () => page.evaluate(() => {
     return window.__synthWorldviewDebug.waterMaterialSummary().every((material) => material.shaderMix === 0);
   })).toBe(true);
-  await setControlValue('#water-mode', 'shader');
-  await expect(page.locator('#water-mode')).toHaveValue('shader');
+  await setControlValue('#water-mode', 'transparent');
+  await expect(page.locator('#water-mode')).toHaveValue('transparent');
   await expect.poll(async () => page.evaluate(() => {
-    return window.__synthWorldviewDebug.waterMaterialSummary().every((material) => material.shaderMix === 1);
+    return window.__synthWorldviewDebug.waterMaterialSummary().every((material) => material.alpha === 0.48);
   })).toBe(true);
   await setControlValue('#water-mode', 'hidden');
   await expect(page.locator('#water-mode')).toHaveValue('hidden');
-  await setControlValue('#shader-effect', 'tiltShift');
-  await expect(page.locator('#shader-effect')).toHaveValue('tiltShift');
-  await setControlValue('#shader-effect', 'cartographicInk');
-  await expect(page.locator('#shader-effect')).toHaveValue('cartographicInk');
-  await setControlChecked('#sun-lighting', true);
   await setControlChecked('#tree-shade', true);
   await setControlValue('#shade-size-value', '1.35', 'input');
   await setControlValue('#shade-darkness-value', '0.8', 'input');
-  await expect(page.locator('#sun-lighting')).toBeChecked();
   await expect(page.locator('#tree-shade')).toBeChecked();
   await expect(page.locator('#shade-size')).toHaveValue('1.35');
   await expect(page.locator('#shade-size-value')).toHaveValue('1.35');
@@ -961,6 +965,25 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#shade-darkness-value')).toHaveValue('0.8');
   await setControlValue('#shade-size', '1.6', 'input');
   await expect(page.locator('#shade-size-value')).toHaveValue('1.6');
+  await setControlChecked('#fog-enabled', false);
+  expect(await page.evaluate(() => window.__synthWorldviewDebug.viewState().fog.enabled)).toBe(false);
+  expect(await page.evaluate(() => window.__synthWorldviewDebug.skySummary().postFogEnabled)).toBe(false);
+  await setControlChecked('#fog-enabled', true);
+  await setControlValue('#fog-near-value', '240', 'input');
+  await setControlValue('#fog-far', '900', 'input');
+  await setControlValue('#fog-strength-value', '0.72', 'input');
+  await setControlValue('#fog-horizon', '1.1', 'input');
+  await expect(page.locator('#fog-near')).toHaveValue('240');
+  await expect(page.locator('#fog-far-value')).toHaveValue('900');
+  await expect(page.locator('#fog-strength')).toHaveValue('0.72');
+  await expect(page.locator('#fog-horizon-value')).toHaveValue('1.1');
+  expect(await page.evaluate(() => window.__synthWorldviewDebug.viewState().fog)).toEqual({
+    enabled: true,
+    near: 240,
+    far: 900,
+    strength: 0.72,
+    horizon: 1.1,
+  });
 
   await setControlValue('#radius-range', '2', 'input');
   await expect(page.locator('#radius')).toHaveValue('2');
@@ -982,27 +1005,29 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       auto: false,
       bounds: true,
       players: false,
-      sun: true,
       shade: true,
       mapTime: true,
       mapTiles: true,
       shadeSize: 1.45,
       shadeDarkness: 0.75,
       water: 'hidden',
-      shader: 'pixelMap',
+      fog: true,
+      fogNear: 260,
+      fogFar: 940,
+      fogStrength: 0.8,
+      fogHorizon: 1.15,
       camera: { x: 120, y: 150, z: 160 },
       target: { x: 80, y: 122, z: 112 },
     }));
   });
-  await page.goto('/?chunkX=2&chunkZ=3&radius=1&auto=false&bounds=true&players=false&shader=pixelMap&water=hidden&shadeSize=1.45&shadeDarkness=0.75');
+  await page.goto('/?chunkX=2&chunkZ=3&radius=1&auto=false&bounds=true&players=false&water=hidden&shadeSize=1.45&shadeDarkness=0.75&fogNear=260&fogFar=940&fogStrength=0.8&fogHorizon=1.15');
 
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 2, 3');
   await expect(page.locator('#water-mode')).toHaveValue('hidden');
-  await expect(page.locator('#shader-effect')).toHaveValue('pixelMap');
+  await expect(page.locator('#shader-effect')).toHaveCount(0);
   await expect(page.locator('#auto-stream')).not.toBeChecked();
   await expect(page.locator('#debug-bounds')).toBeChecked();
   await expect(page.locator('#show-players')).not.toBeChecked();
-  await expect(page.locator('#sun-lighting')).toBeChecked();
   await expect(page.locator('#map-time')).toBeChecked();
   await expect(page.locator('#tree-shade')).toBeChecked();
   await expect(page.locator('#lod-horizon')).toHaveCount(0);
@@ -1011,6 +1036,11 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#shade-size-value')).toHaveValue('1.45');
   await expect(page.locator('#shade-darkness')).toHaveValue('0.75');
   await expect(page.locator('#shade-darkness-value')).toHaveValue('0.75');
+  await expect(page.locator('#fog-enabled')).toBeChecked();
+  await expect(page.locator('#fog-near')).toHaveValue('260');
+  await expect(page.locator('#fog-far')).toHaveValue('940');
+  await expect(page.locator('#fog-strength')).toHaveValue('0.8');
+  await expect(page.locator('#fog-horizon')).toHaveValue('1.15');
   await expect(page.locator('#show-mobs')).toBeChecked();
   await expect(page.locator('#players')).toHaveText('Players hidden');
   await expect(page.locator('#coord-target')).toHaveText('80, 116, 112');

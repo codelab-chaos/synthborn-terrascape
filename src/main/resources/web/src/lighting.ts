@@ -6,16 +6,16 @@ const MAX_SHADES_PER_CHUNK = 72;
 const TREE_SHADE_KEY = 'worldviewTreeShade';
 const DAY_SKY_TOP = new THREE.Color(0x3d86cf);
 const DAY_SKY_HORIZON = new THREE.Color(0x88badd);
-const NIGHT_SKY_TOP = new THREE.Color(0x07111f);
-const NIGHT_SKY_HORIZON = new THREE.Color(0x151f34);
+const NIGHT_SKY_TOP = new THREE.Color(0x0b182a);
+const NIGHT_SKY_HORIZON = new THREE.Color(0x25364d);
 const DAWN_SKY_TOP = new THREE.Color(0x7d91c4);
 const DAWN_SKY_HORIZON = new THREE.Color(0xe9a18a);
 const DAWN_SUN_GLOW = new THREE.Color(0xffdf92);
 const DAWN_HAZE = new THREE.Color(0xd9a4bd);
-const FOG_DAY = new THREE.Color(0x547b93);
-const FOG_NIGHT = new THREE.Color(0x071321);
+const FOG_DAY = new THREE.Color(0xd9f3f2);
+const FOG_NIGHT = new THREE.Color(0x5f7d84);
 const FOG_DAWN = new THREE.Color(0xc39698);
-const NIGHT_TERRAIN_TINT = new THREE.Color(0x243225);
+const NIGHT_TERRAIN_TINT = new THREE.Color(0x60745f);
 const DAY_TERRAIN_TINT = new THREE.Color(0xffffff);
 let shadeTexture;
 
@@ -40,13 +40,14 @@ export function createLightingRig(scene, skyColor) {
   return { ambient, sun, sky, stars, sunDisc, moonDisc, skyColor };
 }
 
-export function lightingOptionsFromInputs({ sunLightingInput, treeShadeInput, shadeSizeInput, shadeDarknessInput, time }) {
+export function lightingOptionsFromInputs({ treeShadeInput, shadeSizeInput, shadeDarknessInput, time, fogRange }) {
   return {
-    sun: sunLightingInput.checked,
+    sun: true,
     shade: treeShadeInput.checked,
     shadeSize: readRange(shadeSizeInput, 1.85),
     shadeDarkness: readRange(shadeDarknessInput, 0.4),
     time,
+    fogRange,
   };
 }
 
@@ -63,13 +64,16 @@ export function applyLightingEnvironment(scene, renderer, rig, options) {
   const fogColor = FOG_NIGHT.clone()
     .lerp(FOG_DAY, daylight)
     .lerp(FOG_DAWN, dawn * (1 - daylight * 0.22));
+  if (daylight > 0.25) {
+    fogColor.lerp(skyHorizon, daylight * 0.12);
+  }
 
   if (options.sun) {
-    rig.ambient.intensity = THREE.MathUtils.lerp(0.24, 1.55, daylight) + dawn * 0.12;
-    rig.ambient.color.copy(new THREE.Color(0x24364f).lerp(new THREE.Color(0xe7f4ff), daylight));
-    rig.ambient.groundColor.copy(new THREE.Color(0x07110d).lerp(new THREE.Color(0x405638), daylight));
-    rig.sun.intensity = THREE.MathUtils.lerp(0.0, 3.9, daylight);
-    rig.sun.color.copy(new THREE.Color(0x8fb5ff).lerp(new THREE.Color(0xffddb0), Math.max(daylight, dawn)));
+    rig.ambient.intensity = THREE.MathUtils.lerp(0.72, 1.55, daylight) + dawn * 0.12;
+    rig.ambient.color.copy(new THREE.Color(0x8ca9c4).lerp(new THREE.Color(0xe7f4ff), daylight));
+    rig.ambient.groundColor.copy(new THREE.Color(0x324436).lerp(new THREE.Color(0x405638), daylight));
+    rig.sun.intensity = THREE.MathUtils.lerp(0.16, 3.9, daylight);
+    rig.sun.color.copy(new THREE.Color(0x9ebcff).lerp(new THREE.Color(0xffddb0), Math.max(daylight, dawn)));
     rig.sun.position.copy(sunPosition).multiplyScalar(240);
   } else {
     rig.ambient.intensity = 2.2;
@@ -95,11 +99,28 @@ export function applyLightingEnvironment(scene, renderer, rig, options) {
   updateSkyDisc(rig.moonDisc, sunPosition.clone().negate(), night, 980);
 
   scene.background = skyHorizon.clone().lerp(skyTop, 0.38);
-  scene.fog = new THREE.Fog(
-    fogColor,
-    THREE.MathUtils.lerp(1100, 1500, daylight),
-    THREE.MathUtils.lerp(3600, 5200, daylight));
+  const fogRange = normalizeFogRange(options.fogRange, daylight);
+  scene.userData.worldviewFog = {
+    color: fogColor.clone(),
+    near: fogRange.near,
+    far: fogRange.far,
+  };
+  scene.fog = null;
   renderer.setClearColor(scene.background, 1);
+}
+
+function normalizeFogRange(range, daylight) {
+  const fallbackNear = THREE.MathUtils.lerp(1100, 1500, daylight);
+  const fallbackFar = THREE.MathUtils.lerp(3600, 5200, daylight);
+  const near = Number(range?.near);
+  const far = Number(range?.far);
+  if (!Number.isFinite(near) || !Number.isFinite(far) || far <= near + 1) {
+    return { near: fallbackNear, far: fallbackFar };
+  }
+  return {
+    near: THREE.MathUtils.clamp(near, 1, 10000),
+    far: THREE.MathUtils.clamp(far, near + 1, 20000),
+  };
 }
 
 export function applyLightingToObject(object, options) {
@@ -431,7 +452,7 @@ function applyMaterialLightResponse(mesh, options) {
   const time = normalizeTime(options.time);
   const daylight = visualDaylight(time.dayProgress);
   const nightGrade = THREE.MathUtils.clamp((0.72 - daylight) / 0.72, 0, 1);
-  const terrainTint = DAY_TERRAIN_TINT.clone().lerp(NIGHT_TERRAIN_TINT, nightGrade * 0.72);
+  const terrainTint = DAY_TERRAIN_TINT.clone().lerp(NIGHT_TERRAIN_TINT, nightGrade * 0.55);
   const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
   for (const material of materials) {
     if (!material) continue;
