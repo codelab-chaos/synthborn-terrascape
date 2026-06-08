@@ -62,8 +62,18 @@ tasks.build {
     dependsOn("fatJar")
 }
 
-val modsDir = (findProperty("modsDir") as String?)
-    ?: "C:/Users/ccnef/AppData/Roaming/Hytale/UserData/Saves/synth-worldview-mvp/mods"
+// Destination Hytale "mods" folder for the save under test.
+// The Hytale UserData base is resolved per-OS so plain `./gradlew deploy` works on both
+// macbookpro and windowsMSI; on Windows it resolves to the same %APPDATA% path as before.
+// Override per-invocation: ./gradlew deploy -PmodsDir="/path/to/other/save/mods"
+val saveName = "synth-worldview-mvp"
+val osName = System.getProperty("os.name").lowercase()
+val hytaleSaves = when {
+    osName.contains("win") -> "${System.getenv("APPDATA")}/Hytale/UserData/Saves"
+    osName.contains("mac") -> "${System.getProperty("user.home")}/Library/Application Support/Hytale/UserData/Saves"
+    else -> "${System.getProperty("user.home")}/.local/share/Hytale/UserData/Saves"
+}
+val modsDir = (findProperty("modsDir") as String?) ?: "$hytaleSaves/$saveName/mods"
 
 tasks.register<Copy>("deploy") {
     group = "distribution"
