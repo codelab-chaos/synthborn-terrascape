@@ -1,4 +1,6 @@
-const DB_NAME = 'synthworldview-cache';
+const DB_NAME = 'synthborn-terrascape-cache';
+const LEGACY_DB_NAME = 'synthworldview-cache';
+const CACHE_MIGRATION_KEY = 'synthborn-terrascape.cacheMigrated';
 const DB_VERSION = 2;
 const TERRAIN_STORE = 'terrainMeshes';
 const MAP_TILE_STORE = 'mapTileTextures';
@@ -136,15 +138,48 @@ async function clearStore(db, storeName) {
   return count;
 }
 
-function openDb() {
-  if (dbPromise) return dbPromise;
-  if (!window.indexedDB) {
-    dbPromise = Promise.reject(new Error('IndexedDB unavailable'));
-    return dbPromise;
-  }
+function openLegacyDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(LEGACY_DB_NAME, DB_VERSION);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => reject(new Error('IndexedDB open blocked'));
+  });
+}
 
-  dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+async function migrateLegacyMeshCacheIfNeeded() {
+  if (window.localStorage.getItem(CACHE_MIGRATION_KEY) === '1') return;
+  try {
+    const legacyDb = await openLegacyDb();
+    const nextDb = await openDatabase(DB_NAME);
+    for (const storeName of [TERRAIN_STORE, MAP_TILE_STORE]) {
+      const records = await readAllStoreRecords(legacyDb, storeName);
+      if (records.length === 0) continue;
+      const transaction = nextDb.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      for (const record of records) {
+        store.put(record);
+      }
+      await transactionPromise(transaction);
+    }
+    legacyDb.close();
+    window.localStorage.setItem(CACHE_MIGRATION_KEY, '1');
+  } catch {
+    // Legacy cache missing or migration not possible; fresh cache is fine.
+  }
+}
+
+function readAllStoreRecords(db, storeName) {
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(storeName, 'readonly').objectStore(storeName).getAll();
+    request.onsuccess = () => resolve(request.result ?? []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function openDatabase(name) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(name, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(TERRAIN_STORE)) {
@@ -158,6 +193,16 @@ function openDb() {
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error('IndexedDB open blocked'));
   });
+}
+
+function openDb() {
+  if (dbPromise) return dbPromise;
+  if (!window.indexedDB) {
+    dbPromise = Promise.reject(new Error('IndexedDB unavailable'));
+    return dbPromise;
+  }
+
+  dbPromise = migrateLegacyMeshCacheIfNeeded().then(() => openDatabase(DB_NAME));
   return dbPromise;
 }
 

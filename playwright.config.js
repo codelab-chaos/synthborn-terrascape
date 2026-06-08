@@ -1,7 +1,7 @@
 const { defineConfig, devices } = require('@playwright/test');
-const { resolveWorldviewUrl } = require('../../tools/library/remote-host');
+const { resolveTerrascapeUrl } = require('../../tools/library/remote-host');
 
-const baseURL = resolveWorldviewUrl();
+const baseURL = resolveTerrascapeUrl();
 
 module.exports = defineConfig({
   testDir: './tests',

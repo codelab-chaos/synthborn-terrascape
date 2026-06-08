@@ -1,12 +1,12 @@
-# SynthWorldview Capabilities
+# SynthTerrascape Capabilities
 
 ## Purpose
 
-This is the yes/no inventory of capabilities SynthWorldview needs or has confirmed.
+This is the yes/no inventory of capabilities SynthTerrascape needs or has confirmed.
 
 Write capabilities from the player or operator perspective: what they can visibly do
 with the 3D world view, what the server can safely expose, or what validation proves.
-Internal implementation details belong in `worldview-sprint-board.md` unless the
+Internal implementation details belong in `terrascape-sprint-board.md` unless the
 capability is directly observable or operator-facing.
 
 If a capability is not confirmed as implemented, keep it in `Needed Capabilities`. When
@@ -145,7 +145,7 @@ slots from static data while live position data continues to come from the entit
 
 ### [x] Operator Can Start A Local Worldview Web Server
 
-Validated on `synth-worldview-mvp`: SynthWorldview starts a local HTTP server at
+Validated on `synth-terrascape-mvp`: SynthTerrascape starts a local HTTP server at
 `http://127.0.0.1:5960`, serves the browser app, and exposes `/api/worlds` plus
 `/api/terrain/{world}/{lod}/{chunkX}/{chunkZ}.glb`.
 
@@ -223,31 +223,31 @@ fixed.
 ### [x] Worldview Caches Generated Terrain In Memory
 
 Recent GLB terrain chunks are served from a bounded access-order memory cache. The cache
-is capped at `128` entries or `128 MiB`, and `/worldview status` reports entries,
-bytes, and memory-hit count. Validated on `synth-worldview-mvp`: after clearcache, the
-first request to chunk `-7,3` returned `X-Worldview-Cache: generated`, and the second
-returned `X-Worldview-Cache: memory`.
+is capped at `128` entries or `128 MiB`, and `/terrascape status` reports entries,
+bytes, and memory-hit count. Validated on `synth-terrascape-mvp`: after clearcache, the
+first request to chunk `-7,3` returned `X-Terrascape-Cache: generated`, and the second
+returned `X-Terrascape-Cache: memory`.
 
 ### [x] Worldview Caches Generated Terrain On Disk
 
 Generated GLB terrain chunks persist under the plugin data directory with metadata
 sidecars for response headers. Disk cache paths include terrain format version, world,
 lod, chunk coordinates, and experimental detail mode. Validated across restart: chunk
-`-7,3` returned `X-Worldview-Cache: disk`, then subsequent requests returned
-`X-Worldview-Cache: memory`.
+`-7,3` returned `X-Terrascape-Cache: disk`, then subsequent requests returned
+`X-Terrascape-Cache: memory`.
 
 ### [x] Worldview Coalesces Duplicate Terrain Requests
 
 Multiple simultaneous requests for the same `world/lod/chunkX/chunkZ` terrain key reuse
-one pending generation future. `/worldview status` reports coalesced request count and
+one pending generation future. `/terrascape status` reports coalesced request count and
 pending request count. Live fast-path validation completed concurrent requests cleanly;
 observing a nonzero coalesced count still needs a slower stress case.
 
 ### [x] Worldview Limits Concurrent Mesh Generation
 
 Terrain generation uses a semaphore so web viewers cannot saturate server CPU or flood
-the world execution path. `/worldview status` reports active and maximum concurrent
-generations. Live validation on `synth-worldview-mvp` reported `active 0/2, pending 0`
+the world execution path. `/terrascape status` reports active and maximum concurrent
+generations. Live validation on `synth-terrascape-mvp` reported `active 0/2, pending 0`
 after successful batch terrain generation.
 
 ### [x] Viewer Can See Chunk Debug Bounds
@@ -287,7 +287,7 @@ nonzero disposed chunks.
 ### [x] Viewer Can Render Water As Solid, Transparent, Or Hidden
 
 Snapshotting records `WorldChunk.getFluidId(...)` and water-like block keys. The mesher
-routes fluid columns into a separate GLB primitive/material named `worldview-water`, and
+routes fluid columns into a separate GLB primitive/material named `terrascape-water`, and
 the viewer exposes a `Water` selector with `Transparent`, `Solid`, and `Hidden` modes.
 Nearby validation did not find water in the `-5..5` chunk grid, so visual validation
 against a known shoreline remains a follow-up.
@@ -298,7 +298,7 @@ Experimental detail generation remains server-gated and off by default. The curr
 viewer does not expose a foliage mode or client-side alternate vegetation renderer, and
 the sampler does not emit leaf/bush canopy voxels. The generic detail mesh
 infrastructure remains available for future experiments that need a separate
-`worldview-detail` primitive.
+`terrascape-detail` primitive.
 
 ### [x] Worldview Can Classify Terrain Versus Overland Detail Blocks
 
@@ -310,7 +310,7 @@ parked. Broader categories such as structure and unknown reporting remain backlo
 
 The server exposes `GET /api/players/{world}` with player UUID, name, position, and yaw.
 The viewer polls that route, renders one 3D marker per UUID, and removes stale markers.
-Validated on `synth-worldview-mvp` with online player `Gigantomancer` returned from
+Validated on `synth-terrascape-mvp` with online player `Gigantomancer` returned from
 `/api/players/default`.
 
 Current caveat: this MVP uses HTTP polling instead of a WebSocket feed because the
@@ -344,26 +344,26 @@ GLBs totaling `67,233,924` bytes.
 
 ### [x] Operator Can Inspect Worldview Status In-Game
 
-Validated with `/worldview status` through SynthRCON on the `synth-worldview-mvp` save.
+Validated with `/terrascape status` through SynthRCON on the `synth-terrascape-mvp` save.
 It reports plugin load state, uptime, enabled worlds, and terrain sample availability.
 
 ### [x] Operator Can Generate A Sample Chunk For Validation
 
-Validated with `/worldview sample 0 0` in world `default` on `2026-05-30`. The command
+Validated with `/terrascape sample 0 0` in world `default` on `2026-05-30`. The command
 reported snapshot, mesh, GLB byte size, and output path.
 
 ### [x] Operator Can Clear Generated Mesh Caches
 
-The `/worldview clearcache` admin command clears generated terrain GLBs and sample GLBs
+The `/terrascape clearcache` admin command clears generated terrain GLBs and sample GLBs
 from the plugin data directory, then reports deleted file count, directory count, and
-bytes. The command only deletes known SynthWorldview cache folders under the plugin data
+bytes. The command only deletes known SynthTerrascape cache folders under the plugin data
 directory.
 
 ### [x] Worldview Generates A GLB For One Real Chunk
 
 Validated with chunk `0,0` in world `default`: `1024/1024` non-empty columns, height
 range `107..144`, `7732` vertices, `3866` triangles, and a `325772` byte GLB written to
-`mods\com.codelabchaos_SynthWorldview\samples\default_0_0.glb`.
+`mods\com.codelabchaos_SynthTerrascape\samples\default_0_0.glb`.
 
 Current caveat: this first pass samples through the runtime chunk APIs and does not yet
 guard against unexplored chunks by index.

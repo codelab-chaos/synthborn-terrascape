@@ -366,7 +366,7 @@ function fogControlOptions() {
     far: range.far,
     strength: readFloatControl(fogStrengthValueInput, 0.9),
     horizonStrength: readFloatControl(fogHorizonValueInput, 0.65),
-    color: scene.userData.worldviewFog?.color ?? scene.background,
+    color: scene.userData.terrascapeFog?.color ?? scene.background,
   };
 }
 
@@ -2416,7 +2416,7 @@ function updateEntityVisibility() {
 }
 
 function exposeDebugState() {
-  window.__synthWorldviewDebug = {
+  window.__synthTerrascapeDebug = {
     fpsCounter,
     loadedChunks,
     playerMarkers,
@@ -2577,7 +2577,7 @@ function waterMaterialSummary() {
       if (!object.isMesh || !object.material) return;
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of materials) {
-        if (material?.name !== 'worldview-water' && material?.userData?.worldviewWater !== true) continue;
+        if (material?.name !== 'terrascape-water' && material?.userData?.terrascapeWater !== true) continue;
         summaries.push({
           type: material.type,
           vertexColors: material.vertexColors === true,
@@ -2585,7 +2585,7 @@ function waterMaterialSummary() {
           fog: material.fog === true,
           transparent: material.transparent === true,
           opacity: material.opacity,
-          color: material.userData?.worldviewWaterColor ? displayColor(material.userData.worldviewWaterColor) : null,
+          color: material.userData?.terrascapeWaterColor ? displayColor(material.userData.terrascapeWaterColor) : null,
           alpha: material.uniforms?.alpha?.value ?? null,
           time: material.uniforms?.time?.value ?? null,
           waveHeight: material.uniforms?.waveHeight?.value ?? null,
@@ -2957,11 +2957,11 @@ function applyMaterialOpacity(object, opacityScale) {
   if (!object?.material) return;
   const materials = Array.isArray(object.material) ? object.material : [object.material];
   for (const material of materials) {
-    if (!material || material.userData?.worldviewShared === true) continue;
-    const baseOpacity = Number.isFinite(material.userData.worldviewBaseOpacity)
-      ? material.userData.worldviewBaseOpacity
+    if (!material || material.userData?.terrascapeShared === true) continue;
+    const baseOpacity = Number.isFinite(material.userData.terrascapeBaseOpacity)
+      ? material.userData.terrascapeBaseOpacity
       : material.opacity;
-    material.userData.worldviewBaseOpacity = baseOpacity;
+    material.userData.terrascapeBaseOpacity = baseOpacity;
     const nextOpacity = clamp(baseOpacity * opacityScale, 0, 1);
     if (Math.abs((material.opacity ?? 1) - nextOpacity) < 0.003) continue;
     material.opacity = nextOpacity;
@@ -3150,7 +3150,7 @@ window.addEventListener('mousemove', (event) => {
   flyPitch -= event.movementY * FLY_MOUSE_SENSITIVITY;
   applyFlyLook();
 });
-window.addEventListener('worldview:map-backdrop-loaded', applyMapWaterTint);
+window.addEventListener('terrascape:map-backdrop-loaded', applyMapWaterTint);
 debugBoundsInput.addEventListener('change', updateDebugBounds);
 debugBoundsInput.addEventListener('change', saveViewState);
 showPlayersInput.addEventListener('change', () => {

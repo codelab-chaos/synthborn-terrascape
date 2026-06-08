@@ -1,4 +1,4 @@
-package com.codelabchaos.synthworldview.terrain;
+package com.codelabchaos.terrascape.terrain;
 
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.Rotation;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.RotationTuple;

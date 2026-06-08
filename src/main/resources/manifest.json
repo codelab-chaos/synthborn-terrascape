@@ -1,14 +1,14 @@
 {
   "Group": "com.codelabchaos",
-  "Name": "SynthWorldview",
+  "Name": "SynthTerrascape",
   "Version": "0.1.0",
-  "Description": "3D browser worldview prototype for Hytale server terrain",
+  "Description": "Synthborn: Terrascape — 3D browser terrain viewer for Hytale servers",
   "Authors": [
     {
       "Name": "ccnef"
     }
   ],
-  "Main": "com.codelabchaos.synthworldview.SynthWorldviewPlugin",
+  "Main": "com.codelabchaos.terrascape.SynthTerrascapePlugin",
   "IncludesAssetPack": false,
   "ServerVersion": ">=0.5.0 <0.6.0",
   "DisabledByDefault": false

@@ -1,0 +1,563 @@
+package com.codelabchaos.terrascape.terrain;
+
+import com.hypixel.hytale.math.util.ChunkUtil;
+import com.hypixel.hytale.protocol.Color;
+import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
+import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+public final class TerrainSampler {
+    private static final int SURFACE_FLUID_SCAN_ABOVE_HEIGHTMAP = 24;
+    private static final int OCCUPIED_DETAIL_SCAN_ABOVE_HEIGHTMAP = 24;
+    private static final int OVERLAND_SCAN_BELOW_HEIGHTMAP = 64;
+    private static final int FLOATING_DETAIL_AIR_CHECK_DEPTH = 4;
+
+    private TerrainSampler() {
+    }
+
+    public static TerrainSnapshot sample(@Nonnull World world, int chunkX, int chunkZ) {
+        return sample(world, chunkX, chunkZ, false);
+    }
+
+    public static TerrainSnapshot sample(@Nonnull World world, int chunkX, int chunkZ, boolean includeCosmeticDetails) {
+        return sample(world, chunkX, chunkZ, includeCosmeticDetails, VisualDetailMode.BASIC);
+    }
+
+    public static TerrainSnapshot sample(
+            @Nonnull World world,
+            int chunkX,
+            int chunkZ,
+            boolean includeCosmeticDetails,
+            @Nonnull VisualDetailMode visualDetailMode
+    ) {
+        long chunkIndex = ChunkUtil.indexChunk(chunkX, chunkZ);
+        WorldChunk chunk = world.getChunkIfLoaded(chunkIndex);
+        if (chunk == null) {
+            chunk = world.getNonTickingChunk(chunkIndex);
+        }
+        if (chunk == null) {
+            throw new IllegalStateException("Chunk " + chunkX + "," + chunkZ + " is not available.");
+        }
+
+        TerrainColumn[] columns = new TerrainColumn[TerrainSnapshot.CHUNK_SIZE * TerrainSnapshot.CHUNK_SIZE];
+        List<TerrainDetail> details = new ArrayList<>();
+        int nonEmpty = 0;
+        int minY = Integer.MAX_VALUE;
+        int maxY = Integer.MIN_VALUE;
+
+        for (int z = 0; z < TerrainSnapshot.CHUNK_SIZE; z++) {
+            for (int x = 0; x < TerrainSnapshot.CHUNK_SIZE; x++) {
+                short height = chunk.getHeight(x, z);
+                SampledColumn sampled = sampleColumn(chunk, x, z, height, includeCosmeticDetails, visualDetailMode);
+                TerrainColumn column = sampled.column();
+                columns[z * TerrainSnapshot.CHUNK_SIZE + x] = column;
+                details.addAll(sampled.details());
+                if (!column.empty()) {
+                    nonEmpty++;
+                    minY = Math.min(minY, column.y());
+                    maxY = Math.max(maxY, column.y());
+                }
+            }
+        }
+
+        if (nonEmpty == 0) {
+            minY = 0;
+            maxY = 0;
+        }
+
+        return new TerrainSnapshot(world.getName(), chunkX, chunkZ, columns, details.toArray(TerrainDetail[]::new), nonEmpty, minY, maxY);
+    }
+
+    private static SampledColumn sampleColumn(
+            @Nonnull WorldChunk chunk,
+            int localX,
+            int localZ,
+            short height,
+            boolean includeCosmeticDetails,
+            @Nonnull VisualDetailMode visualDetailMode
+    ) {
+        if (height < 0) {
+            return new SampledColumn(new TerrainColumn(localX, localZ, -1, 0, 0, "EMPTY", 0x000000, false), List.of());
+        }
+
+        SurfaceFluid surfaceFluid = surfaceFluid(chunk, localX, localZ, height);
+        if (surfaceFluid.present()) {
+            List<TerrainDetail> details = includeCosmeticDetails
+                    ? collectOccupiedDetailVoxels(
+                            chunk,
+                            localX,
+                            localZ,
+                            surfaceFluid.y() + 1,
+                            Math.max(surfaceFluid.y(), highestOccupiedY(
+                                    chunk,
+                                    localX,
+                                    localZ,
+                                    surfaceFluid.y() + 1,
+                                    surfaceFluid.y() + OCCUPIED_DETAIL_SCAN_ABOVE_HEIGHTMAP)),
+                            visualDetailMode)
+                    : List.of();
+            return new SampledColumn(new TerrainColumn(
+                    localX,
+                    localZ,
+                    surfaceFluid.y(),
+                    0,
+                    surfaceFluid.fluidId(),
+                    "FLUID_" + surfaceFluid.fluidId(),
+                    waterColor("water"),
+                    true), details);
+        }
+
+        int topY = includeCosmeticDetails
+                ? Math.max(height, highestOccupiedY(
+                        chunk,
+                        localX,
+                        localZ,
+                        height + 1,
+                        height + OCCUPIED_DETAIL_SCAN_ABOVE_HEIGHTMAP))
+                : height;
+        int blockId = safeBlockId(chunk, localX, topY, localZ);
+        int fluidId = safeFluidId(chunk, localX, topY, localZ);
+        BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+        if (blockType == null || blockId == BlockType.EMPTY_ID) {
+            return new SampledColumn(new TerrainColumn(localX, localZ, height, blockId, fluidId, "EMPTY", 0x000000, false), List.of());
+        }
+        String blockKey = blockType.getId();
+        boolean fluid = fluidId != 0 || isFluidBlock(blockKey);
+        int color = fluid ? waterColor(blockKey) : colorFor(blockType, blockKey, chunk.getTint(localX, localZ));
+        if (!fluid && (isOverlandDetail(blockKey, visualDetailMode)
+                || hasAirGapBelowTop(chunk, localX, localZ, topY)
+                || (includeCosmeticDetails && CosmeticShapeRules.matchesCosmetic(blockKey)))) {
+            return sampleOverlandColumn(chunk, localX, localZ, topY, blockType, blockKey, color, includeCosmeticDetails, visualDetailMode);
+        }
+        return new SampledColumn(new TerrainColumn(localX, localZ, topY, blockId, fluidId, blockKey, color, fluid), List.of());
+    }
+
+    private static SampledColumn sampleOverlandColumn(
+            @Nonnull WorldChunk chunk,
+            int localX,
+            int localZ,
+            int height,
+            BlockType topBlockType,
+            String topBlockKey,
+            int topColor,
+            boolean includeCosmeticDetails,
+            @Nonnull VisualDetailMode visualDetailMode
+    ) {
+        TerrainColumn ground = null;
+        for (int y = height; y >= Math.max(0, height - OVERLAND_SCAN_BELOW_HEIGHTMAP); y--) {
+            int blockId = safeBlockId(chunk, localX, y, localZ);
+            BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+            if (blockType == null || blockId == BlockType.EMPTY_ID) {
+                continue;
+            }
+            String blockKey = blockType.getId();
+            if (!isOverlandDetail(blockKey, visualDetailMode)
+                    && !isFluidBlock(blockKey)
+                    && !isFloatingDetailBlock(chunk, localX, localZ, y, includeCosmeticDetails, visualDetailMode)) {
+                ground = new TerrainColumn(localX, localZ, y, blockId, safeFluidId(chunk, localX, y, localZ),
+                        blockKey, colorFor(blockType, blockKey, chunk.getTint(localX, localZ)), false);
+                break;
+            }
+        }
+
+        if (ground == null) {
+            ground = new TerrainColumn(localX, localZ, height, safeBlockId(chunk, localX, height, localZ),
+                    safeFluidId(chunk, localX, height, localZ), topBlockKey, topColor, false);
+        }
+        List<TerrainDetail> details = new ArrayList<>(collectVegetationDetails(chunk, localX, localZ, ground.y() + 1, height));
+        if (includeCosmeticDetails) {
+            details.addAll(collectOccupiedDetailVoxels(chunk, localX, localZ, ground.y() + 1, height, visualDetailMode));
+            if (visualDetailMode.includesSmallFoliage()) {
+                details.addAll(collectSmallFoliageDetails(chunk, localX, localZ, ground.y() + 1, height));
+            }
+        }
+        return new SampledColumn(ground, details);
+    }
+
+    private static List<TerrainDetail> collectVegetationDetails(
+            @Nonnull WorldChunk chunk,
+            int localX,
+            int localZ,
+            int minY,
+            int maxY
+    ) {
+        if (maxY < minY) {
+            return List.of();
+        }
+
+        List<TerrainDetail> details = new ArrayList<>();
+        for (int y = minY; y <= maxY; y++) {
+            int blockId = safeBlockId(chunk, localX, y, localZ);
+            BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+            if (blockType == null || blockId == BlockType.EMPTY_ID) {
+                continue;
+            }
+            String blockKey = blockType.getId();
+            if (isFluidBlock(blockKey) || (!isVegetationDetail(blockKey) && !isTrunkBlock(blockKey))) {
+                continue;
+            }
+            details.add(new TerrainDetail(
+                    localX,
+                    localZ,
+                    y,
+                    TerrainDetail.Kind.CANOPY_VOXEL,
+                    colorFor(blockType, blockKey, chunk.getTint(localX, localZ)),
+                    TerrainDetail.Shape.FULL,
+                    0,
+                    blockKey));
+        }
+        return details;
+    }
+
+    private static List<TerrainDetail> collectOccupiedDetailVoxels(
+            @Nonnull WorldChunk chunk,
+            int localX,
+            int localZ,
+            int minY,
+            int maxY,
+            @Nonnull VisualDetailMode visualDetailMode
+    ) {
+        if (maxY < minY) {
+            return List.of();
+        }
+
+        List<TerrainDetail> details = new ArrayList<>();
+        for (int y = minY; y <= maxY; y++) {
+            int blockId = safeBlockId(chunk, localX, y, localZ);
+            BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+            if (blockType == null || blockId == BlockType.EMPTY_ID) {
+                continue;
+            }
+            String blockKey = blockType.getId();
+            if (isFluidBlock(blockKey)
+                    || isTrunkBlock(blockKey)
+                    || isVegetationDetail(blockKey)
+                    || (visualDetailMode.includesSmallFoliage() && isSmallFoliageDetail(blockKey))) {
+                continue;
+            }
+            boolean knownCosmetic = CosmeticShapeRules.matchesCosmetic(blockKey);
+            if (!knownCosmetic && !visualDetailMode.includesAllOccupiedDetails()) {
+                continue;
+            }
+            boolean orientedShapes = visualDetailMode.usesSimpleShapes();
+            TerrainDetail.Shape shape = knownCosmetic && orientedShapes
+                    ? CosmeticShapeRules.shapeFor(blockKey)
+                    : TerrainDetail.Shape.FULL;
+            TerrainDetail.Kind kind = knownCosmetic
+                    ? CosmeticShapeRules.kindFor(blockKey, orientedShapes)
+                    : TerrainDetail.Kind.COSMETIC_VOXEL;
+            int rotationIndex = orientedShapes && CosmeticShapeRules.usesBlockRotation(blockKey)
+                    ? safeRotationIndex(chunk, localX, y, localZ)
+                    : 0;
+            details.add(new TerrainDetail(
+                    localX,
+                    localZ,
+                    y,
+                    kind,
+                    colorFor(blockType, blockKey, chunk.getTint(localX, localZ)),
+                    shape,
+                    rotationIndex,
+                    blockKey));
+        }
+        return details;
+    }
+
+    private static List<TerrainDetail> collectSmallFoliageDetails(
+            @Nonnull WorldChunk chunk,
+            int localX,
+            int localZ,
+            int minY,
+            int maxY
+    ) {
+        if (maxY < minY) {
+            return List.of();
+        }
+
+        List<TerrainDetail> details = new ArrayList<>();
+        for (int y = minY; y <= maxY; y++) {
+            int blockId = safeBlockId(chunk, localX, y, localZ);
+            BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+            if (blockType == null || blockId == BlockType.EMPTY_ID) {
+                continue;
+            }
+            String blockKey = blockType.getId();
+            if (isFluidBlock(blockKey) || !isSmallFoliageDetail(blockKey)) {
+                continue;
+            }
+            details.add(new TerrainDetail(
+                    localX,
+                    localZ,
+                    y,
+                    TerrainDetail.Kind.FOLIAGE_SMALL,
+                    colorFor(blockType, blockKey, chunk.getTint(localX, localZ)),
+                    TerrainDetail.Shape.SMALL_FOLIAGE,
+                    0,
+                    blockKey));
+        }
+        return details;
+    }
+
+    private static boolean isFloatingDetailBlock(
+            @Nonnull WorldChunk chunk,
+            int localX,
+            int localZ,
+            int y,
+            boolean includeCosmeticDetails,
+            @Nonnull VisualDetailMode visualDetailMode
+    ) {
+        int blockId = safeBlockId(chunk, localX, y, localZ);
+        BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+        if (blockType == null || blockId == BlockType.EMPTY_ID) {
+            return false;
+        }
+        String blockKey = blockType.getId();
+        return isOverlandDetail(blockKey, visualDetailMode)
+                || (includeCosmeticDetails && CosmeticShapeRules.matchesCosmetic(blockKey))
+                || CosmeticShapeRules.preferDetailLayer(blockKey, visualDetailMode.usesSimpleShapes())
+                || hasAirGapBelowTop(chunk, localX, localZ, y);
+    }
+
+    private static int highestOccupiedY(@Nonnull WorldChunk chunk, int localX, int localZ, int minY, int maxY) {
+        for (int y = maxY; y >= minY; y--) {
+            int blockId = safeBlockId(chunk, localX, y, localZ);
+            if (blockId != BlockType.EMPTY_ID) {
+                return y;
+            }
+        }
+        return minY - 1;
+    }
+
+    private static boolean hasAirGapBelowTop(@Nonnull WorldChunk chunk, int localX, int localZ, int y) {
+        for (int dy = 1; dy <= FLOATING_DETAIL_AIR_CHECK_DEPTH && y - dy >= 0; dy++) {
+            if (safeBlockId(chunk, localX, y - dy, localZ) == BlockType.EMPTY_ID) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static SurfaceFluid surfaceFluid(@Nonnull WorldChunk chunk, int localX, int localZ, int height) {
+        int topFluidY = -1;
+        int topFluidId = 0;
+        for (int dy = 0; dy <= SURFACE_FLUID_SCAN_ABOVE_HEIGHTMAP; dy++) {
+            int y = height + dy;
+            int fluidId = safeFluidId(chunk, localX, y, localZ);
+            if (fluidId != 0) {
+                topFluidY = y;
+                topFluidId = fluidId;
+            }
+        }
+        return new SurfaceFluid(topFluidY, topFluidId);
+    }
+
+    @SuppressWarnings("removal")
+    private static int safeFluidId(@Nonnull WorldChunk chunk, int localX, int y, int localZ) {
+        try {
+            return chunk.getFluidId(localX, y, localZ);
+        } catch (RuntimeException e) {
+            return 0;
+        }
+    }
+
+    private static int safeBlockId(@Nonnull WorldChunk chunk, int localX, int y, int localZ) {
+        try {
+            return chunk.getBlock(localX, y, localZ);
+        } catch (RuntimeException e) {
+            return BlockType.EMPTY_ID;
+        }
+    }
+
+    private static int safeRotationIndex(@Nonnull WorldChunk chunk, int localX, int y, int localZ) {
+        try {
+            return chunk.getRotationIndex(localX, y, localZ);
+        } catch (RuntimeException e) {
+            return 0;
+        }
+    }
+
+    private static int colorFor(BlockType blockType, String blockKey, int chunkTint) {
+        int color = colorFromSdk(blockType);
+        if (color < 0) {
+            color = fallbackColor(blockKey);
+        }
+
+        if (usesBiomeTopTint(blockType)) {
+            color = multiplyRgb(color, normalizeRgb(chunkTint));
+        }
+
+        return color;
+    }
+
+    private static int colorFromSdk(BlockType blockType) {
+        Color computed = blockType.getTextureComputedColor();
+        if (computed != null) {
+            return toRgb(computed);
+        }
+
+        Color[] topTints = blockType.getTintUp();
+        if (topTints != null && topTints.length > 0 && topTints[0] != null) {
+            return toRgb(topTints[0]);
+        }
+
+        Color particle = blockType.getParticleColor();
+        if (particle != null) {
+            return toRgb(particle);
+        }
+
+        return -1;
+    }
+
+    private static boolean usesBiomeTopTint(BlockType blockType) {
+        return blockType.getBiomeTintUp() != 0;
+    }
+
+    private static boolean isFluidBlock(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
+        return key.contains("water")
+                || key.contains("river")
+                || key.contains("ocean")
+                || key.contains("lake");
+    }
+
+    private static boolean isOverlandDetail(String blockKey, @Nonnull VisualDetailMode visualDetailMode) {
+        return isTrunkBlock(blockKey) || isVegetationDetail(blockKey) || (visualDetailMode.includesSmallFoliage() && isSmallFoliageDetail(blockKey));
+    }
+
+    private static boolean isTrunkBlock(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
+        return key.contains("trunk")
+                || key.contains("log")
+                || key.contains("tree_wood")
+                || key.contains("wood_trunk")
+                || key.contains("wood_log")
+                || key.endsWith("/wood")
+                || key.endsWith("_wood");
+    }
+
+    private static boolean isVegetationDetail(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
+        if (key.contains("grass")
+                || key.contains("flower")
+                || key.contains("mushroom")) {
+            return false;
+        }
+        return key.contains("leaf")
+                || key.contains("leaves")
+                || key.contains("foliage")
+                || key.contains("needle")
+                || key.contains("branch")
+                || key.contains("bough")
+                || (key.contains("fir") && !isTrunkBlock(key))
+                || (key.contains("pine") && !isTrunkBlock(key))
+                || (key.contains("spruce") && !isTrunkBlock(key))
+                || (key.contains("conifer") && !isTrunkBlock(key));
+    }
+
+    private static boolean isSmallFoliageDetail(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
+        return key.contains("tall_grass")
+                || key.contains("grass_tuft")
+                || key.contains("grass_blade")
+                || key.contains("flower")
+                || key.contains("mushroom")
+                || key.contains("fern")
+                || key.contains("crop")
+                || key.contains("sprout")
+                || key.contains("sapling");
+    }
+
+    private static int waterColor(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
+        if (key.contains("lava")) return 0xd85d23;
+        if (key.contains("ice")) return 0x9fd7ed;
+        return 0x2a7fb5;
+    }
+
+    private static int toRgb(Color color) {
+        return (Byte.toUnsignedInt(color.red) << 16)
+                | (Byte.toUnsignedInt(color.green) << 8)
+                | Byte.toUnsignedInt(color.blue);
+    }
+
+    private static int normalizeRgb(int rgb) {
+        int value = rgb & 0x00ffffff;
+        return value == 0 ? 0xffffff : value;
+    }
+
+    private static int multiplyRgb(int base, int tint) {
+        int r = ((base >>> 16) & 0xff) * ((tint >>> 16) & 0xff) / 255;
+        int g = ((base >>> 8) & 0xff) * ((tint >>> 8) & 0xff) / 255;
+        int b = (base & 0xff) * (tint & 0xff) / 255;
+        return (r << 16) | (g << 8) | b;
+    }
+
+    private static int fallbackColor(String blockKey) {
+        String key = blockKey == null ? "" : blockKey.toLowerCase(Locale.ROOT);
+        if (key.contains("grass")) return 0x5f9f45;
+        if (key.contains("leaf") || key.contains("leaves") || key.contains("foliage")) return 0x3f7f3f;
+        if (key.contains("dirt") || key.contains("soil") || key.contains("mud")) return 0x7b5a36;
+        if (key.contains("sand")) return 0xc9b46a;
+        if (key.contains("snow") || key.contains("ice")) return 0xd8eef0;
+        if (key.contains("water")) return 0x3f7fbf;
+        if (key.contains("wood") || key.contains("trunk") || key.contains("log")) return 0x8b5a2b;
+        if (key.contains("stone") || key.contains("rock") || key.contains("ore")) return 0x858585;
+
+        int hash = blockKey == null ? 0 : blockKey.hashCode();
+        int r = 96 + ((hash >>> 16) & 0x5f);
+        int g = 96 + ((hash >>> 8) & 0x5f);
+        int b = 96 + (hash & 0x5f);
+        return (r << 16) | (g << 8) | b;
+    }
+
+    private record SurfaceFluid(int y, int fluidId) {
+        boolean present() {
+            return y >= 0 && fluidId != 0;
+        }
+    }
+
+    private record SampledColumn(TerrainColumn column, List<TerrainDetail> details) {
+    }
+
+    public enum VisualDetailMode {
+        BASIC,
+        STRUCTURES,
+        ALL;
+
+        public static VisualDetailMode fromQuery(@Nullable String value) {
+            if (value == null || value.isBlank()) {
+                return ALL;
+            }
+            return switch (value.toLowerCase(Locale.ROOT)) {
+                case "basic", "off" -> BASIC;
+                case "all", "foliage", "structures_foliage", "structures+foliage" -> ALL;
+                default -> STRUCTURES;
+            };
+        }
+
+        boolean usesSimpleShapes() {
+            return this == STRUCTURES || this == ALL;
+        }
+
+        boolean includesSmallFoliage() {
+            return this == ALL;
+        }
+
+        boolean includesAllOccupiedDetails() {
+            return this == STRUCTURES || this == ALL;
+        }
+
+        public String queryValue() {
+            return switch (this) {
+                case BASIC -> "basic";
+                case STRUCTURES -> "structures";
+                case ALL -> "all";
+            };
+        }
+    }
+}

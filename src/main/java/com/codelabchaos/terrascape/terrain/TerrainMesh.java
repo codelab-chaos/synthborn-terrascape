@@ -1,4 +1,4 @@
-package com.codelabchaos.synthworldview.terrain;
+package com.codelabchaos.terrascape.terrain;
 
 public record TerrainMesh(
         TerrainPart opaque,

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 const SUN_RAY_DIRECTION = new THREE.Vector3(0.55, -0.82, 0.22).normalize();
 const SHADE_CLUSTER_SIZE = 7;
 const MAX_SHADES_PER_CHUNK = 72;
-const TREE_SHADE_KEY = 'worldviewTreeShade';
+const TREE_SHADE_KEY = 'terrascapeTreeShade';
 const DAY_SKY_TOP = new THREE.Color(0x3d86cf);
 const DAY_SKY_HORIZON = new THREE.Color(0x88badd);
 const NIGHT_SKY_TOP = new THREE.Color(0x0b182a);
@@ -100,7 +100,7 @@ export function applyLightingEnvironment(scene, renderer, rig, options) {
 
   scene.background = skyHorizon.clone().lerp(skyTop, 0.38);
   const fogRange = normalizeFogRange(options.fogRange, daylight);
-  scene.userData.worldviewFog = {
+  scene.userData.terrascapeFog = {
     color: fogColor.clone(),
     near: fogRange.near,
     far: fogRange.far,
@@ -154,7 +154,7 @@ export function createTreeShadeObject(chunkObject, options) {
     color: 0x1f3325,
   });
   const mesh = new THREE.InstancedMesh(geometry, material, clusters.length);
-  mesh.name = 'worldview-tree-shade';
+  mesh.name = 'terrascape-tree-shade';
   mesh.userData[TREE_SHADE_KEY] = true;
   mesh.userData.clusters = clusters;
   mesh.renderOrder = -2;
@@ -456,10 +456,10 @@ function applyMaterialLightResponse(mesh, options) {
   const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
   for (const material of materials) {
     if (!material) continue;
-    if (material.color && material.userData?.worldviewWater !== true) {
+    if (material.color && material.userData?.terrascapeWater !== true) {
       material.color.copy(terrainTint);
     }
-    material.roughness = material.userData?.worldviewWater ? 0.38 : 0.88;
+    material.roughness = material.userData?.terrascapeWater ? 0.38 : 0.88;
     material.metalness = 0;
     material.needsUpdate = true;
   }
@@ -579,11 +579,11 @@ function sampleGroundY(heights, x, z) {
 }
 
 function isDetailMesh(mesh) {
-  return materialsFor(mesh).some((material) => material?.name === 'worldview-detail');
+  return materialsFor(mesh).some((material) => material?.name === 'terrascape-detail');
 }
 
 function isWaterMesh(mesh) {
-  return materialsFor(mesh).some((material) => material?.name === 'worldview-water' || material?.userData?.worldviewWater === true);
+  return materialsFor(mesh).some((material) => material?.name === 'terrascape-water' || material?.userData?.terrascapeWater === true);
 }
 
 function materialsFor(mesh) {
@@ -604,6 +604,6 @@ function getShadeTexture() {
   context.fillStyle = gradient;
   context.fillRect(0, 0, 128, 128);
   shadeTexture = new THREE.CanvasTexture(canvas);
-  shadeTexture.name = 'worldview-tree-shade-gradient';
+  shadeTexture.name = 'terrascape-tree-shade-gradient';
   return shadeTexture;
 }

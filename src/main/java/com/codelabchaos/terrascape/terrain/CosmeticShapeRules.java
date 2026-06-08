@@ -1,4 +1,4 @@
-package com.codelabchaos.synthworldview.terrain;
+package com.codelabchaos.terrascape.terrain;
 
 import javax.annotation.Nullable;
 import java.util.Locale;

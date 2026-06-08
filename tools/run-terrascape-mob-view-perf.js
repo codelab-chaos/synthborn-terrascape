@@ -16,7 +16,7 @@ const CHUNK_LOADER = {
 tryPlaceChunkLoader();
 
 run('node', [
-  'tools/run-worldview-perf.js',
+  'tools/run-terrascape-perf.js',
   '--extensive',
   '--config',
   'tools/perf-suite-mob-view.json',

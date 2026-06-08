@@ -6,7 +6,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 const DEFAULT_FOG_COLOR = new THREE.Color(0xd9f3f2);
 
 const DEPTH_FOG_SHADER = {
-  name: 'SynthWorldviewDepthFog',
+  name: 'SynthTerrascapeDepthFog',
   uniforms: {
     tDiffuse: { value: null },
     tDepth: { value: null },
@@ -133,7 +133,7 @@ function ensureDepthTexture(target) {
   target.depthTexture = new THREE.DepthTexture(target.width, target.height);
   target.depthTexture.format = THREE.DepthFormat;
   target.depthTexture.type = THREE.UnsignedShortType;
-  target.depthTexture.name = 'worldview-postprocess-depth';
+  target.depthTexture.name = 'terrascape-postprocess-depth';
 }
 
 function setDepthTextureUniform(composer, fogPass) {

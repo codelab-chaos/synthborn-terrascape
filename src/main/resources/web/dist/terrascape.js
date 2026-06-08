@@ -297,7 +297,7 @@ function fogControlOptions() {
         far: range.far,
         strength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, 0.9),
         horizonStrength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, 0.65),
-        color: scene.userData.worldviewFog?.color ?? scene.background,
+        color: scene.userData.terrascapeFog?.color ?? scene.background,
     };
 }
 function setStatus(text) {
@@ -2237,7 +2237,7 @@ function updateEntityVisibility() {
     }
 }
 function exposeDebugState() {
-    window.__synthWorldviewDebug = {
+    window.__synthTerrascapeDebug = {
         fpsCounter,
         loadedChunks,
         playerMarkers,
@@ -2391,7 +2391,7 @@ function waterMaterialSummary() {
                 return;
             const materials = Array.isArray(object.material) ? object.material : [object.material];
             for (const material of materials) {
-                if (material?.name !== 'worldview-water' && material?.userData?.worldviewWater !== true)
+                if (material?.name !== 'terrascape-water' && material?.userData?.terrascapeWater !== true)
                     continue;
                 summaries.push({
                     type: material.type,
@@ -2400,7 +2400,7 @@ function waterMaterialSummary() {
                     fog: material.fog === true,
                     transparent: material.transparent === true,
                     opacity: material.opacity,
-                    color: material.userData?.worldviewWaterColor ? displayColor(material.userData.worldviewWaterColor) : null,
+                    color: material.userData?.terrascapeWaterColor ? displayColor(material.userData.terrascapeWaterColor) : null,
                     alpha: material.uniforms?.alpha?.value ?? null,
                     time: material.uniforms?.time?.value ?? null,
                     waveHeight: material.uniforms?.waveHeight?.value ?? null,
@@ -2747,12 +2747,12 @@ function applyMaterialOpacity(object, opacityScale) {
         return;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     for (const material of materials) {
-        if (!material || material.userData?.worldviewShared === true)
+        if (!material || material.userData?.terrascapeShared === true)
             continue;
-        const baseOpacity = Number.isFinite(material.userData.worldviewBaseOpacity)
-            ? material.userData.worldviewBaseOpacity
+        const baseOpacity = Number.isFinite(material.userData.terrascapeBaseOpacity)
+            ? material.userData.terrascapeBaseOpacity
             : material.opacity;
-        material.userData.worldviewBaseOpacity = baseOpacity;
+        material.userData.terrascapeBaseOpacity = baseOpacity;
         const nextOpacity = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(baseOpacity * opacityScale, 0, 1);
         if (Math.abs((material.opacity ?? 1) - nextOpacity) < 0.003)
             continue;
@@ -2931,7 +2931,7 @@ window.addEventListener('mousemove', (event) => {
     flyPitch -= event.movementY * FLY_MOUSE_SENSITIVITY;
     applyFlyLook();
 });
-window.addEventListener('worldview:map-backdrop-loaded', applyMapWaterTint);
+window.addEventListener('terrascape:map-backdrop-loaded', applyMapWaterTint);
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.addEventListener('change', updateDebugBounds);
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.addEventListener('change', saveViewState);
 _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.addEventListener('change', () => {
@@ -4061,7 +4061,7 @@ async function loadMapTilePng(world, chunkX, chunkZ) {
         throw new Error(`Map tile request failed: ${response.status}`);
     }
     const bytes = await response.arrayBuffer();
-    const source = response.headers.get('X-Worldview-Cache') ?? 'other';
+    const source = response.headers.get('X-Terrascape-Cache') ?? 'other';
     (0,_client_log_js__WEBPACK_IMPORTED_MODULE_0__.logClientTiming)('map_tile_single_load', started, { world, chunkX, chunkZ, bytes: bytes.byteLength, source });
     return { bytes, source };
 }
@@ -4155,7 +4155,7 @@ __webpack_require__.r(__webpack_exports__);
 const SUN_RAY_DIRECTION = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3(0.55, -0.82, 0.22).normalize();
 const SHADE_CLUSTER_SIZE = 7;
 const MAX_SHADES_PER_CHUNK = 72;
-const TREE_SHADE_KEY = 'worldviewTreeShade';
+const TREE_SHADE_KEY = 'terrascapeTreeShade';
 const DAY_SKY_TOP = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x3d86cf);
 const DAY_SKY_HORIZON = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x88badd);
 const NIGHT_SKY_TOP = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0x0b182a);
@@ -4247,7 +4247,7 @@ function applyLightingEnvironment(scene, renderer, rig, options) {
     updateSkyDisc(rig.moonDisc, sunPosition.clone().negate(), night, 980);
     scene.background = skyHorizon.clone().lerp(skyTop, 0.38);
     const fogRange = normalizeFogRange(options.fogRange, daylight);
-    scene.userData.worldviewFog = {
+    scene.userData.terrascapeFog = {
         color: fogColor.clone(),
         near: fogRange.near,
         far: fogRange.far,
@@ -4298,7 +4298,7 @@ function createTreeShadeObject(chunkObject, options) {
         color: 0x1f3325,
     });
     const mesh = new three__WEBPACK_IMPORTED_MODULE_0__.InstancedMesh(geometry, material, clusters.length);
-    mesh.name = 'worldview-tree-shade';
+    mesh.name = 'terrascape-tree-shade';
     mesh.userData[TREE_SHADE_KEY] = true;
     mesh.userData.clusters = clusters;
     mesh.renderOrder = -2;
@@ -4576,10 +4576,10 @@ function applyMaterialLightResponse(mesh, options) {
     for (const material of materials) {
         if (!material)
             continue;
-        if (material.color && material.userData?.worldviewWater !== true) {
+        if (material.color && material.userData?.terrascapeWater !== true) {
             material.color.copy(terrainTint);
         }
-        material.roughness = material.userData?.worldviewWater ? 0.38 : 0.88;
+        material.roughness = material.userData?.terrascapeWater ? 0.38 : 0.88;
         material.metalness = 0;
         material.needsUpdate = true;
     }
@@ -4696,10 +4696,10 @@ function sampleGroundY(heights, x, z) {
     return Number.isFinite(bestY) ? bestY : 100;
 }
 function isDetailMesh(mesh) {
-    return materialsFor(mesh).some((material) => material?.name === 'worldview-detail');
+    return materialsFor(mesh).some((material) => material?.name === 'terrascape-detail');
 }
 function isWaterMesh(mesh) {
-    return materialsFor(mesh).some((material) => material?.name === 'worldview-water' || material?.userData?.worldviewWater === true);
+    return materialsFor(mesh).some((material) => material?.name === 'terrascape-water' || material?.userData?.terrascapeWater === true);
 }
 function materialsFor(mesh) {
     if (!mesh.material)
@@ -4720,7 +4720,7 @@ function getShadeTexture() {
     context.fillStyle = gradient;
     context.fillRect(0, 0, 128, 128);
     shadeTexture = new three__WEBPACK_IMPORTED_MODULE_0__.CanvasTexture(canvas);
-    shadeTexture.name = 'worldview-tree-shade-gradient';
+    shadeTexture.name = 'terrascape-tree-shade-gradient';
     return shadeTexture;
 }
 
@@ -5394,7 +5394,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   writeMapTileCache: () => (/* binding */ writeMapTileCache),
 /* harmony export */   writeTerrainCache: () => (/* binding */ writeTerrainCache)
 /* harmony export */ });
-const DB_NAME = 'synthworldview-cache';
+const DB_NAME = 'synthborn-terrascape-cache';
+const LEGACY_DB_NAME = 'synthworldview-cache';
+const CACHE_MIGRATION_KEY = 'synthborn-terrascape.cacheMigrated';
 const DB_VERSION = 2;
 const TERRAIN_STORE = 'terrainMeshes';
 const MAP_TILE_STORE = 'mapTileTextures';
@@ -5526,15 +5528,48 @@ async function clearStore(db, storeName) {
     await transactionPromise(transaction);
     return count;
 }
-function openDb() {
-    if (dbPromise)
-        return dbPromise;
-    if (!window.indexedDB) {
-        dbPromise = Promise.reject(new Error('IndexedDB unavailable'));
-        return dbPromise;
+function openLegacyDb() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(LEGACY_DB_NAME, DB_VERSION);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+        request.onblocked = () => reject(new Error('IndexedDB open blocked'));
+    });
+}
+async function migrateLegacyMeshCacheIfNeeded() {
+    if (window.localStorage.getItem(CACHE_MIGRATION_KEY) === '1')
+        return;
+    try {
+        const legacyDb = await openLegacyDb();
+        const nextDb = await openDatabase(DB_NAME);
+        for (const storeName of [TERRAIN_STORE, MAP_TILE_STORE]) {
+            const records = await readAllStoreRecords(legacyDb, storeName);
+            if (records.length === 0)
+                continue;
+            const transaction = nextDb.transaction(storeName, 'readwrite');
+            const store = transaction.objectStore(storeName);
+            for (const record of records) {
+                store.put(record);
+            }
+            await transactionPromise(transaction);
+        }
+        legacyDb.close();
+        window.localStorage.setItem(CACHE_MIGRATION_KEY, '1');
     }
-    dbPromise = new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
+    catch {
+        // Legacy cache missing or migration not possible; fresh cache is fine.
+    }
+}
+function readAllStoreRecords(db, storeName) {
+    return new Promise((resolve, reject) => {
+        const request = db.transaction(storeName, 'readonly').objectStore(storeName).getAll();
+        request.onsuccess = () => resolve(request.result ?? []);
+        request.onerror = () => reject(request.error);
+    });
+}
+function openDatabase(name) {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(name, DB_VERSION);
         request.onupgradeneeded = () => {
             const db = request.result;
             if (!db.objectStoreNames.contains(TERRAIN_STORE)) {
@@ -5548,6 +5583,15 @@ function openDb() {
         request.onerror = () => reject(request.error);
         request.onblocked = () => reject(new Error('IndexedDB open blocked'));
     });
+}
+function openDb() {
+    if (dbPromise)
+        return dbPromise;
+    if (!window.indexedDB) {
+        dbPromise = Promise.reject(new Error('IndexedDB unavailable'));
+        return dbPromise;
+    }
+    dbPromise = migrateLegacyMeshCacheIfNeeded().then(() => openDatabase(DB_NAME));
     return dbPromise;
 }
 function requestPromise(request) {
@@ -6364,7 +6408,7 @@ function createMobHeadshotBlock(mob) {
     mesh.renderOrder = 20;
     mesh.castShadow = false;
     mesh.receiveShadow = false;
-    mesh.userData.worldviewMobHeadshot = true;
+    mesh.userData.terrascapeMobHeadshot = true;
     updateMobHeadshotBlockMesh(mesh, mob);
     return mesh;
 }
@@ -6419,7 +6463,7 @@ function mobHeadshotResource(mob) {
     if (iconUrl) {
         mobHeadshotTextureLoader.load(iconUrl, (texture) => {
             texture.colorSpace = three__WEBPACK_IMPORTED_MODULE_0__.SRGBColorSpace;
-            texture.userData.worldviewShared = true;
+            texture.userData.terrascapeShared = true;
             const image = texture.image;
             const imageWidth = image?.width ?? 1;
             const imageHeight = image?.height ?? 1;
@@ -6436,7 +6480,7 @@ function mobHeadshotResource(mob) {
                 opacity: 1,
                 depthWrite: true,
             });
-            imageMaterial.userData.worldviewShared = true;
+            imageMaterial.userData.terrascapeShared = true;
             entry.materials = mobHeadshotFaceMaterials(imageMaterial, capMaterial);
             for (const mesh of entry.meshes) {
                 if (mesh.userData.materialKey !== key)
@@ -6460,7 +6504,7 @@ function createMobHeadshotGeometry(bounds, imageWidth = bounds?.width, imageHeig
     const height = (0,_utils_js__WEBPACK_IMPORTED_MODULE_2__.clamp)(safeHeight * pixelWorldSize, MOB_HEADSHOT_BLOCK_MIN_SIZE, MOB_HEADSHOT_BLOCK_HEIGHT);
     const depth = width;
     const geometry = new three__WEBPACK_IMPORTED_MODULE_0__.BoxGeometry(width, height, depth);
-    geometry.userData.worldviewShared = true;
+    geometry.userData.terrascapeShared = true;
     geometry.userData.mobHeadshotSize = {
         imageWidth: Math.max(1, Number(imageWidth) || safeWidth),
         imageHeight: sourceHeight,
@@ -6549,7 +6593,7 @@ function sharedMobHeadshotSideMaterial(color) {
         opacity: 1,
         depthWrite: true,
     });
-    material.userData.worldviewShared = true;
+    material.userData.terrascapeShared = true;
     return material;
 }
 function sharedMobHeadshotCapMaterial(color) {
@@ -6560,7 +6604,7 @@ function sharedMobHeadshotCapMaterial(color) {
         opacity: 1,
         depthWrite: true,
     });
-    material.userData.worldviewShared = true;
+    material.userData.terrascapeShared = true;
     return material;
 }
 function mobHeadshotFaceMaterials(sideMaterial, capMaterial) {
@@ -6618,18 +6662,18 @@ function updateMarkerCardHeight(marker, cardHeight) {
 }
 function disposeObject(root) {
     root.traverse((object) => {
-        if (object.userData?.worldviewMobHeadshot && object.userData.materialKey) {
+        if (object.userData?.terrascapeMobHeadshot && object.userData.materialKey) {
             mobHeadshotMaterials.get(object.userData.materialKey)?.meshes.delete(object);
         }
-        if (object.geometry && object.geometry.userData?.worldviewShared !== true)
+        if (object.geometry && object.geometry.userData?.terrascapeShared !== true)
             object.geometry.dispose();
         if (object.material) {
             const materials = Array.isArray(object.material) ? object.material : [object.material];
             for (const material of materials) {
-                if (material?.userData?.worldviewShared === true)
+                if (material?.userData?.terrascapeShared === true)
                     continue;
                 for (const value of Object.values(material)) {
-                    if (value?.isTexture && value.userData?.worldviewShared !== true)
+                    if (value?.isTexture && value.userData?.terrascapeShared !== true)
                         value.dispose();
                 }
                 material.dispose();
@@ -6664,7 +6708,7 @@ __webpack_require__.r(__webpack_exports__);
 
 const DEFAULT_FOG_COLOR = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xd9f3f2);
 const DEPTH_FOG_SHADER = {
-    name: 'SynthWorldviewDepthFog',
+    name: 'SynthTerrascapeDepthFog',
     uniforms: {
         tDiffuse: { value: null },
         tDepth: { value: null },
@@ -6780,7 +6824,7 @@ function ensureDepthTexture(target) {
     target.depthTexture = new three__WEBPACK_IMPORTED_MODULE_0__.DepthTexture(target.width, target.height);
     target.depthTexture.format = three__WEBPACK_IMPORTED_MODULE_0__.DepthFormat;
     target.depthTexture.type = three__WEBPACK_IMPORTED_MODULE_0__.UnsignedShortType;
-    target.depthTexture.name = 'worldview-postprocess-depth';
+    target.depthTexture.name = 'terrascape-postprocess-depth';
 }
 function setDepthTextureUniform(composer, fogPass) {
     ensureDepthTexture(composer.readBuffer);
@@ -6960,10 +7004,18 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   saveStoredViewState: () => (/* binding */ saveStoredViewState),
 /* harmony export */   vectorState: () => (/* binding */ vectorState)
 /* harmony export */ });
-const VIEW_STATE_KEY = 'synthworldview.viewState.v1';
+const VIEW_STATE_KEY = 'synthborn-terrascape.viewState.v1';
+const LEGACY_VIEW_STATE_KEY = 'synthworldview.viewState.v1';
 function loadStoredViewState() {
     try {
-        const raw = window.localStorage.getItem(VIEW_STATE_KEY);
+        let raw = window.localStorage.getItem(VIEW_STATE_KEY);
+        if (!raw) {
+            raw = window.localStorage.getItem(LEGACY_VIEW_STATE_KEY);
+            if (raw) {
+                window.localStorage.setItem(VIEW_STATE_KEY, raw);
+                window.localStorage.removeItem(LEGACY_VIEW_STATE_KEY);
+            }
+        }
         return raw ? JSON.parse(raw) : null;
     }
     catch (error) {
@@ -7174,7 +7226,7 @@ function tintWaterMaterialsFromMap(root, sampleMapColor) {
             if (material.uniforms?.waterColor) {
                 material.uniforms.waterColor.value.copy(tint);
             }
-            material.userData.worldviewWaterColor = tint.clone();
+            material.userData.terrascapeWaterColor = tint.clone();
             material.needsUpdate = true;
         }
     });
@@ -7212,18 +7264,18 @@ function updateWaterMaterials(scene, renderer, elapsedSeconds, camera) {
     }
 }
 function isWaterMaterial(material) {
-    return material?.userData?.worldviewWater === true || material?.name === 'worldview-water';
+    return material?.userData?.terrascapeWater === true || material?.name === 'terrascape-water';
 }
 function prepareWaterMaterial(material) {
     if (!isWaterMaterial(material))
         return material;
-    if (material.isShaderMaterial && material.userData?.worldviewWater === true) {
+    if (material.isShaderMaterial && material.userData?.terrascapeWater === true) {
         trackWaterMaterial(material);
         return material;
     }
     const waterColor = material.color?.clone?.() ?? FALLBACK_MAP_WATER_COLOR.clone();
     const waterMaterial = new three__WEBPACK_IMPORTED_MODULE_0__.ShaderMaterial({
-        name: 'worldview-water',
+        name: 'terrascape-water',
         vertexShader: waterVertexShader,
         fragmentShader: waterFragmentShader,
         uniforms: {
@@ -7248,10 +7300,10 @@ function prepareWaterMaterial(material) {
         fog: false,
         toneMapped: false,
     });
-    waterMaterial.name = 'worldview-water';
-    waterMaterial.userData.worldviewWater = true;
-    waterMaterial.userData.worldviewOriginalVertexColors = material.vertexColors;
-    waterMaterial.userData.worldviewWaterColor = waterColor.clone();
+    waterMaterial.name = 'terrascape-water';
+    waterMaterial.userData.terrascapeWater = true;
+    waterMaterial.userData.terrascapeOriginalVertexColors = material.vertexColors;
+    waterMaterial.userData.terrascapeWaterColor = waterColor.clone();
     waterMaterial.transparent = true;
     waterMaterial.opacity = WATER_DEFAULTS.waterOpacity;
     waterMaterial.toneMapped = false;
@@ -7261,9 +7313,9 @@ function prepareWaterMaterial(material) {
 }
 function trackWaterMaterial(material) {
     trackedWaterMaterials.add(material);
-    if (material.userData.worldviewWaterDisposeTracked === true)
+    if (material.userData.terrascapeWaterDisposeTracked === true)
         return;
-    material.userData.worldviewWaterDisposeTracked = true;
+    material.userData.terrascapeWaterDisposeTracked = true;
     material.addEventListener('dispose', () => trackedWaterMaterials.delete(material));
 }
 function trackWaterMesh(mesh) {
@@ -7275,7 +7327,7 @@ function reflectionTexture() {
 function ensureReflectionTarget() {
     if (!reflectionTarget) {
         reflectionTarget = new three__WEBPACK_IMPORTED_MODULE_0__.WebGLRenderTarget(512, 512);
-        reflectionTarget.texture.name = 'worldview-water-reflection';
+        reflectionTarget.texture.name = 'terrascape-water-reflection';
     }
     return reflectionTarget;
 }
@@ -7347,7 +7399,7 @@ function setWaterAlpha(material, alpha) {
     }
 }
 function setWaterShaderActive(material, active) {
-    material.userData.worldviewWaterShaderActive = active;
+    material.userData.terrascapeWaterShaderActive = active;
     if (material.uniforms?.shaderMix) {
         material.uniforms.shaderMix.value = active ? 1.0 : 0.0;
     }
@@ -7360,7 +7412,7 @@ function setWaterShaderActive(material, active) {
 }
 function hasActiveShaderWater() {
     for (const material of trackedWaterMaterials) {
-        if (material.visible !== false && material.userData?.worldviewWaterShaderActive === true) {
+        if (material.visible !== false && material.userData?.terrascapeWaterShaderActive === true) {
             return true;
         }
     }

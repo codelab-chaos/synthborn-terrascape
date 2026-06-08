@@ -1,1 +1,1 @@
-rootProject.name = "SynthWorldview"
+rootProject.name = "SynthTerrascape"

@@ -9,7 +9,7 @@ module.exports = {
   entry: path.join(webSrc, 'app.ts'),
   output: {
     path: path.join(webRoot, 'dist'),
-    filename: 'worldview.js',
+    filename: 'terrascape.js',
     clean: true,
     chunkFormat: 'module',
     library: {

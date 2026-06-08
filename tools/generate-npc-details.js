@@ -2,8 +2,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const worldviewRoot = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(worldviewRoot, '..', '..');
+const terrascapeRoot = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(terrascapeRoot, '..', '..');
 const serverRoot = path.join(repoRoot, '_Assets', 'Server');
 const rolesRoot = path.join(repoRoot, '_Assets', 'Server', 'NPC', 'Roles');
 const iconsRoot = path.join(repoRoot, '_Assets', 'Common', 'Icons', 'ModelsGenerated');
@@ -19,7 +19,7 @@ const labelsPath = path.join(
   'en-US-labels.properties',
 );
 const outputPath = path.join(
-  worldviewRoot,
+  terrascapeRoot,
   'src',
   'main',
   'resources',

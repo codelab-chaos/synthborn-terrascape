@@ -1,4 +1,4 @@
-package com.codelabchaos.synthworldview.web;
+package com.codelabchaos.terrascape.web;
 
 import com.hypixel.hytale.protocol.packets.worldmap.MapImage;
 

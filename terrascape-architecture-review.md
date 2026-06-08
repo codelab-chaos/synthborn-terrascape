@@ -1,4 +1,4 @@
-# SynthWorldview Architecture and Performance Review
+# SynthTerrascape Architecture and Performance Review
 
 Date: 2026-06-05
 
@@ -6,7 +6,7 @@ Goal: maximize visible voxel terrain first, then map tiles, while preserving a u
 
 ## Executive Summary
 
-SynthWorldview has the right core shape: server-side terrain sampling and mesh generation, client-side Three.js rendering, disk and memory caches on both sides, and smoke/perf tooling that exercises the real deployed app. The biggest limit is not one bad algorithm. It is ownership drift: the two largest files have become runtime coordinators, service layers, data stores, debug surfaces, and UI controllers at the same time.
+SynthTerrascape has the right core shape: server-side terrain sampling and mesh generation, client-side Three.js rendering, disk and memory caches on both sides, and smoke/perf tooling that exercises the real deployed app. The biggest limit is not one bad algorithm. It is ownership drift: the two largest files have become runtime coordinators, service layers, data stores, debug surfaces, and UI controllers at the same time.
 
 The highest-value work is to split the pipeline by ownership and make the loading path explicitly staged:
 
@@ -24,8 +24,8 @@ That keeps the current tween, but makes the scene fill faster because data fetch
 
 Main files:
 
-- `SynthWorldviewPlugin.java`: plugin lifecycle, settings, command registration, web server construction.
-- `WorldviewWebServer.java`: HTTP routing, static web serving, terrain API, map tile API, map region API, player API, mob API, entity SSE stream, avatars, asset/icon lookup, JSON parsing, memory caches, disk caches, metrics, and debug formatting.
+- `SynthTerrascapePlugin.java`: plugin lifecycle, settings, command registration, web server construction.
+- `TerrascapeWebServer.java`: HTTP routing, static web serving, terrain API, map tile API, map region API, player API, mob API, entity SSE stream, avatars, asset/icon lookup, JSON parsing, memory caches, disk caches, metrics, and debug formatting.
 - `TerrainSampler.java`: chunk-to-column/detail sampling.
 - `TerrainMesher.java`: column/detail-to-surface mesh generation.
 - `GltfWriter.java`: GLB serialization.
@@ -63,9 +63,9 @@ The frontend map tile path is:
 
 ## Ownership and Coupling Issues
 
-### 1. `WorldviewWebServer.java` has too many reasons to change
+### 1. `TerrascapeWebServer.java` has too many reasons to change
 
-`WorldviewWebServer.java` is about 3,644 lines and owns unrelated concerns:
+`TerrascapeWebServer.java` is about 3,644 lines and owns unrelated concerns:
 
 - HTTP routing and response helpers.
 - Static file serving.
@@ -85,7 +85,7 @@ Recommendation:
 - Extract `MapTileService`: map tile memory/disk cache, pending tile coalescing, map manager access, PNG encoding.
 - Extract `EntityFeedService`: player snapshots, mob snapshots, SSE JSON generation.
 - Extract `StaticAssetService`: static web resources, generated mob icons, player avatars.
-- Leave `WorldviewWebServer` as a thin router that validates method/path and delegates.
+- Leave `TerrascapeWebServer` as a thin router that validates method/path and delegates.
 
 This is a lossless simplification if done by moving code without changing behavior. It will make the later performance changes much safer.
 
@@ -294,8 +294,8 @@ Lossless improvement:
 Proposed Java package boundaries:
 
 ```text
-com.codelabchaos.synthworldview
-  SynthWorldviewPlugin
+com.codelabchaos.terrascape
+  SynthTerrascapePlugin
   commands/
   terrain/
     TerrainSampler
@@ -313,14 +313,14 @@ com.codelabchaos.synthworldview
     EntityStreamService
     NpcRoleIndex
   web/
-    WorldviewWebServer
+    TerrascapeWebServer
     RouteHandlers
     HttpResponses
     RequestParsers
     StaticResourceHandler
 ```
 
-`WorldviewWebServer` should know about routes and services, but not how to scan mobs, encode GLB, parse batch JSON with regexes, or evict terrain caches.
+`TerrascapeWebServer` should know about routes and services, but not how to scan mobs, encode GLB, parse batch JSON with regexes, or evict terrain caches.
 
 ### Frontend Module Shape
 
@@ -380,7 +380,7 @@ This makes the hot path testable without driving the full DOM app.
 
 1. Extract `TerrainStreamController` from `app.ts`.
 2. Extract `MapTileController` from `map-backdrop.ts` and `app.ts`.
-3. Extract backend `TerrainService` from `WorldviewWebServer`.
+3. Extract backend `TerrainService` from `TerrascapeWebServer`.
 4. Extract backend `MapTileService`.
 5. Add focused tests around controller scheduling and service cache/coalescing.
 
@@ -460,7 +460,7 @@ These are stricter and more useful than only total route time.
 - Binary terrain format improves speed but reduces inspectability compared with GLB. Keep GLB endpoint as a debug/export path.
 - Greedy meshing can subtly change lighting if it merges across vertex shade differences. Start with exact color/shade matching.
 - Moving decode to workers requires careful transferable ownership and material creation on the main thread.
-- Refactoring `WorldviewWebServer` should be mechanical first; mixing extraction with behavior changes will be difficult to debug.
+- Refactoring `TerrascapeWebServer` should be mechanical first; mixing extraction with behavior changes will be difficult to debug.
 
 ## Recommended Next PR
 

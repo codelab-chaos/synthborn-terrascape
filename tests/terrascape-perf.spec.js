@@ -3,19 +3,19 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const HISTORY_DIR = path.join(__dirname, '..', 'perf-history');
-const HISTORY_FILE = path.join(HISTORY_DIR, 'worldview-perf-history.jsonl');
-const DEFAULT_CENTER_X = Number.parseInt(process.env.WORLDVIEW_PERF_CENTER_X ?? '0', 10);
-const DEFAULT_CENTER_Z = Number.parseInt(process.env.WORLDVIEW_PERF_CENTER_Z ?? '0', 10);
-const DEFAULT_RADIUS = Number.parseInt(process.env.WORLDVIEW_PERF_RADIUS ?? '10', 10);
-const ROUTE_STEPS = Number.parseInt(process.env.WORLDVIEW_PERF_STEPS ?? '4', 10);
-const DEFAULT_FLY_CHUNKS = Number.parseInt(process.env.WORLDVIEW_PERF_FLY_CHUNKS ?? '6', 10);
-const DEFAULT_FLY_SAMPLE_MS = Number.parseInt(process.env.WORLDVIEW_PERF_FLY_SAMPLE_MS ?? '100', 10);
-const MODE = process.env.WORLDVIEW_PERF_MODE ?? 'both';
-const ENFORCE = process.env.WORLDVIEW_PERF_ENFORCE === '1';
-const REGRESSION_FACTOR = Number.parseFloat(process.env.WORLDVIEW_PERF_REGRESSION_FACTOR ?? '1.5');
-const RUN_ID = process.env.WORLDVIEW_PERF_RUN_ID ?? 'single';
-const REPORT_FILE = process.env.WORLDVIEW_PERF_REPORT_FILE ?? '';
-const SUITE_SCENARIOS = parseScenarioPayload(process.env.WORLDVIEW_PERF_SCENARIOS);
+const HISTORY_FILE = path.join(HISTORY_DIR, 'terrascape-perf-history.jsonl');
+const DEFAULT_CENTER_X = Number.parseInt(process.env.TERRASCAPE_PERF_CENTER_X ?? '0', 10);
+const DEFAULT_CENTER_Z = Number.parseInt(process.env.TERRASCAPE_PERF_CENTER_Z ?? '0', 10);
+const DEFAULT_RADIUS = Number.parseInt(process.env.TERRASCAPE_PERF_RADIUS ?? '10', 10);
+const ROUTE_STEPS = Number.parseInt(process.env.TERRASCAPE_PERF_STEPS ?? '4', 10);
+const DEFAULT_FLY_CHUNKS = Number.parseInt(process.env.TERRASCAPE_PERF_FLY_CHUNKS ?? '6', 10);
+const DEFAULT_FLY_SAMPLE_MS = Number.parseInt(process.env.TERRASCAPE_PERF_FLY_SAMPLE_MS ?? '100', 10);
+const MODE = process.env.TERRASCAPE_PERF_MODE ?? 'both';
+const ENFORCE = process.env.TERRASCAPE_PERF_ENFORCE === '1';
+const REGRESSION_FACTOR = Number.parseFloat(process.env.TERRASCAPE_PERF_REGRESSION_FACTOR ?? '1.5');
+const RUN_ID = process.env.TERRASCAPE_PERF_RUN_ID ?? 'single';
+const REPORT_FILE = process.env.TERRASCAPE_PERF_REPORT_FILE ?? '';
+const SUITE_SCENARIOS = parseScenarioPayload(process.env.TERRASCAPE_PERF_SCENARIOS);
 const CHUNK_SIZE = 32;
 const FLY_MOVE_SPEED = 72;
 const FLY_SPRINT_MULTIPLIER = 3;
@@ -33,7 +33,7 @@ const FLY_DIRECTIONS = FLY_DIRECTION_PRESETS.all.map((id) => FLY_DIRECTION_CATAL
 
 test.describe.configure({ timeout: 60 * 60_000 });
 
-test('worldview performance suite', async ({ page }, testInfo) => {
+test('terrascape performance suite', async ({ page }, testInfo) => {
   const scenarios = SUITE_SCENARIOS ?? [legacyScenario()];
   const runResults = [];
   let browserCacheWarmed = false;
@@ -69,7 +69,7 @@ test('worldview performance suite', async ({ page }, testInfo) => {
 
       const regressionFactor = scenario.regressionFactor ?? REGRESSION_FACTOR;
       if (comparison.isRegression(regressionFactor)) {
-        const message = `Worldview perf regression [${scenario.id}/${mode}]: total ${result.totalMs}ms vs history median ${comparison.previousMedianMs}ms (${comparison.ratio.toFixed(2)}x)`;
+        const message = `Terrascape perf regression [${scenario.id}/${mode}]: total ${result.totalMs}ms vs history median ${comparison.previousMedianMs}ms (${comparison.ratio.toFixed(2)}x)`;
         testInfo.annotations.push({ type: 'perf', description: message });
         if (ENFORCE) {
           expect(comparison.isRegression(regressionFactor), message).toBe(false);
@@ -79,10 +79,10 @@ test('worldview performance suite', async ({ page }, testInfo) => {
   }
 
   const report = {
-    kind: 'worldview-perf-run',
+    kind: 'terrascape-perf-run',
     runId: RUN_ID,
     startedAt: runResults[0]?.timestamp ?? new Date().toISOString(),
-    baseURL: process.env.WORLDVIEW_URL ?? 'http://127.0.0.1:5960',
+    baseURL: process.env.TERRASCAPE_URL ?? 'http://127.0.0.1:5960',
     results: runResults,
   };
 
@@ -91,7 +91,7 @@ test('worldview performance suite', async ({ page }, testInfo) => {
     await fs.promises.writeFile(path.resolve(REPORT_FILE), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
   }
 
-  await testInfo.attach('worldview-perf-results', {
+  await testInfo.attach('terrascape-perf-results', {
     body: JSON.stringify(report, null, 2),
     contentType: 'application/json',
   });
@@ -159,8 +159,8 @@ async function runPerfRoute(page, scenario, mode) {
     radius,
     features,
   }));
-  await page.evaluate(() => window.__synthWorldviewDebug.resetGridLoadCount());
-  await page.evaluate(() => window.__synthWorldviewDebug.loadGrid({ focus: true }));
+  await page.evaluate(() => window.__synthTerrascapeDebug.resetGridLoadCount());
+  await page.evaluate(() => window.__synthTerrascapeDebug.loadGrid({ focus: true }));
   await waitForReady(page, { centerX, centerZ, radius, features, world });
   await logPerfEvent(page, 'perf_route_start', {
     scenarioId: scenario.id,
@@ -180,7 +180,7 @@ async function runPerfRoute(page, scenario, mode) {
     const skipGridReload = steps === 0 && step.label === 'center';
     if (!skipGridReload) {
       await page.evaluate(({ x, z }) => {
-        return window.__synthWorldviewDebug.loadGrid({ centerX: x, centerZ: z });
+        return window.__synthTerrascapeDebug.loadGrid({ centerX: x, centerZ: z });
       }, { x: step.x, z: step.z });
       await waitForReady(page, { centerX: step.x, centerZ: step.z, radius, features, world });
     }
@@ -229,13 +229,13 @@ async function runPerfRoute(page, scenario, mode) {
 
   const entityOverlay = stepResults.at(-1)?.entityOverlay ?? null;
   const result = {
-    kind: 'worldview-perf',
+    kind: 'terrascape-perf',
     timestamp: new Date().toISOString(),
     runId: RUN_ID,
     scenarioId: scenario.id,
     scenarioLabel: scenario.label ?? scenario.id,
     mode,
-    baseURL: process.env.WORLDVIEW_URL ?? 'http://127.0.0.1:5960',
+    baseURL: process.env.TERRASCAPE_URL ?? 'http://127.0.0.1:5960',
     world,
     centerX,
     centerZ,
@@ -363,10 +363,10 @@ async function injectEspLoad(page, esp, centerX, centerZ) {
       }
     }
     if (players.length > 0) {
-      window.__synthWorldviewDebug.updatePlayersForTest(players);
+      window.__synthTerrascapeDebug.updatePlayersForTest(players);
     }
     if (mobs.length > 0) {
-      window.__synthWorldviewDebug.scheduleMobsForTest?.(mobs);
+      window.__synthTerrascapeDebug.scheduleMobsForTest?.(mobs);
     }
   }, {
     players,
@@ -376,7 +376,7 @@ async function injectEspLoad(page, esp, centerX, centerZ) {
   });
   if (mobCount > 0) {
     await expect.poll(async () => {
-      return page.evaluate(() => window.__synthWorldviewDebug.mobMarkers.size);
+      return page.evaluate(() => window.__synthTerrascapeDebug.mobMarkers.size);
     }, { timeout: 15_000 }).toBe(mobCount);
   }
   await page.waitForTimeout(400);
@@ -410,7 +410,7 @@ async function focusFlyCanvas(page, alreadyFocused) {
 
 async function setAutoStream(page, enabled) {
   await page.evaluate((value) => {
-    window.__synthWorldviewDebug.setAutoStream(value);
+    window.__synthTerrascapeDebug.setAutoStream(value);
   }, enabled);
 }
 
@@ -424,19 +424,19 @@ async function runFlyLeg(page, { direction, flyChunks, flySprint, flySampleMs, r
   const holdMs = flyHoldMs(flyChunks, flySprint);
   const started = Date.now();
   const before = await page.evaluate(() => ({
-    camera: window.__synthWorldviewDebug.cameraPose().camera,
-    chunk: window.__synthWorldviewDebug.streamAnchorChunk(),
+    camera: window.__synthTerrascapeDebug.cameraPose().camera,
+    chunk: window.__synthTerrascapeDebug.streamAnchorChunk(),
   }));
 
   await page.evaluate(({ dx, dz }) => {
-    const pose = window.__synthWorldviewDebug.cameraPose().camera;
+    const pose = window.__synthTerrascapeDebug.cameraPose().camera;
     const y = pose.y;
-    window.__synthWorldviewDebug.setCameraPose({
+    window.__synthTerrascapeDebug.setCameraPose({
       camera: { x: pose.x, y, z: pose.z },
       target: { x: pose.x + dx * 64, y, z: pose.z + dz * 64 },
     });
   }, { dx: direction.dx, dz: direction.dz });
-  await page.evaluate(() => window.__synthWorldviewDebug.resetJankStats());
+  await page.evaluate(() => window.__synthTerrascapeDebug.resetJankStats());
 
   const fpsSamples = [];
   if (flySprint) await page.keyboard.down('Shift');
@@ -445,8 +445,8 @@ async function runFlyLeg(page, { direction, flyChunks, flySprint, flySampleMs, r
   while (Date.now() < endAt) {
     await page.waitForTimeout(flySampleMs);
     fpsSamples.push(await page.evaluate(() => ({
-      fps: Math.round(window.__synthWorldviewDebug.fpsCounter?.fps ?? 0),
-      frameMs: window.__synthWorldviewDebug.fpsCounter?.frameMs ?? 0,
+      fps: Math.round(window.__synthTerrascapeDebug.fpsCounter?.fps ?? 0),
+      frameMs: window.__synthTerrascapeDebug.fpsCounter?.frameMs ?? 0,
     })));
   }
   await page.keyboard.up(direction.key);
@@ -455,12 +455,12 @@ async function runFlyLeg(page, { direction, flyChunks, flySprint, flySampleMs, r
   await waitForCameraChunkReady(page, { radius, features });
 
   const after = await page.evaluate(() => ({
-    camera: window.__synthWorldviewDebug.cameraPose().camera,
-    chunk: window.__synthWorldviewDebug.streamAnchorChunk(),
-    perf: window.__synthWorldviewDebug.lastPerfTimings(),
-    mapBackdrop: window.__synthWorldviewDebug.mapBackdropStats(),
-    jank: window.__synthWorldviewDebug.jankStats(),
-    chunkPlaceholders: window.__synthWorldviewDebug.chunkPlaceholderWaiting(),
+    camera: window.__synthTerrascapeDebug.cameraPose().camera,
+    chunk: window.__synthTerrascapeDebug.streamAnchorChunk(),
+    perf: window.__synthTerrascapeDebug.lastPerfTimings(),
+    mapBackdrop: window.__synthTerrascapeDebug.mapBackdropStats(),
+    jank: window.__synthTerrascapeDebug.jankStats(),
+    chunkPlaceholders: window.__synthTerrascapeDebug.chunkPlaceholderWaiting(),
   }));
   const distance = Math.hypot(
     after.camera.x - before.camera.x,
@@ -497,7 +497,7 @@ function sumFinite(values) {
 
 async function waitForCameraChunkReady(page, { radius, features }) {
   await page.waitForTimeout(350);
-  const chunk = await page.evaluate(() => window.__synthWorldviewDebug.streamAnchorChunk());
+  const chunk = await page.evaluate(() => window.__synthTerrascapeDebug.streamAnchorChunk());
   await waitForReady(page, {
     centerX: chunk.chunkX,
     centerZ: chunk.chunkZ,
@@ -517,7 +517,7 @@ async function waitForReady(page, { centerX, centerZ, radius, features, world = 
     for (let dx = -radius; dx <= radius; dx++) {
       for (let dz = -radius; dz <= radius; dz++) {
         const id = `${world}:${centerX + dx}:${centerZ + dz}`;
-        if (window.__synthWorldviewDebug.loadedChunks.has(id)) count++;
+        if (window.__synthTerrascapeDebug.loadedChunks.has(id)) count++;
       }
     }
     return count;
@@ -526,7 +526,7 @@ async function waitForReady(page, { centerX, centerZ, radius, features, world = 
   }).toBe(expectedChunks);
 
   if (features.mapTiles !== false) {
-    await expect.poll(async () => page.evaluate(() => window.__synthWorldviewDebug.mapBackdropStats().loaded), {
+    await expect.poll(async () => page.evaluate(() => window.__synthTerrascapeDebug.mapBackdropStats().loaded), {
       timeout: 90_000,
     }).toBe(1);
   }
@@ -534,7 +534,7 @@ async function waitForReady(page, { centerX, centerZ, radius, features, world = 
 
 async function collectStats(page, centerX, centerZ, radius, features, esp) {
   return await page.evaluate(({ centerX, centerZ, radius, features, esp }) => {
-    const debug = window.__synthWorldviewDebug;
+    const debug = window.__synthTerrascapeDebug;
     const mapBackdrop = debug.mapBackdropStats();
     const counter = debug.fpsCounter;
     const gpuText = document.querySelector('#metric-gpu')?.textContent ?? '';
@@ -596,7 +596,7 @@ async function clearBrowserMeshCache(page) {
   await page.goto('/?world=default&chunkX=0&chunkZ=0&radius=0&auto=false&mapTiles=false');
   await page.evaluate(async () => {
     await new Promise((resolve) => {
-      const request = indexedDB.open('synthworldview-cache', 1);
+      const request = indexedDB.open('synthborn-terrascape-cache', 1);
       request.onerror = () => resolve();
       request.onupgradeneeded = () => {
         const db = request.result;

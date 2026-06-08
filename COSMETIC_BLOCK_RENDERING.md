@@ -1,6 +1,6 @@
 # Cosmetic Block Rendering
 
-SynthWorldview has three terrain modes for decorative floating blocks such as roof pieces, planks, beams, posts, torches, fire, lanterns, doors, windows, furniture, crates, and barrels.
+SynthTerrascape has three terrain modes for decorative floating blocks such as roof pieces, planks, beams, posts, torches, fire, lanterns, doors, windows, furniture, crates, and barrels.
 
 The cosmetic rendering path is paired with a `Visual Detail` setting. The default is `Structures + foliage`, so split/baked cosmetic loads exercise the full detail pass unless the URL or saved view state overrides it.
 
