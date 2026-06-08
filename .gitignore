@@ -10,3 +10,6 @@ visual-examples/
 *.log
 *.tmp
 mods/SynthWorldview/src/main/resources/web/mob-icons/
+
+# macOS
+.DS_Store
