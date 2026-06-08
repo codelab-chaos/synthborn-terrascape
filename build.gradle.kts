@@ -11,11 +11,11 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.hypixel.hytale:Server:0.5.3")
+    compileOnly("com.hypixel.hytale:Server:0.5.4")
 
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("com.hypixel.hytale:Server:0.5.3")
+    testImplementation("com.hypixel.hytale:Server:0.5.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
