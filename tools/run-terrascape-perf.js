@@ -14,10 +14,7 @@ const {
   printRunComparison,
   printFeatureIsolation,
 } = require('./library/perf-suite');
-const basecampRoot = path.resolve(__dirname, '..', '..', 'synthborn-basecamp');
-const { resolveTerrascapeUrl } = require(path.join(basecampRoot, 'tools', 'library', 'remote-host'));
 
-const repoRoot = basecampRoot;
 const projectRoot = path.resolve(__dirname, '..');
 const isWindows = process.platform === 'win32';
 const args = process.argv.slice(2);
@@ -82,7 +79,6 @@ for (let i = 0; i < args.length; i++) {
       options.deploy = true;
       break;
     case '--post-deploy':
-      options.build = true;
       options.deploy = true;
       break;
     case '--clear-server-cache':
@@ -145,11 +141,11 @@ if (isSuiteRun) {
   console.log('Perf suite: default (legacy single scenario)');
 }
 
-if (options.build) {
+if (options.build && !options.deploy) {
   run(isWindows ? '.\\gradlew.bat' : './gradlew', ['build'], projectRoot);
 }
 if (options.deploy) {
-  run(isWindows ? '.\\gradlew.bat' : './gradlew', ['deploy'], projectRoot);
+  run('node', ['tools/deploy.js', 'restart'], projectRoot);
 }
 
 const baseUrl = resolveTerrascapeUrl();
@@ -267,13 +263,40 @@ function applyFlyOverrides(scenarios, opts) {
 }
 
 function clearServerCache() {
-  run('node', [
-    'tools/rcon/synth-rcon.js',
-    '--save',
-    'synth-worldview-mvp',
-    'terrascape',
-    'clearcache',
-  ], repoRoot);
+  run('node', ['tools/deploy.js', 'rcon', '--', 'terrascape', 'clearcache'], projectRoot);
+}
+
+function resolveTerrascapeUrl(port = 5960) {
+  loadRemoteEnv();
+  if (process.env.WORLDVIEW_URL) return process.env.WORLDVIEW_URL;
+  if (process.env.SYNTH_TERRASCAPE_URL) return process.env.SYNTH_TERRASCAPE_URL;
+  const host = process.env.SYNTH_RCON_HOST || process.env.HYTALE_REMOTE_HOST;
+  if (host) return `http://${host.replace(/^https?:\/\//, '').split(':')[0]}:${port}`;
+  return `http://127.0.0.1:${port}`;
+}
+
+function loadRemoteEnv() {
+  const envPath = path.join(projectRoot, 'remote-host.env');
+  if (!fs.existsSync(envPath)) return;
+  for (const rawLine of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+    const parsed = parseEnvLine(rawLine);
+    if (parsed && process.env[parsed.key] === undefined) {
+      process.env[parsed.key] = parsed.value;
+    }
+  }
+}
+
+function parseEnvLine(rawLine) {
+  const line = rawLine.trim();
+  if (!line || line.startsWith('#')) return null;
+  const eq = line.indexOf('=');
+  if (eq <= 0) return null;
+  const key = line.slice(0, eq).trim();
+  let value = line.slice(eq + 1).trim();
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    value = value.slice(1, -1);
+  }
+  return { key, value };
 }
 
 function run(command, commandArgs, cwd, env = process.env) {
@@ -308,8 +331,8 @@ Options:
   --config PATH          Perf suite config JSON (default tools/perf-suite-config.json).
   --report-dir PATH      Where run JSON reports are written (default perf-history/).
   --build                Run Gradle build before the browser perf test.
-  --deploy               Run Gradle deploy before the browser perf test.
-  --post-deploy          Alias for --build --deploy.
+  --deploy               Run repo-local deploy restart before the browser perf test.
+  --post-deploy          Alias for --deploy.
   --clear-server-cache   Run /terrascape clearcache through SynthRCON before each run.
   --headed               Show the browser.
   --enforce              Fail when history comparison exceeds the threshold.

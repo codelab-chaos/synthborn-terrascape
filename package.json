@@ -15,8 +15,15 @@
     "perf:mob": "node tools/run-terrascape-mob-view-perf.js",
     "perf:extensive": "node tools/run-terrascape-perf.js --extensive --runs 2",
     "perf:extensive:wet": "node tools/run-terrascape-perf.js --extensive --wet --runs 2",
+    "deploy": "node tools/deploy.js restart",
+    "deploy:status": "node tools/deploy.js status",
+    "deploy:logs": "node tools/deploy.js logs -n 120",
+    "deploy:combined": "node tools/deploy.js --target combined restart",
+    "deploy:combined:local": "node tools/deploy.js --target combined --local restart",
     "perf:postdeploy": "node tools/run-terrascape-perf.js --post-deploy --both",
-    "perf:postdeploy:extensive": "node tools/run-terrascape-perf.js --post-deploy --extensive --runs 2 --clear-server-cache"
+    "perf:postdeploy:extensive": "node tools/run-terrascape-perf.js --post-deploy --extensive --runs 2 --clear-server-cache",
+    "probe": "node tools/probe-blocks.js",
+    "parse-client-log": "node tools/parse-client-log.js"
   },
   "keywords": [],
   "author": "",
