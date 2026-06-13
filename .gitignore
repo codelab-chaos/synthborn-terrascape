@@ -9,6 +9,7 @@ visual-examples/
 *.class
 *.log
 *.tmp
+remote-host.env
 mods/SynthWorldview/src/main/resources/web/mob-icons/
 
 # macOS

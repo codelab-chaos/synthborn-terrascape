@@ -4,7 +4,6 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const terrascapeRoot = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(terrascapeRoot, '..', 'synthborn-basecamp');
 const outputDir = path.join(terrascapeRoot, 'tools', 'mob-feed-samples');
 
 const options = parseArgs(process.argv.slice(2));
@@ -23,7 +22,7 @@ async function main() {
   fs.mkdirSync(outputDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const jsonlPath = path.join(outputDir, `${stamp}.jsonl`);
-  console.log(`Writing ${slash(path.relative(repoRoot, jsonlPath))}`);
+  console.log(`Writing ${slash(path.relative(terrascapeRoot, jsonlPath))}`);
 
   for (let restartIndex = 0; restartIndex <= restarts; restartIndex += 1) {
     if (restartIndex > 0) {
@@ -109,15 +108,14 @@ function summaryText(summary) {
 
 function restartServer(saveName) {
   console.log(`Restarting ${saveName}`);
-  runNodeTool('tools/server/stop-server.js', ['--save', saveName, '--timeout', '30000']);
+  runNodeTool('tools/deploy.js', ['stop', '--force']);
   sleep(5000);
-  const savePath = path.join(process.env.APPDATA ?? '', 'Hytale', 'UserData', 'Saves', saveName);
-  runNodeTool('tools/server/start-server.js', ['--save', savePath, '--background']);
+  runNodeTool('tools/deploy.js', ['start', '--wait']);
 }
 
 function runNodeTool(script, args) {
   const result = spawnSync(process.execPath, [script, ...args], {
-    cwd: repoRoot,
+    cwd: terrascapeRoot,
     stdio: 'inherit',
     shell: false,
   });

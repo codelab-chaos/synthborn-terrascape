@@ -2,10 +2,10 @@
 
 When deploying SynthTerrascape to the live `synth-worldview-mvp` save, the required workflow is build, deploy, restart, and verify. Do not stop at copying the jar.
 
-Preferred one-shot command, from the repo root (`C:\Users\ccnef\git\hytale-mods`):
+Preferred one-shot command, from this repo root:
 
 ```powershell
-node tools\remote-deploy.js terrascape --restart
+node tools\deploy.js restart
 ```
 
 That command:
@@ -15,7 +15,7 @@ That command:
 3. Stops and starts the remote save.
 4. Waits for RCON health.
 
-Manual fallback, from `mods\SynthWorldview`, is:
+Manual fallback is:
 
 1. Build locally:
 
@@ -32,26 +32,26 @@ Manual fallback, from `mods\SynthWorldview`, is:
 3. Restart the save so the running server loads the newly deployed jar and bundled web resources. For remote restarts, from repo root:
 
    ```powershell
-   node tools\server\remote-server.js restart synth-worldview-mvp --wait --force
+   node tools\server\remote-server.js restart --wait --force
    ```
 
    For local fallback:
 
    ```powershell
-   node ..\..\tools\server\stop-server.js --save synth-worldview-mvp
+   node tools\deploy.js stop --force
    ```
 
    From the repo root:
 
    ```powershell
-   node tools\server\start-server.js --save "$env:APPDATA\Hytale\UserData\Saves\synth-worldview-mvp" --background
+   .\gradlew.bat deploy
    ```
 
 4. Verify the restart:
 
    ```powershell
-   node ..\..\tools\server\remote-logs.js list
-   node ..\..\tools\server\remote-logs.js boot synth-worldview-mvp -n 120
+   node tools\deploy.js status
+   node tools\deploy.js grep "SynthTerrascape started|ERROR|WARN" -n 120
    ```
 
 Do not treat `deploy` as complete until the restart and log verification are done. The web UI is served from the running mod jar, so changes to `index.html`, `dist/terrascape.js`, or other resources will not appear until the save is restarted.

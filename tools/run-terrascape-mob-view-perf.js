@@ -3,7 +3,6 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
 const projectRoot = path.resolve(__dirname, '..');
-const repoRoot = path.resolve(projectRoot, '..', 'synthborn-basecamp');
 const isWindows = process.platform === 'win32';
 
 const CHUNK_LOADER = {
@@ -26,12 +25,10 @@ run('node', [
 ], projectRoot);
 
 function tryPlaceChunkLoader() {
-  const rconScript = path.join(repoRoot, 'tools', 'rcon', 'synth-rcon.js');
   const args = [
-    rconScript,
-    '--save',
-    CHUNK_LOADER.save,
-    '--remote',
+    'tools/deploy.js',
+    'rcon',
+    '--',
     'synth',
     'chunk',
     'load',
@@ -40,7 +37,7 @@ function tryPlaceChunkLoader() {
     String(CHUNK_LOADER.radius),
   ];
   const result = spawnSync(process.execPath, args, {
-    cwd: repoRoot,
+    cwd: projectRoot,
     encoding: 'utf8',
     shell: false,
   });
