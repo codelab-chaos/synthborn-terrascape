@@ -6,6 +6,8 @@ import { createChunkDebug } from './chunk-debug.js';
 import { createChunkPlaceholderManager } from './chunk-placeholder.js';
 import { createChunkLandMotion } from './library/chunk-land-motion.js';
 import { createFrameJankRecorder } from './frame-jank.js';
+import { bindAppEvents, isTypingInHud } from './app-events.js';
+import { AppRuntimeState } from './app-state.js';
 import {
   autoStreamInput,
   canvas,
@@ -94,8 +96,15 @@ import {
   sampleMapBackdropColor,
   tickMapTileMotion,
 } from './map-backdrop.js';
+import {
+  horizonMapKeys,
+  mapBackdropCenterFrom,
+  mapBackdropRetainStats,
+  mapTileLayerKey as buildMapTileLayerKey,
+} from './map-layer-policy.js';
 import { createNpcCatalog } from './npc-catalog.js';
 import { createPlayerTile, updatePlayerTile } from './player-tiles.js';
+import { chunkKeysForWorld, sortChunkKeysByPlayerDistance } from './chunk-planning.js';
 import {
   createMobMarker,
   createPlayerMarker,
@@ -112,7 +121,23 @@ import {
   setFogOptions,
 } from './postprocessing.js';
 import { createTimeRibbon } from './time-ribbon.js';
+import { createTerrainStreamStats, terrainStreamSnapshot } from './terrain-stream.js';
+import { collectChunkResourceStats, disposeObjectTree } from './resource-stats.js';
+import {
+  terrainCacheKeyFor,
+  terrainCosmeticOverlayCacheKeyFor,
+  terrainCosmeticOverlayUrlFor,
+  terrainUrlFor,
+} from './terrain-requests.js';
 import { centerId, chunkId, clamp, delay, formatBytes, formatCoord, numberOr } from './utils.js';
+import {
+  floatControlValue,
+  fogRangeFromControls,
+  mapTileRetainRadiusFor,
+  radiusReadout,
+  safeWaterMode,
+  terrainTuningControlValue,
+} from './view-preferences.js';
 import { isVectorState, loadStoredViewState, saveStoredViewState, vectorState } from './view-state.js';
 import {
   applyWaterModeToObject,
@@ -122,12 +147,49 @@ import {
   updateWaterMaterials,
 } from './water.js';
 import { confirmAction } from './library/confirm-dialog.js';
-import { bindHudSectionCollapsibles } from './library/collapsible-section.js';
-import { applyTriStateValue, bindTriStateControl } from './library/tri-state-control.js';
-import { clearMeshCache, getMeshCacheStats, makeTerrainCacheKey, readTerrainCache, writeTerrainCache } from './mesh-cache.js';
+import {
+  compactMobSourceStats,
+  compactObject,
+  nearestMobsForSample,
+  roundCoord,
+  summarizeItems,
+} from './entity-summary.js';
+import {
+  liveMobFeedEnabled as computeLiveMobFeedEnabled,
+  mobPollDelayMs as computeMobPollDelayMs,
+  playerPollDelayMs as computePlayerPollDelayMs,
+  positiveIntegerMs,
+  wantsEntityStream as computeWantsEntityStream,
+  worldTimePollDelayMs as computeWorldTimePollDelayMs,
+} from './entity-feed-policy.js';
+import {
+  applyBooleanParam as applyBooleanControlParam,
+  applyFloatParam as applyFloatControlParam,
+  applyNumberParam as applyNumberControlParam,
+  applySelectParam as applySelectControlParam,
+  applySelectValue as applyControlSelectValue,
+  isTruthyParam,
+  normalizePairedValue,
+  setNumberInput,
+  setPairedControlValue,
+} from './library/control-values.js';
+import { clearMeshCache, getMeshCacheStats, readTerrainCache, writeTerrainCache } from './mesh-cache.js';
+export * from './library/control-values.js';
+export * from './entity-summary.js';
+export * from './entity-feed-policy.js';
+export * from './chunk-planning.js';
+export * from './map-layer-policy.js';
+export * from './resource-stats.js';
+export * from './terrain-requests.js';
+export * from './terrain-stream.js';
+export * from './view-preferences.js';
 
 const COSMETIC_MODE_VALUES = ['off', 'baked', 'split'];
 const VISUAL_DETAIL_VALUES = ['basic', 'structures', 'all'];
+const TRI_STATE_VALUES_BY_ID = {
+  'cosmetic-blocks-mode': COSMETIC_MODE_VALUES,
+  'visual-detail-mode': VISUAL_DETAIL_VALUES,
+};
 
 const SKY_COLOR = 0x173454;
 const EMPTY_GRID_AXIS_COLOR = 0x1faa6a;
@@ -269,63 +331,20 @@ const disposalStats = {
   materials: 0,
   textures: 0,
 };
-let loadGeneration = 0;
-let lastGridLoadTiming = null;
-let lastTerrainStreamTiming = null;
-let hasFocusedInitialGrid = false;
-let activeCenterId = null;
-let requestedCenterId = null;
-let scheduledCenterId = null;
-let mapTileLayerKey = null;
-let streamTimer = null;
-let gridLoadCount = 0;
-let controlLoadTimer = null;
-let playerPollTimer = null;
-let mobPollTimer = null;
-let entityStream = null;
-let entityStreamWorld = null;
-let entityStreamPlayers = null;
-let entityStreamMobs = null;
-let entityStreamFallbackTimer = null;
-let playerConnectMobSampleTimer = null;
-let lastMetricsUpdate = 0;
 const pressedKeys = new Set();
 const clock = new THREE.Clock();
 const initialParams = new URLSearchParams(window.location.search);
-let experimentalDetailsEnabled = false;
-let terrainFormatVersion = 'unknown';
-let storedViewState = loadStoredViewState();
-let hasRestoredCameraPose = false;
-let hasStarted = false;
-let lastViewStateSave = 0;
-let flyYaw = 0;
-let flyPitch = 0;
-let worldTime = null;
-let timePollTimer = null;
-let viewPlayerUuid = null;
-let followPlayerUuid = null;
+const runtime = new AppRuntimeState(loadStoredViewState());
 const cameraModeStack = [];
 const playerEyeState = {
   uuid: null,
   yawRad: 0,
   pitchRad: 0,
 };
-let isRefreshingPlayers = false;
-let lastPlayerCount = 0;
-let lastPlayerPollFailed = false;
-let isRefreshingMobs = false;
-let lastMobCount = 0;
-let lastMobPollFailed = false;
-let entityStreamConnected = false;
-let lastMobSourceStats = null;
-let pendingMobMarkerUpdate = null;
-let mobMarkerUpdateScheduled = false;
-let mobMarkerUpdateGeneration = 0;
 
 const tempPlayerTarget = new THREE.Vector3();
 const tempMobTarget = new THREE.Vector3();
 const lastMobBillboardQuaternion = new THREE.Quaternion();
-let hasMobBillboardQuaternion = false;
 const tempPlayerCamera = new THREE.Vector3();
 const tempPlayerLook = new THREE.Vector3();
 const tempPlayerForward = new THREE.Vector3();
@@ -344,18 +363,13 @@ function currentLightingOptions() {
     treeShadeInput,
     shadeSizeInput: shadeSizeValueInput,
     shadeDarknessInput: shadeDarknessValueInput,
-    time: mapTimeInput.checked ? worldTime : NOON_LIGHTING_TIME,
+    time: mapTimeInput.checked ? runtime.worldTime : NOON_LIGHTING_TIME,
     fogRange: fogControlRange(),
   });
 }
 
 function fogControlRange() {
-  const near = terrainTuningValue(fogNearValueInput, 150);
-  const far = Math.max(near + 1, terrainTuningValue(fogFarValueInput, 620));
-  return {
-    near,
-    far,
-  };
+  return fogRangeFromControls(fogNearValueInput, fogFarValueInput);
 }
 
 function fogControlOptions() {
@@ -396,7 +410,7 @@ async function handleClearMeshCache() {
     for (const [id, entry] of Array.from(loadedChunks.entries())) {
       finishDisposeChunk(id, entry);
     }
-    mapTileLayerKey = null;
+    runtime.mapTileLayerKey = null;
     updateMapTileLayer({ force: true });
     scheduleControlGridLoad();
     const clearedLabel = cleared.total === 1 ? 'entry' : 'entries';
@@ -419,9 +433,7 @@ async function handleClearMeshCache() {
 }
 
 function mapTileRetainRadius(terrainRadius, streamLoad = false) {
-  return streamLoad
-    ? terrainRadius + AUTO_STREAM_RETAIN_MARGIN + MAP_HORIZON_MARGIN
-    : terrainRadius + MAP_HORIZON_MARGIN;
+  return mapTileRetainRadiusFor(terrainRadius, streamLoad, MAP_HORIZON_MARGIN, AUTO_STREAM_RETAIN_MARGIN);
 }
 
 function terrainLoadConcurrency() {
@@ -437,87 +449,11 @@ function terrainPromotionsPerFrame() {
 }
 
 function terrainTuningValue(input, fallback) {
-  const parsed = Number.parseInt(input?.value, 10);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-  const min = Number.parseInt(input.min, 10);
-  const max = Number.parseInt(input.max, 10);
-  return clamp(parsed, Number.isFinite(min) ? min : 1, Number.isFinite(max) ? max : 64);
+  return terrainTuningControlValue(input, fallback);
 }
 
 function readFloatControl(input, fallback) {
-  const parsed = Number.parseFloat(input?.value);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-  const min = Number.parseFloat(input.min);
-  const max = Number.parseFloat(input.max);
-  return clamp(
-    parsed,
-    Number.isFinite(min) ? min : -Infinity,
-    Number.isFinite(max) ? max : Infinity,
-  );
-}
-
-function createTerrainStreamStats(world, centerX, centerZ, radius, needed, alreadyLoaded, missing, startedAt) {
-  return {
-    world,
-    centerX,
-    centerZ,
-    radius,
-    needed,
-    alreadyLoaded,
-    missing,
-    startedAt,
-    lastProgressLogAt: startedAt,
-    requested: 0,
-    dataReady: 0,
-    promoted: alreadyLoaded,
-    failed: 0,
-    cacheHits: 0,
-    cacheMisses: 0,
-    networkChunks: 0,
-    maxQueue: 0,
-    maxReadyWaitMs: 0,
-    totalReadyWaitMs: 0,
-  };
-}
-
-function terrainStreamSnapshot(stats, queueLength, inFlightCount, final = false) {
-  const elapsedMs = Math.max(1, performance.now() - stats.startedAt);
-  const spawnedMissing = Math.max(0, stats.promoted - stats.alreadyLoaded);
-  const avgReadyWaitMs = spawnedMissing > 0 ? stats.totalReadyWaitMs / spawnedMissing : 0;
-  return {
-    world: stats.world,
-    centerX: stats.centerX,
-    centerZ: stats.centerZ,
-    radius: stats.radius,
-    needed: stats.needed,
-    alreadyLoaded: stats.alreadyLoaded,
-    missing: stats.missing,
-    requested: stats.requested,
-    dataReady: stats.dataReady,
-    promoted: stats.promoted,
-    spawnedMissing,
-    failed: stats.failed,
-    queued: queueLength,
-    inFlight: inFlightCount,
-    cacheHits: stats.cacheHits,
-    cacheMisses: stats.cacheMisses,
-    networkChunks: stats.networkChunks,
-    maxQueue: stats.maxQueue,
-    maxReadyWaitMs: Math.round(stats.maxReadyWaitMs),
-    avgReadyWaitMs: Math.round(avgReadyWaitMs),
-    requestedPerSec: Math.round((stats.requested * 1000 / elapsedMs) * 10) / 10,
-    readyPerSec: Math.round((stats.dataReady * 1000 / elapsedMs) * 10) / 10,
-    spawnPerSec: Math.round((spawnedMissing * 1000 / elapsedMs) * 10) / 10,
-    loadSlots: terrainLoadConcurrency(),
-    spawnFrame: terrainPromotionsPerFrame(),
-    spawnBudgetMs: terrainPromotionBudgetMs(),
-    elapsedMs: Math.round(elapsedMs),
-    final,
-  };
+  return floatControlValue(input, fallback);
 }
 
 function maybeLogTerrainStreamProgress(stats, queueLength, inFlightCount, force = false, final = false) {
@@ -528,14 +464,20 @@ function maybeLogTerrainStreamProgress(stats, queueLength, inFlightCount, force 
   stats.lastProgressLogAt = now;
   logClientEvent(
     final ? 'terrain_stream_summary' : 'terrain_stream_progress',
-    terrainStreamSnapshot(stats, queueLength, inFlightCount, final),
+    terrainStreamSnapshot(stats, queueLength, inFlightCount, {
+      final,
+      now,
+      loadSlots: terrainLoadConcurrency(),
+      spawnFrame: terrainPromotionsPerFrame(),
+      spawnBudgetMs: terrainPromotionBudgetMs(),
+    }),
   );
 }
 
 function updateMetrics() {
-  lastMetricsUpdate = performance.now();
+  runtime.lastMetricsUpdate = performance.now();
   const loaded = loadedChunks.size;
-  const center = activeCenterId ? activeCenterId.split(':').slice(1).join(', ') : 'pending';
+  const center = runtime.activeCenterId ? runtime.activeCenterId.split(':').slice(1).join(', ') : 'pending';
   const resources = collectResourceStats();
   const rendererMemory = renderer.info.memory;
   const mapBackdrop = mapBackdropStats();
@@ -555,7 +497,7 @@ function updateMetrics() {
 
 function maybeUpdateMetrics(force = false) {
   const now = performance.now();
-  if (!force && now - lastMetricsUpdate < METRICS_UPDATE_INTERVAL_MS) {
+  if (!force && now - runtime.lastMetricsUpdate < METRICS_UPDATE_INTERVAL_MS) {
     return;
   }
   updateMetrics();
@@ -566,7 +508,7 @@ function mobMetricText() {
     return 'hidden';
   }
   const summary = summarizeMobTypes();
-  const source = lastMobSourceStats?.source ? ` · ${lastMobSourceStats.source}` : '';
+  const source = runtime.lastMobSourceStats?.source ? ` · ${runtime.lastMobSourceStats.source}` : '';
   return summary ? `${mobMarkers.size} · ${summary}${source}` : `${mobMarkers.size}${source}`;
 }
 
@@ -587,8 +529,8 @@ async function loadWorlds() {
   setStatus('Loading worlds');
   const response = await fetch('/api/worlds');
   const data = await response.json();
-  experimentalDetailsEnabled = data.features?.experimentalDetails === true;
-  terrainFormatVersion = data.features?.terrainFormatVersion ?? terrainFormatVersion;
+  runtime.experimentalDetailsEnabled = data.features?.experimentalDetails === true;
+  runtime.terrainFormatVersion = data.features?.terrainFormatVersion ?? runtime.terrainFormatVersion;
   worldSelect.replaceChildren();
   for (const world of data.worlds ?? []) {
     const option = document.createElement('option');
@@ -638,54 +580,54 @@ function applyInitialParams() {
 }
 
 function applyStoredInputs() {
-  if (!storedViewState) return;
-  if (storedViewState.visualDefaultsVersion !== VISUAL_DEFAULTS_VERSION) {
+  if (!runtime.storedViewState) return;
+  if (runtime.storedViewState.visualDefaultsVersion !== VISUAL_DEFAULTS_VERSION) {
     applySelectValue(cosmeticBlocksModeInput, 'split');
     applySelectValue(visualDetailModeInput, 'all');
   }
-  setNumberInput(chunkXInput, storedViewState.chunkX);
-  setNumberInput(chunkZInput, storedViewState.chunkZ);
-  setRadiusControlValue(storedViewState.radius);
-  if (typeof storedViewState.auto === 'boolean') autoStreamInput.checked = storedViewState.auto;
-  if (typeof storedViewState.bounds === 'boolean') debugBoundsInput.checked = storedViewState.bounds;
-  if (typeof storedViewState.players === 'boolean') showPlayersInput.checked = storedViewState.players;
-  if (typeof storedViewState.mobs === 'boolean') showMobsInput.checked = storedViewState.mobs;
-  if (typeof storedViewState.mobBlocks === 'boolean') syncMobBlocksInputs(storedViewState.mobBlocks);
-  if (typeof storedViewState.shade === 'boolean') treeShadeInput.checked = storedViewState.shade;
-  if (typeof storedViewState.mapTime === 'boolean') mapTimeInput.checked = storedViewState.mapTime;
-  if (typeof storedViewState.mapTiles === 'boolean') mapTilesInput.checked = storedViewState.mapTiles;
-  if (storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof storedViewState.cosmeticsMode === 'string') {
-    applySelectValue(cosmeticBlocksModeInput, storedViewState.cosmeticsMode);
+  setNumberInput(chunkXInput, runtime.storedViewState.chunkX);
+  setNumberInput(chunkZInput, runtime.storedViewState.chunkZ);
+  setRadiusControlValue(runtime.storedViewState.radius);
+  if (typeof runtime.storedViewState.auto === 'boolean') autoStreamInput.checked = runtime.storedViewState.auto;
+  if (typeof runtime.storedViewState.bounds === 'boolean') debugBoundsInput.checked = runtime.storedViewState.bounds;
+  if (typeof runtime.storedViewState.players === 'boolean') showPlayersInput.checked = runtime.storedViewState.players;
+  if (typeof runtime.storedViewState.mobs === 'boolean') showMobsInput.checked = runtime.storedViewState.mobs;
+  if (typeof runtime.storedViewState.mobBlocks === 'boolean') syncMobBlocksInputs(runtime.storedViewState.mobBlocks);
+  if (typeof runtime.storedViewState.shade === 'boolean') treeShadeInput.checked = runtime.storedViewState.shade;
+  if (typeof runtime.storedViewState.mapTime === 'boolean') mapTimeInput.checked = runtime.storedViewState.mapTime;
+  if (typeof runtime.storedViewState.mapTiles === 'boolean') mapTilesInput.checked = runtime.storedViewState.mapTiles;
+  if (runtime.storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof runtime.storedViewState.cosmeticsMode === 'string') {
+    applySelectValue(cosmeticBlocksModeInput, runtime.storedViewState.cosmeticsMode);
   }
-  if (storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof storedViewState.cosmetics === 'boolean' && !storedViewState.cosmeticsMode) {
-    applySelectValue(cosmeticBlocksModeInput, storedViewState.cosmetics ? 'baked' : 'off');
+  if (runtime.storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof runtime.storedViewState.cosmetics === 'boolean' && !runtime.storedViewState.cosmeticsMode) {
+    applySelectValue(cosmeticBlocksModeInput, runtime.storedViewState.cosmetics ? 'baked' : 'off');
   }
-  if (storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof storedViewState.visualDetailMode === 'string') {
-    applySelectValue(visualDetailModeInput, storedViewState.visualDetailMode);
+  if (runtime.storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof runtime.storedViewState.visualDetailMode === 'string') {
+    applySelectValue(visualDetailModeInput, runtime.storedViewState.visualDetailMode);
   }
-  if (typeof storedViewState.landMotion === 'boolean') landMotionInput.checked = storedViewState.landMotion;
-  if (typeof storedViewState.renderDetails === 'boolean') setRenderDetailsOpen(storedViewState.renderDetails);
-  setPairedControlValue(terrainLoadSlotsInput, terrainLoadSlotsValueInput, storedViewState.terrainLoadSlots);
-  setPairedControlValue(terrainSpawnFrameInput, terrainSpawnFrameValueInput, storedViewState.terrainSpawnFrame);
-  setPairedControlValue(terrainSpawnBudgetInput, terrainSpawnBudgetValueInput, storedViewState.terrainSpawnMs);
-  setPairedControlValue(shadeSizeInput, shadeSizeValueInput, storedViewState.shadeSize);
-  setPairedControlValue(shadeDarknessInput, shadeDarknessValueInput, storedViewState.shadeDarkness);
-  if (typeof storedViewState.water === 'string') {
-    applySelectValue(waterModeInput, storedViewState.water);
+  if (typeof runtime.storedViewState.landMotion === 'boolean') landMotionInput.checked = runtime.storedViewState.landMotion;
+  if (typeof runtime.storedViewState.renderDetails === 'boolean') setRenderDetailsOpen(runtime.storedViewState.renderDetails);
+  setPairedControlValue(terrainLoadSlotsInput, terrainLoadSlotsValueInput, runtime.storedViewState.terrainLoadSlots);
+  setPairedControlValue(terrainSpawnFrameInput, terrainSpawnFrameValueInput, runtime.storedViewState.terrainSpawnFrame);
+  setPairedControlValue(terrainSpawnBudgetInput, terrainSpawnBudgetValueInput, runtime.storedViewState.terrainSpawnMs);
+  setPairedControlValue(shadeSizeInput, shadeSizeValueInput, runtime.storedViewState.shadeSize);
+  setPairedControlValue(shadeDarknessInput, shadeDarknessValueInput, runtime.storedViewState.shadeDarkness);
+  if (typeof runtime.storedViewState.water === 'string') {
+    applySelectValue(waterModeInput, runtime.storedViewState.water);
   }
-  if (typeof storedViewState.fog === 'boolean') fogEnabledInput.checked = storedViewState.fog;
-  setPairedControlValue(fogNearInput, fogNearValueInput, storedViewState.fogNear);
-  setPairedControlValue(fogFarInput, fogFarValueInput, storedViewState.fogFar);
-  setPairedControlValue(fogStrengthInput, fogStrengthValueInput, storedViewState.fogStrength);
-  setPairedControlValue(fogHorizonInput, fogHorizonValueInput, storedViewState.fogHorizon);
-  if (typeof storedViewState.playerRate === 'string') {
-    applySelectValue(playerUpdateRateInput, storedViewState.playerRate);
+  if (typeof runtime.storedViewState.fog === 'boolean') fogEnabledInput.checked = runtime.storedViewState.fog;
+  setPairedControlValue(fogNearInput, fogNearValueInput, runtime.storedViewState.fogNear);
+  setPairedControlValue(fogFarInput, fogFarValueInput, runtime.storedViewState.fogFar);
+  setPairedControlValue(fogStrengthInput, fogStrengthValueInput, runtime.storedViewState.fogStrength);
+  setPairedControlValue(fogHorizonInput, fogHorizonValueInput, runtime.storedViewState.fogHorizon);
+  if (typeof runtime.storedViewState.playerRate === 'string') {
+    applySelectValue(playerUpdateRateInput, runtime.storedViewState.playerRate);
   }
 }
 
 function applyStoredWorld() {
-  if (!storedViewState?.world) return;
-  applySelectValue(worldSelect, storedViewState.world);
+  if (!runtime.storedViewState?.world) return;
+  applySelectValue(worldSelect, runtime.storedViewState.world);
 }
 
 function applyInitialWorldParam() {
@@ -700,21 +642,15 @@ function applyInitialWorldParam() {
 }
 
 function applyNumberParam(name, input) {
-  const value = initialParams.get(name);
-  if (value === null || value.trim() === '') return;
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed)) return;
+  const parsed = applyNumberControlParam(initialParams, name, input);
+  if (parsed === null) return;
   if (input === radiusInput) {
     setRadiusControlValue(parsed);
-    return;
   }
-  input.value = parsed;
 }
 
 function applyBooleanParam(name, input) {
-  const value = initialParams.get(name);
-  if (value === null) return;
-  input.checked = ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+  applyBooleanControlParam(initialParams, name, input);
 }
 
 function applyCosmeticModeParam() {
@@ -725,10 +661,7 @@ function applyCosmeticModeParam() {
   }
   const legacy = initialParams.get('cosmetics');
   if (legacy === null) return;
-  applySelectValue(
-    cosmeticBlocksModeInput,
-    ['1', 'true', 'yes', 'on'].includes(legacy.toLowerCase()) ? 'baked' : 'off',
-  );
+  applySelectValue(cosmeticBlocksModeInput, isTruthyParam(legacy) ? 'baked' : 'off');
 }
 
 function syncMobBlocksInputs(checked) {
@@ -741,7 +674,7 @@ function mobBlocksEnabled() {
 }
 
 function cosmeticBlocksMode() {
-  if (!experimentalDetailsEnabled) return 'off';
+  if (!runtime.experimentalDetailsEnabled) return 'off';
   const value = cosmeticBlocksModeInput?.value;
   return value === 'baked' || value === 'split' ? value : 'off';
 }
@@ -760,48 +693,15 @@ function visualDetailMode() {
 }
 
 function applyFloatParam(name, ...inputs) {
-  const value = initialParams.get(name);
-  if (value === null || value.trim() === '') return;
-  const parsed = Number.parseFloat(value);
-  if (Number.isFinite(parsed)) {
-    for (const input of inputs) {
-      input.value = parsed;
-    }
-  }
+  applyFloatControlParam(initialParams, name, ...inputs);
 }
 
 function applySelectParam(name, input) {
-  const value = initialParams.get(name);
-  if (value === null) return;
-  applySelectValue(input, value);
+  applySelectControlParam(initialParams, name, input, TRI_STATE_VALUES_BY_ID);
 }
 
 function applySelectValue(input, value) {
-  if (!input) return;
-  if (input.id === 'cosmetic-blocks-mode') {
-    applyTriStateValue(input, value, COSMETIC_MODE_VALUES);
-    return;
-  }
-  if (input.id === 'visual-detail-mode') {
-    applyTriStateValue(input, value, VISUAL_DETAIL_VALUES);
-    return;
-  }
-  if (input.tagName === 'SELECT') {
-    for (const option of input.options) {
-      if (option.value === value) {
-        input.value = value;
-        return;
-      }
-    }
-    return;
-  }
-  input.value = value;
-}
-
-function setNumberInput(input, value) {
-  if (Number.isFinite(value)) {
-    input.value = value;
-  }
+  applyControlSelectValue(input, value, TRI_STATE_VALUES_BY_ID);
 }
 
 function setRadiusControlValue(value) {
@@ -817,37 +717,11 @@ function radiusValue() {
 }
 
 function updateRadiusReadout() {
-  const radius = radiusValue();
-  const diameter = radius * 2 + 1;
-  const chunks = diameter * diameter;
-  radiusDiameterEl.textContent = `${diameter} x ${diameter} chunks, ${chunks} meshes`;
-}
-
-function setPairedControlValue(rangeInput, numberInput, value) {
-  if (!Number.isFinite(value)) return;
-  const normalized = normalizePairedValue(rangeInput, value);
-  rangeInput.value = normalized;
-  numberInput.value = normalized;
-}
-
-function normalizePairedValue(input, value) {
-  const min = Number.parseFloat(input.min);
-  const max = Number.parseFloat(input.max);
-  const step = Number.parseFloat(input.step);
-  let normalized = Number(value);
-  if (!Number.isFinite(normalized)) {
-    return Number.parseFloat(input.value);
-  }
-  if (Number.isFinite(min)) normalized = Math.max(min, normalized);
-  if (Number.isFinite(max)) normalized = Math.min(max, normalized);
-  if (Number.isFinite(step) && step > 0) {
-    normalized = Math.round(normalized / step) * step;
-  }
-  return Number.parseFloat(normalized.toFixed(4));
+  radiusDiameterEl.textContent = radiusReadout(radiusValue()).text;
 }
 
 async function loadGrid(options = {}) {
-  gridLoadCount++;
+  runtime.gridLoadCount++;
   const gridStarted = performance.now();
   const world = worldSelect.value;
   const centerX = options.centerX ?? Number.parseInt(chunkXInput.value, 10);
@@ -858,35 +732,34 @@ async function loadGrid(options = {}) {
     return;
   }
 
-  const generation = ++loadGeneration;
+  const generation = ++runtime.loadGeneration;
   pruneOrphanChunkWrappers();
   const centerKey = centerId(world, centerX, centerZ);
-  requestedCenterId = centerKey;
-  scheduledCenterId = null;
+  runtime.requestedCenterId = centerKey;
+  runtime.scheduledCenterId = null;
   chunkXInput.value = centerX;
   chunkZInput.value = centerZ;
 
-  if (options.focus === true && !hasFocusedInitialGrid) {
+  if (options.focus === true && !runtime.hasFocusedInitialGrid) {
     focusGrid(centerX, centerZ, radius);
-    hasFocusedInitialGrid = true;
+    runtime.hasFocusedInitialGrid = true;
   }
 
-  const needed = chunkKeys(centerX, centerZ, radius);
+  const needed = chunkKeysForWorld(world, centerX, centerZ, radius);
   const retainKeys = options.streamLoad === true
-    ? chunkKeys(centerX, centerZ, radius + AUTO_STREAM_RETAIN_MARGIN)
+    ? chunkKeysForWorld(world, centerX, centerZ, radius + AUTO_STREAM_RETAIN_MARGIN)
     : needed;
   const mapRetainRadius = mapTileRetainRadius(radius, options.streamLoad === true);
-  const mapRetainKeys = chunkKeys(centerX, centerZ, mapRetainRadius);
+  const mapRetainKeys = chunkKeysForWorld(world, centerX, centerZ, mapRetainRadius);
   const streamAnchor = playerChunk();
   retainOnly(world, retainKeys);
   syncMapTileLayer(mapRetainKeys);
   if (mapTilesInput.checked) {
-    const neededKeySet = new Set(needed.map((key) => `${key.chunkX}:${key.chunkZ}`));
-    const horizonMapKeys = mapRetainKeys.filter((key) => !neededKeySet.has(`${key.chunkX}:${key.chunkZ}`));
-    if (horizonMapKeys.length > 0) {
+    const horizonKeys = horizonMapKeys(needed, mapRetainKeys);
+    if (horizonKeys.length > 0) {
       void loadMapTilesForKeys(
         world,
-        sortChunkKeysByPlayerDistance(horizonMapKeys, streamAnchor.chunkX, streamAnchor.chunkZ),
+        sortChunkKeysByPlayerDistance(horizonKeys, streamAnchor.chunkX, streamAnchor.chunkZ),
         { immediate: true, replace: true },
       );
     }
@@ -902,7 +775,7 @@ async function loadGrid(options = {}) {
   let cacheParseMs = 0;
   const missing = [];
   for (const key of needed) {
-    if (generation !== loadGeneration) return;
+    if (generation !== runtime.loadGeneration) return;
     if (loadedChunks.has(key.id)) {
       completed++;
     } else {
@@ -932,7 +805,7 @@ async function loadGrid(options = {}) {
     );
 
     const enqueueNext = () => {
-      if (nextMissing >= missing.length || generation !== loadGeneration) return;
+      if (nextMissing >= missing.length || generation !== runtime.loadGeneration) return;
       const key = missing[nextMissing++];
       streamStats.requested++;
       const task = loadTerrainChunkData(world, key, generation)
@@ -983,7 +856,7 @@ async function loadGrid(options = {}) {
       enqueueNext();
     }
 
-    while ((inFlight.size > 0 || promotionQueue.length > 0) && generation === loadGeneration) {
+    while ((inFlight.size > 0 || promotionQueue.length > 0) && generation === runtime.loadGeneration) {
       while (inFlight.size < loadConcurrency && nextMissing < missing.length) {
         enqueueNext();
       }
@@ -1008,13 +881,13 @@ async function loadGrid(options = {}) {
       }
     }
 
-    if (generation !== loadGeneration) return;
+    if (generation !== runtime.loadGeneration) return;
     maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size, true, true);
 
-  if (generation !== loadGeneration) return;
+  if (generation !== runtime.loadGeneration) return;
   retainOnly(world, retainKeys);
-  activeCenterId = centerKey;
-  requestedCenterId = null;
+  runtime.activeCenterId = centerKey;
+  runtime.requestedCenterId = null;
   syncMapTileLayer(mapRetainKeys);
   if (mapTilesInput.checked) {
     await loadMapTilesForKeys(world, needed, { immediate: true });
@@ -1049,11 +922,11 @@ async function loadGrid(options = {}) {
     streamAnchorZ: streamAnchor.chunkZ,
     ms: Math.round(performance.now() - gridStarted),
   };
-  lastGridLoadTiming = gridLoadTiming;
-  lastTerrainStreamTiming = gridLoadTiming;
+  runtime.lastGridLoadTiming = gridLoadTiming;
+  runtime.lastTerrainStreamTiming = gridLoadTiming;
   logClientTiming('grid_load', gridStarted, gridLoadTiming);
   } finally {
-    if (generation === loadGeneration) {
+    if (generation === runtime.loadGeneration) {
       frameJank.setActiveLoadKind('none');
     }
   }
@@ -1070,7 +943,7 @@ async function loadChunk(world, chunkX, chunkZ, generation) {
   const bytes = await fetchArrayBufferWithRetry(url);
   const gltf = await parseGltfBytes(bytes);
   await mapTilePromise;
-  if (generation !== loadGeneration) return false;
+  if (generation !== runtime.loadGeneration) return false;
   if (loadedChunks.has(id)) return true;
   writeTerrainCache(terrainCacheKey(world, chunkX, chunkZ), bytes.slice(0), { source: 'single' });
   const entry = addChunkObject(world, chunkX, chunkZ, gltf.scene);
@@ -1094,7 +967,7 @@ async function loadTerrainChunkData(world, key, generation) {
   const cached = await readTerrainCache(cacheKey);
   const cacheReadMs = performance.now() - readStarted;
 
-  if (generation !== loadGeneration) {
+  if (generation !== runtime.loadGeneration) {
     return { ok: false, key, stale: true, cacheReadMs, cacheParseMs: 0, cacheHit: false, cacheMiss: false, network: false };
   }
 
@@ -1153,7 +1026,7 @@ function promoteTerrainResults(queue, generation, streamStats = null) {
   let failed = 0;
   let promoted = 0;
 
-  while (queue.length > 0 && generation === loadGeneration) {
+  while (queue.length > 0 && generation === runtime.loadGeneration) {
     if (
       promoted >= promotionsPerFrame
       || (promoted > 0 && performance.now() - started >= promotionBudgetMs)
@@ -1178,7 +1051,7 @@ function promoteTerrainResults(queue, generation, streamStats = null) {
       continue;
     }
 
-    if (generation !== loadGeneration) {
+    if (generation !== runtime.loadGeneration) {
       break;
     }
     const resultWorld = result.world ?? worldSelect.value;
@@ -1221,32 +1094,6 @@ function promoteTerrainResults(queue, generation, streamStats = null) {
 
 function chunkWrapperName(chunkX, chunkZ) {
   return `chunk:${chunkX}:${chunkZ}`;
-}
-
-function disposeObjectTree(object) {
-  const geometries = new Set();
-  const materials = new Set();
-  const textures = new Set();
-  object.traverse((node) => {
-    if (node.geometry) geometries.add(node.geometry);
-    if (node.material) {
-      const objectMaterials = Array.isArray(node.material) ? node.material : [node.material];
-      for (const material of objectMaterials) {
-        materials.add(material);
-        for (const value of Object.values(material)) {
-          if (value?.isTexture) textures.add(value);
-        }
-      }
-    }
-  });
-  for (const texture of textures) texture.dispose();
-  for (const material of materials) material.dispose();
-  for (const geometry of geometries) geometry.dispose();
-  return {
-    geometries: geometries.size,
-    materials: materials.size,
-    textures: textures.size,
-  };
 }
 
 function countOrphanChunkWrappers(extraKeep = null) {
@@ -1342,7 +1189,7 @@ function addChunkObject(world, chunkX, chunkZ, object) {
 }
 
 async function loadCosmeticOverlayForEntry(entry, generation) {
-  if (!cosmeticBlocksSplit() || generation !== loadGeneration) return false;
+  if (!cosmeticBlocksSplit() || generation !== runtime.loadGeneration) return false;
   const cacheKey = terrainCosmeticOverlayCacheKey(entry.world, entry.chunkX, entry.chunkZ);
   let bytes = null;
   const cached = await readTerrainCache(cacheKey);
@@ -1351,12 +1198,12 @@ async function loadCosmeticOverlayForEntry(entry, generation) {
   } else {
     bytes = await fetchArrayBufferWithRetry(terrainCosmeticOverlayUrl(entry.world, entry.chunkX, entry.chunkZ));
   }
-  if (!cosmeticBlocksSplit() || generation !== loadGeneration) return false;
+  if (!cosmeticBlocksSplit() || generation !== runtime.loadGeneration) return false;
   const id = chunkId(entry.world, entry.chunkX, entry.chunkZ);
   const current = loadedChunks.get(id);
   if (current !== entry) return false;
   const gltf = await parseGltfBytes(bytes);
-  if (!cosmeticBlocksSplit() || generation !== loadGeneration || loadedChunks.get(id) !== entry) return false;
+  if (!cosmeticBlocksSplit() || generation !== runtime.loadGeneration || loadedChunks.get(id) !== entry) return false;
   attachCosmeticOverlay(entry, gltf.scene);
   if (!cached?.bytes) {
     writeTerrainCache(cacheKey, bytes.slice(0), { source: 'cosmetic-overlay' });
@@ -1403,37 +1250,6 @@ async function fetchArrayBufferWithRetry(url) {
   throw lastError;
 }
 
-function chunkKeys(centerX, centerZ, radius) {
-  const keys = [];
-  for (let dz = -radius; dz <= radius; dz++) {
-    for (let dx = -radius; dx <= radius; dx++) {
-      const chunkX = centerX + dx;
-      const chunkZ = centerZ + dz;
-      keys.push({
-        chunkX,
-        chunkZ,
-        id: chunkId(worldSelect.value, chunkX, chunkZ),
-      });
-    }
-  }
-  return keys;
-}
-
-function sortChunkKeysByPlayerDistance(keys, playerChunkX, playerChunkZ) {
-  return [...keys].sort((left, right) => {
-    const leftDistance = chunkDistanceSq(left.chunkX, left.chunkZ, playerChunkX, playerChunkZ);
-    const rightDistance = chunkDistanceSq(right.chunkX, right.chunkZ, playerChunkX, playerChunkZ);
-    if (leftDistance !== rightDistance) return leftDistance - rightDistance;
-    return left.chunkZ - right.chunkZ || left.chunkX - right.chunkX;
-  });
-}
-
-function chunkDistanceSq(chunkX, chunkZ, centerX, centerZ) {
-  const dx = chunkX - centerX;
-  const dz = chunkZ - centerZ;
-  return dx * dx + dz * dz;
-}
-
 function retainOnly(world, needed) {
   const keep = new Set(needed.map((key) => key.id));
   for (const [id, entry] of loadedChunks) {
@@ -1475,42 +1291,7 @@ function finishDisposeChunk(id, entry) {
 }
 
 function collectResourceStats() {
-  const geometries = new Set();
-  const materials = new Set();
-  const textures = new Set();
-  let meshes = 0;
-  let triangles = 0;
-
-  for (const entry of loadedChunks.values()) {
-    entry.object.traverse((object) => {
-      if (object.isMesh) meshes++;
-      if (object.geometry) {
-        geometries.add(object.geometry);
-        const position = object.geometry.getAttribute('position');
-        const triangleCount = object.geometry.index
-          ? object.geometry.index.count / 3
-          : (position?.count ?? 0) / 3;
-        triangles += Math.floor(triangleCount);
-      }
-      if (object.material) {
-        const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
-        for (const material of objectMaterials) {
-          materials.add(material);
-          for (const value of Object.values(material)) {
-            if (value?.isTexture) textures.add(value);
-          }
-        }
-      }
-    });
-  }
-
-  return {
-    meshes,
-    geometries: geometries.size,
-    materials: materials.size,
-    textures: textures.size,
-    triangles,
-  };
+  return collectChunkResourceStats(loadedChunks.values());
 }
 
 function applyWaterMode() {
@@ -1525,41 +1306,35 @@ function applyWaterMode() {
 }
 
 function waterModeValue() {
-  const value = waterModeInput.value;
-  return value === 'solid' || value === 'transparent' || value === 'hidden' ? value : 'solid';
+  return safeWaterMode(waterModeInput.value);
 }
 
 function terrainCacheKey(world, chunkX, chunkZ) {
-  return makeTerrainCacheKey({
-    world,
-    chunkX,
-    chunkZ,
-    formatVersion: terrainFormatVersion,
-    detailsEnabled: experimentalDetailsEnabled,
-    cosmeticsMode: cosmeticBlocksBaked() ? 'baked' : 'plain',
-    visualDetailMode: cosmeticBlocksBaked() ? visualDetailMode() : 'basic',
+  return terrainCacheKeyFor(world, chunkX, chunkZ, {
+    terrainFormatVersion: runtime.terrainFormatVersion,
+    experimentalDetailsEnabled: runtime.experimentalDetailsEnabled,
+    cosmeticsMode: cosmeticBlocksMode(),
+    visualDetailMode: visualDetailMode(),
   });
 }
 
 function terrainUrl(world, chunkX, chunkZ) {
-  const base = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
-  return cosmeticBlocksBaked() ? `${base}?cosmetics=1&visualDetail=${encodeURIComponent(visualDetailMode())}` : base;
+  return terrainUrlFor(world, chunkX, chunkZ, {
+    cosmeticsMode: cosmeticBlocksMode(),
+    visualDetailMode: visualDetailMode(),
+  });
 }
 
 function terrainCosmeticOverlayCacheKey(world, chunkX, chunkZ) {
-  return makeTerrainCacheKey({
-    world,
-    chunkX,
-    chunkZ,
-    formatVersion: terrainFormatVersion,
-    detailsEnabled: experimentalDetailsEnabled,
-    cosmeticsMode: 'split-overlay',
+  return terrainCosmeticOverlayCacheKeyFor(world, chunkX, chunkZ, {
+    terrainFormatVersion: runtime.terrainFormatVersion,
+    experimentalDetailsEnabled: runtime.experimentalDetailsEnabled,
     visualDetailMode: visualDetailMode(),
   });
 }
 
 function terrainCosmeticOverlayUrl(world, chunkX, chunkZ) {
-  return `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb?cosmetics=only&visualDetail=${encodeURIComponent(visualDetailMode())}`;
+  return terrainCosmeticOverlayUrlFor(world, chunkX, chunkZ, visualDetailMode());
 }
 
 function applyMapWaterTint() {
@@ -1569,27 +1344,18 @@ function applyMapWaterTint() {
 }
 
 function mapBackdropCenter() {
-  if (activeCenterId) {
-    const parts = activeCenterId.split(':');
-    const chunkX = Number.parseInt(parts[parts.length - 2], 10);
-    const chunkZ = Number.parseInt(parts[parts.length - 1], 10);
-    if (Number.isFinite(chunkX) && Number.isFinite(chunkZ)) {
-      return { chunkX, chunkZ };
-    }
-  }
-  const gridX = Number.parseInt(chunkXInput.value, 10);
-  const gridZ = Number.parseInt(chunkZInput.value, 10);
-  if (Number.isFinite(gridX) && Number.isFinite(gridZ)) {
-    return { chunkX: gridX, chunkZ: gridZ };
-  }
-  return { chunkX: 0, chunkZ: 0 };
+  return mapBackdropCenterFrom(
+    runtime.activeCenterId,
+    Number.parseInt(chunkXInput.value, 10),
+    Number.parseInt(chunkZInput.value, 10),
+  );
 }
 
 function syncMapTileLayer(retainKeys = null) {
   grid.visible = !mapTilesInput.checked;
   configureMapBackdrop(scene, renderer, {
     enabled: mapTilesInput.checked,
-    formatVersion: terrainFormatVersion,
+    formatVersion: runtime.terrainFormatVersion,
     motionEnabled: landMotionEnabled(),
   });
   if (!mapTilesInput.checked) {
@@ -1597,7 +1363,8 @@ function syncMapTileLayer(retainKeys = null) {
     return;
   }
   const world = worldSelect.value;
-  const keys = retainKeys ?? chunkKeys(
+  const keys = retainKeys ?? chunkKeysForWorld(
+    world,
     Number.parseInt(chunkXInput.value, 10),
     Number.parseInt(chunkZInput.value, 10),
     radiusValue(),
@@ -1608,12 +1375,7 @@ function syncMapTileLayer(retainKeys = null) {
   const terrainRadius = radiusValue();
   const mapRadius = mapTileRetainRadius(terrainRadius, autoStreamInput.checked);
   const stats = mapBackdropStats();
-  stats.centerX = center.chunkX;
-  stats.centerZ = center.chunkZ;
-  stats.radius = mapRadius;
-  stats.chunks = mapRadius * 2 + 1;
-  stats.anchorX = center.chunkX;
-  stats.anchorZ = center.chunkZ;
+  Object.assign(stats, mapBackdropRetainStats(center, mapRadius));
   updateMetrics();
 }
 
@@ -1621,17 +1383,18 @@ function updateMapTileLayer(options = {}) {
   const center = mapBackdropCenter();
   const radius = radiusValue();
   const mapRadius = mapTileRetainRadius(radius, autoStreamInput.checked);
-  const layerKey = `${worldSelect.value}:${center.chunkX}:${center.chunkZ}:${mapRadius}:${mapTilesInput.checked}`;
-  if (!options.force && layerKey === mapTileLayerKey) {
+  const world = worldSelect.value;
+  const layerKey = buildMapTileLayerKey(world, center, mapRadius, mapTilesInput.checked);
+  if (!options.force && layerKey === runtime.mapTileLayerKey) {
     return;
   }
-  mapTileLayerKey = layerKey;
-  const keys = chunkKeys(center.chunkX, center.chunkZ, mapRadius);
+  runtime.mapTileLayerKey = layerKey;
+  const keys = chunkKeysForWorld(world, center.chunkX, center.chunkZ, mapRadius);
   syncMapTileLayer(keys);
   if (mapTilesInput.checked) {
     const anchor = playerChunk();
     void loadMapTilesForKeys(
-      worldSelect.value,
+      world,
       sortChunkKeysByPlayerDistance(keys, anchor.chunkX, anchor.chunkZ),
       { immediate: true, replace: true },
     );
@@ -1676,9 +1439,9 @@ async function refreshWorldTime() {
     }
     const data = await response.json();
     if (data.ok) {
-      worldTime = data;
+      runtime.worldTime = data;
       applyLighting();
-      timeRibbon.update(worldTime);
+      timeRibbon.update(runtime.worldTime);
     }
   } catch (error) {
     console.warn('World time refresh failed', error);
@@ -1687,128 +1450,131 @@ async function refreshWorldTime() {
 }
 
 function worldTimePollDelayMs() {
-  if (mapTimeInput.checked) {
-    return MAP_TIME_ACTIVE_POLL_MS;
-  }
-  return lastPlayerCount > 0 ? MAP_TIME_VISIBLE_POLL_MS : MAP_TIME_IDLE_POLL_MS;
+  return computeWorldTimePollDelayMs({
+    mapTimeEnabled: mapTimeInput.checked,
+    lastPlayerCount: runtime.lastPlayerCount,
+    activeMs: MAP_TIME_ACTIVE_POLL_MS,
+    visibleMs: MAP_TIME_VISIBLE_POLL_MS,
+    idleMs: MAP_TIME_IDLE_POLL_MS,
+  });
 }
 
 function restartWorldTimePolling(delayMs = worldTimePollDelayMs()) {
-  clearTimeout(timePollTimer);
-  timePollTimer = setTimeout(async () => {
+  clearTimeout(runtime.timePollTimer);
+  runtime.timePollTimer = setTimeout(async () => {
     await refreshWorldTime();
     restartWorldTimePolling();
   }, delayMs);
 }
 
 async function refreshPlayers() {
-  if (!worldSelect.value || isRefreshingPlayers) {
+  if (!worldSelect.value || runtime.isRefreshingPlayers) {
     return;
   }
-  isRefreshingPlayers = true;
+  runtime.isRefreshingPlayers = true;
   try {
     const response = await fetch(`/api/players/${encodeURIComponent(worldSelect.value)}`);
     if (!response.ok) {
       throw new Error(`Player request failed: ${response.status}`);
     }
     const data = await response.json();
-    lastPlayerPollFailed = false;
+    runtime.lastPlayerPollFailed = false;
     updatePlayers(data.players ?? []);
   } catch (error) {
-    lastPlayerPollFailed = true;
+    runtime.lastPlayerPollFailed = true;
     console.warn('Player refresh failed', error);
     logClientEvent('player_refresh_failed', { error: error?.message ?? error });
   } finally {
-    isRefreshingPlayers = false;
+    runtime.isRefreshingPlayers = false;
   }
 }
 
 function playerUpdateRateMs() {
-  const parsed = Number.parseInt(playerUpdateRateInput.value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PLAYER_UPDATE_RATE_MS;
+  return positiveIntegerMs(playerUpdateRateInput.value, DEFAULT_PLAYER_UPDATE_RATE_MS);
 }
 
 function playerPollDelayMs() {
-  if (lastPlayerPollFailed) {
-    return PLAYER_POLL_ERROR_MS;
-  }
-  if (!showPlayersInput.checked) {
-    return HIDDEN_PLAYER_POLL_MS;
-  }
-  if (lastPlayerCount <= 0) {
-    return EMPTY_PLAYER_POLL_MS;
-  }
-  const requestedRate = playerUpdateRateMs();
-  return viewPlayerUuid || followPlayerUuid
-    ? Math.max(requestedRate, FOCUSED_PLAYER_POLL_MIN_MS)
-    : requestedRate;
+  return computePlayerPollDelayMs({
+    lastPollFailed: runtime.lastPlayerPollFailed,
+    showPlayers: showPlayersInput.checked,
+    lastPlayerCount: runtime.lastPlayerCount,
+    requestedRateMs: playerUpdateRateMs(),
+    focused: Boolean(runtime.viewPlayerUuid || runtime.followPlayerUuid),
+    errorMs: PLAYER_POLL_ERROR_MS,
+    hiddenMs: HIDDEN_PLAYER_POLL_MS,
+    emptyMs: EMPTY_PLAYER_POLL_MS,
+    focusedMinMs: FOCUSED_PLAYER_POLL_MIN_MS,
+  });
 }
 
 function restartPlayerPolling(delayMs = playerPollDelayMs()) {
-  clearTimeout(playerPollTimer);
-  if (entityStreamConnected) return;
-  playerPollTimer = setTimeout(async () => {
+  clearTimeout(runtime.playerPollTimer);
+  if (runtime.entityStreamConnected) return;
+  runtime.playerPollTimer = setTimeout(async () => {
     await refreshPlayers();
     restartPlayerPolling();
   }, delayMs);
 }
 
 async function refreshMobs() {
-  if (!worldSelect.value || !liveMobFeedEnabled() || isRefreshingMobs) {
+  if (!worldSelect.value || !liveMobFeedEnabled() || runtime.isRefreshingMobs) {
     return;
   }
-  isRefreshingMobs = true;
+  runtime.isRefreshingMobs = true;
   try {
     const response = await fetch(`/api/mobs/${encodeURIComponent(worldSelect.value)}`);
     if (!response.ok) {
       throw new Error(`Mob request failed: ${response.status}`);
     }
     const data = await response.json();
-    lastMobPollFailed = false;
-    lastMobSourceStats = data.sourceStats ?? null;
+    runtime.lastMobPollFailed = false;
+    runtime.lastMobSourceStats = data.sourceStats ?? null;
     scheduleMobMarkerUpdate(data.mobs ?? []);
   } catch (error) {
-    lastMobPollFailed = true;
+    runtime.lastMobPollFailed = true;
     console.warn('Mob refresh failed', error);
     logClientEvent('mob_refresh_failed', { error: error?.message ?? error });
   } finally {
-    isRefreshingMobs = false;
+    runtime.isRefreshingMobs = false;
   }
 }
 
 function mobPollDelayMs() {
-  if (!showMobsInput.checked) {
-    return null;
-  }
-  if (!liveMobFeedEnabled()) {
-    return EMPTY_MOB_POLL_MS;
-  }
-  if (lastMobPollFailed) {
-    return MOB_POLL_ERROR_MS;
-  }
-  return lastMobCount > 0 ? MOB_POLL_MS : EMPTY_MOB_POLL_MS;
+  return computeMobPollDelayMs({
+    showMobs: showMobsInput.checked,
+    liveMobFeed: liveMobFeedEnabled(),
+    lastPollFailed: runtime.lastMobPollFailed,
+    lastMobCount: runtime.lastMobCount,
+    activeMs: MOB_POLL_MS,
+    emptyMs: EMPTY_MOB_POLL_MS,
+    errorMs: MOB_POLL_ERROR_MS,
+  });
 }
 
 function restartMobPolling(delayMs = mobPollDelayMs()) {
-  clearTimeout(mobPollTimer);
-  mobPollTimer = null;
-  if (delayMs === null || entityStreamConnected) return;
-  mobPollTimer = setTimeout(async () => {
+  clearTimeout(runtime.mobPollTimer);
+  runtime.mobPollTimer = null;
+  if (delayMs === null || runtime.entityStreamConnected) return;
+  runtime.mobPollTimer = setTimeout(async () => {
     await refreshMobs();
     restartMobPolling();
   }, delayMs);
 }
 
 function liveMobFeedEnabled() {
-  return showMobsInput.checked && lastPlayerCount > 0;
+  return computeLiveMobFeedEnabled(showMobsInput.checked, runtime.lastPlayerCount);
 }
 
 function wantsEntityStream() {
-  return worldSelect.value && (showPlayersInput.checked || liveMobFeedEnabled());
+  return computeWantsEntityStream({
+    world: worldSelect.value,
+    showPlayers: showPlayersInput.checked,
+    liveMobFeed: liveMobFeedEnabled(),
+  });
 }
 
 function restartEntityStream() {
-  clearTimeout(entityStreamFallbackTimer);
+  clearTimeout(runtime.entityStreamFallbackTimer);
   if (!('EventSource' in window) || !wantsEntityStream()) {
     closeEntityStream();
     restartPlayerPolling();
@@ -1818,32 +1584,32 @@ function restartEntityStream() {
 
   const includePlayers = showPlayersInput.checked;
   const includeMobs = liveMobFeedEnabled();
-  if (entityStream
-      && entityStreamWorld === worldSelect.value
-      && entityStreamPlayers === includePlayers
-      && entityStreamMobs === includeMobs) {
+  if (runtime.entityStream
+      && runtime.entityStreamWorld === worldSelect.value
+      && runtime.entityStreamPlayers === includePlayers
+      && runtime.entityStreamMobs === includeMobs) {
     return;
   }
 
   closeEntityStream();
-  entityStreamWorld = worldSelect.value;
-  entityStreamPlayers = includePlayers;
-  entityStreamMobs = includeMobs;
+  runtime.entityStreamWorld = worldSelect.value;
+  runtime.entityStreamPlayers = includePlayers;
+  runtime.entityStreamMobs = includeMobs;
   const params = new URLSearchParams({
     players: includePlayers ? '1' : '0',
     mobs: includeMobs ? '1' : '0',
   });
-  entityStream = new EventSource(`/api/entities/stream/${encodeURIComponent(worldSelect.value)}?${params}`);
-  entityStream.addEventListener('open', () => {
-    entityStreamConnected = true;
-    clearTimeout(playerPollTimer);
-    clearTimeout(mobPollTimer);
-    clearTimeout(entityStreamFallbackTimer);
+  runtime.entityStream = new EventSource(`/api/entities/stream/${encodeURIComponent(worldSelect.value)}?${params}`);
+  runtime.entityStream.addEventListener('open', () => {
+    runtime.entityStreamConnected = true;
+    clearTimeout(runtime.playerPollTimer);
+    clearTimeout(runtime.mobPollTimer);
+    clearTimeout(runtime.entityStreamFallbackTimer);
   });
-  entityStream.addEventListener('entities', (event) => {
-    entityStreamConnected = true;
-    clearTimeout(playerPollTimer);
-    clearTimeout(mobPollTimer);
+  runtime.entityStream.addEventListener('entities', (event) => {
+    runtime.entityStreamConnected = true;
+    clearTimeout(runtime.playerPollTimer);
+    clearTimeout(runtime.mobPollTimer);
     try {
       applyEntitySnapshot(JSON.parse(event.data));
     } catch (error) {
@@ -1851,28 +1617,28 @@ function restartEntityStream() {
       logClientEvent('entity_stream_parse_failed', { error: error?.message ?? error });
     }
   });
-  entityStream.addEventListener('error', () => {
-    entityStreamConnected = false;
+  runtime.entityStream.addEventListener('error', () => {
+    runtime.entityStreamConnected = false;
     scheduleEntityFallbackPolling();
   });
 }
 
 function closeEntityStream() {
-  clearTimeout(entityStreamFallbackTimer);
-  if (entityStream) {
-    entityStream.close();
+  clearTimeout(runtime.entityStreamFallbackTimer);
+  if (runtime.entityStream) {
+    runtime.entityStream.close();
   }
-  entityStream = null;
-  entityStreamWorld = null;
-  entityStreamPlayers = null;
-  entityStreamMobs = null;
-  entityStreamConnected = false;
+  runtime.entityStream = null;
+  runtime.entityStreamWorld = null;
+  runtime.entityStreamPlayers = null;
+  runtime.entityStreamMobs = null;
+  runtime.entityStreamConnected = false;
 }
 
 function scheduleEntityFallbackPolling() {
-  clearTimeout(entityStreamFallbackTimer);
-  entityStreamFallbackTimer = setTimeout(() => {
-    if (entityStreamConnected) return;
+  clearTimeout(runtime.entityStreamFallbackTimer);
+  runtime.entityStreamFallbackTimer = setTimeout(() => {
+    if (runtime.entityStreamConnected) return;
     restartPlayerPolling(0);
     restartMobPolling(0);
   }, ENTITY_STREAM_FALLBACK_DELAY_MS);
@@ -1885,29 +1651,29 @@ function applyEntitySnapshot(snapshot) {
     updatePlayers(snapshot.players ?? []);
   }
   if (liveMobFeedEnabled()) {
-    lastMobSourceStats = snapshot.mobSourceStats ?? null;
+    runtime.lastMobSourceStats = snapshot.mobSourceStats ?? null;
     scheduleMobMarkerUpdate(snapshot.mobs ?? []);
   }
 }
 
 function updatePlayers(players) {
-  const previousPlayerCount = lastPlayerCount;
-  lastPlayerCount = players.length;
-  if (previousPlayerCount !== lastPlayerCount) {
+  const previousPlayerCount = runtime.lastPlayerCount;
+  runtime.lastPlayerCount = players.length;
+  if (previousPlayerCount !== runtime.lastPlayerCount) {
     logClientEvent('player_count_changed', {
-      players: lastPlayerCount,
+      players: runtime.lastPlayerCount,
       nextPollMs: playerPollDelayMs(),
     });
     restartWorldTimePolling();
-    if (lastPlayerCount > previousPlayerCount) {
+    if (runtime.lastPlayerCount > previousPlayerCount) {
       schedulePlayerConnectMobSample(players);
     }
     if (showMobsInput.checked) {
-      if (lastPlayerCount <= 0) {
+      if (runtime.lastPlayerCount <= 0) {
         clearMobs();
       }
       restartEntityStream();
-      restartMobPolling(lastPlayerCount > 0 ? 0 : mobPollDelayMs());
+      restartMobPolling(runtime.lastPlayerCount > 0 ? 0 : mobPollDelayMs());
     }
   }
   const seen = new Set();
@@ -1970,10 +1736,10 @@ function updatePlayers(players) {
       playerMarkers.delete(uuid);
       playerTiles.get(uuid)?.element.remove();
       playerTiles.delete(uuid);
-      if (viewPlayerUuid === uuid) {
+      if (runtime.viewPlayerUuid === uuid) {
         popCameraMode();
       }
-      if (followPlayerUuid === uuid) {
+      if (runtime.followPlayerUuid === uuid) {
         popCameraMode();
       }
     }
@@ -1984,11 +1750,11 @@ function updatePlayers(players) {
 
 function playerTileContext() {
   return {
-    activeViewUuid: viewPlayerUuid,
-    activeFollowUuid: followPlayerUuid,
+    activeViewUuid: runtime.viewPlayerUuid,
+    activeFollowUuid: runtime.followPlayerUuid,
     onFocus: focusPlayer,
-    onToggleEyeView: (uuid) => setPlayerEyeView(viewPlayerUuid === uuid ? null : uuid),
-    onToggleFollow: (uuid) => setPlayerFollow(followPlayerUuid === uuid ? null : uuid),
+    onToggleEyeView: (uuid) => setPlayerEyeView(runtime.viewPlayerUuid === uuid ? null : uuid),
+    onToggleFollow: (uuid) => setPlayerFollow(runtime.followPlayerUuid === uuid ? null : uuid),
   };
 }
 
@@ -2006,7 +1772,7 @@ function ensurePlayerTileOrder(tileElement, index) {
 
 function schedulePlayerConnectMobSample(players) {
   if (!worldSelect.value || !showMobsInput.checked) return;
-  clearTimeout(playerConnectMobSampleTimer);
+  clearTimeout(runtime.playerConnectMobSampleTimer);
   const sampledPlayers = players.map((player) => compactObject({
     uuid: player.uuid,
     name: player.name,
@@ -2014,7 +1780,7 @@ function schedulePlayerConnectMobSample(players) {
     y: roundCoord(player.y),
     z: roundCoord(player.z),
   }));
-  playerConnectMobSampleTimer = setTimeout(() => {
+  runtime.playerConnectMobSampleTimer = setTimeout(() => {
     sampleMobFeedOnPlayerConnect(sampledPlayers);
   }, PLAYER_CONNECT_MOB_SAMPLE_DELAY_MS);
 }
@@ -2045,80 +1811,6 @@ async function sampleMobFeedOnPlayerConnect(players) {
   }
 }
 
-function summarizeItems(items, selector, limit = 10) {
-  const counts = new Map();
-  for (const item of items) {
-    const key = String(selector(item) ?? 'unknown');
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return Array.from(counts.entries())
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, limit)
-    .map(([key, count]) => `${key}=${count}`)
-    .join('|');
-}
-
-function compactMobSourceStats(stats) {
-  if (!stats || typeof stats !== 'object') return null;
-  return compactObject({
-    source: stats.source,
-    chunks: stats.chunks,
-    accepted: stats.accepted,
-    duplicate: stats.duplicate,
-    outsideRadar: stats.outsideRadar,
-    nonMob: stats.nonMob,
-    skippedTypes: summarizeCountsObject(stats.skippedTypes, 8),
-  });
-}
-
-function summarizeCountsObject(countsObject, limit = 10) {
-  return Object.entries(countsObject ?? {})
-    .filter(([, count]) => typeof count === 'number' && count > 0)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, limit)
-    .map(([key, count]) => `${key}=${count}`)
-    .join('|');
-}
-
-function nearestMobsForSample(mobs, player, limit) {
-  return mobs
-    .map((mob) => ({
-      mob,
-      distance: distanceBetween(mob, player),
-    }))
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, limit)
-    .map(({ mob, distance }) => compactObject({
-      type: mob.type,
-      label: mob.label,
-      category: mob.category,
-      source: mob.source,
-      x: roundCoord(mob.x),
-      y: roundCoord(mob.y),
-      z: roundCoord(mob.z),
-      d: Number.isFinite(distance) ? Math.round(distance) : null,
-    }));
-}
-
-function distanceBetween(a, b) {
-  if (![a?.x, a?.y, a?.z, b?.x, b?.y, b?.z].every(Number.isFinite)) return Number.POSITIVE_INFINITY;
-  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
-}
-
-function roundCoord(value) {
-  return Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
-}
-
-function compactObject(object) {
-  const result = {};
-  for (const [key, value] of Object.entries(object)) {
-    if (value !== null && value !== undefined && value !== '') {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
 function updateMobs(mobs) {
   cancelPendingMobMarkerUpdate();
   if (!showMobsInput.checked && mobs.length > 0) {
@@ -2146,8 +1838,8 @@ function scheduleMobMarkerUpdate(mobs) {
   if (!showMobsInput.checked && mobs.length > 0) {
     return;
   }
-  const generation = ++mobMarkerUpdateGeneration;
-  pendingMobMarkerUpdate = {
+  const generation = ++runtime.mobMarkerUpdateGeneration;
+  runtime.pendingMobMarkerUpdate = {
     generation,
     mobs,
     index: 0,
@@ -2156,21 +1848,21 @@ function scheduleMobMarkerUpdate(mobs) {
     removalIndex: 0,
   };
   setMobCount(mobs.length);
-  if (!mobMarkerUpdateScheduled) {
-    mobMarkerUpdateScheduled = true;
+  if (!runtime.mobMarkerUpdateScheduled) {
+    runtime.mobMarkerUpdateScheduled = true;
     requestAnimationFrame(() => processPendingMobMarkerUpdate(generation));
   }
 }
 
 function cancelPendingMobMarkerUpdate() {
-  mobMarkerUpdateGeneration++;
-  pendingMobMarkerUpdate = null;
-  mobMarkerUpdateScheduled = false;
+  runtime.mobMarkerUpdateGeneration++;
+  runtime.pendingMobMarkerUpdate = null;
+  runtime.mobMarkerUpdateScheduled = false;
 }
 
 function processPendingMobMarkerUpdate(generation) {
-  mobMarkerUpdateScheduled = false;
-  const update = pendingMobMarkerUpdate;
+  runtime.mobMarkerUpdateScheduled = false;
+  const update = runtime.pendingMobMarkerUpdate;
   if (!update) return;
   if (update.generation !== generation) {
     schedulePendingMobMarkerUpdate(update.generation);
@@ -2212,21 +1904,21 @@ function processPendingMobMarkerUpdate(generation) {
     }
   }
 
-  pendingMobMarkerUpdate = null;
+  runtime.pendingMobMarkerUpdate = null;
   updateEntityVisibility();
 }
 
 function schedulePendingMobMarkerUpdate(generation) {
-  mobMarkerUpdateScheduled = true;
+  runtime.mobMarkerUpdateScheduled = true;
   requestAnimationFrame(() => processPendingMobMarkerUpdate(generation));
 }
 
 function setMobCount(count) {
-  const previousMobCount = lastMobCount;
-  lastMobCount = count;
-  if (previousMobCount !== lastMobCount) {
+  const previousMobCount = runtime.lastMobCount;
+  runtime.lastMobCount = count;
+  if (previousMobCount !== runtime.lastMobCount) {
     logClientEvent('mob_count_changed', {
-      mobs: lastMobCount,
+      mobs: runtime.lastMobCount,
       nextPollMs: mobPollDelayMs(),
     });
   }
@@ -2258,8 +1950,8 @@ function upsertMobMarker(mob) {
 
 function clearMobs() {
   updateMobs([]);
-  lastMobPollFailed = false;
-  lastMobSourceStats = null;
+  runtime.lastMobPollFailed = false;
+  runtime.lastMobSourceStats = null;
 }
 
 function focusPlayer(uuid) {
@@ -2282,7 +1974,7 @@ function setPlayerEyeView(uuid) {
     pushCameraMode('eye', uuid);
     resetPlayerEyeState(uuid);
     updateEyeCamera(0);
-  } else if (viewPlayerUuid) {
+  } else if (runtime.viewPlayerUuid) {
     popCameraMode();
   }
   updatePlayers(currentPlayersFromMarkers());
@@ -2293,7 +1985,7 @@ function setPlayerFollow(uuid) {
   if (uuid && !playerMarkers.has(uuid)) return;
   if (uuid) {
     pushCameraMode('follow', uuid);
-  } else if (followPlayerUuid) {
+  } else if (runtime.followPlayerUuid) {
     popCameraMode();
   }
   updatePlayers(currentPlayersFromMarkers());
@@ -2301,7 +1993,7 @@ function setPlayerFollow(uuid) {
 }
 
 function pushCameraMode(mode, uuid) {
-  if ((mode === 'eye' && viewPlayerUuid === uuid) || (mode === 'follow' && followPlayerUuid === uuid)) {
+  if ((mode === 'eye' && runtime.viewPlayerUuid === uuid) || (mode === 'follow' && runtime.followPlayerUuid === uuid)) {
     popCameraMode();
     return;
   }
@@ -2328,8 +2020,8 @@ function currentPlayersFromMarkers() {
 
 function resetCameraModes() {
   cameraModeStack.length = 0;
-  viewPlayerUuid = null;
-  followPlayerUuid = null;
+  runtime.viewPlayerUuid = null;
+  runtime.followPlayerUuid = null;
   playerEyeState.uuid = null;
   setFollowControlsEnabled(false);
 }
@@ -2338,8 +2030,8 @@ function captureCameraModeState() {
   return {
     camera: camera.position.clone(),
     target: controls.target.clone(),
-    viewPlayerUuid,
-    followPlayerUuid,
+    viewPlayerUuid: runtime.viewPlayerUuid,
+    followPlayerUuid: runtime.followPlayerUuid,
     controlsEnabled: controls.enabled,
   };
 }
@@ -2351,14 +2043,14 @@ function restoreCameraModeState(state) {
 
   camera.position.copy(state.camera);
   controls.target.copy(state.target);
-  viewPlayerUuid = state.viewPlayerUuid;
-  followPlayerUuid = state.followPlayerUuid;
-  if (viewPlayerUuid) {
-    resetPlayerEyeState(viewPlayerUuid);
+  runtime.viewPlayerUuid = state.viewPlayerUuid;
+  runtime.followPlayerUuid = state.followPlayerUuid;
+  if (runtime.viewPlayerUuid) {
+    resetPlayerEyeState(runtime.viewPlayerUuid);
   } else {
     playerEyeState.uuid = null;
   }
-  setFollowControlsEnabled(Boolean(followPlayerUuid));
+  setFollowControlsEnabled(Boolean(runtime.followPlayerUuid));
   controls.update();
   syncFlyLookFromCamera();
   saveViewState();
@@ -2366,8 +2058,8 @@ function restoreCameraModeState(state) {
 }
 
 function applyCameraMode(mode, uuid) {
-  viewPlayerUuid = mode === 'eye' ? uuid : null;
-  followPlayerUuid = mode === 'follow' ? uuid : null;
+  runtime.viewPlayerUuid = mode === 'eye' ? uuid : null;
+  runtime.followPlayerUuid = mode === 'follow' ? uuid : null;
   setFollowControlsEnabled(mode === 'follow');
   if (mode === 'follow') {
     updateWalkFollowCamera(1);
@@ -2423,10 +2115,10 @@ function exposeDebugState() {
     playerTiles,
     mobMarkers,
     entityStreamState: () => ({
-      connected: entityStreamConnected,
-      world: entityStreamWorld,
-      players: entityStreamPlayers,
-      mobs: entityStreamMobs,
+      connected: runtime.entityStreamConnected,
+      world: runtime.entityStreamWorld,
+      players: runtime.entityStreamPlayers,
+      mobs: runtime.entityStreamMobs,
       liveMobFeed: liveMobFeedEnabled(),
       available: 'EventSource' in window,
     }),
@@ -2444,10 +2136,10 @@ function exposeDebugState() {
       chunkX,
       chunkZ,
     ),
-    terrainFormatVersion: () => terrainFormatVersion,
-    experimentalDetailsEnabled: () => experimentalDetailsEnabled,
-    activeCenterId: () => activeCenterId,
-    requestedCenterId: () => requestedCenterId,
+    terrainFormatVersion: () => runtime.terrainFormatVersion,
+    experimentalDetailsEnabled: () => runtime.experimentalDetailsEnabled,
+    activeCenterId: () => runtime.activeCenterId,
+    requestedCenterId: () => runtime.requestedCenterId,
     updatePlayersForTest: (players) => updatePlayers(players),
     setPlayerEyeViewForTest: (uuid) => setPlayerEyeView(uuid),
     updateMobsForTest: (mobs) => updateMobs(mobs),
@@ -2468,18 +2160,18 @@ function exposeDebugState() {
       autoStreamInput.dispatchEvent(new Event('change', { bubbles: true }));
     },
     lastPerfTimings: () => ({
-      gridLoad: lastGridLoadTiming,
+      gridLoad: runtime.lastGridLoadTiming,
       terrainBatch: null,
-      terrainStream: lastTerrainStreamTiming,
+      terrainStream: runtime.lastTerrainStreamTiming,
     }),
     terrainTuning: () => ({
       loadSlots: terrainLoadConcurrency(),
       spawnFrame: terrainPromotionsPerFrame(),
       spawnBudgetMs: terrainPromotionBudgetMs(),
     }),
-    gridLoadCount: () => gridLoadCount,
+    gridLoadCount: () => runtime.gridLoadCount,
     resetGridLoadCount: () => {
-      gridLoadCount = 0;
+      runtime.gridLoadCount = 0;
     },
     jankStats: () => frameJank.stats(),
     resetJankStats: () => frameJank.reset(),
@@ -2536,19 +2228,19 @@ function exposeDebugState() {
       starsOpacity: lightingRig.stars.material.opacity,
     }),
     setWorldTimeForTest: (time) => {
-      worldTime = time;
+      runtime.worldTime = time;
       mapTimeInput.checked = true;
       applyLighting();
-      timeRibbon.update(worldTime);
+      timeRibbon.update(runtime.worldTime);
     },
     flyLook: () => ({
-      yaw: flyYaw,
-      pitch: flyPitch,
+      yaw: runtime.flyYaw,
+      pitch: runtime.flyPitch,
       pointerLocked: isFlyLookActive(),
     }),
     applyFlyLookDelta: (movementX, movementY) => {
-      flyYaw -= Number(movementX) * FLY_MOUSE_SENSITIVITY;
-      flyPitch -= Number(movementY) * FLY_MOUSE_SENSITIVITY;
+      runtime.flyYaw -= Number(movementX) * FLY_MOUSE_SENSITIVITY;
+      runtime.flyPitch -= Number(movementY) * FLY_MOUSE_SENSITIVITY;
       applyFlyLook();
     },
     zoomFlyView: (deltaY) => {
@@ -2623,11 +2315,11 @@ function focusGrid(centerX, centerZ, radius) {
 }
 
 function restoreCameraPose() {
-  if (!storedViewState || hasExplicitViewParams()) {
+  if (!runtime.storedViewState || hasExplicitViewParams()) {
     return false;
   }
-  const cameraState = storedViewState.camera;
-  const targetState = storedViewState.target;
+  const cameraState = runtime.storedViewState.camera;
+  const targetState = runtime.storedViewState.target;
   if (!isVectorState(cameraState) || !isVectorState(targetState)) {
     return false;
   }
@@ -2636,8 +2328,8 @@ function restoreCameraPose() {
   controls.target.set(targetState.x, targetState.y, targetState.z);
   controls.update();
   syncFlyLookFromCamera();
-  hasFocusedInitialGrid = true;
-  hasRestoredCameraPose = true;
+  runtime.hasFocusedInitialGrid = true;
+  runtime.hasRestoredCameraPose = true;
   return true;
 }
 
@@ -2646,7 +2338,7 @@ function hasExplicitViewParams() {
 }
 
 function saveViewState() {
-  if (!hasStarted || !worldSelect.value) return;
+  if (!runtime.hasStarted || !worldSelect.value) return;
   const target = controls.target;
   const chunk = playerChunk();
   const state = {
@@ -2683,15 +2375,15 @@ function saveViewState() {
     target: vectorState(target),
   };
   if (saveStoredViewState(state)) {
-    storedViewState = state;
+    runtime.storedViewState = state;
   }
 }
 
 function maybeSaveViewState() {
-  if (viewPlayerUuid || followPlayerUuid) return;
+  if (runtime.viewPlayerUuid || runtime.followPlayerUuid) return;
   const now = performance.now();
-  if (now - lastViewStateSave < 500) return;
-  lastViewStateSave = now;
+  if (now - runtime.lastViewStateSave < 500) return;
+  runtime.lastViewStateSave = now;
   saveViewState();
 }
 
@@ -2704,7 +2396,7 @@ function playerChunk() {
 }
 
 function streamAnchorPosition() {
-  const focusedMarker = playerMarkers.get(viewPlayerUuid) ?? playerMarkers.get(followPlayerUuid);
+  const focusedMarker = playerMarkers.get(runtime.viewPlayerUuid) ?? playerMarkers.get(runtime.followPlayerUuid);
   const targetPosition = focusedMarker?.userData?.targetPosition;
   if (targetPosition) {
     return targetPosition;
@@ -2732,33 +2424,33 @@ function updateEmptyGrid() {
 
 function updateChunkPlaceholders() {
   const world = worldSelect.value;
-  if (!world || !hasFocusedInitialGrid) {
+  if (!world || !runtime.hasFocusedInitialGrid) {
     return;
   }
   const radius = radiusValue();
   const player = playerChunk();
   const playerId = centerId(world, player.chunkX, player.chunkZ);
   const shouldShow = autoStreamInput.checked
-    || requestedCenterId != null
-    || (activeCenterId != null && playerId !== activeCenterId);
+    || runtime.requestedCenterId != null
+    || (runtime.activeCenterId != null && playerId !== runtime.activeCenterId);
   if (!shouldShow) {
     chunkPlaceholderManager.sync(world, [], new Set(loadedChunks.keys()));
     return;
   }
-  const keys = chunkKeys(player.chunkX, player.chunkZ, radius);
+  const keys = chunkKeysForWorld(world, player.chunkX, player.chunkZ, radius);
   chunkPlaceholderManager.sync(world, keys, new Set(loadedChunks.keys()));
 }
 
 function syncFlyLookFromCamera() {
   camera.getWorldDirection(tempCameraForward);
   if (tempCameraForward.lengthSq() < 0.0001) return;
-  flyYaw = Math.atan2(-tempCameraForward.x, -tempCameraForward.z);
-  flyPitch = Math.asin(Math.max(-1, Math.min(1, tempCameraForward.y)));
+  runtime.flyYaw = Math.atan2(-tempCameraForward.x, -tempCameraForward.z);
+  runtime.flyPitch = Math.asin(Math.max(-1, Math.min(1, tempCameraForward.y)));
 }
 
 function applyFlyLook() {
-  flyPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, flyPitch));
-  tempFlyEuler.set(flyPitch, flyYaw, 0);
+  runtime.flyPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, runtime.flyPitch));
+  tempFlyEuler.set(runtime.flyPitch, runtime.flyYaw, 0);
   camera.quaternion.setFromEuler(tempFlyEuler);
   updateFlyTarget();
 }
@@ -2770,7 +2462,7 @@ function updateFlyTarget() {
 }
 
 function zoomFlyView(deltaY) {
-  if (viewPlayerUuid || !Number.isFinite(deltaY) || deltaY === 0) return;
+  if (runtime.viewPlayerUuid || !Number.isFinite(deltaY) || deltaY === 0) return;
   camera.getWorldDirection(tempCameraForward);
   if (tempCameraForward.lengthSq() < 0.0001) return;
 
@@ -2796,33 +2488,33 @@ function scheduleAutoStreamLoad() {
   const world = worldSelect.value;
   if (!world) return;
   const player = playerChunk();
-  scheduledCenterId = null;
-  clearTimeout(streamTimer);
-  streamTimer = null;
+  runtime.scheduledCenterId = null;
+  clearTimeout(runtime.streamTimer);
+  runtime.streamTimer = null;
   loadGrid({ centerX: player.chunkX, centerZ: player.chunkZ, streamLoad: true }).catch((error) => setStatus(error.message));
 }
 
 function maybeAutoStream() {
-  if (!autoStreamInput.checked || !hasFocusedInitialGrid || !worldSelect.value) return;
+  if (!autoStreamInput.checked || !runtime.hasFocusedInitialGrid || !worldSelect.value) return;
   const player = playerChunk();
   const playerId = centerId(worldSelect.value, player.chunkX, player.chunkZ);
-  if (playerId === activeCenterId || playerId === requestedCenterId || playerId === scheduledCenterId) {
+  if (playerId === runtime.activeCenterId || playerId === runtime.requestedCenterId || playerId === runtime.scheduledCenterId) {
     return;
   }
 
-  clearTimeout(streamTimer);
-  scheduledCenterId = playerId;
-  streamTimer = setTimeout(() => {
-    streamTimer = null;
-    scheduledCenterId = null;
+  clearTimeout(runtime.streamTimer);
+  runtime.scheduledCenterId = playerId;
+  runtime.streamTimer = setTimeout(() => {
+    runtime.streamTimer = null;
+    runtime.scheduledCenterId = null;
     scheduleAutoStreamLoad();
   }, AUTO_STREAM_DEBOUNCE_MS);
 }
 
 function scheduleControlGridLoad() {
-  if (!hasStarted) return;
-  clearTimeout(controlLoadTimer);
-  controlLoadTimer = setTimeout(() => {
+  if (!runtime.hasStarted) return;
+  clearTimeout(runtime.controlLoadTimer);
+  runtime.controlLoadTimer = setTimeout(() => {
     loadGrid().catch((error) => setStatus(error.message));
     saveViewState();
   }, 350);
@@ -2839,7 +2531,7 @@ function resize() {
 }
 
 function handleKeyboardNavigation(deltaSeconds) {
-  if (viewPlayerUuid || pressedKeys.size === 0 || isTypingInHud()) return;
+  if (runtime.viewPlayerUuid || pressedKeys.size === 0 || isTypingInHud()) return;
 
   const forward = new THREE.Vector3();
   camera.getWorldDirection(forward);
@@ -2893,15 +2585,15 @@ function updatePlayerMarkers(deltaSeconds) {
 function updateMobMarkers(deltaSeconds) {
   const alpha = 1 - Math.exp(-deltaSeconds * 5);
   const opacityAlpha = 1 - Math.exp(-deltaSeconds * MOB_MARKER_DISTANCE_OPACITY_LERP);
-  const playerHeightSource = playerMarkers.get(viewPlayerUuid) ?? playerMarkers.get(followPlayerUuid);
+  const playerHeightSource = playerMarkers.get(runtime.viewPlayerUuid) ?? playerMarkers.get(runtime.followPlayerUuid);
   const desiredWorldY = playerHeightSource
     ? playerHeightSource.position.y + MOB_CARD_PLAYER_HEIGHT
     : camera.position.y;
-  const updateBillboards = !hasMobBillboardQuaternion
+  const updateBillboards = !runtime.hasMobBillboardQuaternion
     || lastMobBillboardQuaternion.angleTo(camera.quaternion) > 0.0005;
   if (updateBillboards) {
     lastMobBillboardQuaternion.copy(camera.quaternion);
-    hasMobBillboardQuaternion = true;
+    runtime.hasMobBillboardQuaternion = true;
   }
   for (const marker of mobMarkers.values()) {
     const targetPosition = marker.userData.targetPosition;
@@ -2971,11 +2663,11 @@ function applyMaterialOpacity(object, opacityScale) {
 }
 
 function updatePlayerCameraMode(deltaSeconds) {
-  if (viewPlayerUuid) {
+  if (runtime.viewPlayerUuid) {
     updateEyeCamera(deltaSeconds);
     return;
   }
-  if (followPlayerUuid) {
+  if (runtime.followPlayerUuid) {
     updateWalkFollowCamera(deltaSeconds);
   }
 }
@@ -2989,13 +2681,13 @@ function resetPlayerEyeState(uuid) {
 }
 
 function updateEyeCamera(deltaSeconds = 0) {
-  const marker = playerMarkers.get(viewPlayerUuid);
+  const marker = playerMarkers.get(runtime.viewPlayerUuid);
   if (!marker) {
     setPlayerEyeView(null);
     return;
   }
-  if (playerEyeState.uuid !== viewPlayerUuid) {
-    resetPlayerEyeState(viewPlayerUuid);
+  if (playerEyeState.uuid !== runtime.viewPlayerUuid) {
+    resetPlayerEyeState(runtime.viewPlayerUuid);
   }
   const targetYawRad = Number.isFinite(marker.userData.targetYaw) ? marker.userData.targetYaw : playerEyeState.yawRad;
   const targetPitchRad = playerCameraPitchRad(marker.userData.targetPitch ?? 0);
@@ -3030,7 +2722,7 @@ function playerCameraPitchRad(pitchDeg) {
 }
 
 function updateWalkFollowCamera(deltaSeconds) {
-  const marker = playerMarkers.get(followPlayerUuid);
+  const marker = playerMarkers.get(runtime.followPlayerUuid);
   if (!marker) {
     setPlayerFollow(null);
     return;
@@ -3048,19 +2740,6 @@ function lerpAngle(current, target, alpha) {
   return current + delta * alpha;
 }
 
-function isTypingInHud() {
-  const active = document.activeElement;
-  return active instanceof HTMLInputElement
-    || active instanceof HTMLSelectElement
-    || active instanceof HTMLTextAreaElement;
-}
-
-function blurFocusedHudControl() {
-  if (isTypingInHud()) {
-    document.activeElement.blur();
-  }
-}
-
 function animate() {
   const deltaSeconds = Math.min(clock.getDelta(), 0.05);
   const elapsedSeconds = clock.elapsedTime;
@@ -3071,7 +2750,7 @@ function animate() {
   updateMobMarkers(deltaSeconds, elapsedSeconds);
   handleKeyboardNavigation(deltaSeconds);
   updatePlayerCameraMode(deltaSeconds);
-  if (!viewPlayerUuid && !followPlayerUuid) {
+  if (!runtime.viewPlayerUuid && !runtime.followPlayerUuid) {
     updateFlyTarget();
   }
   if (controls.enabled) {
@@ -3092,197 +2771,61 @@ function animate() {
   requestAnimationFrame(animate);
 }
 
-window.addEventListener('resize', resize);
-function setSettingsPanelOpen(open: boolean) {
-  hudEl.classList.toggle('open', open);
-  panelToggle.classList.toggle('active', open);
-  panelToggle.setAttribute('aria-expanded', String(open));
+function reloadTerrainForVisualOptions() {
+  for (const [id, entry] of Array.from(loadedChunks.entries())) {
+    finishDisposeChunk(id, entry);
+  }
+  scheduleControlGridLoad();
 }
 
-window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') {
-    const confirmDialog = document.querySelector<HTMLDialogElement>('#confirm-dialog');
-    if (confirmDialog?.open) return;
-    if (!hudEl.classList.contains('open')) return;
-    event.preventDefault();
-    blurFocusedHudControl();
-    setSettingsPanelOpen(false);
-    return;
-  }
-  if (isTypingInHud()) return;
-  if ([
-    'KeyW',
-    'KeyA',
-    'KeyS',
-    'KeyD',
-    'KeyQ',
-    'KeyE',
-    'KeyR',
-    'KeyC',
-    'Space',
-    'PageUp',
-    'PageDown',
-    'ShiftLeft',
-    'ShiftRight',
-  ].includes(event.code)) {
-    event.preventDefault();
-    pressedKeys.add(event.code);
-  }
-});
-window.addEventListener('keyup', (event) => {
-  pressedKeys.delete(event.code);
-});
-renderer.domElement.addEventListener('pointerdown', (event) => {
-  blurFocusedHudControl();
-  if (!viewPlayerUuid && !followPlayerUuid && shouldStartFlyLook(event)) {
-    event.preventDefault();
-    renderer.domElement.requestPointerLock?.();
-  }
-}, { capture: true });
-renderer.domElement.addEventListener('wheel', (event) => {
-  if (viewPlayerUuid || followPlayerUuid) return;
-  event.preventDefault();
-  zoomFlyView(event.deltaY);
-}, { passive: false });
-window.addEventListener('mousemove', (event) => {
-  if (!isFlyLookActive() || viewPlayerUuid) return;
-  flyYaw -= event.movementX * FLY_MOUSE_SENSITIVITY;
-  flyPitch -= event.movementY * FLY_MOUSE_SENSITIVITY;
-  applyFlyLook();
-});
-window.addEventListener('terrascape:map-backdrop-loaded', applyMapWaterTint);
-debugBoundsInput.addEventListener('change', updateDebugBounds);
-debugBoundsInput.addEventListener('change', saveViewState);
-showPlayersInput.addEventListener('change', () => {
-  updateEntityVisibility();
-  restartEntityStream();
-  restartPlayerPolling();
-  saveViewState();
-});
-showMobsInput.addEventListener('change', () => {
-  clearTimeout(mobPollTimer);
-  mobPollTimer = null;
-  if (!showMobsInput.checked) {
-    clearMobs();
-  }
-  updateEntityVisibility();
-  restartEntityStream();
-  if (showMobsInput.checked) {
-    restartMobPolling(0);
-  }
-  saveViewState();
-});
-function onMobBlocksToggle(event) {
-  syncMobBlocksInputs(event.target.checked);
-  updateEntityVisibility();
-  saveViewState();
-}
-mobBlocksInput.addEventListener('change', onMobBlocksToggle);
-mobBlocksPanelInput.addEventListener('change', onMobBlocksToggle);
-waterModeInput.addEventListener('change', () => {
-  applyWaterMode();
-  saveViewState();
-});
-playerUpdateRateInput.addEventListener('change', () => {
-  restartPlayerPolling();
-  saveViewState();
-});
-for (const input of [treeShadeInput]) {
-  const eventName = input.type === 'range' ? 'input' : 'change';
-  input.addEventListener(eventName, () => {
-    applyLighting();
-    saveViewState();
-  });
-}
-mapTimeInput.addEventListener('change', () => {
-  applyLighting();
-  restartWorldTimePolling();
-  saveViewState();
-});
-mapTilesInput.addEventListener('change', () => {
-  updateMapTileLayer();
-  saveViewState();
-});
-cosmeticBlocksModeInput.addEventListener('change', () => {
-  for (const [id, entry] of Array.from(loadedChunks.entries())) {
-    finishDisposeChunk(id, entry);
-  }
-  scheduleControlGridLoad();
-  saveViewState();
-});
-visualDetailModeInput.addEventListener('change', () => {
-  for (const [id, entry] of Array.from(loadedChunks.entries())) {
-    finishDisposeChunk(id, entry);
-  }
-  scheduleControlGridLoad();
-  saveViewState();
-});
-clearMeshCacheButton?.addEventListener('click', () => {
-  void handleClearMeshCache();
-});
-landMotionInput.addEventListener('change', saveViewState);
-syncRadiusControl();
-syncPairedControl(terrainLoadSlotsInput, terrainLoadSlotsValueInput, () => {});
-syncPairedControl(terrainSpawnFrameInput, terrainSpawnFrameValueInput, () => {});
-syncPairedControl(terrainSpawnBudgetInput, terrainSpawnBudgetValueInput, () => {});
-syncPairedControl(shadeSizeInput, shadeSizeValueInput);
-syncPairedControl(shadeDarknessInput, shadeDarknessValueInput);
-fogEnabledInput.addEventListener('change', () => {
-  applyFogSettings();
-  saveViewState();
-});
-syncPairedControl(fogNearInput, fogNearValueInput, applyFogSettings);
-syncPairedControl(fogFarInput, fogFarValueInput, applyFogSettings);
-syncPairedControl(fogStrengthInput, fogStrengthValueInput, applyFogSettings);
-syncPairedControl(fogHorizonInput, fogHorizonValueInput, applyFogSettings);
-worldSelect.addEventListener('change', () => {
-  closeEntityStream();
-  updatePlayers([]);
-  clearMobs();
-  restartEntityStream();
-  refreshWorldTime();
-  restartPlayerPolling();
-  restartMobPolling();
-  restartWorldTimePolling();
-  scheduleControlGridLoad();
-  saveViewState();
-});
-bindHudSectionCollapsibles(document);
-bindTriStateControl(document, 'cosmetic-blocks-mode', [
-  { value: 'off', label: 'Off' },
-  { value: 'baked', label: 'Baked' },
-  { value: 'split', label: 'Split' },
-]);
-bindTriStateControl(document, 'visual-detail-mode', [
-  { value: 'basic', label: 'Basic' },
-  { value: 'structures', label: 'Struct' },
-  { value: 'all', label: 'Foliage' },
-]);
-for (const input of [chunkXInput, chunkZInput]) {
-  if (!input) continue;
-  input.addEventListener('input', scheduleControlGridLoad);
-  input.addEventListener('change', scheduleControlGridLoad);
-}
-panelToggle.addEventListener('click', () => {
-  setSettingsPanelOpen(!hudEl.classList.contains('open'));
-});
-setRenderDetailsOpen(!storedViewState || storedViewState.renderDetails !== false);
-infoCardHeadEl.addEventListener('click', toggleRenderDetails);
-infoCardHeadEl.addEventListener('keydown', (event) => {
-  if (event.key !== 'Enter' && event.key !== ' ') return;
-  event.preventDefault();
-  toggleRenderDetails();
+setRenderDetailsOpen(!runtime.storedViewState || runtime.storedViewState.renderDetails !== false);
+bindAppEvents({
+  renderer,
+  pressedKeys,
+  getViewPlayerUuid: () => runtime.viewPlayerUuid,
+  getFollowPlayerUuid: () => runtime.followPlayerUuid,
+  applyFlyLookDelta: (movementX, movementY) => {
+    runtime.flyYaw -= movementX * FLY_MOUSE_SENSITIVITY;
+    runtime.flyPitch -= movementY * FLY_MOUSE_SENSITIVITY;
+    applyFlyLook();
+  },
+  applyFogSettings,
+  applyLighting,
+  applyMapWaterTint,
+  applyWaterMode,
+  clearMobs,
+  closeEntityStream,
+  handleClearMeshCache,
+  refreshWorldTime,
+  restartEntityStream,
+  restartMobPolling,
+  restartPlayerPolling,
+  restartWorldTimePolling,
+  saveViewState,
+  scheduleControlGridLoad,
+  setRadiusControlValue,
+  shouldStartFlyLook,
+  syncMobBlocksInputs,
+  toggleRenderDetails,
+  updateDebugBounds,
+  updateEntityVisibility,
+  updateMapTileLayer,
+  updatePlayers,
+  updateRadiusReadout,
+  zoomFlyView,
+  reloadTerrainForVisualOptions,
+  resize,
 });
 applyInitialParams();
 setRadiusControlValue(radiusValue());
 exposeDebugState();
 resize();
-timeRibbon.update(worldTime);
+timeRibbon.update(runtime.worldTime);
 animate();
 await loadWorlds();
 await npcCatalog.load();
 if (worldSelect.value) {
-  hasStarted = true;
+  runtime.hasStarted = true;
   const restoredCameraPose = restoreCameraPose();
   await refreshWorldTime();
   await loadGrid({ focus: !restoredCameraPose }).catch((error) => setStatus(error.message));
@@ -3293,47 +2836,3 @@ if (worldSelect.value) {
   saveViewState();
 }
 
-function syncPairedControl(rangeInput, numberInput, applyUpdate = applyLighting) {
-  rangeInput.addEventListener('input', () => {
-    numberInput.value = rangeInput.value;
-    applyUpdate();
-    saveViewState();
-  });
-  numberInput.addEventListener('input', () => {
-    const parsed = Number.parseFloat(numberInput.value);
-    if (Number.isFinite(parsed)) {
-      rangeInput.value = normalizePairedValue(rangeInput, parsed);
-    }
-    applyUpdate();
-    saveViewState();
-  });
-  numberInput.addEventListener('change', () => {
-    setPairedControlValue(rangeInput, numberInput, Number.parseFloat(numberInput.value));
-    applyUpdate();
-    saveViewState();
-  });
-}
-
-function syncRadiusControl() {
-  radiusRangeInput.addEventListener('input', () => {
-    radiusInput.value = radiusRangeInput.value;
-    updateRadiusReadout();
-    scheduleControlGridLoad();
-  });
-  radiusInput.addEventListener('input', () => {
-    const parsed = Number.parseInt(radiusInput.value, 10);
-    if (Number.isFinite(parsed)) {
-      radiusRangeInput.value = normalizePairedValue(radiusRangeInput, parsed);
-    }
-    updateRadiusReadout();
-    scheduleControlGridLoad();
-  });
-  radiusInput.addEventListener('change', () => {
-    setRadiusControlValue(radiusInput.value);
-    scheduleControlGridLoad();
-  });
-  radiusRangeInput.addEventListener('change', () => {
-    setRadiusControlValue(radiusRangeInput.value);
-    scheduleControlGridLoad();
-  });
-}

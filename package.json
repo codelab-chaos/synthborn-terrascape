@@ -4,7 +4,12 @@
   "main": "index.js",
   "scripts": {
     "build:web": "webpack --config webpack.config.cjs",
-    "test": "npm run build:web && playwright test tests/terrascape.spec.js",
+    "test": "npm run test:web",
+    "test:unit": "tsc -p tests/tsconfig.web-unit.json && node --test build/web-unit/tests/web-unit.test.js",
+    "test:unit:coverage": "tsc -p tests/tsconfig.web-unit.json && node --test --experimental-test-coverage --test-coverage-include=build/web-unit/src/main/resources/web/src/app-state.js --test-coverage-include=build/web-unit/src/main/resources/web/src/chunk-planning.js --test-coverage-include=build/web-unit/src/main/resources/web/src/entity-feed-policy.js --test-coverage-include=build/web-unit/src/main/resources/web/src/entity-summary.js --test-coverage-include=build/web-unit/src/main/resources/web/src/map-layer-policy.js --test-coverage-include=build/web-unit/src/main/resources/web/src/resource-stats.js --test-coverage-include=build/web-unit/src/main/resources/web/src/terrain-requests.js --test-coverage-include=build/web-unit/src/main/resources/web/src/terrain-stream.js --test-coverage-include=build/web-unit/src/main/resources/web/src/view-preferences.js --test-coverage-exclude=build/web-unit/tests/*.js build/web-unit/tests/web-unit.test.js",
+    "test:web": "npm run build:web && playwright test tests/terrascape.spec.js",
+    "test:java": "sh gradlew test",
+    "test:release": "npm run test:java && npm run test:unit && npm run test:web",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "perf": "node tools/run-terrascape-perf.js --both",

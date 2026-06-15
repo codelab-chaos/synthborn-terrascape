@@ -6,6 +6,299 @@ import * as __WEBPACK_EXTERNAL_MODULE_three_addons_postprocessing_RenderPass_js_
 import * as __WEBPACK_EXTERNAL_MODULE_three_addons_postprocessing_ShaderPass_js_85531946__ from "three/addons/postprocessing/ShaderPass.js";
 /******/ var __webpack_modules__ = ({
 
+/***/ "./src/main/resources/web/src/app-events.ts"
+/*!**************************************************!*\
+  !*** ./src/main/resources/web/src/app-events.ts ***!
+  \**************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   bindAppEvents: () => (/* binding */ bindAppEvents),
+/* harmony export */   isTypingInHud: () => (/* binding */ isTypingInHud)
+/* harmony export */ });
+/* harmony import */ var _library_control_values_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./library/control-values.js */ "./src/main/resources/web/src/library/control-values.ts");
+/* harmony import */ var _library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./library/collapsible-section.js */ "./src/main/resources/web/src/library/collapsible-section.ts");
+/* harmony import */ var _library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./library/tri-state-control.js */ "./src/main/resources/web/src/library/tri-state-control.ts");
+/* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/dom.ts");
+
+
+
+
+const MOVEMENT_KEY_CODES = new Set([
+    'KeyW',
+    'KeyA',
+    'KeyS',
+    'KeyD',
+    'KeyQ',
+    'KeyE',
+    'KeyR',
+    'KeyC',
+    'Space',
+    'PageUp',
+    'PageDown',
+    'ShiftLeft',
+    'ShiftRight',
+]);
+function bindAppEvents(bindings) {
+    window.addEventListener('resize', bindings.resize);
+    window.addEventListener('keydown', (event) => handleKeyDown(event, bindings));
+    window.addEventListener('keyup', (event) => {
+        bindings.pressedKeys.delete(event.code);
+    });
+    bindings.renderer.domElement.addEventListener('pointerdown', (event) => {
+        blurFocusedHudControl();
+        if (!bindings.getViewPlayerUuid() && !bindings.getFollowPlayerUuid() && bindings.shouldStartFlyLook(event)) {
+            event.preventDefault();
+            bindings.renderer.domElement.requestPointerLock?.();
+        }
+    }, { capture: true });
+    bindings.renderer.domElement.addEventListener('wheel', (event) => {
+        if (bindings.getViewPlayerUuid() || bindings.getFollowPlayerUuid())
+            return;
+        event.preventDefault();
+        bindings.zoomFlyView(event.deltaY);
+    }, { passive: false });
+    window.addEventListener('mousemove', (event) => {
+        if (!isFlyLookActive(bindings.renderer.domElement) || bindings.getViewPlayerUuid())
+            return;
+        bindings.applyFlyLookDelta(event.movementX, event.movementY);
+    });
+    window.addEventListener('terrascape:map-backdrop-loaded', bindings.applyMapWaterTint);
+    bindHudInputs(bindings);
+    bindTriStateControls();
+}
+function bindHudInputs(bindings) {
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.debugBoundsInput.addEventListener('change', bindings.updateDebugBounds);
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.debugBoundsInput.addEventListener('change', bindings.saveViewState);
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.showPlayersInput.addEventListener('change', () => {
+        bindings.updateEntityVisibility();
+        bindings.restartEntityStream();
+        bindings.restartPlayerPolling();
+        bindings.saveViewState();
+    });
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.showMobsInput.addEventListener('change', () => {
+        if (!_dom_js__WEBPACK_IMPORTED_MODULE_3__.showMobsInput.checked) {
+            bindings.clearMobs();
+        }
+        bindings.updateEntityVisibility();
+        bindings.restartEntityStream();
+        if (_dom_js__WEBPACK_IMPORTED_MODULE_3__.showMobsInput.checked) {
+            bindings.restartMobPolling(0);
+        }
+        else {
+            bindings.restartMobPolling();
+        }
+        bindings.saveViewState();
+    });
+    const onMobBlocksToggle = (event) => {
+        bindings.syncMobBlocksInputs(Boolean(event.target?.checked));
+        bindings.updateEntityVisibility();
+        bindings.saveViewState();
+    };
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.mobBlocksInput.addEventListener('change', onMobBlocksToggle);
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.mobBlocksPanelInput.addEventListener('change', onMobBlocksToggle);
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.waterModeInput.addEventListener('change', () => {
+        bindings.applyWaterMode();
+        bindings.saveViewState();
+    });
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.playerUpdateRateInput.addEventListener('change', () => {
+        bindings.restartPlayerPolling();
+        bindings.saveViewState();
+    });
+    for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_3__.treeShadeInput]) {
+        const eventName = input.type === 'range' ? 'input' : 'change';
+        input.addEventListener(eventName, () => {
+            bindings.applyLighting();
+            bindings.saveViewState();
+        });
+    }
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.mapTimeInput.addEventListener('change', () => {
+        bindings.applyLighting();
+        bindings.restartWorldTimePolling();
+        bindings.saveViewState();
+    });
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.mapTilesInput.addEventListener('change', () => {
+        bindings.updateMapTileLayer();
+        bindings.saveViewState();
+    });
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.cosmeticBlocksModeInput.addEventListener('change', () => {
+        bindings.reloadTerrainForVisualOptions();
+        bindings.saveViewState();
+    });
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.visualDetailModeInput.addEventListener('change', () => {
+        bindings.reloadTerrainForVisualOptions();
+        bindings.saveViewState();
+    });
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.clearMeshCacheButton?.addEventListener('click', () => {
+        void bindings.handleClearMeshCache();
+    });
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.landMotionInput.addEventListener('change', bindings.saveViewState);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindRadiusControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.radiusRangeInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.radiusInput, {
+        setRadius: bindings.setRadiusControlValue,
+        updateReadout: bindings.updateRadiusReadout,
+        onChange: bindings.scheduleControlGridLoad,
+    });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.terrainLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.terrainLoadSlotsValueInput, { onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.terrainSpawnFrameValueInput, { onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.terrainSpawnBudgetValueInput, { onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.shadeSizeValueInput, { onUpdate: bindings.applyLighting, onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.shadeDarknessValueInput, { onUpdate: bindings.applyLighting, onSave: bindings.saveViewState });
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.fogEnabledInput.addEventListener('change', () => {
+        bindings.applyFogSettings();
+        bindings.saveViewState();
+    });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.fogNearValueInput, { onUpdate: bindings.applyFogSettings, onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.fogFarValueInput, { onUpdate: bindings.applyFogSettings, onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.fogStrengthValueInput, { onUpdate: bindings.applyFogSettings, onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.fogHorizonValueInput, { onUpdate: bindings.applyFogSettings, onSave: bindings.saveViewState });
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.worldSelect.addEventListener('change', () => {
+        bindings.closeEntityStream();
+        bindings.updatePlayers([]);
+        bindings.clearMobs();
+        bindings.restartEntityStream();
+        void bindings.refreshWorldTime();
+        bindings.restartPlayerPolling();
+        bindings.restartMobPolling();
+        bindings.restartWorldTimePolling();
+        bindings.scheduleControlGridLoad();
+        bindings.saveViewState();
+    });
+    for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_3__.chunkXInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.chunkZInput]) {
+        if (!input)
+            continue;
+        input.addEventListener('input', bindings.scheduleControlGridLoad);
+        input.addEventListener('change', bindings.scheduleControlGridLoad);
+    }
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.panelToggle.addEventListener('click', () => {
+        setSettingsPanelOpen(!_dom_js__WEBPACK_IMPORTED_MODULE_3__.hudEl.classList.contains('open'));
+    });
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.infoCardHeadEl.addEventListener('click', bindings.toggleRenderDetails);
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.infoCardHeadEl.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ')
+            return;
+        event.preventDefault();
+        bindings.toggleRenderDetails();
+    });
+}
+function bindTriStateControls() {
+    (0,_library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_1__.bindHudSectionCollapsibles)(document);
+    (0,_library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_2__.bindTriStateControl)(document, 'cosmetic-blocks-mode', [
+        { value: 'off', label: 'Off' },
+        { value: 'baked', label: 'Baked' },
+        { value: 'split', label: 'Split' },
+    ]);
+    (0,_library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_2__.bindTriStateControl)(document, 'visual-detail-mode', [
+        { value: 'basic', label: 'Basic' },
+        { value: 'structures', label: 'Struct' },
+        { value: 'all', label: 'Foliage' },
+    ]);
+}
+function handleKeyDown(event, bindings) {
+    if (event.key === 'Escape') {
+        const confirmDialog = document.querySelector('#confirm-dialog');
+        if (confirmDialog?.open)
+            return;
+        if (!_dom_js__WEBPACK_IMPORTED_MODULE_3__.hudEl.classList.contains('open'))
+            return;
+        event.preventDefault();
+        blurFocusedHudControl();
+        setSettingsPanelOpen(false);
+        return;
+    }
+    if (isTypingInHud())
+        return;
+    if (MOVEMENT_KEY_CODES.has(event.code)) {
+        event.preventDefault();
+        bindings.pressedKeys.add(event.code);
+    }
+}
+function setSettingsPanelOpen(open) {
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.hudEl.classList.toggle('open', open);
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.panelToggle.classList.toggle('active', open);
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.panelToggle.setAttribute('aria-expanded', String(open));
+}
+function isTypingInHud() {
+    const active = document.activeElement;
+    return active instanceof HTMLInputElement
+        || active instanceof HTMLSelectElement
+        || active instanceof HTMLTextAreaElement;
+}
+function blurFocusedHudControl() {
+    if (isTypingInHud()) {
+        document.activeElement.blur();
+    }
+}
+function isFlyLookActive(domElement) {
+    return document.pointerLockElement === domElement;
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/app-state.ts"
+/*!*************************************************!*\
+  !*** ./src/main/resources/web/src/app-state.ts ***!
+  \*************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   AppRuntimeState: () => (/* binding */ AppRuntimeState)
+/* harmony export */ });
+class AppRuntimeState {
+    loadGeneration = 0;
+    lastGridLoadTiming = null;
+    lastTerrainStreamTiming = null;
+    hasFocusedInitialGrid = false;
+    activeCenterId = null;
+    requestedCenterId = null;
+    scheduledCenterId = null;
+    mapTileLayerKey = null;
+    streamTimer = null;
+    gridLoadCount = 0;
+    controlLoadTimer = null;
+    playerPollTimer = null;
+    mobPollTimer = null;
+    entityStream = null;
+    entityStreamWorld = null;
+    entityStreamPlayers = null;
+    entityStreamMobs = null;
+    entityStreamFallbackTimer = null;
+    playerConnectMobSampleTimer = null;
+    lastMetricsUpdate = 0;
+    experimentalDetailsEnabled = false;
+    terrainFormatVersion = 'unknown';
+    storedViewState;
+    hasRestoredCameraPose = false;
+    hasStarted = false;
+    lastViewStateSave = 0;
+    flyYaw = 0;
+    flyPitch = 0;
+    worldTime = null;
+    timePollTimer = null;
+    viewPlayerUuid = null;
+    followPlayerUuid = null;
+    isRefreshingPlayers = false;
+    lastPlayerCount = 0;
+    lastPlayerPollFailed = false;
+    isRefreshingMobs = false;
+    lastMobCount = 0;
+    lastMobPollFailed = false;
+    entityStreamConnected = false;
+    lastMobSourceStats = null;
+    pendingMobMarkerUpdate = null;
+    mobMarkerUpdateScheduled = false;
+    mobMarkerUpdateGeneration = 0;
+    hasMobBillboardQuaternion = false;
+    constructor(storedViewState) {
+        this.storedViewState = storedViewState;
+    }
+}
+
+
+/***/ },
+
 /***/ "./src/main/resources/web/src/app.ts"
 /*!*******************************************!*\
   !*** ./src/main/resources/web/src/app.ts ***!
@@ -15,10 +308,56 @@ import * as __WEBPACK_EXTERNAL_MODULE_three_addons_postprocessing_ShaderPass_js_
 __webpack_require__.a(module, async (__webpack_handle_async_dependencies__, __webpack_async_result__) => { try {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   applyBooleanParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.applyBooleanParam),
+/* harmony export */   applyFloatParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.applyFloatParam),
+/* harmony export */   applyNumberParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.applyNumberParam),
+/* harmony export */   applySelectParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.applySelectParam),
+/* harmony export */   applySelectValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.applySelectValue),
+/* harmony export */   bindPairedControl: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.bindPairedControl),
+/* harmony export */   bindRadiusControl: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.bindRadiusControl),
+/* harmony export */   chunkDistanceSq: () => (/* reexport safe */ _chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__.chunkDistanceSq),
+/* harmony export */   chunkKeysForWorld: () => (/* reexport safe */ _chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__.chunkKeysForWorld),
+/* harmony export */   collectChunkResourceStats: () => (/* reexport safe */ _resource_stats_js__WEBPACK_IMPORTED_MODULE_22__.collectChunkResourceStats),
+/* harmony export */   compactMobSourceStats: () => (/* reexport safe */ _entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.compactMobSourceStats),
+/* harmony export */   compactObject: () => (/* reexport safe */ _entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.compactObject),
 /* harmony export */   createMobMarker: () => (/* reexport safe */ _players_js__WEBPACK_IMPORTED_MODULE_1__.createMobMarker),
 /* harmony export */   createPlayerMarker: () => (/* reexport safe */ _players_js__WEBPACK_IMPORTED_MODULE_1__.createPlayerMarker),
+/* harmony export */   createTerrainStreamStats: () => (/* reexport safe */ _terrain_stream_js__WEBPACK_IMPORTED_MODULE_21__.createTerrainStreamStats),
 /* harmony export */   disposeObject: () => (/* reexport safe */ _players_js__WEBPACK_IMPORTED_MODULE_1__.disposeObject),
-/* harmony export */   updateMobMarkerHeight: () => (/* reexport safe */ _players_js__WEBPACK_IMPORTED_MODULE_1__.updateMobMarkerHeight)
+/* harmony export */   disposeObjectTree: () => (/* reexport safe */ _resource_stats_js__WEBPACK_IMPORTED_MODULE_22__.disposeObjectTree),
+/* harmony export */   distanceBetween: () => (/* reexport safe */ _entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.distanceBetween),
+/* harmony export */   floatControlValue: () => (/* reexport safe */ _view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.floatControlValue),
+/* harmony export */   fogRangeFromControls: () => (/* reexport safe */ _view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.fogRangeFromControls),
+/* harmony export */   horizonMapKeys: () => (/* reexport safe */ _map_layer_policy_js__WEBPACK_IMPORTED_MODULE_15__.horizonMapKeys),
+/* harmony export */   isTruthyParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.isTruthyParam),
+/* harmony export */   liveMobFeedEnabled: () => (/* reexport safe */ _entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__.liveMobFeedEnabled),
+/* harmony export */   mapBackdropCenterFrom: () => (/* reexport safe */ _map_layer_policy_js__WEBPACK_IMPORTED_MODULE_15__.mapBackdropCenterFrom),
+/* harmony export */   mapBackdropRetainStats: () => (/* reexport safe */ _map_layer_policy_js__WEBPACK_IMPORTED_MODULE_15__.mapBackdropRetainStats),
+/* harmony export */   mapTileLayerKey: () => (/* reexport safe */ _map_layer_policy_js__WEBPACK_IMPORTED_MODULE_15__.mapTileLayerKey),
+/* harmony export */   mapTileRetainRadiusFor: () => (/* reexport safe */ _view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.mapTileRetainRadiusFor),
+/* harmony export */   mobPollDelayMs: () => (/* reexport safe */ _entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__.mobPollDelayMs),
+/* harmony export */   nearestMobsForSample: () => (/* reexport safe */ _entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.nearestMobsForSample),
+/* harmony export */   normalizePairedValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.normalizePairedValue),
+/* harmony export */   parseCenterId: () => (/* reexport safe */ _map_layer_policy_js__WEBPACK_IMPORTED_MODULE_15__.parseCenterId),
+/* harmony export */   playerPollDelayMs: () => (/* reexport safe */ _entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__.playerPollDelayMs),
+/* harmony export */   positiveIntegerMs: () => (/* reexport safe */ _entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__.positiveIntegerMs),
+/* harmony export */   radiusReadout: () => (/* reexport safe */ _view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.radiusReadout),
+/* harmony export */   roundCoord: () => (/* reexport safe */ _entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.roundCoord),
+/* harmony export */   safeWaterMode: () => (/* reexport safe */ _view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.safeWaterMode),
+/* harmony export */   setNumberInput: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setNumberInput),
+/* harmony export */   setPairedControlValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setPairedControlValue),
+/* harmony export */   sortChunkKeysByPlayerDistance: () => (/* reexport safe */ _chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__.sortChunkKeysByPlayerDistance),
+/* harmony export */   summarizeCountsObject: () => (/* reexport safe */ _entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.summarizeCountsObject),
+/* harmony export */   summarizeItems: () => (/* reexport safe */ _entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.summarizeItems),
+/* harmony export */   terrainCacheKeyFor: () => (/* reexport safe */ _terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainCacheKeyFor),
+/* harmony export */   terrainCosmeticOverlayCacheKeyFor: () => (/* reexport safe */ _terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainCosmeticOverlayCacheKeyFor),
+/* harmony export */   terrainCosmeticOverlayUrlFor: () => (/* reexport safe */ _terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainCosmeticOverlayUrlFor),
+/* harmony export */   terrainStreamSnapshot: () => (/* reexport safe */ _terrain_stream_js__WEBPACK_IMPORTED_MODULE_21__.terrainStreamSnapshot),
+/* harmony export */   terrainTuningControlValue: () => (/* reexport safe */ _view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.terrainTuningControlValue),
+/* harmony export */   terrainUrlFor: () => (/* reexport safe */ _terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainUrlFor),
+/* harmony export */   updateMobMarkerHeight: () => (/* reexport safe */ _players_js__WEBPACK_IMPORTED_MODULE_1__.updateMobMarkerHeight),
+/* harmony export */   wantsEntityStream: () => (/* reexport safe */ _entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__.wantsEntityStream),
+/* harmony export */   worldTimePollDelayMs: () => (/* reexport safe */ _entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__.worldTimePollDelayMs)
 /* harmony export */ });
 /* harmony import */ var three__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! three */ "three");
 /* harmony import */ var _players_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./players.js */ "./src/main/resources/web/src/players.ts");
@@ -28,22 +367,49 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _chunk_placeholder_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./chunk-placeholder.js */ "./src/main/resources/web/src/chunk-placeholder.ts");
 /* harmony import */ var _library_chunk_land_motion_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./library/chunk-land-motion.js */ "./src/main/resources/web/src/library/chunk-land-motion.ts");
 /* harmony import */ var _frame_jank_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./frame-jank.js */ "./src/main/resources/web/src/frame-jank.ts");
-/* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/dom.ts");
-/* harmony import */ var _lighting_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./lighting.js */ "./src/main/resources/web/src/lighting.ts");
-/* harmony import */ var _client_log_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./client-log.js */ "./src/main/resources/web/src/client-log.ts");
-/* harmony import */ var _fps_counter_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./fps-counter.js */ "./src/main/resources/web/src/fps-counter.ts");
-/* harmony import */ var _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./map-backdrop.js */ "./src/main/resources/web/src/map-backdrop.ts");
-/* harmony import */ var _npc_catalog_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./npc-catalog.js */ "./src/main/resources/web/src/npc-catalog.ts");
-/* harmony import */ var _player_tiles_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./player-tiles.js */ "./src/main/resources/web/src/player-tiles.ts");
-/* harmony import */ var _postprocessing_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./postprocessing.js */ "./src/main/resources/web/src/postprocessing.ts");
-/* harmony import */ var _time_ribbon_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./time-ribbon.js */ "./src/main/resources/web/src/time-ribbon.ts");
-/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./utils.js */ "./src/main/resources/web/src/utils.ts");
-/* harmony import */ var _view_state_js__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./view-state.js */ "./src/main/resources/web/src/view-state.ts");
-/* harmony import */ var _water_js__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./water.js */ "./src/main/resources/web/src/water.ts");
-/* harmony import */ var _library_confirm_dialog_js__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./library/confirm-dialog.js */ "./src/main/resources/web/src/library/confirm-dialog.ts");
-/* harmony import */ var _library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./library/collapsible-section.js */ "./src/main/resources/web/src/library/collapsible-section.ts");
-/* harmony import */ var _library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./library/tri-state-control.js */ "./src/main/resources/web/src/library/tri-state-control.ts");
-/* harmony import */ var _mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./mesh-cache.js */ "./src/main/resources/web/src/mesh-cache.ts");
+/* harmony import */ var _app_events_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./app-events.js */ "./src/main/resources/web/src/app-events.ts");
+/* harmony import */ var _app_state_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./app-state.js */ "./src/main/resources/web/src/app-state.ts");
+/* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/dom.ts");
+/* harmony import */ var _lighting_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./lighting.js */ "./src/main/resources/web/src/lighting.ts");
+/* harmony import */ var _client_log_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./client-log.js */ "./src/main/resources/web/src/client-log.ts");
+/* harmony import */ var _fps_counter_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./fps-counter.js */ "./src/main/resources/web/src/fps-counter.ts");
+/* harmony import */ var _map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./map-backdrop.js */ "./src/main/resources/web/src/map-backdrop.ts");
+/* harmony import */ var _map_layer_policy_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./map-layer-policy.js */ "./src/main/resources/web/src/map-layer-policy.ts");
+/* harmony import */ var _npc_catalog_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./npc-catalog.js */ "./src/main/resources/web/src/npc-catalog.ts");
+/* harmony import */ var _player_tiles_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./player-tiles.js */ "./src/main/resources/web/src/player-tiles.ts");
+/* harmony import */ var _chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./chunk-planning.js */ "./src/main/resources/web/src/chunk-planning.ts");
+/* harmony import */ var _postprocessing_js__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./postprocessing.js */ "./src/main/resources/web/src/postprocessing.ts");
+/* harmony import */ var _time_ribbon_js__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./time-ribbon.js */ "./src/main/resources/web/src/time-ribbon.ts");
+/* harmony import */ var _terrain_stream_js__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./terrain-stream.js */ "./src/main/resources/web/src/terrain-stream.ts");
+/* harmony import */ var _resource_stats_js__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./resource-stats.js */ "./src/main/resources/web/src/resource-stats.ts");
+/* harmony import */ var _terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./terrain-requests.js */ "./src/main/resources/web/src/terrain-requests.ts");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./utils.js */ "./src/main/resources/web/src/utils.ts");
+/* harmony import */ var _view_preferences_js__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./view-preferences.js */ "./src/main/resources/web/src/view-preferences.ts");
+/* harmony import */ var _view_state_js__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./view-state.js */ "./src/main/resources/web/src/view-state.ts");
+/* harmony import */ var _water_js__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./water.js */ "./src/main/resources/web/src/water.ts");
+/* harmony import */ var _library_confirm_dialog_js__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./library/confirm-dialog.js */ "./src/main/resources/web/src/library/confirm-dialog.ts");
+/* harmony import */ var _entity_summary_js__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./entity-summary.js */ "./src/main/resources/web/src/entity-summary.ts");
+/* harmony import */ var _entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! ./entity-feed-policy.js */ "./src/main/resources/web/src/entity-feed-policy.ts");
+/* harmony import */ var _library_control_values_js__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! ./library/control-values.js */ "./src/main/resources/web/src/library/control-values.ts");
+/* harmony import */ var _mesh_cache_js__WEBPACK_IMPORTED_MODULE_32__ = __webpack_require__(/*! ./mesh-cache.js */ "./src/main/resources/web/src/mesh-cache.ts");
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -71,6 +437,10 @@ __webpack_require__.r(__webpack_exports__);
 
 const COSMETIC_MODE_VALUES = ['off', 'baked', 'split'];
 const VISUAL_DETAIL_VALUES = ['basic', 'structures', 'all'];
+const TRI_STATE_VALUES_BY_ID = {
+    'cosmetic-blocks-mode': COSMETIC_MODE_VALUES,
+    'visual-detail-mode': VISUAL_DETAIL_VALUES,
+};
 const SKY_COLOR = 0x173454;
 const EMPTY_GRID_AXIS_COLOR = 0x1faa6a;
 const EMPTY_GRID_LINE_COLOR = 0x15965a;
@@ -136,7 +506,7 @@ const NOON_LIGHTING_TIME = {
     phase: 'noon',
     sunDirection: { x: 0.2, y: -1, z: 0.25 },
 };
-const renderer = new three__WEBPACK_IMPORTED_MODULE_0__.WebGLRenderer({ canvas: _dom_js__WEBPACK_IMPORTED_MODULE_8__.canvas, antialias: true });
+const renderer = new three__WEBPACK_IMPORTED_MODULE_0__.WebGLRenderer({ canvas: _dom_js__WEBPACK_IMPORTED_MODULE_10__.canvas, antialias: true });
 const rendererPixelRatio = Math.min(window.devicePixelRatio, 2);
 renderer.setPixelRatio(rendererPixelRatio);
 renderer.setClearColor(SKY_COLOR, 1);
@@ -170,16 +540,16 @@ const FOLLOW_MOUSE_BUTTONS = {
     MIDDLE: three__WEBPACK_IMPORTED_MODULE_0__.MOUSE.PAN,
     RIGHT: three__WEBPACK_IMPORTED_MODULE_0__.MOUSE.DOLLY,
 };
-const lightingRig = (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.createLightingRig)(scene, SKY_COLOR);
-const postProcessing = (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.createPostProcessing)(renderer, scene, camera);
-const fpsCounter = (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_11__.createFpsCounter)(scene, camera, renderer);
-const npcCatalog = (0,_npc_catalog_js__WEBPACK_IMPORTED_MODULE_13__.createNpcCatalog)({ logClientEvent: _client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent });
-const timeRibbon = (0,_time_ribbon_js__WEBPACK_IMPORTED_MODULE_16__.createTimeRibbon)({
-    labelEl: _dom_js__WEBPACK_IMPORTED_MODULE_8__.timeCycleLabelEl,
-    sceneEl: _dom_js__WEBPACK_IMPORTED_MODULE_8__.skySceneEl,
-    sunEl: _dom_js__WEBPACK_IMPORTED_MODULE_8__.skySunEl,
-    moonEl: _dom_js__WEBPACK_IMPORTED_MODULE_8__.skyMoonEl,
-    starsEl: _dom_js__WEBPACK_IMPORTED_MODULE_8__.skyStarsEl,
+const lightingRig = (0,_lighting_js__WEBPACK_IMPORTED_MODULE_11__.createLightingRig)(scene, SKY_COLOR);
+const postProcessing = (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_19__.createPostProcessing)(renderer, scene, camera);
+const fpsCounter = (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_13__.createFpsCounter)(scene, camera, renderer);
+const npcCatalog = (0,_npc_catalog_js__WEBPACK_IMPORTED_MODULE_16__.createNpcCatalog)({ logClientEvent: _client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent });
+const timeRibbon = (0,_time_ribbon_js__WEBPACK_IMPORTED_MODULE_20__.createTimeRibbon)({
+    labelEl: _dom_js__WEBPACK_IMPORTED_MODULE_10__.timeCycleLabelEl,
+    sceneEl: _dom_js__WEBPACK_IMPORTED_MODULE_10__.skySceneEl,
+    sunEl: _dom_js__WEBPACK_IMPORTED_MODULE_10__.skySunEl,
+    moonEl: _dom_js__WEBPACK_IMPORTED_MODULE_10__.skyMoonEl,
+    starsEl: _dom_js__WEBPACK_IMPORTED_MODULE_10__.skyStarsEl,
 });
 const grid = new three__WEBPACK_IMPORTED_MODULE_0__.GridHelper(EMPTY_GRID_SIZE, EMPTY_GRID_DIVISIONS, EMPTY_GRID_AXIS_COLOR, EMPTY_GRID_LINE_COLOR);
 for (const material of Array.isArray(grid.material) ? grid.material : [grid.material]) {
@@ -204,62 +574,19 @@ const disposalStats = {
     materials: 0,
     textures: 0,
 };
-let loadGeneration = 0;
-let lastGridLoadTiming = null;
-let lastTerrainStreamTiming = null;
-let hasFocusedInitialGrid = false;
-let activeCenterId = null;
-let requestedCenterId = null;
-let scheduledCenterId = null;
-let mapTileLayerKey = null;
-let streamTimer = null;
-let gridLoadCount = 0;
-let controlLoadTimer = null;
-let playerPollTimer = null;
-let mobPollTimer = null;
-let entityStream = null;
-let entityStreamWorld = null;
-let entityStreamPlayers = null;
-let entityStreamMobs = null;
-let entityStreamFallbackTimer = null;
-let playerConnectMobSampleTimer = null;
-let lastMetricsUpdate = 0;
 const pressedKeys = new Set();
 const clock = new three__WEBPACK_IMPORTED_MODULE_0__.Clock();
 const initialParams = new URLSearchParams(window.location.search);
-let experimentalDetailsEnabled = false;
-let terrainFormatVersion = 'unknown';
-let storedViewState = (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.loadStoredViewState)();
-let hasRestoredCameraPose = false;
-let hasStarted = false;
-let lastViewStateSave = 0;
-let flyYaw = 0;
-let flyPitch = 0;
-let worldTime = null;
-let timePollTimer = null;
-let viewPlayerUuid = null;
-let followPlayerUuid = null;
+const runtime = new _app_state_js__WEBPACK_IMPORTED_MODULE_9__.AppRuntimeState((0,_view_state_js__WEBPACK_IMPORTED_MODULE_26__.loadStoredViewState)());
 const cameraModeStack = [];
 const playerEyeState = {
     uuid: null,
     yawRad: 0,
     pitchRad: 0,
 };
-let isRefreshingPlayers = false;
-let lastPlayerCount = 0;
-let lastPlayerPollFailed = false;
-let isRefreshingMobs = false;
-let lastMobCount = 0;
-let lastMobPollFailed = false;
-let entityStreamConnected = false;
-let lastMobSourceStats = null;
-let pendingMobMarkerUpdate = null;
-let mobMarkerUpdateScheduled = false;
-let mobMarkerUpdateGeneration = 0;
 const tempPlayerTarget = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempMobTarget = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const lastMobBillboardQuaternion = new three__WEBPACK_IMPORTED_MODULE_0__.Quaternion();
-let hasMobBillboardQuaternion = false;
 const tempPlayerCamera = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempPlayerLook = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempPlayerForward = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
@@ -273,40 +600,35 @@ const tempFlyMove = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempFlyZoom = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
 const tempFlyEuler = new three__WEBPACK_IMPORTED_MODULE_0__.Euler(0, 0, 0, 'YXZ');
 function currentLightingOptions() {
-    return (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.lightingOptionsFromInputs)({
-        treeShadeInput: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput,
-        shadeSizeInput: _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput,
-        shadeDarknessInput: _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput,
-        time: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked ? worldTime : NOON_LIGHTING_TIME,
+    return (0,_lighting_js__WEBPACK_IMPORTED_MODULE_11__.lightingOptionsFromInputs)({
+        treeShadeInput: _dom_js__WEBPACK_IMPORTED_MODULE_10__.treeShadeInput,
+        shadeSizeInput: _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeValueInput,
+        shadeDarknessInput: _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeDarknessValueInput,
+        time: _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTimeInput.checked ? runtime.worldTime : NOON_LIGHTING_TIME,
         fogRange: fogControlRange(),
     });
 }
 function fogControlRange() {
-    const near = terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearValueInput, 150);
-    const far = Math.max(near + 1, terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarValueInput, 620));
-    return {
-        near,
-        far,
-    };
+    return (0,_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.fogRangeFromControls)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogNearValueInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogFarValueInput);
 }
 function fogControlOptions() {
     const range = fogControlRange();
     return {
-        enabled: _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput.checked,
+        enabled: _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogEnabledInput.checked,
         near: range.near,
         far: range.far,
-        strength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, 0.9),
-        horizonStrength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, 0.65),
+        strength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogStrengthValueInput, 0.9),
+        horizonStrength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogHorizonValueInput, 0.65),
         color: scene.userData.terrascapeFog?.color ?? scene.background,
     };
 }
 function setStatus(text) {
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.statusEl.textContent = text;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.statusEl.textContent = text;
 }
 async function handleClearMeshCache() {
-    const stats = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.getMeshCacheStats)();
+    const stats = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_32__.getMeshCacheStats)();
     const entryLabel = stats.total === 1 ? 'entry' : 'entries';
-    const confirmed = await (0,_library_confirm_dialog_js__WEBPACK_IMPORTED_MODULE_20__.confirmAction)({
+    const confirmed = await (0,_library_confirm_dialog_js__WEBPACK_IMPORTED_MODULE_28__.confirmAction)({
         title: 'Clear mesh cache?',
         message: stats.total > 0
             ? `Delete ${stats.total} cached ${entryLabel} from this browser (${stats.terrain} terrain meshes, ${stats.mapTiles} map tiles). Visible chunks will reload from the server.`
@@ -317,21 +639,21 @@ async function handleClearMeshCache() {
     if (!confirmed) {
         return;
     }
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.clearMeshCacheButton.disabled = true;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.clearMeshCacheButton.disabled = true;
     setStatus('Clearing mesh cache…');
     try {
-        const cleared = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.clearMeshCache)();
+        const cleared = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_32__.clearMeshCache)();
         for (const [id, entry] of Array.from(loadedChunks.entries())) {
             finishDisposeChunk(id, entry);
         }
-        mapTileLayerKey = null;
+        runtime.mapTileLayerKey = null;
         updateMapTileLayer({ force: true });
         scheduleControlGridLoad();
         const clearedLabel = cleared.total === 1 ? 'entry' : 'entries';
         setStatus(cleared.total > 0
             ? `Cleared ${cleared.total} cached ${clearedLabel}; reloading meshes`
             : 'Mesh cache already empty; reloading from server');
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mesh_cache_cleared', {
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('mesh_cache_cleared', {
             terrain: cleared.terrain,
             mapTiles: cleared.mapTiles,
             total: cleared.total,
@@ -339,103 +661,31 @@ async function handleClearMeshCache() {
     }
     catch (error) {
         setStatus(`Mesh cache clear failed: ${error?.message || error}`);
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mesh_cache_clear_failed', {
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('mesh_cache_clear_failed', {
             message: error?.message || String(error),
         });
     }
     finally {
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.clearMeshCacheButton.disabled = false;
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.clearMeshCacheButton.disabled = false;
     }
 }
 function mapTileRetainRadius(terrainRadius, streamLoad = false) {
-    return streamLoad
-        ? terrainRadius + AUTO_STREAM_RETAIN_MARGIN + _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.MAP_HORIZON_MARGIN
-        : terrainRadius + _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.MAP_HORIZON_MARGIN;
+    return (0,_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.mapTileRetainRadiusFor)(terrainRadius, streamLoad, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.MAP_HORIZON_MARGIN, AUTO_STREAM_RETAIN_MARGIN);
 }
 function terrainLoadConcurrency() {
-    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput, DEFAULT_TERRAIN_LOAD_CONCURRENCY);
+    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsValueInput, DEFAULT_TERRAIN_LOAD_CONCURRENCY);
 }
 function terrainPromotionBudgetMs() {
-    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput, DEFAULT_TERRAIN_PROMOTION_BUDGET_MS);
+    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetValueInput, DEFAULT_TERRAIN_PROMOTION_BUDGET_MS);
 }
 function terrainPromotionsPerFrame() {
-    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput, DEFAULT_TERRAIN_PROMOTIONS_PER_FRAME);
+    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameValueInput, DEFAULT_TERRAIN_PROMOTIONS_PER_FRAME);
 }
 function terrainTuningValue(input, fallback) {
-    const parsed = Number.parseInt(input?.value, 10);
-    if (!Number.isFinite(parsed)) {
-        return fallback;
-    }
-    const min = Number.parseInt(input.min, 10);
-    const max = Number.parseInt(input.max, 10);
-    return (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(parsed, Number.isFinite(min) ? min : 1, Number.isFinite(max) ? max : 64);
+    return (0,_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.terrainTuningControlValue)(input, fallback);
 }
 function readFloatControl(input, fallback) {
-    const parsed = Number.parseFloat(input?.value);
-    if (!Number.isFinite(parsed)) {
-        return fallback;
-    }
-    const min = Number.parseFloat(input.min);
-    const max = Number.parseFloat(input.max);
-    return (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(parsed, Number.isFinite(min) ? min : -Infinity, Number.isFinite(max) ? max : Infinity);
-}
-function createTerrainStreamStats(world, centerX, centerZ, radius, needed, alreadyLoaded, missing, startedAt) {
-    return {
-        world,
-        centerX,
-        centerZ,
-        radius,
-        needed,
-        alreadyLoaded,
-        missing,
-        startedAt,
-        lastProgressLogAt: startedAt,
-        requested: 0,
-        dataReady: 0,
-        promoted: alreadyLoaded,
-        failed: 0,
-        cacheHits: 0,
-        cacheMisses: 0,
-        networkChunks: 0,
-        maxQueue: 0,
-        maxReadyWaitMs: 0,
-        totalReadyWaitMs: 0,
-    };
-}
-function terrainStreamSnapshot(stats, queueLength, inFlightCount, final = false) {
-    const elapsedMs = Math.max(1, performance.now() - stats.startedAt);
-    const spawnedMissing = Math.max(0, stats.promoted - stats.alreadyLoaded);
-    const avgReadyWaitMs = spawnedMissing > 0 ? stats.totalReadyWaitMs / spawnedMissing : 0;
-    return {
-        world: stats.world,
-        centerX: stats.centerX,
-        centerZ: stats.centerZ,
-        radius: stats.radius,
-        needed: stats.needed,
-        alreadyLoaded: stats.alreadyLoaded,
-        missing: stats.missing,
-        requested: stats.requested,
-        dataReady: stats.dataReady,
-        promoted: stats.promoted,
-        spawnedMissing,
-        failed: stats.failed,
-        queued: queueLength,
-        inFlight: inFlightCount,
-        cacheHits: stats.cacheHits,
-        cacheMisses: stats.cacheMisses,
-        networkChunks: stats.networkChunks,
-        maxQueue: stats.maxQueue,
-        maxReadyWaitMs: Math.round(stats.maxReadyWaitMs),
-        avgReadyWaitMs: Math.round(avgReadyWaitMs),
-        requestedPerSec: Math.round((stats.requested * 1000 / elapsedMs) * 10) / 10,
-        readyPerSec: Math.round((stats.dataReady * 1000 / elapsedMs) * 10) / 10,
-        spawnPerSec: Math.round((spawnedMissing * 1000 / elapsedMs) * 10) / 10,
-        loadSlots: terrainLoadConcurrency(),
-        spawnFrame: terrainPromotionsPerFrame(),
-        spawnBudgetMs: terrainPromotionBudgetMs(),
-        elapsedMs: Math.round(elapsedMs),
-        final,
-    };
+    return (0,_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.floatControlValue)(input, fallback);
 }
 function maybeLogTerrainStreamProgress(stats, queueLength, inFlightCount, force = false, final = false) {
     const now = performance.now();
@@ -443,41 +693,47 @@ function maybeLogTerrainStreamProgress(stats, queueLength, inFlightCount, force 
         return;
     }
     stats.lastProgressLogAt = now;
-    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)(final ? 'terrain_stream_summary' : 'terrain_stream_progress', terrainStreamSnapshot(stats, queueLength, inFlightCount, final));
+    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)(final ? 'terrain_stream_summary' : 'terrain_stream_progress', (0,_terrain_stream_js__WEBPACK_IMPORTED_MODULE_21__.terrainStreamSnapshot)(stats, queueLength, inFlightCount, {
+        final,
+        now,
+        loadSlots: terrainLoadConcurrency(),
+        spawnFrame: terrainPromotionsPerFrame(),
+        spawnBudgetMs: terrainPromotionBudgetMs(),
+    }));
 }
 function updateMetrics() {
-    lastMetricsUpdate = performance.now();
+    runtime.lastMetricsUpdate = performance.now();
     const loaded = loadedChunks.size;
-    const center = activeCenterId ? activeCenterId.split(':').slice(1).join(', ') : 'pending';
+    const center = runtime.activeCenterId ? runtime.activeCenterId.split(':').slice(1).join(', ') : 'pending';
     const resources = collectResourceStats();
     const rendererMemory = renderer.info.memory;
-    const mapBackdrop = (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapBackdropStats)();
-    const mapTiles = (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapTileSceneStats)();
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricLoadedEl.textContent = `${loaded} chunk${loaded === 1 ? '' : 's'}`
-        + (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked && mapTiles.meshCount > 0
+    const mapBackdrop = (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.mapBackdropStats)();
+    const mapTiles = (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.mapTileSceneStats)();
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.metricLoadedEl.textContent = `${loaded} chunk${loaded === 1 ? '' : 's'}`
+        + (_dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked && mapTiles.meshCount > 0
             ? ` · map ${mapTiles.visibleCount}/${mapTiles.meshCount}`
-                + (mapTiles.bytes > 0 ? ` ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatBytes)(mapTiles.bytes)}` : '')
+                + (mapTiles.bytes > 0 ? ` ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.formatBytes)(mapTiles.bytes)}` : '')
             : '');
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricMeshesEl.textContent = `${resources.meshes}`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricResourcesEl.textContent = `${resources.geometries} geo · ${resources.materials} mat · ${resources.textures} tex`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricGpuEl.textContent = `${rendererMemory.geometries} geo · ${rendererMemory.textures} tex`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricDisposedEl.textContent = `${disposalStats.chunks}c · ${disposalStats.geometries}g · ${disposalStats.materials}m · ${disposalStats.textures}t`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricMobsEl.textContent = mobMetricText();
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.metricCenterEl.textContent = center;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.metricMeshesEl.textContent = `${resources.meshes}`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.metricResourcesEl.textContent = `${resources.geometries} geo · ${resources.materials} mat · ${resources.textures} tex`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.metricGpuEl.textContent = `${rendererMemory.geometries} geo · ${rendererMemory.textures} tex`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.metricDisposedEl.textContent = `${disposalStats.chunks}c · ${disposalStats.geometries}g · ${disposalStats.materials}m · ${disposalStats.textures}t`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.metricMobsEl.textContent = mobMetricText();
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.metricCenterEl.textContent = center;
 }
 function maybeUpdateMetrics(force = false) {
     const now = performance.now();
-    if (!force && now - lastMetricsUpdate < METRICS_UPDATE_INTERVAL_MS) {
+    if (!force && now - runtime.lastMetricsUpdate < METRICS_UPDATE_INTERVAL_MS) {
         return;
     }
     updateMetrics();
 }
 function mobMetricText() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked) {
         return 'hidden';
     }
     const summary = summarizeMobTypes();
-    const source = lastMobSourceStats?.source ? ` · ${lastMobSourceStats.source}` : '';
+    const source = runtime.lastMobSourceStats?.source ? ` · ${runtime.lastMobSourceStats.source}` : '';
     return summary ? `${mobMarkers.size} · ${summary}${source}` : `${mobMarkers.size}${source}`;
 }
 function summarizeMobTypes() {
@@ -496,168 +752,160 @@ async function loadWorlds() {
     setStatus('Loading worlds');
     const response = await fetch('/api/worlds');
     const data = await response.json();
-    experimentalDetailsEnabled = data.features?.experimentalDetails === true;
-    terrainFormatVersion = data.features?.terrainFormatVersion ?? terrainFormatVersion;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.replaceChildren();
+    runtime.experimentalDetailsEnabled = data.features?.experimentalDetails === true;
+    runtime.terrainFormatVersion = data.features?.terrainFormatVersion ?? runtime.terrainFormatVersion;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.replaceChildren();
     for (const world of data.worlds ?? []) {
         const option = document.createElement('option');
         option.value = world.name;
         option.textContent = world.name;
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.append(option);
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.append(option);
     }
     applyStoredWorld();
     applyInitialWorldParam();
-    setStatus(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value ? 'Ready' : 'No worlds found');
+    setStatus(_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value ? 'Ready' : 'No worlds found');
 }
 function applyInitialParams() {
     applyStoredInputs();
-    applyNumberParam('chunkX', _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput);
-    applyNumberParam('chunkZ', _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput);
-    applyNumberParam('radius', _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput);
-    applyBooleanParam('auto', _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput);
-    applyBooleanParam('bounds', _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput);
-    applyBooleanParam('players', _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput);
-    applyBooleanParam('mobs', _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput);
-    applyBooleanParam('mobBlocks', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput);
-    syncMobBlocksInputs(_dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput.checked);
-    applyBooleanParam('shade', _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput);
-    applyBooleanParam('mapTiles', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput);
+    applyNumberParam('chunkX', _dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkXInput);
+    applyNumberParam('chunkZ', _dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkZInput);
+    applyNumberParam('radius', _dom_js__WEBPACK_IMPORTED_MODULE_10__.radiusInput);
+    applyBooleanParam('auto', _dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput);
+    applyBooleanParam('bounds', _dom_js__WEBPACK_IMPORTED_MODULE_10__.debugBoundsInput);
+    applyBooleanParam('players', _dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput);
+    applyBooleanParam('mobs', _dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput);
+    applyBooleanParam('mobBlocks', _dom_js__WEBPACK_IMPORTED_MODULE_10__.mobBlocksInput);
+    syncMobBlocksInputs(_dom_js__WEBPACK_IMPORTED_MODULE_10__.mobBlocksInput.checked);
+    applyBooleanParam('shade', _dom_js__WEBPACK_IMPORTED_MODULE_10__.treeShadeInput);
+    applyBooleanParam('mapTiles', _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput);
     applyCosmeticModeParam();
-    applySelectParam('visualDetail', _dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput);
-    applyBooleanParam('landMotion', _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput);
-    applyBooleanParam('mapTime', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput);
-    applyNumberParam('terrainLoadSlots', _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput);
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput.value;
-    applyNumberParam('terrainSpawnFrame', _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput);
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput.value;
-    applyNumberParam('terrainSpawnMs', _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput);
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput.value;
-    applyFloatParam('shadeSize', _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput);
-    applyFloatParam('shadeDarkness', _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput);
-    applySelectParam('water', _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput);
-    applyBooleanParam('fog', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput);
-    applyFloatParam('fogNear', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearValueInput);
-    applyFloatParam('fogFar', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarValueInput);
-    applyFloatParam('fogStrength', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput);
-    applyFloatParam('fogHorizon', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput);
-    applySelectParam('playerRate', _dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput);
+    applySelectParam('visualDetail', _dom_js__WEBPACK_IMPORTED_MODULE_10__.visualDetailModeInput);
+    applyBooleanParam('landMotion', _dom_js__WEBPACK_IMPORTED_MODULE_10__.landMotionInput);
+    applyBooleanParam('mapTime', _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTimeInput);
+    applyNumberParam('terrainLoadSlots', _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsValueInput);
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsValueInput.value;
+    applyNumberParam('terrainSpawnFrame', _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameValueInput);
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameValueInput.value;
+    applyNumberParam('terrainSpawnMs', _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetValueInput);
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetValueInput.value;
+    applyFloatParam('shadeSize', _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeValueInput);
+    applyFloatParam('shadeDarkness', _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeDarknessValueInput);
+    applySelectParam('water', _dom_js__WEBPACK_IMPORTED_MODULE_10__.waterModeInput);
+    applyBooleanParam('fog', _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogEnabledInput);
+    applyFloatParam('fogNear', _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogNearValueInput);
+    applyFloatParam('fogFar', _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogFarValueInput);
+    applyFloatParam('fogStrength', _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogStrengthValueInput);
+    applyFloatParam('fogHorizon', _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogHorizonValueInput);
+    applySelectParam('playerRate', _dom_js__WEBPACK_IMPORTED_MODULE_10__.playerUpdateRateInput);
     applyLighting();
     updateEntityVisibility();
 }
 function applyStoredInputs() {
-    if (!storedViewState)
+    if (!runtime.storedViewState)
         return;
-    if (storedViewState.visualDefaultsVersion !== VISUAL_DEFAULTS_VERSION) {
-        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, 'split');
-        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput, 'all');
+    if (runtime.storedViewState.visualDefaultsVersion !== VISUAL_DEFAULTS_VERSION) {
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput, 'split');
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.visualDetailModeInput, 'all');
     }
-    setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput, storedViewState.chunkX);
-    setNumberInput(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput, storedViewState.chunkZ);
-    setRadiusControlValue(storedViewState.radius);
-    if (typeof storedViewState.auto === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked = storedViewState.auto;
-    if (typeof storedViewState.bounds === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked = storedViewState.bounds;
-    if (typeof storedViewState.players === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked = storedViewState.players;
-    if (typeof storedViewState.mobs === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked = storedViewState.mobs;
-    if (typeof storedViewState.mobBlocks === 'boolean')
-        syncMobBlocksInputs(storedViewState.mobBlocks);
-    if (typeof storedViewState.shade === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked = storedViewState.shade;
-    if (typeof storedViewState.mapTime === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked = storedViewState.mapTime;
-    if (typeof storedViewState.mapTiles === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked = storedViewState.mapTiles;
-    if (storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof storedViewState.cosmeticsMode === 'string') {
-        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, storedViewState.cosmeticsMode);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setNumberInput)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkXInput, runtime.storedViewState.chunkX);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setNumberInput)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkZInput, runtime.storedViewState.chunkZ);
+    setRadiusControlValue(runtime.storedViewState.radius);
+    if (typeof runtime.storedViewState.auto === 'boolean')
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput.checked = runtime.storedViewState.auto;
+    if (typeof runtime.storedViewState.bounds === 'boolean')
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.debugBoundsInput.checked = runtime.storedViewState.bounds;
+    if (typeof runtime.storedViewState.players === 'boolean')
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked = runtime.storedViewState.players;
+    if (typeof runtime.storedViewState.mobs === 'boolean')
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked = runtime.storedViewState.mobs;
+    if (typeof runtime.storedViewState.mobBlocks === 'boolean')
+        syncMobBlocksInputs(runtime.storedViewState.mobBlocks);
+    if (typeof runtime.storedViewState.shade === 'boolean')
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.treeShadeInput.checked = runtime.storedViewState.shade;
+    if (typeof runtime.storedViewState.mapTime === 'boolean')
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTimeInput.checked = runtime.storedViewState.mapTime;
+    if (typeof runtime.storedViewState.mapTiles === 'boolean')
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked = runtime.storedViewState.mapTiles;
+    if (runtime.storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof runtime.storedViewState.cosmeticsMode === 'string') {
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput, runtime.storedViewState.cosmeticsMode);
     }
-    if (storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof storedViewState.cosmetics === 'boolean' && !storedViewState.cosmeticsMode) {
-        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, storedViewState.cosmetics ? 'baked' : 'off');
+    if (runtime.storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof runtime.storedViewState.cosmetics === 'boolean' && !runtime.storedViewState.cosmeticsMode) {
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput, runtime.storedViewState.cosmetics ? 'baked' : 'off');
     }
-    if (storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof storedViewState.visualDetailMode === 'string') {
-        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput, storedViewState.visualDetailMode);
+    if (runtime.storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof runtime.storedViewState.visualDetailMode === 'string') {
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.visualDetailModeInput, runtime.storedViewState.visualDetailMode);
     }
-    if (typeof storedViewState.landMotion === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked = storedViewState.landMotion;
-    if (typeof storedViewState.renderDetails === 'boolean')
-        setRenderDetailsOpen(storedViewState.renderDetails);
-    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput, storedViewState.terrainLoadSlots);
-    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput, storedViewState.terrainSpawnFrame);
-    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput, storedViewState.terrainSpawnMs);
-    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput, storedViewState.shadeSize);
-    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput, storedViewState.shadeDarkness);
-    if (typeof storedViewState.water === 'string') {
-        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput, storedViewState.water);
+    if (typeof runtime.storedViewState.landMotion === 'boolean')
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.landMotionInput.checked = runtime.storedViewState.landMotion;
+    if (typeof runtime.storedViewState.renderDetails === 'boolean')
+        setRenderDetailsOpen(runtime.storedViewState.renderDetails);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsValueInput, runtime.storedViewState.terrainLoadSlots);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameValueInput, runtime.storedViewState.terrainSpawnFrame);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetValueInput, runtime.storedViewState.terrainSpawnMs);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeValueInput, runtime.storedViewState.shadeSize);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeDarknessValueInput, runtime.storedViewState.shadeDarkness);
+    if (typeof runtime.storedViewState.water === 'string') {
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.waterModeInput, runtime.storedViewState.water);
     }
-    if (typeof storedViewState.fog === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput.checked = storedViewState.fog;
-    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearValueInput, storedViewState.fogNear);
-    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarValueInput, storedViewState.fogFar);
-    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, storedViewState.fogStrength);
-    setPairedControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, storedViewState.fogHorizon);
-    if (typeof storedViewState.playerRate === 'string') {
-        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput, storedViewState.playerRate);
+    if (typeof runtime.storedViewState.fog === 'boolean')
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogEnabledInput.checked = runtime.storedViewState.fog;
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogNearValueInput, runtime.storedViewState.fogNear);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogFarValueInput, runtime.storedViewState.fogFar);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogStrengthValueInput, runtime.storedViewState.fogStrength);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogHorizonValueInput, runtime.storedViewState.fogHorizon);
+    if (typeof runtime.storedViewState.playerRate === 'string') {
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.playerUpdateRateInput, runtime.storedViewState.playerRate);
     }
 }
 function applyStoredWorld() {
-    if (!storedViewState?.world)
+    if (!runtime.storedViewState?.world)
         return;
-    applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect, storedViewState.world);
+    applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect, runtime.storedViewState.world);
 }
 function applyInitialWorldParam() {
     const world = initialParams.get('world');
     if (!world)
         return;
-    for (const option of _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.options) {
+    for (const option of _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.options) {
         if (option.value === world) {
-            _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value = world;
+            _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value = world;
             return;
         }
     }
 }
 function applyNumberParam(name, input) {
-    const value = initialParams.get(name);
-    if (value === null || value.trim() === '')
+    const parsed = (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.applyNumberParam)(initialParams, name, input);
+    if (parsed === null)
         return;
-    const parsed = Number.parseInt(value, 10);
-    if (Number.isNaN(parsed))
-        return;
-    if (input === _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput) {
+    if (input === _dom_js__WEBPACK_IMPORTED_MODULE_10__.radiusInput) {
         setRadiusControlValue(parsed);
-        return;
     }
-    input.value = parsed;
 }
 function applyBooleanParam(name, input) {
-    const value = initialParams.get(name);
-    if (value === null)
-        return;
-    input.checked = ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.applyBooleanParam)(initialParams, name, input);
 }
 function applyCosmeticModeParam() {
     const mode = initialParams.get('cosmeticsMode');
     if (mode === 'off' || mode === 'baked' || mode === 'split') {
-        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, mode);
+        applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput, mode);
         return;
     }
     const legacy = initialParams.get('cosmetics');
     if (legacy === null)
         return;
-    applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, ['1', 'true', 'yes', 'on'].includes(legacy.toLowerCase()) ? 'baked' : 'off');
+    applySelectValue(_dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput, (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.isTruthyParam)(legacy) ? 'baked' : 'off');
 }
 function syncMobBlocksInputs(checked) {
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput.checked = checked === true;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksPanelInput.checked = checked === true;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.mobBlocksInput.checked = checked === true;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.mobBlocksPanelInput.checked = checked === true;
 }
 function mobBlocksEnabled() {
-    return _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput.checked === true;
+    return _dom_js__WEBPACK_IMPORTED_MODULE_10__.mobBlocksInput.checked === true;
 }
 function cosmeticBlocksMode() {
-    if (!experimentalDetailsEnabled)
+    if (!runtime.experimentalDetailsEnabled)
         return 'off';
-    const value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput?.value;
+    const value = _dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput?.value;
     return value === 'baked' || value === 'split' ? value : 'off';
 }
 function cosmeticBlocksBaked() {
@@ -667,129 +915,66 @@ function cosmeticBlocksSplit() {
     return cosmeticBlocksMode() === 'split';
 }
 function visualDetailMode() {
-    const value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput?.value;
+    const value = _dom_js__WEBPACK_IMPORTED_MODULE_10__.visualDetailModeInput?.value;
     return value === 'basic' || value === 'structures' || value === 'all' ? value : 'all';
 }
 function applyFloatParam(name, ...inputs) {
-    const value = initialParams.get(name);
-    if (value === null || value.trim() === '')
-        return;
-    const parsed = Number.parseFloat(value);
-    if (Number.isFinite(parsed)) {
-        for (const input of inputs) {
-            input.value = parsed;
-        }
-    }
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.applyFloatParam)(initialParams, name, ...inputs);
 }
 function applySelectParam(name, input) {
-    const value = initialParams.get(name);
-    if (value === null)
-        return;
-    applySelectValue(input, value);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.applySelectParam)(initialParams, name, input, TRI_STATE_VALUES_BY_ID);
 }
 function applySelectValue(input, value) {
-    if (!input)
-        return;
-    if (input.id === 'cosmetic-blocks-mode') {
-        (0,_library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_22__.applyTriStateValue)(input, value, COSMETIC_MODE_VALUES);
-        return;
-    }
-    if (input.id === 'visual-detail-mode') {
-        (0,_library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_22__.applyTriStateValue)(input, value, VISUAL_DETAIL_VALUES);
-        return;
-    }
-    if (input.tagName === 'SELECT') {
-        for (const option of input.options) {
-            if (option.value === value) {
-                input.value = value;
-                return;
-            }
-        }
-        return;
-    }
-    input.value = value;
-}
-function setNumberInput(input, value) {
-    if (Number.isFinite(value)) {
-        input.value = value;
-    }
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.applySelectValue)(input, value, TRI_STATE_VALUES_BY_ID);
 }
 function setRadiusControlValue(value) {
-    const normalized = normalizePairedValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput, Math.round(Number(value)));
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput.value = normalized;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value = normalized;
+    const normalized = (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_31__.normalizePairedValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.radiusRangeInput, Math.round(Number(value)));
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.radiusRangeInput.value = normalized;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.radiusInput.value = normalized;
     updateRadiusReadout();
     return normalized;
 }
 function radiusValue() {
-    return Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10), 0));
+    return Math.max(0, (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_10__.radiusInput.value, 10), 0));
 }
 function updateRadiusReadout() {
-    const radius = radiusValue();
-    const diameter = radius * 2 + 1;
-    const chunks = diameter * diameter;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusDiameterEl.textContent = `${diameter} x ${diameter} chunks, ${chunks} meshes`;
-}
-function setPairedControlValue(rangeInput, numberInput, value) {
-    if (!Number.isFinite(value))
-        return;
-    const normalized = normalizePairedValue(rangeInput, value);
-    rangeInput.value = normalized;
-    numberInput.value = normalized;
-}
-function normalizePairedValue(input, value) {
-    const min = Number.parseFloat(input.min);
-    const max = Number.parseFloat(input.max);
-    const step = Number.parseFloat(input.step);
-    let normalized = Number(value);
-    if (!Number.isFinite(normalized)) {
-        return Number.parseFloat(input.value);
-    }
-    if (Number.isFinite(min))
-        normalized = Math.max(min, normalized);
-    if (Number.isFinite(max))
-        normalized = Math.min(max, normalized);
-    if (Number.isFinite(step) && step > 0) {
-        normalized = Math.round(normalized / step) * step;
-    }
-    return Number.parseFloat(normalized.toFixed(4));
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.radiusDiameterEl.textContent = (0,_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.radiusReadout)(radiusValue()).text;
 }
 async function loadGrid(options = {}) {
-    gridLoadCount++;
+    runtime.gridLoadCount++;
     const gridStarted = performance.now();
-    const world = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
-    const centerX = options.centerX ?? Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10);
-    const centerZ = options.centerZ ?? Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10);
+    const world = _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value;
+    const centerX = options.centerX ?? Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkXInput.value, 10);
+    const centerZ = options.centerZ ?? Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkZInput.value, 10);
     const radius = setRadiusControlValue(radiusValue());
     if (!world || Number.isNaN(centerX) || Number.isNaN(centerZ)) {
         setStatus('Choose a world and integer chunk coordinates');
         return;
     }
-    const generation = ++loadGeneration;
+    const generation = ++runtime.loadGeneration;
     pruneOrphanChunkWrappers();
-    const centerKey = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.centerId)(world, centerX, centerZ);
-    requestedCenterId = centerKey;
-    scheduledCenterId = null;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value = centerX;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value = centerZ;
-    if (options.focus === true && !hasFocusedInitialGrid) {
+    const centerKey = (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.centerId)(world, centerX, centerZ);
+    runtime.requestedCenterId = centerKey;
+    runtime.scheduledCenterId = null;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkXInput.value = centerX;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkZInput.value = centerZ;
+    if (options.focus === true && !runtime.hasFocusedInitialGrid) {
         focusGrid(centerX, centerZ, radius);
-        hasFocusedInitialGrid = true;
+        runtime.hasFocusedInitialGrid = true;
     }
-    const needed = chunkKeys(centerX, centerZ, radius);
+    const needed = (0,_chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__.chunkKeysForWorld)(world, centerX, centerZ, radius);
     const retainKeys = options.streamLoad === true
-        ? chunkKeys(centerX, centerZ, radius + AUTO_STREAM_RETAIN_MARGIN)
+        ? (0,_chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__.chunkKeysForWorld)(world, centerX, centerZ, radius + AUTO_STREAM_RETAIN_MARGIN)
         : needed;
     const mapRetainRadius = mapTileRetainRadius(radius, options.streamLoad === true);
-    const mapRetainKeys = chunkKeys(centerX, centerZ, mapRetainRadius);
+    const mapRetainKeys = (0,_chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__.chunkKeysForWorld)(world, centerX, centerZ, mapRetainRadius);
     const streamAnchor = playerChunk();
     retainOnly(world, retainKeys);
     syncMapTileLayer(mapRetainKeys);
-    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
-        const neededKeySet = new Set(needed.map((key) => `${key.chunkX}:${key.chunkZ}`));
-        const horizonMapKeys = mapRetainKeys.filter((key) => !neededKeySet.has(`${key.chunkX}:${key.chunkZ}`));
-        if (horizonMapKeys.length > 0) {
-            void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(world, sortChunkKeysByPlayerDistance(horizonMapKeys, streamAnchor.chunkX, streamAnchor.chunkZ), { immediate: true, replace: true });
+    if (_dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked) {
+        const horizonKeys = (0,_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_15__.horizonMapKeys)(needed, mapRetainKeys);
+        if (horizonKeys.length > 0) {
+            void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.loadMapTilesForKeys)(world, (0,_chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__.sortChunkKeysByPlayerDistance)(horizonKeys, streamAnchor.chunkX, streamAnchor.chunkZ), { immediate: true, replace: true });
         }
     }
     updateMetrics();
@@ -802,7 +987,7 @@ async function loadGrid(options = {}) {
     let cacheParseMs = 0;
     const missing = [];
     for (const key of needed) {
-        if (generation !== loadGeneration)
+        if (generation !== runtime.loadGeneration)
             return;
         if (loadedChunks.has(key.id)) {
             completed++;
@@ -814,7 +999,7 @@ async function loadGrid(options = {}) {
     chunkPlaceholderManager.sync(world, needed, new Set(loadedChunks.keys()));
     frameJank.setActiveLoadKind('grid');
     if (missing.length > 1) {
-        missing.splice(0, missing.length, ...sortChunkKeysByPlayerDistance(missing, streamAnchor.chunkX, streamAnchor.chunkZ));
+        missing.splice(0, missing.length, ...(0,_chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__.sortChunkKeysByPlayerDistance)(missing, streamAnchor.chunkX, streamAnchor.chunkZ));
     }
     try {
         let networkChunks = 0;
@@ -822,9 +1007,9 @@ async function loadGrid(options = {}) {
         let nextMissing = 0;
         const inFlight = new Set();
         const loadConcurrency = terrainLoadConcurrency();
-        const streamStats = createTerrainStreamStats(world, centerX, centerZ, radius, needed.length, completed, missing.length, gridStarted);
+        const streamStats = (0,_terrain_stream_js__WEBPACK_IMPORTED_MODULE_21__.createTerrainStreamStats)(world, centerX, centerZ, radius, needed.length, completed, missing.length, gridStarted);
         const enqueueNext = () => {
-            if (nextMissing >= missing.length || generation !== loadGeneration)
+            if (nextMissing >= missing.length || generation !== runtime.loadGeneration)
                 return;
             const key = missing[nextMissing++];
             streamStats.requested++;
@@ -876,7 +1061,7 @@ async function loadGrid(options = {}) {
         while (inFlight.size < loadConcurrency && nextMissing < missing.length) {
             enqueueNext();
         }
-        while ((inFlight.size > 0 || promotionQueue.length > 0) && generation === loadGeneration) {
+        while ((inFlight.size > 0 || promotionQueue.length > 0) && generation === runtime.loadGeneration) {
             while (inFlight.size < loadConcurrency && nextMissing < missing.length) {
                 enqueueNext();
             }
@@ -899,17 +1084,17 @@ async function loadGrid(options = {}) {
                 await yieldToMain();
             }
         }
-        if (generation !== loadGeneration)
+        if (generation !== runtime.loadGeneration)
             return;
         maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size, true, true);
-        if (generation !== loadGeneration)
+        if (generation !== runtime.loadGeneration)
             return;
         retainOnly(world, retainKeys);
-        activeCenterId = centerKey;
-        requestedCenterId = null;
+        runtime.activeCenterId = centerKey;
+        runtime.requestedCenterId = null;
         syncMapTileLayer(mapRetainKeys);
-        if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
-            await (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(world, needed, { immediate: true });
+        if (_dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked) {
+            await (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.loadMapTilesForKeys)(world, needed, { immediate: true });
         }
         updateMetrics();
         setStatus(failed === 0
@@ -941,37 +1126,37 @@ async function loadGrid(options = {}) {
             streamAnchorZ: streamAnchor.chunkZ,
             ms: Math.round(performance.now() - gridStarted),
         };
-        lastGridLoadTiming = gridLoadTiming;
-        lastTerrainStreamTiming = gridLoadTiming;
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientTiming)('grid_load', gridStarted, gridLoadTiming);
+        runtime.lastGridLoadTiming = gridLoadTiming;
+        runtime.lastTerrainStreamTiming = gridLoadTiming;
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientTiming)('grid_load', gridStarted, gridLoadTiming);
     }
     finally {
-        if (generation === loadGeneration) {
+        if (generation === runtime.loadGeneration) {
             frameJank.setActiveLoadKind('none');
         }
     }
 }
 async function loadChunk(world, chunkX, chunkZ, generation) {
-    const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.chunkId)(world, chunkX, chunkZ);
+    const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.chunkId)(world, chunkX, chunkZ);
     if (loadedChunks.has(id))
         return true;
     const url = terrainUrl(world, chunkX, chunkZ);
     const started = performance.now();
-    const mapTilePromise = _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked
-        ? (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(world, [{ chunkX, chunkZ }], { immediate: true })
+    const mapTilePromise = _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked
+        ? (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.loadMapTilesForKeys)(world, [{ chunkX, chunkZ }], { immediate: true })
         : Promise.resolve();
     const bytes = await fetchArrayBufferWithRetry(url);
     const gltf = await parseGltfBytes(bytes);
     await mapTilePromise;
-    if (generation !== loadGeneration)
+    if (generation !== runtime.loadGeneration)
         return false;
     if (loadedChunks.has(id))
         return true;
-    (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.writeTerrainCache)(terrainCacheKey(world, chunkX, chunkZ), bytes.slice(0), { source: 'single' });
+    (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_32__.writeTerrainCache)(terrainCacheKey(world, chunkX, chunkZ), bytes.slice(0), { source: 'single' });
     const entry = addChunkObject(world, chunkX, chunkZ, gltf.scene);
     if (entry && cosmeticBlocksSplit()) {
         void loadCosmeticOverlayForEntry(entry, generation).catch((error) => {
-            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_cosmetic_overlay_failed', {
+            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('terrain_cosmetic_overlay_failed', {
                 world,
                 chunkX,
                 chunkZ,
@@ -979,15 +1164,15 @@ async function loadChunk(world, chunkX, chunkZ, generation) {
             });
         });
     }
-    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientTiming)('terrain_single_load', started, { world, chunkX, chunkZ });
+    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientTiming)('terrain_single_load', started, { world, chunkX, chunkZ });
     return true;
 }
 async function loadTerrainChunkData(world, key, generation) {
     const cacheKey = terrainCacheKey(world, key.chunkX, key.chunkZ);
     const readStarted = performance.now();
-    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.readTerrainCache)(cacheKey);
+    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_32__.readTerrainCache)(cacheKey);
     const cacheReadMs = performance.now() - readStarted;
-    if (generation !== loadGeneration) {
+    if (generation !== runtime.loadGeneration) {
         return { ok: false, key, stale: true, cacheReadMs, cacheParseMs: 0, cacheHit: false, cacheMiss: false, network: false };
     }
     if (cached?.bytes) {
@@ -1009,7 +1194,7 @@ async function loadTerrainChunkData(world, key, generation) {
         }
         catch (error) {
             console.warn(`Cached terrain parse failed for ${key.chunkX},${key.chunkZ}`, error);
-            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_cache_parse_failed', {
+            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('terrain_cache_parse_failed', {
                 chunkX: key.chunkX,
                 chunkZ: key.chunkZ,
                 error: error?.message ?? error,
@@ -1021,7 +1206,7 @@ async function loadTerrainChunkData(world, key, generation) {
     const bytes = await fetchArrayBufferWithRetry(url);
     const parseStarted = performance.now();
     const gltf = await parseGltfBytes(bytes);
-    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientTiming)('terrain_single_load', started, { world, chunkX: key.chunkX, chunkZ: key.chunkZ });
+    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientTiming)('terrain_single_load', started, { world, chunkX: key.chunkX, chunkZ: key.chunkZ });
     return {
         ok: true,
         world,
@@ -1043,7 +1228,7 @@ function promoteTerrainResults(queue, generation, streamStats = null) {
     let completed = 0;
     let failed = 0;
     let promoted = 0;
-    while (queue.length > 0 && generation === loadGeneration) {
+    while (queue.length > 0 && generation === runtime.loadGeneration) {
         if (promoted >= promotionsPerFrame
             || (promoted > 0 && performance.now() - started >= promotionBudgetMs)) {
             break;
@@ -1057,27 +1242,27 @@ function promoteTerrainResults(queue, generation, streamStats = null) {
             if (streamStats)
                 streamStats.failed++;
             console.warn(`Failed to load chunk ${result.key.chunkX},${result.key.chunkZ}`, result.error);
-            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_stream_chunk_failed', {
-                world: _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value,
+            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('terrain_stream_chunk_failed', {
+                world: _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value,
                 chunkX: result.key.chunkX,
                 chunkZ: result.key.chunkZ,
                 error: result.error?.message ?? result.error,
             });
             continue;
         }
-        if (generation !== loadGeneration) {
+        if (generation !== runtime.loadGeneration) {
             break;
         }
-        const resultWorld = result.world ?? _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
-        const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.chunkId)(resultWorld, result.key.chunkX, result.key.chunkZ);
+        const resultWorld = result.world ?? _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value;
+        const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.chunkId)(resultWorld, result.key.chunkX, result.key.chunkZ);
         if (!loadedChunks.has(id)) {
             const entry = addChunkObject(resultWorld, result.key.chunkX, result.key.chunkZ, result.gltf.scene);
             if (result.bytes) {
-                (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.writeTerrainCache)(terrainCacheKey(resultWorld, result.key.chunkX, result.key.chunkZ), result.bytes.slice(0), { source: 'single' });
+                (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_32__.writeTerrainCache)(terrainCacheKey(resultWorld, result.key.chunkX, result.key.chunkZ), result.bytes.slice(0), { source: 'single' });
             }
             if (entry && cosmeticBlocksSplit()) {
                 void loadCosmeticOverlayForEntry(entry, generation).catch((error) => {
-                    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('terrain_cosmetic_overlay_failed', {
+                    (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('terrain_cosmetic_overlay_failed', {
                         world: resultWorld,
                         chunkX: result.key.chunkX,
                         chunkZ: result.key.chunkZ,
@@ -1085,8 +1270,8 @@ function promoteTerrainResults(queue, generation, streamStats = null) {
                     });
                 });
             }
-            if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
-                void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(resultWorld, [result.key], { immediate: true });
+            if (_dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked) {
+                void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.loadMapTilesForKeys)(resultWorld, [result.key], { immediate: true });
             }
             promoted++;
             if (streamStats) {
@@ -1106,36 +1291,6 @@ function promoteTerrainResults(queue, generation, streamStats = null) {
 }
 function chunkWrapperName(chunkX, chunkZ) {
     return `chunk:${chunkX}:${chunkZ}`;
-}
-function disposeObjectTree(object) {
-    const geometries = new Set();
-    const materials = new Set();
-    const textures = new Set();
-    object.traverse((node) => {
-        if (node.geometry)
-            geometries.add(node.geometry);
-        if (node.material) {
-            const objectMaterials = Array.isArray(node.material) ? node.material : [node.material];
-            for (const material of objectMaterials) {
-                materials.add(material);
-                for (const value of Object.values(material)) {
-                    if (value?.isTexture)
-                        textures.add(value);
-                }
-            }
-        }
-    });
-    for (const texture of textures)
-        texture.dispose();
-    for (const material of materials)
-        material.dispose();
-    for (const geometry of geometries)
-        geometry.dispose();
-    return {
-        geometries: geometries.size,
-        materials: materials.size,
-        textures: textures.size,
-    };
 }
 function countOrphanChunkWrappers(extraKeep = null) {
     const tracked = new Set();
@@ -1171,7 +1326,7 @@ function pruneOrphanChunkWrappers(extraKeep = null) {
     }
     for (const child of removals) {
         scene.remove(child);
-        const stats = disposeObjectTree(child);
+        const stats = (0,_resource_stats_js__WEBPACK_IMPORTED_MODULE_22__.disposeObjectTree)(child);
         disposalStats.chunks += 1;
         disposalStats.geometries += stats.geometries;
         disposalStats.materials += stats.materials;
@@ -1180,7 +1335,7 @@ function pruneOrphanChunkWrappers(extraKeep = null) {
     return removals.length;
 }
 function addChunkObject(world, chunkX, chunkZ, object) {
-    const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.chunkId)(world, chunkX, chunkZ);
+    const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.chunkId)(world, chunkX, chunkZ);
     const existing = loadedChunks.get(id);
     if (existing) {
         finishDisposeChunk(id, existing);
@@ -1193,17 +1348,17 @@ function addChunkObject(world, chunkX, chunkZ, object) {
     object.position.set(0, 0, 0);
     object.rotation.set(0, 0, 0);
     object.scale.set(1, 1, 1);
-    (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.prepareWaterMaterials)(object);
-    (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.tintWaterMaterialsFromMap)(object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.sampleMapBackdropColor);
-    (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.applyWaterModeToObject)(object, _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value);
+    (0,_water_js__WEBPACK_IMPORTED_MODULE_27__.prepareWaterMaterials)(object);
+    (0,_water_js__WEBPACK_IMPORTED_MODULE_27__.tintWaterMaterialsFromMap)(object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.sampleMapBackdropColor);
+    (0,_water_js__WEBPACK_IMPORTED_MODULE_27__.applyWaterModeToObject)(object, _dom_js__WEBPACK_IMPORTED_MODULE_10__.waterModeInput.value);
     const lightingOptions = currentLightingOptions();
-    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.applyLightingToObject)(object, lightingOptions);
-    const shade = (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.createTreeShadeObject)(object, lightingOptions);
+    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_11__.applyLightingToObject)(object, lightingOptions);
+    const shade = (0,_lighting_js__WEBPACK_IMPORTED_MODULE_11__.createTreeShadeObject)(object, lightingOptions);
     if (shade) {
         object.add(shade);
     }
     const debug = (0,_chunk_debug_js__WEBPACK_IMPORTED_MODULE_4__.createChunkDebug)(chunkX, chunkZ, object);
-    debug.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked;
+    debug.visible = _dom_js__WEBPACK_IMPORTED_MODULE_10__.debugBoundsInput.checked;
     object.add(debug);
     wrapper.add(object);
     scene.add(wrapper);
@@ -1229,29 +1384,29 @@ function addChunkObject(world, chunkX, chunkZ, object) {
     return entry;
 }
 async function loadCosmeticOverlayForEntry(entry, generation) {
-    if (!cosmeticBlocksSplit() || generation !== loadGeneration)
+    if (!cosmeticBlocksSplit() || generation !== runtime.loadGeneration)
         return false;
     const cacheKey = terrainCosmeticOverlayCacheKey(entry.world, entry.chunkX, entry.chunkZ);
     let bytes = null;
-    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.readTerrainCache)(cacheKey);
+    const cached = await (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_32__.readTerrainCache)(cacheKey);
     if (cached?.bytes) {
         bytes = cached.bytes;
     }
     else {
         bytes = await fetchArrayBufferWithRetry(terrainCosmeticOverlayUrl(entry.world, entry.chunkX, entry.chunkZ));
     }
-    if (!cosmeticBlocksSplit() || generation !== loadGeneration)
+    if (!cosmeticBlocksSplit() || generation !== runtime.loadGeneration)
         return false;
-    const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.chunkId)(entry.world, entry.chunkX, entry.chunkZ);
+    const id = (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.chunkId)(entry.world, entry.chunkX, entry.chunkZ);
     const current = loadedChunks.get(id);
     if (current !== entry)
         return false;
     const gltf = await parseGltfBytes(bytes);
-    if (!cosmeticBlocksSplit() || generation !== loadGeneration || loadedChunks.get(id) !== entry)
+    if (!cosmeticBlocksSplit() || generation !== runtime.loadGeneration || loadedChunks.get(id) !== entry)
         return false;
     attachCosmeticOverlay(entry, gltf.scene);
     if (!cached?.bytes) {
-        (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.writeTerrainCache)(cacheKey, bytes.slice(0), { source: 'cosmetic-overlay' });
+        (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_32__.writeTerrainCache)(cacheKey, bytes.slice(0), { source: 'cosmetic-overlay' });
     }
     updateMetrics();
     return true;
@@ -1259,7 +1414,7 @@ async function loadCosmeticOverlayForEntry(entry, generation) {
 function attachCosmeticOverlay(entry, object) {
     if (entry.cosmeticOverlay) {
         entry.mesh.remove(entry.cosmeticOverlay);
-        const stats = disposeObjectTree(entry.cosmeticOverlay);
+        const stats = (0,_resource_stats_js__WEBPACK_IMPORTED_MODULE_22__.disposeObjectTree)(entry.cosmeticOverlay);
         disposalStats.geometries += stats.geometries;
         disposalStats.materials += stats.materials;
         disposalStats.textures += stats.textures;
@@ -1268,7 +1423,7 @@ function attachCosmeticOverlay(entry, object) {
     object.position.set(0, 0, 0);
     object.rotation.set(0, 0, 0);
     object.scale.set(1, 1, 1);
-    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.applyLightingToObject)(object, currentLightingOptions());
+    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_11__.applyLightingToObject)(object, currentLightingOptions());
     entry.mesh.add(object);
     entry.cosmeticOverlay = object;
 }
@@ -1287,39 +1442,10 @@ async function fetchArrayBufferWithRetry(url) {
         }
         catch (error) {
             lastError = error;
-            await (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.delay)(150 * attempt);
+            await (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.delay)(150 * attempt);
         }
     }
     throw lastError;
-}
-function chunkKeys(centerX, centerZ, radius) {
-    const keys = [];
-    for (let dz = -radius; dz <= radius; dz++) {
-        for (let dx = -radius; dx <= radius; dx++) {
-            const chunkX = centerX + dx;
-            const chunkZ = centerZ + dz;
-            keys.push({
-                chunkX,
-                chunkZ,
-                id: (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.chunkId)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value, chunkX, chunkZ),
-            });
-        }
-    }
-    return keys;
-}
-function sortChunkKeysByPlayerDistance(keys, playerChunkX, playerChunkZ) {
-    return [...keys].sort((left, right) => {
-        const leftDistance = chunkDistanceSq(left.chunkX, left.chunkZ, playerChunkX, playerChunkZ);
-        const rightDistance = chunkDistanceSq(right.chunkX, right.chunkZ, playerChunkX, playerChunkZ);
-        if (leftDistance !== rightDistance)
-            return leftDistance - rightDistance;
-        return left.chunkZ - right.chunkZ || left.chunkX - right.chunkX;
-    });
-}
-function chunkDistanceSq(chunkX, chunkZ, centerX, centerZ) {
-    const dx = chunkX - centerX;
-    const dz = chunkZ - centerZ;
-    return dx * dx + dz * dz;
 }
 function retainOnly(world, needed) {
     const keep = new Set(needed.map((key) => key.id));
@@ -1333,7 +1459,7 @@ function retainOnly(world, needed) {
     }
 }
 function landMotionEnabled() {
-    return _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput?.checked !== false;
+    return _dom_js__WEBPACK_IMPORTED_MODULE_10__.landMotionInput?.checked !== false;
 }
 function requestChunkUnload(id, entry) {
     const deferred = chunkLandMotion.beginUnload(entry, landMotionEnabled(), () => {
@@ -1349,7 +1475,7 @@ function finishDisposeChunk(id, entry) {
         return;
     }
     scene.remove(entry.object);
-    const stats = disposeObjectTree(entry.object);
+    const stats = (0,_resource_stats_js__WEBPACK_IMPORTED_MODULE_22__.disposeObjectTree)(entry.object);
     disposalStats.chunks++;
     disposalStats.geometries += stats.geometries;
     disposalStats.materials += stats.materials;
@@ -1358,148 +1484,90 @@ function finishDisposeChunk(id, entry) {
     updateMetrics();
 }
 function collectResourceStats() {
-    const geometries = new Set();
-    const materials = new Set();
-    const textures = new Set();
-    let meshes = 0;
-    let triangles = 0;
-    for (const entry of loadedChunks.values()) {
-        entry.object.traverse((object) => {
-            if (object.isMesh)
-                meshes++;
-            if (object.geometry) {
-                geometries.add(object.geometry);
-                const position = object.geometry.getAttribute('position');
-                const triangleCount = object.geometry.index
-                    ? object.geometry.index.count / 3
-                    : (position?.count ?? 0) / 3;
-                triangles += Math.floor(triangleCount);
-            }
-            if (object.material) {
-                const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
-                for (const material of objectMaterials) {
-                    materials.add(material);
-                    for (const value of Object.values(material)) {
-                        if (value?.isTexture)
-                            textures.add(value);
-                    }
-                }
-            }
-        });
-    }
-    return {
-        meshes,
-        geometries: geometries.size,
-        materials: materials.size,
-        textures: textures.size,
-        triangles,
-    };
+    return (0,_resource_stats_js__WEBPACK_IMPORTED_MODULE_22__.collectChunkResourceStats)(loadedChunks.values());
 }
 function applyWaterMode() {
     const mode = waterModeValue();
-    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value !== mode) {
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value = mode;
+    if (_dom_js__WEBPACK_IMPORTED_MODULE_10__.waterModeInput.value !== mode) {
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.waterModeInput.value = mode;
     }
     for (const entry of loadedChunks.values()) {
-        (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.sampleMapBackdropColor);
-        (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.applyWaterModeToObject)(entry.object, mode);
+        (0,_water_js__WEBPACK_IMPORTED_MODULE_27__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.sampleMapBackdropColor);
+        (0,_water_js__WEBPACK_IMPORTED_MODULE_27__.applyWaterModeToObject)(entry.object, mode);
     }
 }
 function waterModeValue() {
-    const value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.value;
-    return value === 'solid' || value === 'transparent' || value === 'hidden' ? value : 'solid';
+    return (0,_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.safeWaterMode)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.waterModeInput.value);
 }
 function terrainCacheKey(world, chunkX, chunkZ) {
-    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.makeTerrainCacheKey)({
-        world,
-        chunkX,
-        chunkZ,
-        formatVersion: terrainFormatVersion,
-        detailsEnabled: experimentalDetailsEnabled,
-        cosmeticsMode: cosmeticBlocksBaked() ? 'baked' : 'plain',
-        visualDetailMode: cosmeticBlocksBaked() ? visualDetailMode() : 'basic',
+    return (0,_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainCacheKeyFor)(world, chunkX, chunkZ, {
+        terrainFormatVersion: runtime.terrainFormatVersion,
+        experimentalDetailsEnabled: runtime.experimentalDetailsEnabled,
+        cosmeticsMode: cosmeticBlocksMode(),
+        visualDetailMode: visualDetailMode(),
     });
 }
 function terrainUrl(world, chunkX, chunkZ) {
-    const base = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
-    return cosmeticBlocksBaked() ? `${base}?cosmetics=1&visualDetail=${encodeURIComponent(visualDetailMode())}` : base;
+    return (0,_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainUrlFor)(world, chunkX, chunkZ, {
+        cosmeticsMode: cosmeticBlocksMode(),
+        visualDetailMode: visualDetailMode(),
+    });
 }
 function terrainCosmeticOverlayCacheKey(world, chunkX, chunkZ) {
-    return (0,_mesh_cache_js__WEBPACK_IMPORTED_MODULE_23__.makeTerrainCacheKey)({
-        world,
-        chunkX,
-        chunkZ,
-        formatVersion: terrainFormatVersion,
-        detailsEnabled: experimentalDetailsEnabled,
-        cosmeticsMode: 'split-overlay',
+    return (0,_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainCosmeticOverlayCacheKeyFor)(world, chunkX, chunkZ, {
+        terrainFormatVersion: runtime.terrainFormatVersion,
+        experimentalDetailsEnabled: runtime.experimentalDetailsEnabled,
         visualDetailMode: visualDetailMode(),
     });
 }
 function terrainCosmeticOverlayUrl(world, chunkX, chunkZ) {
-    return `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb?cosmetics=only&visualDetail=${encodeURIComponent(visualDetailMode())}`;
+    return (0,_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainCosmeticOverlayUrlFor)(world, chunkX, chunkZ, visualDetailMode());
 }
 function applyMapWaterTint() {
     for (const entry of loadedChunks.values()) {
-        (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.sampleMapBackdropColor);
+        (0,_water_js__WEBPACK_IMPORTED_MODULE_27__.tintWaterMaterialsFromMap)(entry.object, _map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.sampleMapBackdropColor);
     }
 }
 function mapBackdropCenter() {
-    if (activeCenterId) {
-        const parts = activeCenterId.split(':');
-        const chunkX = Number.parseInt(parts[parts.length - 2], 10);
-        const chunkZ = Number.parseInt(parts[parts.length - 1], 10);
-        if (Number.isFinite(chunkX) && Number.isFinite(chunkZ)) {
-            return { chunkX, chunkZ };
-        }
-    }
-    const gridX = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10);
-    const gridZ = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10);
-    if (Number.isFinite(gridX) && Number.isFinite(gridZ)) {
-        return { chunkX: gridX, chunkZ: gridZ };
-    }
-    return { chunkX: 0, chunkZ: 0 };
+    return (0,_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_15__.mapBackdropCenterFrom)(runtime.activeCenterId, Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkXInput.value, 10), Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkZInput.value, 10));
 }
 function syncMapTileLayer(retainKeys = null) {
-    grid.visible = !_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked;
-    (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.configureMapBackdrop)(scene, renderer, {
-        enabled: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
-        formatVersion: terrainFormatVersion,
+    grid.visible = !_dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked;
+    (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.configureMapBackdrop)(scene, renderer, {
+        enabled: _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked,
+        formatVersion: runtime.terrainFormatVersion,
         motionEnabled: landMotionEnabled(),
     });
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked) {
         updateMetrics();
         return;
     }
-    const world = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
-    const keys = retainKeys ?? chunkKeys(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10), Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10), radiusValue());
+    const world = _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value;
+    const keys = retainKeys ?? (0,_chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__.chunkKeysForWorld)(world, Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkXInput.value, 10), Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkZInput.value, 10), radiusValue());
     const retainIds = new Set(keys.map((key) => key.id));
-    (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.pruneMapTiles)(world, retainIds);
+    (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.pruneMapTiles)(world, retainIds);
     const center = mapBackdropCenter();
     const terrainRadius = radiusValue();
-    const mapRadius = mapTileRetainRadius(terrainRadius, _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked);
-    const stats = (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapBackdropStats)();
-    stats.centerX = center.chunkX;
-    stats.centerZ = center.chunkZ;
-    stats.radius = mapRadius;
-    stats.chunks = mapRadius * 2 + 1;
-    stats.anchorX = center.chunkX;
-    stats.anchorZ = center.chunkZ;
+    const mapRadius = mapTileRetainRadius(terrainRadius, _dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput.checked);
+    const stats = (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.mapBackdropStats)();
+    Object.assign(stats, (0,_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_15__.mapBackdropRetainStats)(center, mapRadius));
     updateMetrics();
 }
 function updateMapTileLayer(options = {}) {
     const center = mapBackdropCenter();
     const radius = radiusValue();
-    const mapRadius = mapTileRetainRadius(radius, _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked);
-    const layerKey = `${_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value}:${center.chunkX}:${center.chunkZ}:${mapRadius}:${_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked}`;
-    if (!options.force && layerKey === mapTileLayerKey) {
+    const mapRadius = mapTileRetainRadius(radius, _dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput.checked);
+    const world = _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value;
+    const layerKey = (0,_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_15__.mapTileLayerKey)(world, center, mapRadius, _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked);
+    if (!options.force && layerKey === runtime.mapTileLayerKey) {
         return;
     }
-    mapTileLayerKey = layerKey;
-    const keys = chunkKeys(center.chunkX, center.chunkZ, mapRadius);
+    runtime.mapTileLayerKey = layerKey;
+    const keys = (0,_chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__.chunkKeysForWorld)(world, center.chunkX, center.chunkZ, mapRadius);
     syncMapTileLayer(keys);
-    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked) {
+    if (_dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked) {
         const anchor = playerChunk();
-        void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.loadMapTilesForKeys)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value, sortChunkKeysByPlayerDistance(keys, anchor.chunkX, anchor.chunkZ), { immediate: true, replace: true });
+        void (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.loadMapTilesForKeys)(world, (0,_chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__.sortChunkKeysByPlayerDistance)(keys, anchor.chunkX, anchor.chunkZ), { immediate: true, replace: true });
     }
 }
 function cameraChunk() {
@@ -1510,221 +1578,224 @@ function cameraChunk() {
 }
 function applyLighting() {
     const options = currentLightingOptions();
-    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.applyLightingEnvironment)(scene, renderer, lightingRig, options);
+    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_11__.applyLightingEnvironment)(scene, renderer, lightingRig, options);
     applyFogSettings();
     for (const entry of loadedChunks.values()) {
-        (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.applyLightingToObject)(entry.object, options);
-        (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.updateTreeShadeObject)(entry.shade, options);
+        (0,_lighting_js__WEBPACK_IMPORTED_MODULE_11__.applyLightingToObject)(entry.object, options);
+        (0,_lighting_js__WEBPACK_IMPORTED_MODULE_11__.updateTreeShadeObject)(entry.shade, options);
     }
 }
 function applyFogSettings() {
     const options = fogControlOptions();
     scene.fog = null;
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.setFogOptions)(postProcessing, options);
+    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_19__.setFogOptions)(postProcessing, options);
 }
 function updateMapDistanceFog() {
     scene.fog = null;
 }
 async function refreshWorldTime() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value) {
         return;
     }
     try {
-        const response = await fetch(`/api/time/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)}`);
+        const response = await fetch(`/api/time/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value)}`);
         if (!response.ok) {
             throw new Error(`Time request failed: ${response.status}`);
         }
         const data = await response.json();
         if (data.ok) {
-            worldTime = data;
+            runtime.worldTime = data;
             applyLighting();
-            timeRibbon.update(worldTime);
+            timeRibbon.update(runtime.worldTime);
         }
     }
     catch (error) {
         console.warn('World time refresh failed', error);
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('world_time_refresh_failed', { error: error?.message ?? error });
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('world_time_refresh_failed', { error: error?.message ?? error });
     }
 }
 function worldTimePollDelayMs() {
-    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked) {
-        return MAP_TIME_ACTIVE_POLL_MS;
-    }
-    return lastPlayerCount > 0 ? MAP_TIME_VISIBLE_POLL_MS : MAP_TIME_IDLE_POLL_MS;
+    return (0,_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__.worldTimePollDelayMs)({
+        mapTimeEnabled: _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTimeInput.checked,
+        lastPlayerCount: runtime.lastPlayerCount,
+        activeMs: MAP_TIME_ACTIVE_POLL_MS,
+        visibleMs: MAP_TIME_VISIBLE_POLL_MS,
+        idleMs: MAP_TIME_IDLE_POLL_MS,
+    });
 }
 function restartWorldTimePolling(delayMs = worldTimePollDelayMs()) {
-    clearTimeout(timePollTimer);
-    timePollTimer = setTimeout(async () => {
+    clearTimeout(runtime.timePollTimer);
+    runtime.timePollTimer = setTimeout(async () => {
         await refreshWorldTime();
         restartWorldTimePolling();
     }, delayMs);
 }
 async function refreshPlayers() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value || isRefreshingPlayers) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value || runtime.isRefreshingPlayers) {
         return;
     }
-    isRefreshingPlayers = true;
+    runtime.isRefreshingPlayers = true;
     try {
-        const response = await fetch(`/api/players/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)}`);
+        const response = await fetch(`/api/players/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value)}`);
         if (!response.ok) {
             throw new Error(`Player request failed: ${response.status}`);
         }
         const data = await response.json();
-        lastPlayerPollFailed = false;
+        runtime.lastPlayerPollFailed = false;
         updatePlayers(data.players ?? []);
     }
     catch (error) {
-        lastPlayerPollFailed = true;
+        runtime.lastPlayerPollFailed = true;
         console.warn('Player refresh failed', error);
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('player_refresh_failed', { error: error?.message ?? error });
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('player_refresh_failed', { error: error?.message ?? error });
     }
     finally {
-        isRefreshingPlayers = false;
+        runtime.isRefreshingPlayers = false;
     }
 }
 function playerUpdateRateMs() {
-    const parsed = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput.value, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PLAYER_UPDATE_RATE_MS;
+    return (0,_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__.positiveIntegerMs)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.playerUpdateRateInput.value, DEFAULT_PLAYER_UPDATE_RATE_MS);
 }
 function playerPollDelayMs() {
-    if (lastPlayerPollFailed) {
-        return PLAYER_POLL_ERROR_MS;
-    }
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked) {
-        return HIDDEN_PLAYER_POLL_MS;
-    }
-    if (lastPlayerCount <= 0) {
-        return EMPTY_PLAYER_POLL_MS;
-    }
-    const requestedRate = playerUpdateRateMs();
-    return viewPlayerUuid || followPlayerUuid
-        ? Math.max(requestedRate, FOCUSED_PLAYER_POLL_MIN_MS)
-        : requestedRate;
+    return (0,_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__.playerPollDelayMs)({
+        lastPollFailed: runtime.lastPlayerPollFailed,
+        showPlayers: _dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked,
+        lastPlayerCount: runtime.lastPlayerCount,
+        requestedRateMs: playerUpdateRateMs(),
+        focused: Boolean(runtime.viewPlayerUuid || runtime.followPlayerUuid),
+        errorMs: PLAYER_POLL_ERROR_MS,
+        hiddenMs: HIDDEN_PLAYER_POLL_MS,
+        emptyMs: EMPTY_PLAYER_POLL_MS,
+        focusedMinMs: FOCUSED_PLAYER_POLL_MIN_MS,
+    });
 }
 function restartPlayerPolling(delayMs = playerPollDelayMs()) {
-    clearTimeout(playerPollTimer);
-    if (entityStreamConnected)
+    clearTimeout(runtime.playerPollTimer);
+    if (runtime.entityStreamConnected)
         return;
-    playerPollTimer = setTimeout(async () => {
+    runtime.playerPollTimer = setTimeout(async () => {
         await refreshPlayers();
         restartPlayerPolling();
     }, delayMs);
 }
 async function refreshMobs() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value || !liveMobFeedEnabled() || isRefreshingMobs) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value || !liveMobFeedEnabled() || runtime.isRefreshingMobs) {
         return;
     }
-    isRefreshingMobs = true;
+    runtime.isRefreshingMobs = true;
     try {
-        const response = await fetch(`/api/mobs/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)}`);
+        const response = await fetch(`/api/mobs/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value)}`);
         if (!response.ok) {
             throw new Error(`Mob request failed: ${response.status}`);
         }
         const data = await response.json();
-        lastMobPollFailed = false;
-        lastMobSourceStats = data.sourceStats ?? null;
+        runtime.lastMobPollFailed = false;
+        runtime.lastMobSourceStats = data.sourceStats ?? null;
         scheduleMobMarkerUpdate(data.mobs ?? []);
     }
     catch (error) {
-        lastMobPollFailed = true;
+        runtime.lastMobPollFailed = true;
         console.warn('Mob refresh failed', error);
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mob_refresh_failed', { error: error?.message ?? error });
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('mob_refresh_failed', { error: error?.message ?? error });
     }
     finally {
-        isRefreshingMobs = false;
+        runtime.isRefreshingMobs = false;
     }
 }
 function mobPollDelayMs() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
-        return null;
-    }
-    if (!liveMobFeedEnabled()) {
-        return EMPTY_MOB_POLL_MS;
-    }
-    if (lastMobPollFailed) {
-        return MOB_POLL_ERROR_MS;
-    }
-    return lastMobCount > 0 ? MOB_POLL_MS : EMPTY_MOB_POLL_MS;
+    return (0,_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__.mobPollDelayMs)({
+        showMobs: _dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked,
+        liveMobFeed: liveMobFeedEnabled(),
+        lastPollFailed: runtime.lastMobPollFailed,
+        lastMobCount: runtime.lastMobCount,
+        activeMs: MOB_POLL_MS,
+        emptyMs: EMPTY_MOB_POLL_MS,
+        errorMs: MOB_POLL_ERROR_MS,
+    });
 }
 function restartMobPolling(delayMs = mobPollDelayMs()) {
-    clearTimeout(mobPollTimer);
-    mobPollTimer = null;
-    if (delayMs === null || entityStreamConnected)
+    clearTimeout(runtime.mobPollTimer);
+    runtime.mobPollTimer = null;
+    if (delayMs === null || runtime.entityStreamConnected)
         return;
-    mobPollTimer = setTimeout(async () => {
+    runtime.mobPollTimer = setTimeout(async () => {
         await refreshMobs();
         restartMobPolling();
     }, delayMs);
 }
 function liveMobFeedEnabled() {
-    return _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked && lastPlayerCount > 0;
+    return (0,_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__.liveMobFeedEnabled)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked, runtime.lastPlayerCount);
 }
 function wantsEntityStream() {
-    return _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value && (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked || liveMobFeedEnabled());
+    return (0,_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_30__.wantsEntityStream)({
+        world: _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value,
+        showPlayers: _dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked,
+        liveMobFeed: liveMobFeedEnabled(),
+    });
 }
 function restartEntityStream() {
-    clearTimeout(entityStreamFallbackTimer);
+    clearTimeout(runtime.entityStreamFallbackTimer);
     if (!('EventSource' in window) || !wantsEntityStream()) {
         closeEntityStream();
         restartPlayerPolling();
         restartMobPolling();
         return;
     }
-    const includePlayers = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked;
+    const includePlayers = _dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked;
     const includeMobs = liveMobFeedEnabled();
-    if (entityStream
-        && entityStreamWorld === _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value
-        && entityStreamPlayers === includePlayers
-        && entityStreamMobs === includeMobs) {
+    if (runtime.entityStream
+        && runtime.entityStreamWorld === _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value
+        && runtime.entityStreamPlayers === includePlayers
+        && runtime.entityStreamMobs === includeMobs) {
         return;
     }
     closeEntityStream();
-    entityStreamWorld = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
-    entityStreamPlayers = includePlayers;
-    entityStreamMobs = includeMobs;
+    runtime.entityStreamWorld = _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value;
+    runtime.entityStreamPlayers = includePlayers;
+    runtime.entityStreamMobs = includeMobs;
     const params = new URLSearchParams({
         players: includePlayers ? '1' : '0',
         mobs: includeMobs ? '1' : '0',
     });
-    entityStream = new EventSource(`/api/entities/stream/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)}?${params}`);
-    entityStream.addEventListener('open', () => {
-        entityStreamConnected = true;
-        clearTimeout(playerPollTimer);
-        clearTimeout(mobPollTimer);
-        clearTimeout(entityStreamFallbackTimer);
+    runtime.entityStream = new EventSource(`/api/entities/stream/${encodeURIComponent(_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value)}?${params}`);
+    runtime.entityStream.addEventListener('open', () => {
+        runtime.entityStreamConnected = true;
+        clearTimeout(runtime.playerPollTimer);
+        clearTimeout(runtime.mobPollTimer);
+        clearTimeout(runtime.entityStreamFallbackTimer);
     });
-    entityStream.addEventListener('entities', (event) => {
-        entityStreamConnected = true;
-        clearTimeout(playerPollTimer);
-        clearTimeout(mobPollTimer);
+    runtime.entityStream.addEventListener('entities', (event) => {
+        runtime.entityStreamConnected = true;
+        clearTimeout(runtime.playerPollTimer);
+        clearTimeout(runtime.mobPollTimer);
         try {
             applyEntitySnapshot(JSON.parse(event.data));
         }
         catch (error) {
             console.warn('Entity stream parse failed', error);
-            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('entity_stream_parse_failed', { error: error?.message ?? error });
+            (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('entity_stream_parse_failed', { error: error?.message ?? error });
         }
     });
-    entityStream.addEventListener('error', () => {
-        entityStreamConnected = false;
+    runtime.entityStream.addEventListener('error', () => {
+        runtime.entityStreamConnected = false;
         scheduleEntityFallbackPolling();
     });
 }
 function closeEntityStream() {
-    clearTimeout(entityStreamFallbackTimer);
-    if (entityStream) {
-        entityStream.close();
+    clearTimeout(runtime.entityStreamFallbackTimer);
+    if (runtime.entityStream) {
+        runtime.entityStream.close();
     }
-    entityStream = null;
-    entityStreamWorld = null;
-    entityStreamPlayers = null;
-    entityStreamMobs = null;
-    entityStreamConnected = false;
+    runtime.entityStream = null;
+    runtime.entityStreamWorld = null;
+    runtime.entityStreamPlayers = null;
+    runtime.entityStreamMobs = null;
+    runtime.entityStreamConnected = false;
 }
 function scheduleEntityFallbackPolling() {
-    clearTimeout(entityStreamFallbackTimer);
-    entityStreamFallbackTimer = setTimeout(() => {
-        if (entityStreamConnected)
+    clearTimeout(runtime.entityStreamFallbackTimer);
+    runtime.entityStreamFallbackTimer = setTimeout(() => {
+        if (runtime.entityStreamConnected)
             return;
         restartPlayerPolling(0);
         restartMobPolling(0);
@@ -1733,47 +1804,47 @@ function scheduleEntityFallbackPolling() {
 function applyEntitySnapshot(snapshot) {
     if (!snapshot?.ok)
         return;
-    if (snapshot.world && snapshot.world !== _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)
+    if (snapshot.world && snapshot.world !== _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value)
         return;
-    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked) {
+    if (_dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked) {
         updatePlayers(snapshot.players ?? []);
     }
     if (liveMobFeedEnabled()) {
-        lastMobSourceStats = snapshot.mobSourceStats ?? null;
+        runtime.lastMobSourceStats = snapshot.mobSourceStats ?? null;
         scheduleMobMarkerUpdate(snapshot.mobs ?? []);
     }
 }
 function updatePlayers(players) {
-    const previousPlayerCount = lastPlayerCount;
-    lastPlayerCount = players.length;
-    if (previousPlayerCount !== lastPlayerCount) {
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('player_count_changed', {
-            players: lastPlayerCount,
+    const previousPlayerCount = runtime.lastPlayerCount;
+    runtime.lastPlayerCount = players.length;
+    if (previousPlayerCount !== runtime.lastPlayerCount) {
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('player_count_changed', {
+            players: runtime.lastPlayerCount,
             nextPollMs: playerPollDelayMs(),
         });
         restartWorldTimePolling();
-        if (lastPlayerCount > previousPlayerCount) {
+        if (runtime.lastPlayerCount > previousPlayerCount) {
             schedulePlayerConnectMobSample(players);
         }
-        if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
-            if (lastPlayerCount <= 0) {
+        if (_dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked) {
+            if (runtime.lastPlayerCount <= 0) {
                 clearMobs();
             }
             restartEntityStream();
-            restartMobPolling(lastPlayerCount > 0 ? 0 : mobPollDelayMs());
+            restartMobPolling(runtime.lastPlayerCount > 0 ? 0 : mobPollDelayMs());
         }
     }
     const seen = new Set();
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked) {
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.replaceChildren();
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.textContent = 'Players hidden';
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked) {
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.playersEl.replaceChildren();
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.playersEl.textContent = 'Players hidden';
     }
     else if (players.length === 0) {
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.replaceChildren();
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.textContent = 'No players';
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.playersEl.replaceChildren();
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.playersEl.textContent = 'No players';
     }
-    else if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.childNodes.length === 1 && _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.firstChild.nodeType === Node.TEXT_NODE) {
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.replaceChildren();
+    else if (_dom_js__WEBPACK_IMPORTED_MODULE_10__.playersEl.childNodes.length === 1 && _dom_js__WEBPACK_IMPORTED_MODULE_10__.playersEl.firstChild.nodeType === Node.TEXT_NODE) {
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.playersEl.replaceChildren();
     }
     let tileIndex = 0;
     for (const player of players) {
@@ -1795,7 +1866,7 @@ function updatePlayers(players) {
         marker.userData.targetYaw = playerCameraYawRad(player.yaw ?? marker.userData.targetYawDeg ?? 0);
         marker.userData.targetYawDeg = player.yaw ?? marker.userData.targetYawDeg ?? 0;
         marker.userData.targetPitch = player.pitch ?? marker.userData.targetPitch ?? 0;
-        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked;
+        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked;
         marker.userData.player = player;
         (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updatePlayerMarkerCard)(marker, player);
         (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updatePlayerMarkerCardHeight)(marker, 4.35);
@@ -1803,14 +1874,14 @@ function updatePlayers(players) {
         if (!marker.parent) {
             scene.add(marker);
         }
-        if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked) {
+        if (!_dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked) {
             continue;
         }
-        const tile = playerTiles.get(player.uuid) ?? (0,_player_tiles_js__WEBPACK_IMPORTED_MODULE_14__.createPlayerTile)(player, playerTileContext());
+        const tile = playerTiles.get(player.uuid) ?? (0,_player_tiles_js__WEBPACK_IMPORTED_MODULE_17__.createPlayerTile)(player, playerTileContext());
         if (!playerTiles.has(player.uuid)) {
             playerTiles.set(player.uuid, tile);
         }
-        (0,_player_tiles_js__WEBPACK_IMPORTED_MODULE_14__.updatePlayerTile)(tile, player, playerTileContext());
+        (0,_player_tiles_js__WEBPACK_IMPORTED_MODULE_17__.updatePlayerTile)(tile, player, playerTileContext());
         ensurePlayerTileOrder(tile.element, tileIndex++);
     }
     for (const [uuid, marker] of playerMarkers) {
@@ -1820,10 +1891,10 @@ function updatePlayers(players) {
             playerMarkers.delete(uuid);
             playerTiles.get(uuid)?.element.remove();
             playerTiles.delete(uuid);
-            if (viewPlayerUuid === uuid) {
+            if (runtime.viewPlayerUuid === uuid) {
                 popCameraMode();
             }
-            if (followPlayerUuid === uuid) {
+            if (runtime.followPlayerUuid === uuid) {
                 popCameraMode();
             }
         }
@@ -1832,42 +1903,42 @@ function updatePlayers(players) {
 }
 function playerTileContext() {
     return {
-        activeViewUuid: viewPlayerUuid,
-        activeFollowUuid: followPlayerUuid,
+        activeViewUuid: runtime.viewPlayerUuid,
+        activeFollowUuid: runtime.followPlayerUuid,
         onFocus: focusPlayer,
-        onToggleEyeView: (uuid) => setPlayerEyeView(viewPlayerUuid === uuid ? null : uuid),
-        onToggleFollow: (uuid) => setPlayerFollow(followPlayerUuid === uuid ? null : uuid),
+        onToggleEyeView: (uuid) => setPlayerEyeView(runtime.viewPlayerUuid === uuid ? null : uuid),
+        onToggleFollow: (uuid) => setPlayerFollow(runtime.followPlayerUuid === uuid ? null : uuid),
     };
 }
 function ensurePlayerTileOrder(tileElement, index) {
-    const current = _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.children[index] ?? null;
+    const current = _dom_js__WEBPACK_IMPORTED_MODULE_10__.playersEl.children[index] ?? null;
     if (current === tileElement) {
         return;
     }
-    if (tileElement.parentElement !== _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl) {
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.insertBefore(tileElement, current);
+    if (tileElement.parentElement !== _dom_js__WEBPACK_IMPORTED_MODULE_10__.playersEl) {
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.playersEl.insertBefore(tileElement, current);
         return;
     }
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.insertBefore(tileElement, current);
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.playersEl.insertBefore(tileElement, current);
 }
 function schedulePlayerConnectMobSample(players) {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value || !_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked)
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value || !_dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked)
         return;
-    clearTimeout(playerConnectMobSampleTimer);
-    const sampledPlayers = players.map((player) => compactObject({
+    clearTimeout(runtime.playerConnectMobSampleTimer);
+    const sampledPlayers = players.map((player) => (0,_entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.compactObject)({
         uuid: player.uuid,
         name: player.name,
-        x: roundCoord(player.x),
-        y: roundCoord(player.y),
-        z: roundCoord(player.z),
+        x: (0,_entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.roundCoord)(player.x),
+        y: (0,_entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.roundCoord)(player.y),
+        z: (0,_entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.roundCoord)(player.z),
     }));
-    playerConnectMobSampleTimer = setTimeout(() => {
+    runtime.playerConnectMobSampleTimer = setTimeout(() => {
         sampleMobFeedOnPlayerConnect(sampledPlayers);
     }, PLAYER_CONNECT_MOB_SAMPLE_DELAY_MS);
 }
 async function sampleMobFeedOnPlayerConnect(players) {
-    const world = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
-    if (!world || !_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked)
+    const world = _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value;
+    if (!world || !_dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked)
         return;
     try {
         const response = await fetch(`/api/mobs/${encodeURIComponent(world)}`);
@@ -1876,94 +1947,25 @@ async function sampleMobFeedOnPlayerConnect(players) {
         }
         const data = await response.json();
         const mobs = Array.isArray(data.mobs) ? data.mobs : [];
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mob_connect_sample', {
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('mob_connect_sample', {
             world,
             players: players.length,
             player: players[0] ?? null,
             mobs: mobs.length,
-            types: summarizeItems(mobs, (mob) => mob.type ?? mob.label ?? 'Mob'),
-            categories: summarizeItems(mobs, (mob) => mob.category ?? 'unknown'),
-            sources: summarizeItems(mobs, (mob) => mob.source ?? 'unknown'),
-            sourceStats: compactMobSourceStats(data.sourceStats),
-            nearest: nearestMobsForSample(mobs, players[0], 12),
+            types: (0,_entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.summarizeItems)(mobs, (mob) => mob.type ?? mob.label ?? 'Mob'),
+            categories: (0,_entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.summarizeItems)(mobs, (mob) => mob.category ?? 'unknown'),
+            sources: (0,_entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.summarizeItems)(mobs, (mob) => mob.source ?? 'unknown'),
+            sourceStats: (0,_entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.compactMobSourceStats)(data.sourceStats),
+            nearest: (0,_entity_summary_js__WEBPACK_IMPORTED_MODULE_29__.nearestMobsForSample)(mobs, players[0], 12),
         });
     }
     catch (error) {
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mob_connect_sample_failed', { error: error?.message ?? error });
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('mob_connect_sample_failed', { error: error?.message ?? error });
     }
-}
-function summarizeItems(items, selector, limit = 10) {
-    const counts = new Map();
-    for (const item of items) {
-        const key = String(selector(item) ?? 'unknown');
-        counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return Array.from(counts.entries())
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .slice(0, limit)
-        .map(([key, count]) => `${key}=${count}`)
-        .join('|');
-}
-function compactMobSourceStats(stats) {
-    if (!stats || typeof stats !== 'object')
-        return null;
-    return compactObject({
-        source: stats.source,
-        chunks: stats.chunks,
-        accepted: stats.accepted,
-        duplicate: stats.duplicate,
-        outsideRadar: stats.outsideRadar,
-        nonMob: stats.nonMob,
-        skippedTypes: summarizeCountsObject(stats.skippedTypes, 8),
-    });
-}
-function summarizeCountsObject(countsObject, limit = 10) {
-    return Object.entries(countsObject ?? {})
-        .filter(([, count]) => typeof count === 'number' && count > 0)
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .slice(0, limit)
-        .map(([key, count]) => `${key}=${count}`)
-        .join('|');
-}
-function nearestMobsForSample(mobs, player, limit) {
-    return mobs
-        .map((mob) => ({
-        mob,
-        distance: distanceBetween(mob, player),
-    }))
-        .sort((a, b) => a.distance - b.distance)
-        .slice(0, limit)
-        .map(({ mob, distance }) => compactObject({
-        type: mob.type,
-        label: mob.label,
-        category: mob.category,
-        source: mob.source,
-        x: roundCoord(mob.x),
-        y: roundCoord(mob.y),
-        z: roundCoord(mob.z),
-        d: Number.isFinite(distance) ? Math.round(distance) : null,
-    }));
-}
-function distanceBetween(a, b) {
-    if (![a?.x, a?.y, a?.z, b?.x, b?.y, b?.z].every(Number.isFinite))
-        return Number.POSITIVE_INFINITY;
-    return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
-}
-function roundCoord(value) {
-    return Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
-}
-function compactObject(object) {
-    const result = {};
-    for (const [key, value] of Object.entries(object)) {
-        if (value !== null && value !== undefined && value !== '') {
-            result[key] = value;
-        }
-    }
-    return result;
 }
 function updateMobs(mobs) {
     cancelPendingMobMarkerUpdate();
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked && mobs.length > 0) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked && mobs.length > 0) {
         return;
     }
     setMobCount(mobs.length);
@@ -1981,11 +1983,11 @@ function updateMobs(mobs) {
     updateEntityVisibility();
 }
 function scheduleMobMarkerUpdate(mobs) {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked && mobs.length > 0) {
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked && mobs.length > 0) {
         return;
     }
-    const generation = ++mobMarkerUpdateGeneration;
-    pendingMobMarkerUpdate = {
+    const generation = ++runtime.mobMarkerUpdateGeneration;
+    runtime.pendingMobMarkerUpdate = {
         generation,
         mobs,
         index: 0,
@@ -1994,19 +1996,19 @@ function scheduleMobMarkerUpdate(mobs) {
         removalIndex: 0,
     };
     setMobCount(mobs.length);
-    if (!mobMarkerUpdateScheduled) {
-        mobMarkerUpdateScheduled = true;
+    if (!runtime.mobMarkerUpdateScheduled) {
+        runtime.mobMarkerUpdateScheduled = true;
         requestAnimationFrame(() => processPendingMobMarkerUpdate(generation));
     }
 }
 function cancelPendingMobMarkerUpdate() {
-    mobMarkerUpdateGeneration++;
-    pendingMobMarkerUpdate = null;
-    mobMarkerUpdateScheduled = false;
+    runtime.mobMarkerUpdateGeneration++;
+    runtime.pendingMobMarkerUpdate = null;
+    runtime.mobMarkerUpdateScheduled = false;
 }
 function processPendingMobMarkerUpdate(generation) {
-    mobMarkerUpdateScheduled = false;
-    const update = pendingMobMarkerUpdate;
+    runtime.mobMarkerUpdateScheduled = false;
+    const update = runtime.pendingMobMarkerUpdate;
     if (!update)
         return;
     if (update.generation !== generation) {
@@ -2046,19 +2048,19 @@ function processPendingMobMarkerUpdate(generation) {
             return;
         }
     }
-    pendingMobMarkerUpdate = null;
+    runtime.pendingMobMarkerUpdate = null;
     updateEntityVisibility();
 }
 function schedulePendingMobMarkerUpdate(generation) {
-    mobMarkerUpdateScheduled = true;
+    runtime.mobMarkerUpdateScheduled = true;
     requestAnimationFrame(() => processPendingMobMarkerUpdate(generation));
 }
 function setMobCount(count) {
-    const previousMobCount = lastMobCount;
-    lastMobCount = count;
-    if (previousMobCount !== lastMobCount) {
-        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_10__.logClientEvent)('mob_count_changed', {
-            mobs: lastMobCount,
+    const previousMobCount = runtime.lastMobCount;
+    runtime.lastMobCount = count;
+    if (previousMobCount !== runtime.lastMobCount) {
+        (0,_client_log_js__WEBPACK_IMPORTED_MODULE_12__.logClientEvent)('mob_count_changed', {
+            mobs: runtime.lastMobCount,
             nextPollMs: mobPollDelayMs(),
         });
     }
@@ -2075,7 +2077,7 @@ function upsertMobMarker(mob) {
     marker.userData.targetPosition.set(mob.x, mob.y, mob.z);
     marker.userData.mob = enrichedMob;
     (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updateMobMarkerCard)(marker, enrichedMob);
-    marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked;
+    marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked;
     const headshotBlock = marker.userData.headshotBlock;
     if (headshotBlock) {
         headshotBlock.visible = mobBlocksEnabled();
@@ -2088,8 +2090,8 @@ function upsertMobMarker(mob) {
 }
 function clearMobs() {
     updateMobs([]);
-    lastMobPollFailed = false;
-    lastMobSourceStats = null;
+    runtime.lastMobPollFailed = false;
+    runtime.lastMobSourceStats = null;
 }
 function focusPlayer(uuid) {
     const marker = playerMarkers.get(uuid);
@@ -2113,7 +2115,7 @@ function setPlayerEyeView(uuid) {
         resetPlayerEyeState(uuid);
         updateEyeCamera(0);
     }
-    else if (viewPlayerUuid) {
+    else if (runtime.viewPlayerUuid) {
         popCameraMode();
     }
     updatePlayers(currentPlayersFromMarkers());
@@ -2125,14 +2127,14 @@ function setPlayerFollow(uuid) {
     if (uuid) {
         pushCameraMode('follow', uuid);
     }
-    else if (followPlayerUuid) {
+    else if (runtime.followPlayerUuid) {
         popCameraMode();
     }
     updatePlayers(currentPlayersFromMarkers());
     restartPlayerPolling();
 }
 function pushCameraMode(mode, uuid) {
-    if ((mode === 'eye' && viewPlayerUuid === uuid) || (mode === 'follow' && followPlayerUuid === uuid)) {
+    if ((mode === 'eye' && runtime.viewPlayerUuid === uuid) || (mode === 'follow' && runtime.followPlayerUuid === uuid)) {
         popCameraMode();
         return;
     }
@@ -2155,8 +2157,8 @@ function currentPlayersFromMarkers() {
 }
 function resetCameraModes() {
     cameraModeStack.length = 0;
-    viewPlayerUuid = null;
-    followPlayerUuid = null;
+    runtime.viewPlayerUuid = null;
+    runtime.followPlayerUuid = null;
     playerEyeState.uuid = null;
     setFollowControlsEnabled(false);
 }
@@ -2164,8 +2166,8 @@ function captureCameraModeState() {
     return {
         camera: camera.position.clone(),
         target: controls.target.clone(),
-        viewPlayerUuid,
-        followPlayerUuid,
+        viewPlayerUuid: runtime.viewPlayerUuid,
+        followPlayerUuid: runtime.followPlayerUuid,
         controlsEnabled: controls.enabled,
     };
 }
@@ -2178,23 +2180,23 @@ function restoreCameraModeState(state) {
         return false;
     camera.position.copy(state.camera);
     controls.target.copy(state.target);
-    viewPlayerUuid = state.viewPlayerUuid;
-    followPlayerUuid = state.followPlayerUuid;
-    if (viewPlayerUuid) {
-        resetPlayerEyeState(viewPlayerUuid);
+    runtime.viewPlayerUuid = state.viewPlayerUuid;
+    runtime.followPlayerUuid = state.followPlayerUuid;
+    if (runtime.viewPlayerUuid) {
+        resetPlayerEyeState(runtime.viewPlayerUuid);
     }
     else {
         playerEyeState.uuid = null;
     }
-    setFollowControlsEnabled(Boolean(followPlayerUuid));
+    setFollowControlsEnabled(Boolean(runtime.followPlayerUuid));
     controls.update();
     syncFlyLookFromCamera();
     saveViewState();
     return true;
 }
 function applyCameraMode(mode, uuid) {
-    viewPlayerUuid = mode === 'eye' ? uuid : null;
-    followPlayerUuid = mode === 'follow' ? uuid : null;
+    runtime.viewPlayerUuid = mode === 'eye' ? uuid : null;
+    runtime.followPlayerUuid = mode === 'follow' ? uuid : null;
     setFollowControlsEnabled(mode === 'follow');
     if (mode === 'follow') {
         updateWalkFollowCamera(1);
@@ -2209,31 +2211,31 @@ function setFollowControlsEnabled(enabled) {
 }
 function updateDebugBounds() {
     for (const entry of loadedChunks.values()) {
-        entry.debug.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked;
+        entry.debug.visible = _dom_js__WEBPACK_IMPORTED_MODULE_10__.debugBoundsInput.checked;
     }
 }
 function setRenderDetailsOpen(open) {
     const isOpen = open === true;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardEl.classList.toggle('collapsed', !isOpen);
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardHeadEl.setAttribute('aria-expanded', String(isOpen));
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardHeadEl.title = isOpen ? 'Hide render details' : 'Show render details';
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.infoCardEl.classList.toggle('collapsed', !isOpen);
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.infoCardHeadEl.setAttribute('aria-expanded', String(isOpen));
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.infoCardHeadEl.title = isOpen ? 'Hide render details' : 'Show render details';
 }
 function toggleRenderDetails() {
-    setRenderDetailsOpen(_dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardEl.classList.contains('collapsed'));
+    setRenderDetailsOpen(_dom_js__WEBPACK_IMPORTED_MODULE_10__.infoCardEl.classList.contains('collapsed'));
     saveViewState();
 }
 function updateEntityVisibility() {
     for (const marker of playerMarkers.values()) {
-        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked;
+        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked;
     }
     for (const marker of mobMarkers.values()) {
-        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked;
+        marker.visible = _dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked;
         if (marker.userData.headshotBlock) {
             marker.userData.headshotBlock.visible = mobBlocksEnabled();
         }
     }
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked) {
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.playersEl.textContent = 'Players hidden';
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked) {
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.playersEl.textContent = 'Players hidden';
     }
 }
 function exposeDebugState() {
@@ -2244,32 +2246,32 @@ function exposeDebugState() {
         playerTiles,
         mobMarkers,
         entityStreamState: () => ({
-            connected: entityStreamConnected,
-            world: entityStreamWorld,
-            players: entityStreamPlayers,
-            mobs: entityStreamMobs,
+            connected: runtime.entityStreamConnected,
+            world: runtime.entityStreamWorld,
+            players: runtime.entityStreamPlayers,
+            mobs: runtime.entityStreamMobs,
             liveMobFeed: liveMobFeedEnabled(),
             available: 'EventSource' in window,
         }),
         npcDetailsState: () => npcCatalog.state(),
         loadGrid: (options = {}) => loadGrid(options),
-        auditMapTiles: () => (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.auditMapTiles)(scene),
-        mapBackdropY: () => (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.resolveMapBackdropY)(),
-        mapBackdropStats: _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapBackdropStats,
-        mapTileSceneStats: _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapTileSceneStats,
-        probeMapTilePixel: (chunkX, chunkZ) => (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.probeMapTilePixel)(scene, renderer, camera, () => (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.renderPostProcessing)(postProcessing, renderer, scene, camera, 0, 0), chunkX, chunkZ),
-        terrainFormatVersion: () => terrainFormatVersion,
-        experimentalDetailsEnabled: () => experimentalDetailsEnabled,
-        activeCenterId: () => activeCenterId,
-        requestedCenterId: () => requestedCenterId,
+        auditMapTiles: () => (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.auditMapTiles)(scene),
+        mapBackdropY: () => (0,_water_js__WEBPACK_IMPORTED_MODULE_27__.resolveMapBackdropY)(),
+        mapBackdropStats: _map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.mapBackdropStats,
+        mapTileSceneStats: _map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.mapTileSceneStats,
+        probeMapTilePixel: (chunkX, chunkZ) => (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.probeMapTilePixel)(scene, renderer, camera, () => (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_19__.renderPostProcessing)(postProcessing, renderer, scene, camera, 0, 0), chunkX, chunkZ),
+        terrainFormatVersion: () => runtime.terrainFormatVersion,
+        experimentalDetailsEnabled: () => runtime.experimentalDetailsEnabled,
+        activeCenterId: () => runtime.activeCenterId,
+        requestedCenterId: () => runtime.requestedCenterId,
         updatePlayersForTest: (players) => updatePlayers(players),
         setPlayerEyeViewForTest: (uuid) => setPlayerEyeView(uuid),
         updateMobsForTest: (mobs) => updateMobs(mobs),
         scheduleMobsForTest: (mobs) => scheduleMobMarkerUpdate(mobs),
         waterMaterialSummary: () => waterMaterialSummary(),
         cameraPose: () => ({
-            camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.vectorState)(camera.position),
-            target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.vectorState)(controls.target),
+            camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_26__.vectorState)(camera.position),
+            target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_26__.vectorState)(controls.target),
             fov: camera.fov,
         }),
         streamAnchorChunk: () => playerChunk(),
@@ -2278,55 +2280,55 @@ function exposeDebugState() {
             chunkZ: Math.floor(camera.position.z / 32),
         }),
         setAutoStream: (enabled) => {
-            _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked = enabled === true;
-            _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.dispatchEvent(new Event('change', { bubbles: true }));
+            _dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput.checked = enabled === true;
+            _dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput.dispatchEvent(new Event('change', { bubbles: true }));
         },
         lastPerfTimings: () => ({
-            gridLoad: lastGridLoadTiming,
+            gridLoad: runtime.lastGridLoadTiming,
             terrainBatch: null,
-            terrainStream: lastTerrainStreamTiming,
+            terrainStream: runtime.lastTerrainStreamTiming,
         }),
         terrainTuning: () => ({
             loadSlots: terrainLoadConcurrency(),
             spawnFrame: terrainPromotionsPerFrame(),
             spawnBudgetMs: terrainPromotionBudgetMs(),
         }),
-        gridLoadCount: () => gridLoadCount,
+        gridLoadCount: () => runtime.gridLoadCount,
         resetGridLoadCount: () => {
-            gridLoadCount = 0;
+            runtime.gridLoadCount = 0;
         },
         jankStats: () => frameJank.stats(),
         resetJankStats: () => frameJank.reset(),
         chunkPlaceholderCount: () => chunkPlaceholderManager.count(),
         chunkPlaceholderWaiting: () => chunkPlaceholderManager.waitingCount(),
         landMotionActive: () => chunkLandMotion.activeCount(loadedChunks.values()),
-        mapTileMotionActive: _map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.mapTileMotionActive,
+        mapTileMotionActive: _map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.mapTileMotionActive,
         chunkWrapperCount: () => scene.children.filter((child) => child.name?.startsWith('chunk:')).length,
         orphanChunkWrappers: () => countOrphanChunkWrappers(),
         pruneOrphanChunkWrappers: () => pruneOrphanChunkWrappers(),
         viewState: () => ({
-            mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
-            cosmeticsMode: _dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput.value,
+            mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked,
+            cosmeticsMode: _dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput.value,
             visualDetailMode: visualDetailMode(),
-            landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked,
+            landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_10__.landMotionInput.checked,
             terrainLoadSlots: terrainLoadConcurrency(),
             terrainSpawnFrame: terrainPromotionsPerFrame(),
             terrainSpawnMs: terrainPromotionBudgetMs(),
-            shade: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked,
-            mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked,
+            shade: _dom_js__WEBPACK_IMPORTED_MODULE_10__.treeShadeInput.checked,
+            mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTimeInput.checked,
             water: waterModeValue(),
             fog: {
-                enabled: _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput.checked,
+                enabled: _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogEnabledInput.checked,
                 near: fogControlRange().near,
                 far: fogControlRange().far,
-                strength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, 0.9),
-                horizon: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, 0.65),
+                strength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogStrengthValueInput, 0.9),
+                horizon: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogHorizonValueInput, 0.65),
             },
-            players: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked,
-            mobs: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked,
+            players: _dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked,
+            mobs: _dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked,
             mobBlocks: mobBlocksEnabled(),
-            auto: _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked,
-            bounds: _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked,
+            auto: _dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput.checked,
+            bounds: _dom_js__WEBPACK_IMPORTED_MODULE_10__.debugBoundsInput.checked,
         }),
         skySummary: () => ({
             background: displayColor(scene.background),
@@ -2350,33 +2352,33 @@ function exposeDebugState() {
             starsOpacity: lightingRig.stars.material.opacity,
         }),
         setWorldTimeForTest: (time) => {
-            worldTime = time;
-            _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked = true;
+            runtime.worldTime = time;
+            _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTimeInput.checked = true;
             applyLighting();
-            timeRibbon.update(worldTime);
+            timeRibbon.update(runtime.worldTime);
         },
         flyLook: () => ({
-            yaw: flyYaw,
-            pitch: flyPitch,
+            yaw: runtime.flyYaw,
+            pitch: runtime.flyPitch,
             pointerLocked: isFlyLookActive(),
         }),
         applyFlyLookDelta: (movementX, movementY) => {
-            flyYaw -= Number(movementX) * FLY_MOUSE_SENSITIVITY;
-            flyPitch -= Number(movementY) * FLY_MOUSE_SENSITIVITY;
+            runtime.flyYaw -= Number(movementX) * FLY_MOUSE_SENSITIVITY;
+            runtime.flyPitch -= Number(movementY) * FLY_MOUSE_SENSITIVITY;
             applyFlyLook();
         },
         zoomFlyView: (deltaY) => {
             zoomFlyView(Number(deltaY));
         },
         setCameraPose: ({ camera: cameraState, target: targetState, lookAt }) => {
-            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.isVectorState)(cameraState)) {
+            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_26__.isVectorState)(cameraState)) {
                 camera.position.set(cameraState.x, cameraState.y, cameraState.z);
             }
-            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.isVectorState)(targetState)) {
+            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_26__.isVectorState)(targetState)) {
                 controls.target.set(targetState.x, targetState.y, targetState.z);
             }
             controls.update();
-            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.isVectorState)(lookAt)) {
+            if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_26__.isVectorState)(lookAt)) {
                 camera.lookAt(lookAt.x, lookAt.y, lookAt.z);
             }
             syncFlyLookFromCamera();
@@ -2436,74 +2438,74 @@ function focusGrid(centerX, centerZ, radius) {
     saveViewState();
 }
 function restoreCameraPose() {
-    if (!storedViewState || hasExplicitViewParams()) {
+    if (!runtime.storedViewState || hasExplicitViewParams()) {
         return false;
     }
-    const cameraState = storedViewState.camera;
-    const targetState = storedViewState.target;
-    if (!(0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.isVectorState)(cameraState) || !(0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.isVectorState)(targetState)) {
+    const cameraState = runtime.storedViewState.camera;
+    const targetState = runtime.storedViewState.target;
+    if (!(0,_view_state_js__WEBPACK_IMPORTED_MODULE_26__.isVectorState)(cameraState) || !(0,_view_state_js__WEBPACK_IMPORTED_MODULE_26__.isVectorState)(targetState)) {
         return false;
     }
     camera.position.set(cameraState.x, cameraState.y, cameraState.z);
     controls.target.set(targetState.x, targetState.y, targetState.z);
     controls.update();
     syncFlyLookFromCamera();
-    hasFocusedInitialGrid = true;
-    hasRestoredCameraPose = true;
+    runtime.hasFocusedInitialGrid = true;
+    runtime.hasRestoredCameraPose = true;
     return true;
 }
 function hasExplicitViewParams() {
     return ['world', 'chunkX', 'chunkZ', 'radius'].some((name) => initialParams.has(name));
 }
 function saveViewState() {
-    if (!hasStarted || !_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)
+    if (!runtime.hasStarted || !_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value)
         return;
     const target = controls.target;
     const chunk = playerChunk();
     const state = {
-        world: _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value,
+        world: _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value,
         visualDefaultsVersion: VISUAL_DEFAULTS_VERSION,
-        chunkX: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10) || chunk.chunkX,
-        chunkZ: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10) || chunk.chunkZ,
+        chunkX: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkXInput.value, 10) || chunk.chunkX,
+        chunkZ: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkZInput.value, 10) || chunk.chunkZ,
         radius: radiusValue(),
-        auto: _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked,
-        bounds: _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked,
-        players: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked,
-        mobs: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked,
+        auto: _dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput.checked,
+        bounds: _dom_js__WEBPACK_IMPORTED_MODULE_10__.debugBoundsInput.checked,
+        players: _dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked,
+        mobs: _dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked,
         mobBlocks: mobBlocksEnabled(),
-        renderDetails: !_dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardEl.classList.contains('collapsed'),
-        shade: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked,
-        mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked,
-        mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
-        cosmeticsMode: _dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput.value,
+        renderDetails: !_dom_js__WEBPACK_IMPORTED_MODULE_10__.infoCardEl.classList.contains('collapsed'),
+        shade: _dom_js__WEBPACK_IMPORTED_MODULE_10__.treeShadeInput.checked,
+        mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTimeInput.checked,
+        mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked,
+        cosmeticsMode: _dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput.value,
         visualDetailMode: visualDetailMode(),
-        landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked,
+        landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_10__.landMotionInput.checked,
         terrainLoadSlots: terrainLoadConcurrency(),
         terrainSpawnFrame: terrainPromotionsPerFrame(),
         terrainSpawnMs: terrainPromotionBudgetMs(),
-        shadeSize: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput.value),
-        shadeDarkness: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput.value),
+        shadeSize: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeValueInput.value),
+        shadeDarkness: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeDarknessValueInput.value),
         water: waterModeValue(),
-        fog: _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput.checked,
+        fog: _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogEnabledInput.checked,
         fogNear: fogControlRange().near,
         fogFar: fogControlRange().far,
-        fogStrength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, 0.9),
-        fogHorizon: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, 0.65),
-        playerRate: _dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput.value,
-        camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.vectorState)(camera.position),
-        target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.vectorState)(target),
+        fogStrength: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogStrengthValueInput, 0.9),
+        fogHorizon: readFloatControl(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogHorizonValueInput, 0.65),
+        playerRate: _dom_js__WEBPACK_IMPORTED_MODULE_10__.playerUpdateRateInput.value,
+        camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_26__.vectorState)(camera.position),
+        target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_26__.vectorState)(target),
     };
-    if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_18__.saveStoredViewState)(state)) {
-        storedViewState = state;
+    if ((0,_view_state_js__WEBPACK_IMPORTED_MODULE_26__.saveStoredViewState)(state)) {
+        runtime.storedViewState = state;
     }
 }
 function maybeSaveViewState() {
-    if (viewPlayerUuid || followPlayerUuid)
+    if (runtime.viewPlayerUuid || runtime.followPlayerUuid)
         return;
     const now = performance.now();
-    if (now - lastViewStateSave < 500)
+    if (now - runtime.lastViewStateSave < 500)
         return;
-    lastViewStateSave = now;
+    runtime.lastViewStateSave = now;
     saveViewState();
 }
 function playerChunk() {
@@ -2514,7 +2516,7 @@ function playerChunk() {
     };
 }
 function streamAnchorPosition() {
-    const focusedMarker = playerMarkers.get(viewPlayerUuid) ?? playerMarkers.get(followPlayerUuid);
+    const focusedMarker = playerMarkers.get(runtime.viewPlayerUuid) ?? playerMarkers.get(runtime.followPlayerUuid);
     const targetPosition = focusedMarker?.userData?.targetPosition;
     if (targetPosition) {
         return targetPosition;
@@ -2527,41 +2529,41 @@ function streamAnchorPosition() {
 function updateCoordinates() {
     const target = controls.target;
     const chunk = playerChunk();
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.coordTargetEl.textContent = `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatCoord)(target.x)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatCoord)(target.y)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatCoord)(target.z)}`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.coordChunkEl.textContent = `${chunk.chunkX}, ${chunk.chunkZ}`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.coordCameraEl.textContent = `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatCoord)(camera.position.x)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatCoord)(camera.position.y)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.formatCoord)(camera.position.z)}`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.coordTargetEl.textContent = `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.formatCoord)(target.x)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.formatCoord)(target.y)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.formatCoord)(target.z)}`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.coordChunkEl.textContent = `${chunk.chunkX}, ${chunk.chunkZ}`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.coordCameraEl.textContent = `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.formatCoord)(camera.position.x)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.formatCoord)(camera.position.y)}, ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.formatCoord)(camera.position.z)}`;
 }
 function updateEmptyGrid() {
     grid.position.set(Math.round(camera.position.x / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP, EMPTY_GRID_Y, Math.round(camera.position.z / EMPTY_GRID_CHUNK_SNAP) * EMPTY_GRID_CHUNK_SNAP);
 }
 function updateChunkPlaceholders() {
-    const world = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
-    if (!world || !hasFocusedInitialGrid) {
+    const world = _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value;
+    if (!world || !runtime.hasFocusedInitialGrid) {
         return;
     }
     const radius = radiusValue();
     const player = playerChunk();
-    const playerId = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.centerId)(world, player.chunkX, player.chunkZ);
-    const shouldShow = _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked
-        || requestedCenterId != null
-        || (activeCenterId != null && playerId !== activeCenterId);
+    const playerId = (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.centerId)(world, player.chunkX, player.chunkZ);
+    const shouldShow = _dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput.checked
+        || runtime.requestedCenterId != null
+        || (runtime.activeCenterId != null && playerId !== runtime.activeCenterId);
     if (!shouldShow) {
         chunkPlaceholderManager.sync(world, [], new Set(loadedChunks.keys()));
         return;
     }
-    const keys = chunkKeys(player.chunkX, player.chunkZ, radius);
+    const keys = (0,_chunk_planning_js__WEBPACK_IMPORTED_MODULE_18__.chunkKeysForWorld)(world, player.chunkX, player.chunkZ, radius);
     chunkPlaceholderManager.sync(world, keys, new Set(loadedChunks.keys()));
 }
 function syncFlyLookFromCamera() {
     camera.getWorldDirection(tempCameraForward);
     if (tempCameraForward.lengthSq() < 0.0001)
         return;
-    flyYaw = Math.atan2(-tempCameraForward.x, -tempCameraForward.z);
-    flyPitch = Math.asin(Math.max(-1, Math.min(1, tempCameraForward.y)));
+    runtime.flyYaw = Math.atan2(-tempCameraForward.x, -tempCameraForward.z);
+    runtime.flyPitch = Math.asin(Math.max(-1, Math.min(1, tempCameraForward.y)));
 }
 function applyFlyLook() {
-    flyPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, flyPitch));
-    tempFlyEuler.set(flyPitch, flyYaw, 0);
+    runtime.flyPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, runtime.flyPitch));
+    tempFlyEuler.set(runtime.flyPitch, runtime.flyYaw, 0);
     camera.quaternion.setFromEuler(tempFlyEuler);
     updateFlyTarget();
 }
@@ -2571,7 +2573,7 @@ function updateFlyTarget() {
     controls.target.copy(tempCenteredPivot);
 }
 function zoomFlyView(deltaY) {
-    if (viewPlayerUuid || !Number.isFinite(deltaY) || deltaY === 0)
+    if (runtime.viewPlayerUuid || !Number.isFinite(deltaY) || deltaY === 0)
         return;
     camera.getWorldDirection(tempCameraForward);
     if (tempCameraForward.lengthSq() < 0.0001)
@@ -2592,36 +2594,36 @@ function isFlyLookActive() {
     return document.pointerLockElement === renderer.domElement;
 }
 function scheduleAutoStreamLoad() {
-    const world = _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
+    const world = _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value;
     if (!world)
         return;
     const player = playerChunk();
-    scheduledCenterId = null;
-    clearTimeout(streamTimer);
-    streamTimer = null;
+    runtime.scheduledCenterId = null;
+    clearTimeout(runtime.streamTimer);
+    runtime.streamTimer = null;
     loadGrid({ centerX: player.chunkX, centerZ: player.chunkZ, streamLoad: true }).catch((error) => setStatus(error.message));
 }
 function maybeAutoStream() {
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked || !hasFocusedInitialGrid || !_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)
+    if (!_dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput.checked || !runtime.hasFocusedInitialGrid || !_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value)
         return;
     const player = playerChunk();
-    const playerId = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.centerId)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value, player.chunkX, player.chunkZ);
-    if (playerId === activeCenterId || playerId === requestedCenterId || playerId === scheduledCenterId) {
+    const playerId = (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.centerId)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value, player.chunkX, player.chunkZ);
+    if (playerId === runtime.activeCenterId || playerId === runtime.requestedCenterId || playerId === runtime.scheduledCenterId) {
         return;
     }
-    clearTimeout(streamTimer);
-    scheduledCenterId = playerId;
-    streamTimer = setTimeout(() => {
-        streamTimer = null;
-        scheduledCenterId = null;
+    clearTimeout(runtime.streamTimer);
+    runtime.scheduledCenterId = playerId;
+    runtime.streamTimer = setTimeout(() => {
+        runtime.streamTimer = null;
+        runtime.scheduledCenterId = null;
         scheduleAutoStreamLoad();
     }, AUTO_STREAM_DEBOUNCE_MS);
 }
 function scheduleControlGridLoad() {
-    if (!hasStarted)
+    if (!runtime.hasStarted)
         return;
-    clearTimeout(controlLoadTimer);
-    controlLoadTimer = setTimeout(() => {
+    clearTimeout(runtime.controlLoadTimer);
+    runtime.controlLoadTimer = setTimeout(() => {
         loadGrid().catch((error) => setStatus(error.message));
         saveViewState();
     }, 350);
@@ -2630,13 +2632,13 @@ function resize() {
     const width = window.innerWidth;
     const height = window.innerHeight;
     renderer.setSize(width, height, false);
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.resizePostProcessing)(postProcessing, width, height, rendererPixelRatio);
+    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_19__.resizePostProcessing)(postProcessing, width, height, rendererPixelRatio);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
-    (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_11__.positionFpsCounter)(fpsCounter);
+    (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_13__.positionFpsCounter)(fpsCounter);
 }
 function handleKeyboardNavigation(deltaSeconds) {
-    if (viewPlayerUuid || pressedKeys.size === 0 || isTypingInHud())
+    if (runtime.viewPlayerUuid || pressedKeys.size === 0 || (0,_app_events_js__WEBPACK_IMPORTED_MODULE_8__.isTypingInHud)())
         return;
     const forward = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
     camera.getWorldDirection(forward);
@@ -2693,15 +2695,15 @@ function updatePlayerMarkers(deltaSeconds) {
 function updateMobMarkers(deltaSeconds) {
     const alpha = 1 - Math.exp(-deltaSeconds * 5);
     const opacityAlpha = 1 - Math.exp(-deltaSeconds * MOB_MARKER_DISTANCE_OPACITY_LERP);
-    const playerHeightSource = playerMarkers.get(viewPlayerUuid) ?? playerMarkers.get(followPlayerUuid);
+    const playerHeightSource = playerMarkers.get(runtime.viewPlayerUuid) ?? playerMarkers.get(runtime.followPlayerUuid);
     const desiredWorldY = playerHeightSource
         ? playerHeightSource.position.y + MOB_CARD_PLAYER_HEIGHT
         : camera.position.y;
-    const updateBillboards = !hasMobBillboardQuaternion
+    const updateBillboards = !runtime.hasMobBillboardQuaternion
         || lastMobBillboardQuaternion.angleTo(camera.quaternion) > 0.0005;
     if (updateBillboards) {
         lastMobBillboardQuaternion.copy(camera.quaternion);
-        hasMobBillboardQuaternion = true;
+        runtime.hasMobBillboardQuaternion = true;
     }
     for (const marker of mobMarkers.values()) {
         const targetPosition = marker.userData.targetPosition;
@@ -2709,7 +2711,7 @@ function updateMobMarkers(deltaSeconds) {
             tempMobTarget.copy(targetPosition);
             tempMobTarget.y += 0.25;
             marker.position.lerp(tempMobTarget, alpha);
-            const cardHeight = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(desiredWorldY - targetPosition.y, MOB_CARD_MIN_HEIGHT, MOB_CARD_TREE_TOP_HEIGHT);
+            const cardHeight = (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.clamp)(desiredWorldY - targetPosition.y, MOB_CARD_MIN_HEIGHT, MOB_CARD_TREE_TOP_HEIGHT);
             if (!Number.isFinite(marker.userData.cardHeight)
                 || Math.abs(marker.userData.cardHeight - cardHeight) > 0.05) {
                 (0,_players_js__WEBPACK_IMPORTED_MODULE_1__.updateMobMarkerHeight)(marker, cardHeight);
@@ -2731,14 +2733,14 @@ function applyMobMarkerDistanceOpacity(marker, alpha = 1) {
     const current = Number.isFinite(marker.userData.distanceOpacity)
         ? marker.userData.distanceOpacity
         : cardOpacity;
-    const next = current + (cardOpacity - current) * (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(alpha, 0, 1);
+    const next = current + (cardOpacity - current) * (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.clamp)(alpha, 0, 1);
     marker.userData.distanceOpacity = next;
     applyMaterialOpacity(marker.userData.badge, next);
     applyMaterialOpacity(marker.userData.pointer, pointerOpacity);
     applyMaterialOpacity(marker.getObjectByName('mob-ground-glow'), glowOpacity);
 }
 function distanceOpacity(distance, minOpacity) {
-    const t = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)((distance - MOB_MARKER_FADE_NEAR_DISTANCE) / (MOB_MARKER_FADE_FAR_DISTANCE - MOB_MARKER_FADE_NEAR_DISTANCE), 0, 1);
+    const t = (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.clamp)((distance - MOB_MARKER_FADE_NEAR_DISTANCE) / (MOB_MARKER_FADE_FAR_DISTANCE - MOB_MARKER_FADE_NEAR_DISTANCE), 0, 1);
     const smooth = t * t * (3 - 2 * t);
     return 1 - smooth * (1 - minOpacity);
 }
@@ -2753,7 +2755,7 @@ function applyMaterialOpacity(object, opacityScale) {
             ? material.userData.terrascapeBaseOpacity
             : material.opacity;
         material.userData.terrascapeBaseOpacity = baseOpacity;
-        const nextOpacity = (0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(baseOpacity * opacityScale, 0, 1);
+        const nextOpacity = (0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.clamp)(baseOpacity * opacityScale, 0, 1);
         if (Math.abs((material.opacity ?? 1) - nextOpacity) < 0.003)
             continue;
         material.opacity = nextOpacity;
@@ -2762,11 +2764,11 @@ function applyMaterialOpacity(object, opacityScale) {
     }
 }
 function updatePlayerCameraMode(deltaSeconds) {
-    if (viewPlayerUuid) {
+    if (runtime.viewPlayerUuid) {
         updateEyeCamera(deltaSeconds);
         return;
     }
-    if (followPlayerUuid) {
+    if (runtime.followPlayerUuid) {
         updateWalkFollowCamera(deltaSeconds);
     }
 }
@@ -2779,13 +2781,13 @@ function resetPlayerEyeState(uuid) {
     playerEyeState.pitchRad = playerCameraPitchRad(marker.userData.targetPitch ?? 0);
 }
 function updateEyeCamera(deltaSeconds = 0) {
-    const marker = playerMarkers.get(viewPlayerUuid);
+    const marker = playerMarkers.get(runtime.viewPlayerUuid);
     if (!marker) {
         setPlayerEyeView(null);
         return;
     }
-    if (playerEyeState.uuid !== viewPlayerUuid) {
-        resetPlayerEyeState(viewPlayerUuid);
+    if (playerEyeState.uuid !== runtime.viewPlayerUuid) {
+        resetPlayerEyeState(runtime.viewPlayerUuid);
     }
     const targetYawRad = Number.isFinite(marker.userData.targetYaw) ? marker.userData.targetYaw : playerEyeState.yawRad;
     const targetPitchRad = playerCameraPitchRad(marker.userData.targetPitch ?? 0);
@@ -2809,10 +2811,10 @@ function playerCameraYawRad(yawDeg) {
     return three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.degToRad(Number(yawDeg || 0));
 }
 function playerCameraPitchRad(pitchDeg) {
-    return three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.degToRad((0,_utils_js__WEBPACK_IMPORTED_MODULE_17__.clamp)(Number(pitchDeg || 0), -89, 89));
+    return three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.degToRad((0,_utils_js__WEBPACK_IMPORTED_MODULE_24__.clamp)(Number(pitchDeg || 0), -89, 89));
 }
 function updateWalkFollowCamera(deltaSeconds) {
-    const marker = playerMarkers.get(followPlayerUuid);
+    const marker = playerMarkers.get(runtime.followPlayerUuid);
     if (!marker) {
         setPlayerFollow(null);
         return;
@@ -2828,244 +2830,90 @@ function lerpAngle(current, target, alpha) {
     const delta = three__WEBPACK_IMPORTED_MODULE_0__.MathUtils.euclideanModulo(target - current + Math.PI, Math.PI * 2) - Math.PI;
     return current + delta * alpha;
 }
-function isTypingInHud() {
-    const active = document.activeElement;
-    return active instanceof HTMLInputElement
-        || active instanceof HTMLSelectElement
-        || active instanceof HTMLTextAreaElement;
-}
-function blurFocusedHudControl() {
-    if (isTypingInHud()) {
-        document.activeElement.blur();
-    }
-}
 function animate() {
     const deltaSeconds = Math.min(clock.getDelta(), 0.05);
     const elapsedSeconds = clock.elapsedTime;
     frameJank.recordFrame();
     chunkLandMotion.update(loadedChunks.values());
-    (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_12__.tickMapTileMotion)(landMotionEnabled());
+    (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_14__.tickMapTileMotion)(landMotionEnabled());
     updatePlayerMarkers(deltaSeconds);
     updateMobMarkers(deltaSeconds, elapsedSeconds);
     handleKeyboardNavigation(deltaSeconds);
     updatePlayerCameraMode(deltaSeconds);
-    if (!viewPlayerUuid && !followPlayerUuid) {
+    if (!runtime.viewPlayerUuid && !runtime.followPlayerUuid) {
         updateFlyTarget();
     }
     if (controls.enabled) {
         controls.update();
     }
-    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_9__.positionSkyObjects)(lightingRig, camera.position);
+    (0,_lighting_js__WEBPACK_IMPORTED_MODULE_11__.positionSkyObjects)(lightingRig, camera.position);
     updateMapDistanceFog();
     updateEmptyGrid();
     updateChunkPlaceholders();
     chunkPlaceholderManager.update(deltaSeconds);
-    (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_11__.updateFpsCounter)(fpsCounter, deltaSeconds);
+    (0,_fps_counter_js__WEBPACK_IMPORTED_MODULE_13__.updateFpsCounter)(fpsCounter, deltaSeconds);
     maybeAutoStream();
     updateCoordinates();
-    (0,_water_js__WEBPACK_IMPORTED_MODULE_19__.updateWaterMaterials)(scene, renderer, elapsedSeconds, camera);
-    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_15__.renderPostProcessing)(postProcessing, renderer, scene, camera, deltaSeconds, elapsedSeconds);
+    (0,_water_js__WEBPACK_IMPORTED_MODULE_27__.updateWaterMaterials)(scene, renderer, elapsedSeconds, camera);
+    (0,_postprocessing_js__WEBPACK_IMPORTED_MODULE_19__.renderPostProcessing)(postProcessing, renderer, scene, camera, deltaSeconds, elapsedSeconds);
     maybeUpdateMetrics();
     maybeSaveViewState();
     requestAnimationFrame(animate);
 }
-window.addEventListener('resize', resize);
-function setSettingsPanelOpen(open) {
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.hudEl.classList.toggle('open', open);
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.panelToggle.classList.toggle('active', open);
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.panelToggle.setAttribute('aria-expanded', String(open));
-}
-window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-        const confirmDialog = document.querySelector('#confirm-dialog');
-        if (confirmDialog?.open)
-            return;
-        if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.hudEl.classList.contains('open'))
-            return;
-        event.preventDefault();
-        blurFocusedHudControl();
-        setSettingsPanelOpen(false);
-        return;
-    }
-    if (isTypingInHud())
-        return;
-    if ([
-        'KeyW',
-        'KeyA',
-        'KeyS',
-        'KeyD',
-        'KeyQ',
-        'KeyE',
-        'KeyR',
-        'KeyC',
-        'Space',
-        'PageUp',
-        'PageDown',
-        'ShiftLeft',
-        'ShiftRight',
-    ].includes(event.code)) {
-        event.preventDefault();
-        pressedKeys.add(event.code);
-    }
-});
-window.addEventListener('keyup', (event) => {
-    pressedKeys.delete(event.code);
-});
-renderer.domElement.addEventListener('pointerdown', (event) => {
-    blurFocusedHudControl();
-    if (!viewPlayerUuid && !followPlayerUuid && shouldStartFlyLook(event)) {
-        event.preventDefault();
-        renderer.domElement.requestPointerLock?.();
-    }
-}, { capture: true });
-renderer.domElement.addEventListener('wheel', (event) => {
-    if (viewPlayerUuid || followPlayerUuid)
-        return;
-    event.preventDefault();
-    zoomFlyView(event.deltaY);
-}, { passive: false });
-window.addEventListener('mousemove', (event) => {
-    if (!isFlyLookActive() || viewPlayerUuid)
-        return;
-    flyYaw -= event.movementX * FLY_MOUSE_SENSITIVITY;
-    flyPitch -= event.movementY * FLY_MOUSE_SENSITIVITY;
-    applyFlyLook();
-});
-window.addEventListener('terrascape:map-backdrop-loaded', applyMapWaterTint);
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.addEventListener('change', updateDebugBounds);
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.addEventListener('change', saveViewState);
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.addEventListener('change', () => {
-    updateEntityVisibility();
-    restartEntityStream();
-    restartPlayerPolling();
-    saveViewState();
-});
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.addEventListener('change', () => {
-    clearTimeout(mobPollTimer);
-    mobPollTimer = null;
-    if (!_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
-        clearMobs();
-    }
-    updateEntityVisibility();
-    restartEntityStream();
-    if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked) {
-        restartMobPolling(0);
-    }
-    saveViewState();
-});
-function onMobBlocksToggle(event) {
-    syncMobBlocksInputs(event.target.checked);
-    updateEntityVisibility();
-    saveViewState();
-}
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput.addEventListener('change', onMobBlocksToggle);
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksPanelInput.addEventListener('change', onMobBlocksToggle);
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput.addEventListener('change', () => {
-    applyWaterMode();
-    saveViewState();
-});
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput.addEventListener('change', () => {
-    restartPlayerPolling();
-    saveViewState();
-});
-for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput]) {
-    const eventName = input.type === 'range' ? 'input' : 'change';
-    input.addEventListener(eventName, () => {
-        applyLighting();
-        saveViewState();
-    });
-}
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.addEventListener('change', () => {
-    applyLighting();
-    restartWorldTimePolling();
-    saveViewState();
-});
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.addEventListener('change', () => {
-    updateMapTileLayer();
-    saveViewState();
-});
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput.addEventListener('change', () => {
+function reloadTerrainForVisualOptions() {
     for (const [id, entry] of Array.from(loadedChunks.entries())) {
         finishDisposeChunk(id, entry);
     }
     scheduleControlGridLoad();
-    saveViewState();
-});
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput.addEventListener('change', () => {
-    for (const [id, entry] of Array.from(loadedChunks.entries())) {
-        finishDisposeChunk(id, entry);
-    }
-    scheduleControlGridLoad();
-    saveViewState();
-});
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.clearMeshCacheButton?.addEventListener('click', () => {
-    void handleClearMeshCache();
-});
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.addEventListener('change', saveViewState);
-syncRadiusControl();
-syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput, () => { });
-syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput, () => { });
-syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput, () => { });
-syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput);
-syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput);
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput.addEventListener('change', () => {
-    applyFogSettings();
-    saveViewState();
-});
-syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearValueInput, applyFogSettings);
-syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarValueInput, applyFogSettings);
-syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, applyFogSettings);
-syncPairedControl(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, applyFogSettings);
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.addEventListener('change', () => {
-    closeEntityStream();
-    updatePlayers([]);
-    clearMobs();
-    restartEntityStream();
-    refreshWorldTime();
-    restartPlayerPolling();
-    restartMobPolling();
-    restartWorldTimePolling();
-    scheduleControlGridLoad();
-    saveViewState();
-});
-(0,_library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_21__.bindHudSectionCollapsibles)(document);
-(0,_library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_22__.bindTriStateControl)(document, 'cosmetic-blocks-mode', [
-    { value: 'off', label: 'Off' },
-    { value: 'baked', label: 'Baked' },
-    { value: 'split', label: 'Split' },
-]);
-(0,_library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_22__.bindTriStateControl)(document, 'visual-detail-mode', [
-    { value: 'basic', label: 'Basic' },
-    { value: 'structures', label: 'Struct' },
-    { value: 'all', label: 'Foliage' },
-]);
-for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput]) {
-    if (!input)
-        continue;
-    input.addEventListener('input', scheduleControlGridLoad);
-    input.addEventListener('change', scheduleControlGridLoad);
 }
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.panelToggle.addEventListener('click', () => {
-    setSettingsPanelOpen(!_dom_js__WEBPACK_IMPORTED_MODULE_8__.hudEl.classList.contains('open'));
-});
-setRenderDetailsOpen(!storedViewState || storedViewState.renderDetails !== false);
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardHeadEl.addEventListener('click', toggleRenderDetails);
-_dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardHeadEl.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ')
-        return;
-    event.preventDefault();
-    toggleRenderDetails();
+setRenderDetailsOpen(!runtime.storedViewState || runtime.storedViewState.renderDetails !== false);
+(0,_app_events_js__WEBPACK_IMPORTED_MODULE_8__.bindAppEvents)({
+    renderer,
+    pressedKeys,
+    getViewPlayerUuid: () => runtime.viewPlayerUuid,
+    getFollowPlayerUuid: () => runtime.followPlayerUuid,
+    applyFlyLookDelta: (movementX, movementY) => {
+        runtime.flyYaw -= movementX * FLY_MOUSE_SENSITIVITY;
+        runtime.flyPitch -= movementY * FLY_MOUSE_SENSITIVITY;
+        applyFlyLook();
+    },
+    applyFogSettings,
+    applyLighting,
+    applyMapWaterTint,
+    applyWaterMode,
+    clearMobs,
+    closeEntityStream,
+    handleClearMeshCache,
+    refreshWorldTime,
+    restartEntityStream,
+    restartMobPolling,
+    restartPlayerPolling,
+    restartWorldTimePolling,
+    saveViewState,
+    scheduleControlGridLoad,
+    setRadiusControlValue,
+    shouldStartFlyLook,
+    syncMobBlocksInputs,
+    toggleRenderDetails,
+    updateDebugBounds,
+    updateEntityVisibility,
+    updateMapTileLayer,
+    updatePlayers,
+    updateRadiusReadout,
+    zoomFlyView,
+    reloadTerrainForVisualOptions,
+    resize,
 });
 applyInitialParams();
 setRadiusControlValue(radiusValue());
 exposeDebugState();
 resize();
-timeRibbon.update(worldTime);
+timeRibbon.update(runtime.worldTime);
 animate();
 await loadWorlds();
 await npcCatalog.load();
-if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value) {
-    hasStarted = true;
+if (_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value) {
+    runtime.hasStarted = true;
     const restoredCameraPose = restoreCameraPose();
     await refreshWorldTime();
     await loadGrid({ focus: !restoredCameraPose }).catch((error) => setStatus(error.message));
@@ -3074,49 +2922,6 @@ if (_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value) {
     restartMobPolling();
     restartWorldTimePolling();
     saveViewState();
-}
-function syncPairedControl(rangeInput, numberInput, applyUpdate = applyLighting) {
-    rangeInput.addEventListener('input', () => {
-        numberInput.value = rangeInput.value;
-        applyUpdate();
-        saveViewState();
-    });
-    numberInput.addEventListener('input', () => {
-        const parsed = Number.parseFloat(numberInput.value);
-        if (Number.isFinite(parsed)) {
-            rangeInput.value = normalizePairedValue(rangeInput, parsed);
-        }
-        applyUpdate();
-        saveViewState();
-    });
-    numberInput.addEventListener('change', () => {
-        setPairedControlValue(rangeInput, numberInput, Number.parseFloat(numberInput.value));
-        applyUpdate();
-        saveViewState();
-    });
-}
-function syncRadiusControl() {
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput.addEventListener('input', () => {
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput.value;
-        updateRadiusReadout();
-        scheduleControlGridLoad();
-    });
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.addEventListener('input', () => {
-        const parsed = Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value, 10);
-        if (Number.isFinite(parsed)) {
-            _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput.value = normalizePairedValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput, parsed);
-        }
-        updateRadiusReadout();
-        scheduleControlGridLoad();
-    });
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.addEventListener('change', () => {
-        setRadiusControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput.value);
-        scheduleControlGridLoad();
-    });
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput.addEventListener('change', () => {
-        setRadiusControlValue(_dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusRangeInput.value);
-        scheduleControlGridLoad();
-    });
 }
 
 __webpack_async_result__();
@@ -3383,6 +3188,53 @@ function createChunkPlaceholderManager(scene) {
 
 /***/ },
 
+/***/ "./src/main/resources/web/src/chunk-planning.ts"
+/*!******************************************************!*\
+  !*** ./src/main/resources/web/src/chunk-planning.ts ***!
+  \******************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   chunkDistanceSq: () => (/* binding */ chunkDistanceSq),
+/* harmony export */   chunkKeysForWorld: () => (/* binding */ chunkKeysForWorld),
+/* harmony export */   sortChunkKeysByPlayerDistance: () => (/* binding */ sortChunkKeysByPlayerDistance)
+/* harmony export */ });
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./utils.js */ "./src/main/resources/web/src/utils.ts");
+
+function chunkKeysForWorld(world, centerX, centerZ, radius) {
+    const keys = [];
+    for (let dz = -radius; dz <= radius; dz++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+            const chunkX = centerX + dx;
+            const chunkZ = centerZ + dz;
+            keys.push({
+                chunkX,
+                chunkZ,
+                id: (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.chunkId)(world, chunkX, chunkZ),
+            });
+        }
+    }
+    return keys;
+}
+function sortChunkKeysByPlayerDistance(keys, playerChunkX, playerChunkZ) {
+    return [...keys].sort((left, right) => {
+        const leftDistance = chunkDistanceSq(left.chunkX, left.chunkZ, playerChunkX, playerChunkZ);
+        const rightDistance = chunkDistanceSq(right.chunkX, right.chunkZ, playerChunkX, playerChunkZ);
+        if (leftDistance !== rightDistance)
+            return leftDistance - rightDistance;
+        return left.chunkZ - right.chunkZ || left.chunkX - right.chunkX;
+    });
+}
+function chunkDistanceSq(chunkX, chunkZ, centerX, centerZ) {
+    const dx = chunkX - centerX;
+    const dz = chunkZ - centerZ;
+    return dx * dx + dz * dz;
+}
+
+
+/***/ },
+
 /***/ "./src/main/resources/web/src/client-log.ts"
 /*!**************************************************!*\
   !*** ./src/main/resources/web/src/client-log.ts ***!
@@ -3623,6 +3475,154 @@ const coordCameraEl = document.querySelector('#coord-camera');
 const playersEl = document.querySelector('#players');
 const infoCardEl = document.querySelector('.info-card');
 const infoCardHeadEl = document.querySelector('#info-card-head');
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/entity-feed-policy.ts"
+/*!**********************************************************!*\
+  !*** ./src/main/resources/web/src/entity-feed-policy.ts ***!
+  \**********************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   liveMobFeedEnabled: () => (/* binding */ liveMobFeedEnabled),
+/* harmony export */   mobPollDelayMs: () => (/* binding */ mobPollDelayMs),
+/* harmony export */   playerPollDelayMs: () => (/* binding */ playerPollDelayMs),
+/* harmony export */   positiveIntegerMs: () => (/* binding */ positiveIntegerMs),
+/* harmony export */   wantsEntityStream: () => (/* binding */ wantsEntityStream),
+/* harmony export */   worldTimePollDelayMs: () => (/* binding */ worldTimePollDelayMs)
+/* harmony export */ });
+function positiveIntegerMs(value, fallback) {
+    const parsed = Number.parseInt(String(value ?? ''), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+function worldTimePollDelayMs({ mapTimeEnabled, lastPlayerCount, activeMs, visibleMs, idleMs, }) {
+    if (mapTimeEnabled) {
+        return activeMs;
+    }
+    return lastPlayerCount > 0 ? visibleMs : idleMs;
+}
+function playerPollDelayMs({ lastPollFailed, showPlayers, lastPlayerCount, requestedRateMs, focused, errorMs, hiddenMs, emptyMs, focusedMinMs, }) {
+    if (lastPollFailed) {
+        return errorMs;
+    }
+    if (!showPlayers) {
+        return hiddenMs;
+    }
+    if (lastPlayerCount <= 0) {
+        return emptyMs;
+    }
+    return focused ? Math.max(requestedRateMs, focusedMinMs) : requestedRateMs;
+}
+function liveMobFeedEnabled(showMobs, lastPlayerCount) {
+    return showMobs && lastPlayerCount > 0;
+}
+function mobPollDelayMs({ showMobs, liveMobFeed, lastPollFailed, lastMobCount, activeMs, emptyMs, errorMs, }) {
+    if (!showMobs) {
+        return null;
+    }
+    if (!liveMobFeed) {
+        return emptyMs;
+    }
+    if (lastPollFailed) {
+        return errorMs;
+    }
+    return lastMobCount > 0 ? activeMs : emptyMs;
+}
+function wantsEntityStream({ world, showPlayers, liveMobFeed, }) {
+    return Boolean(world && (showPlayers || liveMobFeed));
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/entity-summary.ts"
+/*!******************************************************!*\
+  !*** ./src/main/resources/web/src/entity-summary.ts ***!
+  \******************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   compactMobSourceStats: () => (/* binding */ compactMobSourceStats),
+/* harmony export */   compactObject: () => (/* binding */ compactObject),
+/* harmony export */   distanceBetween: () => (/* binding */ distanceBetween),
+/* harmony export */   nearestMobsForSample: () => (/* binding */ nearestMobsForSample),
+/* harmony export */   roundCoord: () => (/* binding */ roundCoord),
+/* harmony export */   summarizeCountsObject: () => (/* binding */ summarizeCountsObject),
+/* harmony export */   summarizeItems: () => (/* binding */ summarizeItems)
+/* harmony export */ });
+function summarizeItems(items, selector, limit = 10) {
+    const counts = new Map();
+    for (const item of items) {
+        const key = String(selector(item) ?? 'unknown');
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, limit)
+        .map(([key, count]) => `${key}=${count}`)
+        .join('|');
+}
+function summarizeCountsObject(countsObject, limit = 10) {
+    return Object.entries(countsObject ?? {})
+        .filter((entry) => typeof entry[1] === 'number' && entry[1] > 0)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, limit)
+        .map(([key, count]) => `${key}=${count}`)
+        .join('|');
+}
+function compactMobSourceStats(stats) {
+    if (!stats || typeof stats !== 'object')
+        return null;
+    return compactObject({
+        source: stats.source,
+        chunks: stats.chunks,
+        accepted: stats.accepted,
+        duplicate: stats.duplicate,
+        outsideRadar: stats.outsideRadar,
+        nonMob: stats.nonMob,
+        skippedTypes: summarizeCountsObject(stats.skippedTypes, 8),
+    });
+}
+function nearestMobsForSample(mobs, player, limit) {
+    return mobs
+        .map((mob) => ({
+        mob,
+        distance: distanceBetween(mob, player),
+    }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, limit)
+        .map(({ mob, distance }) => compactObject({
+        type: mob.type,
+        label: mob.label,
+        category: mob.category,
+        source: mob.source,
+        x: roundCoord(mob.x),
+        y: roundCoord(mob.y),
+        z: roundCoord(mob.z),
+        d: Number.isFinite(distance) ? Math.round(distance) : null,
+    }));
+}
+function distanceBetween(a, b) {
+    if (![a?.x, a?.y, a?.z, b?.x, b?.y, b?.z].every(Number.isFinite))
+        return Number.POSITIVE_INFINITY;
+    return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+function roundCoord(value) {
+    return Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
+}
+function compactObject(object) {
+    const result = {};
+    for (const [key, value] of Object.entries(object)) {
+        if (value !== null && value !== undefined && value !== '') {
+            result[key] = value;
+        }
+    }
+    return result;
+}
 
 
 /***/ },
@@ -4036,6 +4036,167 @@ async function confirmAction({ title, message, confirmLabel = 'Confirm', cancelL
         };
         dialogEl.addEventListener('close', onClose);
     });
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/library/control-values.ts"
+/*!**************************************************************!*\
+  !*** ./src/main/resources/web/src/library/control-values.ts ***!
+  \**************************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   applyBooleanParam: () => (/* binding */ applyBooleanParam),
+/* harmony export */   applyFloatParam: () => (/* binding */ applyFloatParam),
+/* harmony export */   applyNumberParam: () => (/* binding */ applyNumberParam),
+/* harmony export */   applySelectParam: () => (/* binding */ applySelectParam),
+/* harmony export */   applySelectValue: () => (/* binding */ applySelectValue),
+/* harmony export */   bindPairedControl: () => (/* binding */ bindPairedControl),
+/* harmony export */   bindRadiusControl: () => (/* binding */ bindRadiusControl),
+/* harmony export */   isTruthyParam: () => (/* binding */ isTruthyParam),
+/* harmony export */   normalizePairedValue: () => (/* binding */ normalizePairedValue),
+/* harmony export */   setNumberInput: () => (/* binding */ setNumberInput),
+/* harmony export */   setPairedControlValue: () => (/* binding */ setPairedControlValue)
+/* harmony export */ });
+/* harmony import */ var _tri_state_control_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./tri-state-control.js */ "./src/main/resources/web/src/library/tri-state-control.ts");
+
+function applyNumberParam(params, name, input) {
+    const value = params.get(name);
+    if (value === null || value.trim() === '')
+        return null;
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isNaN(parsed))
+        return null;
+    input.value = String(parsed);
+    return parsed;
+}
+function applyBooleanParam(params, name, input) {
+    const value = params.get(name);
+    if (value === null)
+        return false;
+    input.checked = isTruthyParam(value);
+    return true;
+}
+function applyFloatParam(params, name, ...inputs) {
+    const value = params.get(name);
+    if (value === null || value.trim() === '')
+        return null;
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed))
+        return null;
+    for (const input of inputs) {
+        input.value = String(parsed);
+    }
+    return parsed;
+}
+function applySelectParam(params, name, input, triStateValuesById = {}) {
+    const value = params.get(name);
+    if (value === null)
+        return false;
+    return applySelectValue(input, value, triStateValuesById);
+}
+function applySelectValue(input, value, triStateValuesById = {}) {
+    if (!input)
+        return false;
+    const triStateValues = triStateValuesById[input.id];
+    if (triStateValues) {
+        (0,_tri_state_control_js__WEBPACK_IMPORTED_MODULE_0__.applyTriStateValue)(input, value, triStateValues);
+        return true;
+    }
+    if (input.tagName === 'SELECT') {
+        for (const option of input.options) {
+            if (option.value === value) {
+                input.value = value;
+                return true;
+            }
+        }
+        return false;
+    }
+    input.value = value;
+    return true;
+}
+function setNumberInput(input, value) {
+    if (Number.isFinite(value)) {
+        input.value = String(value);
+        return true;
+    }
+    return false;
+}
+function setPairedControlValue(rangeInput, numberInput, value) {
+    if (!Number.isFinite(value))
+        return null;
+    const normalized = normalizePairedValue(rangeInput, Number(value));
+    rangeInput.value = String(normalized);
+    numberInput.value = String(normalized);
+    return normalized;
+}
+function normalizePairedValue(input, value) {
+    const min = Number.parseFloat(input.min);
+    const max = Number.parseFloat(input.max);
+    const step = Number.parseFloat(input.step);
+    let normalized = Number(value);
+    if (!Number.isFinite(normalized)) {
+        return Number.parseFloat(input.value);
+    }
+    if (Number.isFinite(min))
+        normalized = Math.max(min, normalized);
+    if (Number.isFinite(max))
+        normalized = Math.min(max, normalized);
+    if (Number.isFinite(step) && step > 0) {
+        normalized = Math.round(normalized / step) * step;
+    }
+    return Number.parseFloat(normalized.toFixed(4));
+}
+function bindPairedControl(rangeInput, numberInput, options = {}) {
+    const onUpdate = options.onUpdate ?? (() => { });
+    const onSave = options.onSave ?? (() => { });
+    rangeInput.addEventListener('input', () => {
+        numberInput.value = rangeInput.value;
+        onUpdate();
+        onSave();
+    });
+    numberInput.addEventListener('input', () => {
+        const parsed = Number.parseFloat(numberInput.value);
+        if (Number.isFinite(parsed)) {
+            rangeInput.value = String(normalizePairedValue(rangeInput, parsed));
+        }
+        onUpdate();
+        onSave();
+    });
+    numberInput.addEventListener('change', () => {
+        setPairedControlValue(rangeInput, numberInput, Number.parseFloat(numberInput.value));
+        onUpdate();
+        onSave();
+    });
+}
+function bindRadiusControl(rangeInput, numberInput, options) {
+    rangeInput.addEventListener('input', () => {
+        numberInput.value = rangeInput.value;
+        options.updateReadout();
+        options.onChange();
+    });
+    numberInput.addEventListener('input', () => {
+        const parsed = Number.parseInt(numberInput.value, 10);
+        if (Number.isFinite(parsed)) {
+            rangeInput.value = String(normalizePairedValue(rangeInput, parsed));
+        }
+        options.updateReadout();
+        options.onChange();
+    });
+    numberInput.addEventListener('change', () => {
+        options.setRadius(numberInput.value);
+        options.onChange();
+    });
+    rangeInput.addEventListener('change', () => {
+        options.setRadius(rangeInput.value);
+        options.onChange();
+    });
+}
+function isTruthyParam(value) {
+    return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
 }
 
 
@@ -5372,6 +5533,63 @@ function sampleMapBackdropColor(worldX, worldZ) {
     const y = Math.max(0, Math.min(entry.pixelHeight - 1, Math.floor(v * entry.pixelHeight)));
     const offset = (y * entry.pixelWidth + x) * 4;
     return { r: pixels[offset], g: pixels[offset + 1], b: pixels[offset + 2] };
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/map-layer-policy.ts"
+/*!********************************************************!*\
+  !*** ./src/main/resources/web/src/map-layer-policy.ts ***!
+  \********************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   horizonMapKeys: () => (/* binding */ horizonMapKeys),
+/* harmony export */   mapBackdropCenterFrom: () => (/* binding */ mapBackdropCenterFrom),
+/* harmony export */   mapBackdropRetainStats: () => (/* binding */ mapBackdropRetainStats),
+/* harmony export */   mapTileLayerKey: () => (/* binding */ mapTileLayerKey),
+/* harmony export */   parseCenterId: () => (/* binding */ parseCenterId)
+/* harmony export */ });
+function mapBackdropCenterFrom(activeCenterId, gridChunkX, gridChunkZ, fallback = { chunkX: 0, chunkZ: 0 }) {
+    const activeCenter = parseCenterId(activeCenterId);
+    if (activeCenter) {
+        return activeCenter;
+    }
+    if (Number.isFinite(gridChunkX) && Number.isFinite(gridChunkZ)) {
+        return { chunkX: gridChunkX, chunkZ: gridChunkZ };
+    }
+    return fallback;
+}
+function parseCenterId(centerId) {
+    if (!centerId) {
+        return null;
+    }
+    const parts = centerId.split(':');
+    const chunkX = Number.parseInt(parts[parts.length - 2] ?? '', 10);
+    const chunkZ = Number.parseInt(parts[parts.length - 1] ?? '', 10);
+    if (!Number.isFinite(chunkX) || !Number.isFinite(chunkZ)) {
+        return null;
+    }
+    return { chunkX, chunkZ };
+}
+function mapTileLayerKey(world, center, radius, enabled) {
+    return `${world}:${center.chunkX}:${center.chunkZ}:${radius}:${enabled}`;
+}
+function mapBackdropRetainStats(center, radius) {
+    return {
+        centerX: center.chunkX,
+        centerZ: center.chunkZ,
+        radius,
+        chunks: radius * 2 + 1,
+        anchorX: center.chunkX,
+        anchorZ: center.chunkZ,
+    };
+}
+function horizonMapKeys(terrainKeys, retainKeys) {
+    const terrainIds = new Set(terrainKeys.map((key) => `${key.chunkX}:${key.chunkZ}`));
+    return retainKeys.filter((key) => !terrainIds.has(`${key.chunkX}:${key.chunkZ}`));
 }
 
 
@@ -6842,6 +7060,218 @@ function finiteNumber(value, fallback) {
 
 /***/ },
 
+/***/ "./src/main/resources/web/src/resource-stats.ts"
+/*!******************************************************!*\
+  !*** ./src/main/resources/web/src/resource-stats.ts ***!
+  \******************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   collectChunkResourceStats: () => (/* binding */ collectChunkResourceStats),
+/* harmony export */   disposeObjectTree: () => (/* binding */ disposeObjectTree)
+/* harmony export */ });
+function disposeObjectTree(object) {
+    const geometries = new Set();
+    const materials = new Set();
+    const textures = new Set();
+    object.traverse((node) => {
+        if (node.geometry)
+            geometries.add(node.geometry);
+        if (node.material) {
+            const objectMaterials = Array.isArray(node.material) ? node.material : [node.material];
+            for (const material of objectMaterials) {
+                materials.add(material);
+                for (const value of Object.values(material)) {
+                    if (value?.isTexture)
+                        textures.add(value);
+                }
+            }
+        }
+    });
+    for (const texture of textures)
+        texture.dispose();
+    for (const material of materials)
+        material.dispose();
+    for (const geometry of geometries)
+        geometry.dispose();
+    return {
+        geometries: geometries.size,
+        materials: materials.size,
+        textures: textures.size,
+    };
+}
+function collectChunkResourceStats(entries) {
+    const geometries = new Set();
+    const materials = new Set();
+    const textures = new Set();
+    let meshes = 0;
+    let triangles = 0;
+    for (const entry of entries) {
+        entry.object.traverse((object) => {
+            if (object.isMesh)
+                meshes++;
+            if (object.geometry) {
+                geometries.add(object.geometry);
+                const position = object.geometry.getAttribute('position');
+                const triangleCount = object.geometry.index
+                    ? object.geometry.index.count / 3
+                    : (position?.count ?? 0) / 3;
+                triangles += Math.floor(triangleCount);
+            }
+            if (object.material) {
+                const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
+                for (const material of objectMaterials) {
+                    materials.add(material);
+                    for (const value of Object.values(material)) {
+                        if (value?.isTexture)
+                            textures.add(value);
+                    }
+                }
+            }
+        });
+    }
+    return {
+        meshes,
+        geometries: geometries.size,
+        materials: materials.size,
+        textures: textures.size,
+        triangles,
+    };
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/terrain-requests.ts"
+/*!********************************************************!*\
+  !*** ./src/main/resources/web/src/terrain-requests.ts ***!
+  \********************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   terrainCacheKeyFor: () => (/* binding */ terrainCacheKeyFor),
+/* harmony export */   terrainCosmeticOverlayCacheKeyFor: () => (/* binding */ terrainCosmeticOverlayCacheKeyFor),
+/* harmony export */   terrainCosmeticOverlayUrlFor: () => (/* binding */ terrainCosmeticOverlayUrlFor),
+/* harmony export */   terrainUrlFor: () => (/* binding */ terrainUrlFor)
+/* harmony export */ });
+function terrainCacheKeyFor(world, chunkX, chunkZ, options) {
+    const baked = options.cosmeticsMode === 'baked';
+    return makeTerrainCacheKey({
+        world,
+        chunkX,
+        chunkZ,
+        formatVersion: options.terrainFormatVersion,
+        detailsEnabled: options.experimentalDetailsEnabled,
+        cosmeticsMode: baked ? 'baked' : 'plain',
+        visualDetailMode: baked ? options.visualDetailMode : 'basic',
+    });
+}
+function terrainUrlFor(world, chunkX, chunkZ, options) {
+    const base = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb`;
+    if (options.cosmeticsMode !== 'baked') {
+        return base;
+    }
+    return `${base}?cosmetics=1&visualDetail=${encodeURIComponent(options.visualDetailMode)}`;
+}
+function terrainCosmeticOverlayCacheKeyFor(world, chunkX, chunkZ, options) {
+    return makeTerrainCacheKey({
+        world,
+        chunkX,
+        chunkZ,
+        formatVersion: options.terrainFormatVersion,
+        detailsEnabled: options.experimentalDetailsEnabled,
+        cosmeticsMode: 'split-overlay',
+        visualDetailMode: options.visualDetailMode,
+    });
+}
+function terrainCosmeticOverlayUrlFor(world, chunkX, chunkZ, visualDetailMode) {
+    return `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.glb?cosmetics=only&visualDetail=${encodeURIComponent(visualDetailMode)}`;
+}
+function makeTerrainCacheKey({ world, chunkX, chunkZ, formatVersion, detailsEnabled, cosmeticsMode, visualDetailMode }) {
+    const details = detailsEnabled ? 'details' : 'surface';
+    const cosmetics = cosmeticsMode || 'plain';
+    const visualDetail = visualDetailMode || 'basic';
+    return `${formatVersion}:${details}:${cosmetics}:${visualDetail}:${world}:${chunkX}:${chunkZ}`;
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/terrain-stream.ts"
+/*!******************************************************!*\
+  !*** ./src/main/resources/web/src/terrain-stream.ts ***!
+  \******************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   createTerrainStreamStats: () => (/* binding */ createTerrainStreamStats),
+/* harmony export */   terrainStreamSnapshot: () => (/* binding */ terrainStreamSnapshot)
+/* harmony export */ });
+function createTerrainStreamStats(world, centerX, centerZ, radius, needed, alreadyLoaded, missing, startedAt) {
+    return {
+        world,
+        centerX,
+        centerZ,
+        radius,
+        needed,
+        alreadyLoaded,
+        missing,
+        startedAt,
+        lastProgressLogAt: startedAt,
+        requested: 0,
+        dataReady: 0,
+        promoted: alreadyLoaded,
+        failed: 0,
+        cacheHits: 0,
+        cacheMisses: 0,
+        networkChunks: 0,
+        maxQueue: 0,
+        maxReadyWaitMs: 0,
+        totalReadyWaitMs: 0,
+    };
+}
+function terrainStreamSnapshot(stats, queueLength, inFlightCount, options = {}) {
+    const elapsedMs = Math.max(1, (options.now ?? performance.now()) - stats.startedAt);
+    const spawnedMissing = Math.max(0, stats.promoted - stats.alreadyLoaded);
+    const avgReadyWaitMs = spawnedMissing > 0 ? stats.totalReadyWaitMs / spawnedMissing : 0;
+    return {
+        world: stats.world,
+        centerX: stats.centerX,
+        centerZ: stats.centerZ,
+        radius: stats.radius,
+        needed: stats.needed,
+        alreadyLoaded: stats.alreadyLoaded,
+        missing: stats.missing,
+        requested: stats.requested,
+        dataReady: stats.dataReady,
+        promoted: stats.promoted,
+        spawnedMissing,
+        failed: stats.failed,
+        queued: queueLength,
+        inFlight: inFlightCount,
+        cacheHits: stats.cacheHits,
+        cacheMisses: stats.cacheMisses,
+        networkChunks: stats.networkChunks,
+        maxQueue: stats.maxQueue,
+        maxReadyWaitMs: Math.round(stats.maxReadyWaitMs),
+        avgReadyWaitMs: Math.round(avgReadyWaitMs),
+        requestedPerSec: Math.round((stats.requested * 1000 / elapsedMs) * 10) / 10,
+        readyPerSec: Math.round((stats.dataReady * 1000 / elapsedMs) * 10) / 10,
+        spawnPerSec: Math.round((spawnedMissing * 1000 / elapsedMs) * 10) / 10,
+        loadSlots: options.loadSlots,
+        spawnFrame: options.spawnFrame,
+        spawnBudgetMs: options.spawnBudgetMs,
+        elapsedMs: Math.round(elapsedMs),
+        final: options.final === true,
+    };
+}
+
+
+/***/ },
+
 /***/ "./src/main/resources/web/src/time-ribbon.ts"
 /*!***************************************************!*\
   !*** ./src/main/resources/web/src/time-ribbon.ts ***!
@@ -6985,6 +7415,70 @@ function formatBytes(bytes) {
     if (bytes < 1024 * 1024)
         return `${Math.round(bytes / 1024)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/view-preferences.ts"
+/*!********************************************************!*\
+  !*** ./src/main/resources/web/src/view-preferences.ts ***!
+  \********************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   floatControlValue: () => (/* binding */ floatControlValue),
+/* harmony export */   fogRangeFromControls: () => (/* binding */ fogRangeFromControls),
+/* harmony export */   mapTileRetainRadiusFor: () => (/* binding */ mapTileRetainRadiusFor),
+/* harmony export */   radiusReadout: () => (/* binding */ radiusReadout),
+/* harmony export */   safeWaterMode: () => (/* binding */ safeWaterMode),
+/* harmony export */   terrainTuningControlValue: () => (/* binding */ terrainTuningControlValue)
+/* harmony export */ });
+function terrainTuningControlValue(input, fallback) {
+    const parsed = Number.parseInt(input?.value ?? '', 10);
+    if (!Number.isFinite(parsed)) {
+        return fallback;
+    }
+    const min = Number.parseInt(input?.min ?? '', 10);
+    const max = Number.parseInt(input?.max ?? '', 10);
+    return clamp(parsed, Number.isFinite(min) ? min : 1, Number.isFinite(max) ? max : 64);
+}
+function floatControlValue(input, fallback) {
+    const parsed = Number.parseFloat(input?.value ?? '');
+    if (!Number.isFinite(parsed)) {
+        return fallback;
+    }
+    const min = Number.parseFloat(input?.min ?? '');
+    const max = Number.parseFloat(input?.max ?? '');
+    return clamp(parsed, Number.isFinite(min) ? min : -Infinity, Number.isFinite(max) ? max : Infinity);
+}
+function fogRangeFromControls(nearInput, farInput, defaults = { near: 150, far: 620 }) {
+    const near = terrainTuningControlValue(nearInput, defaults.near);
+    const far = Math.max(near + 1, terrainTuningControlValue(farInput, defaults.far));
+    return { near, far };
+}
+function safeWaterMode(value) {
+    return value === 'solid' || value === 'transparent' || value === 'hidden' ? value : 'solid';
+}
+function radiusReadout(radius) {
+    const safeRadius = Math.max(0, Number.isFinite(radius) ? Math.floor(radius) : 0);
+    const diameter = safeRadius * 2 + 1;
+    const chunks = diameter * diameter;
+    return {
+        radius: safeRadius,
+        diameter,
+        chunks,
+        text: `${diameter} x ${diameter} chunks, ${chunks} meshes`,
+    };
+}
+function mapTileRetainRadiusFor(terrainRadius, streamLoad, horizonMargin, retainMargin = 1) {
+    return streamLoad
+        ? terrainRadius + retainMargin + horizonMargin
+        : terrainRadius + horizonMargin;
+}
+function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
 }
 
 
@@ -7668,9 +8162,55 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_three_addons_postprocessing_ShaderPas
 /******/ // This entry module used 'module' so it can't be inlined
 /******/ var __webpack_exports__ = __webpack_require__("./src/main/resources/web/src/app.ts");
 /******/ __webpack_exports__ = await __webpack_exports__;
+/******/ const __webpack_exports__applyBooleanParam = __webpack_exports__.applyBooleanParam;
+/******/ const __webpack_exports__applyFloatParam = __webpack_exports__.applyFloatParam;
+/******/ const __webpack_exports__applyNumberParam = __webpack_exports__.applyNumberParam;
+/******/ const __webpack_exports__applySelectParam = __webpack_exports__.applySelectParam;
+/******/ const __webpack_exports__applySelectValue = __webpack_exports__.applySelectValue;
+/******/ const __webpack_exports__bindPairedControl = __webpack_exports__.bindPairedControl;
+/******/ const __webpack_exports__bindRadiusControl = __webpack_exports__.bindRadiusControl;
+/******/ const __webpack_exports__chunkDistanceSq = __webpack_exports__.chunkDistanceSq;
+/******/ const __webpack_exports__chunkKeysForWorld = __webpack_exports__.chunkKeysForWorld;
+/******/ const __webpack_exports__collectChunkResourceStats = __webpack_exports__.collectChunkResourceStats;
+/******/ const __webpack_exports__compactMobSourceStats = __webpack_exports__.compactMobSourceStats;
+/******/ const __webpack_exports__compactObject = __webpack_exports__.compactObject;
 /******/ const __webpack_exports__createMobMarker = __webpack_exports__.createMobMarker;
 /******/ const __webpack_exports__createPlayerMarker = __webpack_exports__.createPlayerMarker;
+/******/ const __webpack_exports__createTerrainStreamStats = __webpack_exports__.createTerrainStreamStats;
 /******/ const __webpack_exports__disposeObject = __webpack_exports__.disposeObject;
+/******/ const __webpack_exports__disposeObjectTree = __webpack_exports__.disposeObjectTree;
+/******/ const __webpack_exports__distanceBetween = __webpack_exports__.distanceBetween;
+/******/ const __webpack_exports__floatControlValue = __webpack_exports__.floatControlValue;
+/******/ const __webpack_exports__fogRangeFromControls = __webpack_exports__.fogRangeFromControls;
+/******/ const __webpack_exports__horizonMapKeys = __webpack_exports__.horizonMapKeys;
+/******/ const __webpack_exports__isTruthyParam = __webpack_exports__.isTruthyParam;
+/******/ const __webpack_exports__liveMobFeedEnabled = __webpack_exports__.liveMobFeedEnabled;
+/******/ const __webpack_exports__mapBackdropCenterFrom = __webpack_exports__.mapBackdropCenterFrom;
+/******/ const __webpack_exports__mapBackdropRetainStats = __webpack_exports__.mapBackdropRetainStats;
+/******/ const __webpack_exports__mapTileLayerKey = __webpack_exports__.mapTileLayerKey;
+/******/ const __webpack_exports__mapTileRetainRadiusFor = __webpack_exports__.mapTileRetainRadiusFor;
+/******/ const __webpack_exports__mobPollDelayMs = __webpack_exports__.mobPollDelayMs;
+/******/ const __webpack_exports__nearestMobsForSample = __webpack_exports__.nearestMobsForSample;
+/******/ const __webpack_exports__normalizePairedValue = __webpack_exports__.normalizePairedValue;
+/******/ const __webpack_exports__parseCenterId = __webpack_exports__.parseCenterId;
+/******/ const __webpack_exports__playerPollDelayMs = __webpack_exports__.playerPollDelayMs;
+/******/ const __webpack_exports__positiveIntegerMs = __webpack_exports__.positiveIntegerMs;
+/******/ const __webpack_exports__radiusReadout = __webpack_exports__.radiusReadout;
+/******/ const __webpack_exports__roundCoord = __webpack_exports__.roundCoord;
+/******/ const __webpack_exports__safeWaterMode = __webpack_exports__.safeWaterMode;
+/******/ const __webpack_exports__setNumberInput = __webpack_exports__.setNumberInput;
+/******/ const __webpack_exports__setPairedControlValue = __webpack_exports__.setPairedControlValue;
+/******/ const __webpack_exports__sortChunkKeysByPlayerDistance = __webpack_exports__.sortChunkKeysByPlayerDistance;
+/******/ const __webpack_exports__summarizeCountsObject = __webpack_exports__.summarizeCountsObject;
+/******/ const __webpack_exports__summarizeItems = __webpack_exports__.summarizeItems;
+/******/ const __webpack_exports__terrainCacheKeyFor = __webpack_exports__.terrainCacheKeyFor;
+/******/ const __webpack_exports__terrainCosmeticOverlayCacheKeyFor = __webpack_exports__.terrainCosmeticOverlayCacheKeyFor;
+/******/ const __webpack_exports__terrainCosmeticOverlayUrlFor = __webpack_exports__.terrainCosmeticOverlayUrlFor;
+/******/ const __webpack_exports__terrainStreamSnapshot = __webpack_exports__.terrainStreamSnapshot;
+/******/ const __webpack_exports__terrainTuningControlValue = __webpack_exports__.terrainTuningControlValue;
+/******/ const __webpack_exports__terrainUrlFor = __webpack_exports__.terrainUrlFor;
 /******/ const __webpack_exports__updateMobMarkerHeight = __webpack_exports__.updateMobMarkerHeight;
-/******/ export { __webpack_exports__createMobMarker as createMobMarker, __webpack_exports__createPlayerMarker as createPlayerMarker, __webpack_exports__disposeObject as disposeObject, __webpack_exports__updateMobMarkerHeight as updateMobMarkerHeight };
+/******/ const __webpack_exports__wantsEntityStream = __webpack_exports__.wantsEntityStream;
+/******/ const __webpack_exports__worldTimePollDelayMs = __webpack_exports__.worldTimePollDelayMs;
+/******/ export { __webpack_exports__applyBooleanParam as applyBooleanParam, __webpack_exports__applyFloatParam as applyFloatParam, __webpack_exports__applyNumberParam as applyNumberParam, __webpack_exports__applySelectParam as applySelectParam, __webpack_exports__applySelectValue as applySelectValue, __webpack_exports__bindPairedControl as bindPairedControl, __webpack_exports__bindRadiusControl as bindRadiusControl, __webpack_exports__chunkDistanceSq as chunkDistanceSq, __webpack_exports__chunkKeysForWorld as chunkKeysForWorld, __webpack_exports__collectChunkResourceStats as collectChunkResourceStats, __webpack_exports__compactMobSourceStats as compactMobSourceStats, __webpack_exports__compactObject as compactObject, __webpack_exports__createMobMarker as createMobMarker, __webpack_exports__createPlayerMarker as createPlayerMarker, __webpack_exports__createTerrainStreamStats as createTerrainStreamStats, __webpack_exports__disposeObject as disposeObject, __webpack_exports__disposeObjectTree as disposeObjectTree, __webpack_exports__distanceBetween as distanceBetween, __webpack_exports__floatControlValue as floatControlValue, __webpack_exports__fogRangeFromControls as fogRangeFromControls, __webpack_exports__horizonMapKeys as horizonMapKeys, __webpack_exports__isTruthyParam as isTruthyParam, __webpack_exports__liveMobFeedEnabled as liveMobFeedEnabled, __webpack_exports__mapBackdropCenterFrom as mapBackdropCenterFrom, __webpack_exports__mapBackdropRetainStats as mapBackdropRetainStats, __webpack_exports__mapTileLayerKey as mapTileLayerKey, __webpack_exports__mapTileRetainRadiusFor as mapTileRetainRadiusFor, __webpack_exports__mobPollDelayMs as mobPollDelayMs, __webpack_exports__nearestMobsForSample as nearestMobsForSample, __webpack_exports__normalizePairedValue as normalizePairedValue, __webpack_exports__parseCenterId as parseCenterId, __webpack_exports__playerPollDelayMs as playerPollDelayMs, __webpack_exports__positiveIntegerMs as positiveIntegerMs, __webpack_exports__radiusReadout as radiusReadout, __webpack_exports__roundCoord as roundCoord, __webpack_exports__safeWaterMode as safeWaterMode, __webpack_exports__setNumberInput as setNumberInput, __webpack_exports__setPairedControlValue as setPairedControlValue, __webpack_exports__sortChunkKeysByPlayerDistance as sortChunkKeysByPlayerDistance, __webpack_exports__summarizeCountsObject as summarizeCountsObject, __webpack_exports__summarizeItems as summarizeItems, __webpack_exports__terrainCacheKeyFor as terrainCacheKeyFor, __webpack_exports__terrainCosmeticOverlayCacheKeyFor as terrainCosmeticOverlayCacheKeyFor, __webpack_exports__terrainCosmeticOverlayUrlFor as terrainCosmeticOverlayUrlFor, __webpack_exports__terrainStreamSnapshot as terrainStreamSnapshot, __webpack_exports__terrainTuningControlValue as terrainTuningControlValue, __webpack_exports__terrainUrlFor as terrainUrlFor, __webpack_exports__updateMobMarkerHeight as updateMobMarkerHeight, __webpack_exports__wantsEntityStream as wantsEntityStream, __webpack_exports__worldTimePollDelayMs as worldTimePollDelayMs };
 /******/ 

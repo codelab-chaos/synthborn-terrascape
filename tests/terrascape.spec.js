@@ -873,16 +873,21 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(typeof npcIndexPayload.roles).toBe('number');
 
   const mobDebugResponse = await page.request.get('/api/mob-debug/default');
-  expect(mobDebugResponse.ok()).toBeTruthy();
-  const mobDebugPayload = await mobDebugResponse.json();
-  expect(mobDebugPayload.ok).toBeTruthy();
-  expect(typeof mobDebugPayload.players).toBe('number');
-  expect(Array.isArray(mobDebugPayload.candidates)).toBeTruthy();
-  for (const candidate of mobDebugPayload.candidates) {
-    expect(typeof candidate.id).toBe('number');
-    expect(typeof candidate.type).toBe('string');
-    expect(typeof candidate.reason).toBe('string');
-    expect(typeof candidate.distance).toBe('number');
+  if (mobDebugResponse.status() === 404) {
+    const disabledPayload = await mobDebugResponse.json();
+    expect(disabledPayload.error).toBe('mob_debug_disabled');
+  } else {
+    expect(mobDebugResponse.ok()).toBeTruthy();
+    const mobDebugPayload = await mobDebugResponse.json();
+    expect(mobDebugPayload.ok).toBeTruthy();
+    expect(typeof mobDebugPayload.players).toBe('number');
+    expect(Array.isArray(mobDebugPayload.candidates)).toBeTruthy();
+    for (const candidate of mobDebugPayload.candidates) {
+      expect(typeof candidate.id).toBe('number');
+      expect(typeof candidate.type).toBe('string');
+      expect(typeof candidate.reason).toBe('string');
+      expect(typeof candidate.distance).toBe('number');
+    }
   }
 
   await page.locator('#show-players').evaluate((input) => {
