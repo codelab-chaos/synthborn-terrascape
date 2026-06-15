@@ -12,6 +12,31 @@ Shared Synthborn/Hytale reference material lives in [`../synthborn-basecamp/docs
 
 The Gradle build compiles the Java plugin and runs `npm run build:web` for the bundled web UI.
 
+## Testing
+
+Web unit tests use TypeScript plus Node's built-in test runner, not Jest. The focused
+unit compile lives at [`tests/tsconfig.web-unit.json`](tests/tsconfig.web-unit.json).
+
+```sh
+npm run test:unit
+npm run test:unit:coverage
+npm run test:web
+sh gradlew test
+```
+
+`npm run test:release` runs Java tests, web unit tests, and the Playwright web suite.
+
+## Configuration
+
+SynthTerrascape creates `terrascape.properties` in the plugin data folder on first
+startup. The file groups HTTP, world visibility, folder, mesh, cache, feature, map, and
+entity options for server admins. See [`CONFIGURATION.md`](CONFIGURATION.md).
+
+## Permissions
+
+The `/terrascape` command is admin-only through `terrascape.admin`. Web debug/admin
+surfaces are default-off or token-protected; see [`PERMISSIONS.md`](PERMISSIONS.md).
+
 ## Remote Deploy
 
 Terrascape owns its deployment script in this repo. Configure the remote Mac once:

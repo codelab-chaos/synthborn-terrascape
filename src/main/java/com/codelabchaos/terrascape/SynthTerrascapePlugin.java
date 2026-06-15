@@ -1,6 +1,7 @@
 package com.codelabchaos.terrascape;
 
 import com.codelabchaos.terrascape.commands.TerrascapeCommand;
+import com.codelabchaos.terrascape.config.TerrascapeConfig;
 import com.codelabchaos.terrascape.web.NpcRoleIndex;
 import com.codelabchaos.terrascape.web.TerrascapeWebServer;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
@@ -13,16 +14,13 @@ import java.time.Instant;
 import java.util.logging.Level;
 
 public class SynthTerrascapePlugin extends JavaPlugin {
-    private static final String DEFAULT_HTTP_HOST = "127.0.0.1";
-    private static final int DEFAULT_HTTP_PORT = 5960;
-
     private static SynthTerrascapePlugin instance;
 
     private Instant startedAt;
+    private TerrascapeConfig config;
     private TerrascapeWebServer webServer;
     private NpcRoleIndex npcRoleIndex;
     private PlayerLookTracker playerLookTracker;
-    private boolean experimentalDetailsEnabled;
 
     public SynthTerrascapePlugin(@Nonnull JavaPluginInit init) {
         super(init);
@@ -52,6 +50,10 @@ public class SynthTerrascapePlugin extends JavaPlugin {
         return webServer;
     }
 
+    public TerrascapeConfig config() {
+        return config;
+    }
+
     public NpcRoleIndex npcRoleIndex() {
         return npcRoleIndex;
     }
@@ -61,7 +63,7 @@ public class SynthTerrascapePlugin extends JavaPlugin {
     }
 
     public boolean experimentalDetailsEnabled() {
-        return experimentalDetailsEnabled;
+        return config == null || config.features().experimentalDetails();
     }
 
     @Override
@@ -78,18 +80,11 @@ public class SynthTerrascapePlugin extends JavaPlugin {
     @Override
     protected void start() {
         startedAt = Instant.now();
-        String host = setting("terrascape.http.host", "SYNTH_TERRASCAPE_HOST", DEFAULT_HTTP_HOST);
-        int port = parseInt(setting(
-                "terrascape.http.port",
-                "SYNTH_TERRASCAPE_PORT",
-                Integer.toString(DEFAULT_HTTP_PORT)), DEFAULT_HTTP_PORT);
-        experimentalDetailsEnabled = parseBoolean(setting(
-                "terrascape.experimental.details",
-                "SYNTH_TERRASCAPE_EXPERIMENTAL_DETAILS",
-                "true"));
 
         try {
-            webServer = new TerrascapeWebServer(this, host, port, experimentalDetailsEnabled, npcRoleIndex);
+            config = TerrascapeConfig.load(getDataDirectory());
+            getLogger().at(Level.INFO).log("SynthTerrascape config loaded from " + config.configPath());
+            webServer = new TerrascapeWebServer(this, config, npcRoleIndex);
             webServer.start();
         } catch (IOException e) {
             getLogger().at(Level.SEVERE).withCause(e).log("Failed to start SynthTerrascape HTTP server.");
@@ -109,30 +104,8 @@ public class SynthTerrascapePlugin extends JavaPlugin {
             playerLookTracker = null;
         }
         npcRoleIndex = null;
+        config = null;
         startedAt = null;
         instance = null;
-    }
-
-    private static String setting(@Nonnull String property, @Nonnull String env, @Nonnull String fallback) {
-        String value = System.getProperty(property);
-        if (value == null || value.isBlank()) {
-            value = System.getenv(env);
-        }
-        return value == null || value.isBlank() ? fallback : value;
-    }
-
-    private static int parseInt(@Nonnull String value, int fallback) {
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
-    }
-
-    private static boolean parseBoolean(@Nonnull String value) {
-        return "1".equals(value)
-                || "true".equalsIgnoreCase(value)
-                || "yes".equalsIgnoreCase(value)
-                || "on".equalsIgnoreCase(value);
     }
 }

@@ -2,6 +2,7 @@ package com.codelabchaos.terrascape.web;
 
 import com.codelabchaos.terrascape.SynthTerrascapePlugin;
 import com.codelabchaos.terrascape.PlayerLookTracker;
+import com.codelabchaos.terrascape.config.TerrascapeConfig;
 import com.codelabchaos.terrascape.terrain.GltfWriter;
 import com.codelabchaos.terrascape.terrain.TerrainDetail;
 import com.codelabchaos.terrascape.terrain.TerrainMesh;
@@ -100,21 +101,10 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class TerrascapeWebServer {
-    private static final String FORMAT_VERSION = "v26";
-    private static final Duration TERRAIN_TIMEOUT = Duration.ofSeconds(15);
-    private static final Duration BATCH_TERRAIN_TIMEOUT = Duration.ofSeconds(45);
-    private static final int MAX_BATCH_CHUNKS = 16;
-    private static final int MAX_CONCURRENT_GENERATIONS = 1;
-    private static final int MAX_MEMORY_CACHE_ENTRIES = 128;
-    private static final long MAX_MEMORY_CACHE_BYTES = 128L * 1024L * 1024L;
     private static final int MAP_REGION_TILE_SIZE = 32;
-    private static final int MAX_MAP_REGION_RADIUS = 108;
-    private static final int MAP_REGION_GENERATE_RADIUS = 20;
-    private static final int MAX_MAP_REGION_MEMORY_CACHE_ENTRIES = 16;
-    private static final long MAX_MAP_REGION_MEMORY_CACHE_BYTES = 64L * 1024L * 1024L;
-    private static final int MAX_MAP_TILE_MEMORY_CACHE_ENTRIES = 20_000;
     private static final String MAP_REGION_CACHE_CONTROL = "public, max-age=31536000, immutable";
     private static final Duration MAP_REGION_TIMEOUT = Duration.ofSeconds(60);
+    private static final int MAP_REGION_GENERATE_RADIUS = 20;
     private static final int MAX_CLIENT_LOG_BYTES = 16 * 1024;
     private static final String[] PERF_CLIENT_LOG_TYPES = {
             "\"type\":\"frame_hitch\"",
@@ -125,8 +115,8 @@ public final class TerrascapeWebServer {
     };
     private static final int STATIC_HTTP_THREADS = 2;
     private static final int API_HTTP_THREADS = 8;
-    private static final int MAX_MOB_SNAPSHOTS = 256;
     private static final int MAX_MOB_DEBUG_SUMMARY_ITEMS = 32;
+    private static final int MAX_MOB_SNAPSHOTS = 256;
     private static final double MOB_RADAR_RADIUS = 500.0d;
     private static final double MOB_RADAR_RADIUS_SQ = MOB_RADAR_RADIUS * MOB_RADAR_RADIUS;
     private static final long ENTITY_STREAM_INTERVAL_MS = 1000L;
@@ -147,6 +137,7 @@ public final class TerrascapeWebServer {
             .build();
 
     private final SynthTerrascapePlugin plugin;
+    private final TerrascapeConfig config;
     private final String host;
     private final int port;
     private final boolean experimentalDetailsEnabled;
@@ -162,7 +153,7 @@ public final class TerrascapeWebServer {
         thread.setDaemon(true);
         return thread;
     });
-    private final Semaphore generationPermits = new Semaphore(MAX_CONCURRENT_GENERATIONS);
+    private final Semaphore generationPermits;
     private final ConcurrentHashMap<String, CompletableFuture<TerrainResult>> pendingTerrain = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CompletableFuture<MapRegionResult>> pendingMapRegions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CompletableFuture<BufferedImage>> pendingMapTiles = new ConcurrentHashMap<>();
@@ -186,13 +177,18 @@ public final class TerrascapeWebServer {
     private final ConcurrentHashMap<String, Integer> lastMobSamplePlayerCounts = new ConcurrentHashMap<>();
     private volatile Path assetsZipPath;
 
-    public TerrascapeWebServer(@Nonnull SynthTerrascapePlugin plugin, @Nonnull String host, int port,
-                              boolean experimentalDetailsEnabled, @Nonnull NpcRoleIndex npcRoleIndex) throws IOException {
+    public TerrascapeWebServer(
+            @Nonnull SynthTerrascapePlugin plugin,
+            @Nonnull TerrascapeConfig config,
+            @Nonnull NpcRoleIndex npcRoleIndex
+    ) throws IOException {
         this.plugin = plugin;
-        this.host = host;
-        this.port = port;
-        this.experimentalDetailsEnabled = experimentalDetailsEnabled;
+        this.config = config;
+        this.host = config.http().host();
+        this.port = config.http().port();
+        this.experimentalDetailsEnabled = config.features().experimentalDetails();
         this.npcRoleIndex = npcRoleIndex;
+        this.generationPermits = new Semaphore(config.mesh().maxConcurrentGenerations());
         this.server = HttpServer.create(new InetSocketAddress(host, port), 0);
         this.server.createContext("/api/worlds", onApi(this::handleWorlds));
         this.server.createContext("/api/players", onApi(this::handlePlayers));
@@ -258,11 +254,11 @@ public final class TerrascapeWebServer {
                 failedGenerations.get(),
                 activeGenerations.get(),
                 pendingTerrain.size(),
-                MAX_CONCURRENT_GENERATIONS,
+                config.mesh().maxConcurrentGenerations(),
                 memoryCacheSize(),
                 memoryCacheBytes(),
-                MAX_MEMORY_CACHE_ENTRIES,
-                MAX_MEMORY_CACHE_BYTES,
+                config.cache().memoryTerrainEntries(),
+                config.cache().memoryTerrainBytes(),
                 diskStats.files(),
                 diskStats.bytes());
     }
@@ -285,15 +281,20 @@ public final class TerrascapeWebServer {
         Universe universe = Universe.get();
         String worlds = universe == null ? "" : universe.getWorlds().values().stream()
                 .map(World::getName)
+                .filter(config.worlds()::allows)
                 .sorted()
                 .map(name -> "{\"name\":\"" + escapeJson(name) + "\"}")
                 .collect(Collectors.joining(","));
         writeJson(exchange, 200, "{\"ok\":true,\"features\":{\"experimentalDetails\":" + experimentalDetailsEnabled
-                + ",\"terrainFormatVersion\":\"" + FORMAT_VERSION + "\""
+                + ",\"terrainFormatVersion\":\"" + config.mesh().terrainFormatVersion() + "\""
                 + "},\"worlds\":[" + worlds + "]}");
     }
 
     private void handleClientLog(@Nonnull HttpExchange exchange) throws IOException {
+        if (!config.features().clientTelemetry()) {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"client_telemetry_disabled\"}");
+            return;
+        }
         if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
             addCors(exchange);
             exchange.sendResponseHeaders(204, -1);
@@ -394,6 +395,10 @@ public final class TerrascapeWebServer {
     }
 
     private void handlePlayerAvatar(@Nonnull HttpExchange exchange) throws IOException {
+        if (!config.features().playerAvatars()) {
+            writeText(exchange, 404, "not found", "text/plain; charset=utf-8");
+            return;
+        }
         if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
             writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
             return;
@@ -515,6 +520,14 @@ public final class TerrascapeWebServer {
     }
 
     private void handleMobDebug(@Nonnull HttpExchange exchange) throws IOException {
+        if (!config.features().mobDebugEndpoint()) {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"mob_debug_disabled\"}");
+            return;
+        }
+        if (!isAdminRequest(exchange)) {
+            writeJson(exchange, 403, "{\"ok\":false,\"error\":\"admin_token_required\"}");
+            return;
+        }
         if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
             writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
             return;
@@ -554,6 +567,10 @@ public final class TerrascapeWebServer {
     }
 
     private void handleEntityStream(@Nonnull HttpExchange exchange) throws IOException {
+        if (!config.features().entityStream()) {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"entity_stream_disabled\"}");
+            return;
+        }
         if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
             writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
             return;
@@ -587,7 +604,7 @@ public final class TerrascapeWebServer {
                 String json = snapshotEntitiesForStream(world, includePlayers, includeMobs);
                 writeSseEvent(output, "entities", json);
                 try {
-                    Thread.sleep(ENTITY_STREAM_INTERVAL_MS);
+                    Thread.sleep(config.entities().streamInterval().toMillis());
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -629,7 +646,7 @@ public final class TerrascapeWebServer {
             long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
             int chunkCount = request.radius() * 2 + 1;
             exchange.getResponseHeaders().set("X-Terrascape-Map-Region-Chunks", Integer.toString(chunkCount));
-            exchange.getResponseHeaders().set("X-Terrascape-Map-Region-Tile-Size", Integer.toString(MAP_REGION_TILE_SIZE));
+            exchange.getResponseHeaders().set("X-Terrascape-Map-Region-Tile-Size", Integer.toString(config.mapView().tileSize()));
             exchange.getResponseHeaders().set("X-Terrascape-Map-Region-Millis", Long.toString(elapsedMillis));
             exchange.getResponseHeaders().set("X-Terrascape-Map-Region-Cache", result.source());
             exchange.getResponseHeaders().set("Content-Type", "image/png");
@@ -643,7 +660,7 @@ public final class TerrascapeWebServer {
                     + " center=" + request.centerX() + "," + request.centerZ()
                     + " radius=" + request.radius()
                     + " chunks=" + (chunkCount * chunkCount)
-                    + " pixels=" + (chunkCount * MAP_REGION_TILE_SIZE) + "x" + (chunkCount * MAP_REGION_TILE_SIZE)
+                    + " pixels=" + (chunkCount * config.mapView().tileSize()) + "x" + (chunkCount * config.mapView().tileSize())
                     + " bytes=" + bytes.length
                     + " cache=" + result.source()
                     + " ms=" + elapsedMillis);
@@ -760,7 +777,7 @@ public final class TerrascapeWebServer {
         List<BatchMapTileResult> results = generateMapTileBatch(world, request);
         long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
         StringBuilder json = new StringBuilder(256 + results.size() * 512);
-        json.append("{\"ok\":true,\"asset\":\"map\",\"maxBatchChunks\":").append(MAX_BATCH_CHUNKS).append(",\"chunks\":[");
+        json.append("{\"ok\":true,\"asset\":\"map\",\"maxBatchChunks\":").append(config.mesh().maxBatchChunks()).append(",\"chunks\":[");
         for (int i = 0; i < results.size(); i++) {
             if (i > 0) {
                 json.append(',');
@@ -831,7 +848,7 @@ public final class TerrascapeWebServer {
 
         BatchTerrainRequest request;
         try {
-            request = parseBatchTerrainRequest(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            request = parseBatchTerrainRequest(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8), config.mesh().maxBatchChunks());
         } catch (IllegalArgumentException e) {
             writeJson(exchange, 400, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
             return;
@@ -853,7 +870,7 @@ public final class TerrascapeWebServer {
             long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
             TerrainBatchSummary summary = summarizeTerrainBatch(results);
             StringBuilder json = new StringBuilder(256 + results.size() * 256);
-            json.append("{\"ok\":true,\"asset\":\"mesh\",\"maxBatchChunks\":").append(MAX_BATCH_CHUNKS).append(",\"chunks\":[");
+            json.append("{\"ok\":true,\"asset\":\"mesh\",\"maxBatchChunks\":").append(config.mesh().maxBatchChunks()).append(",\"chunks\":[");
             for (int i = 0; i < results.size(); i++) {
                 if (i > 0) {
                     json.append(',');
@@ -918,7 +935,7 @@ public final class TerrascapeWebServer {
         CompletableFuture<TerrainResult> existing = pendingTerrain.putIfAbsent(key, future);
         if (existing != null) {
             coalescedRequests.incrementAndGet();
-            return existing.get(TERRAIN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            return existing.get(config.mesh().terrainTimeout().toMillis(), TimeUnit.MILLISECONDS);
         }
 
         try {
@@ -963,7 +980,7 @@ public final class TerrascapeWebServer {
                 generationPermits.release();
             }
         });
-        TerrainResult result = future.get(TERRAIN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        TerrainResult result = future.get(config.mesh().terrainTimeout().toMillis(), TimeUnit.MILLISECONDS);
         putMemoryCache(key, result);
         writeDiskCache(request, result);
         return result;
@@ -971,7 +988,7 @@ public final class TerrascapeWebServer {
 
     private List<BatchTerrainResult> generateTerrainBatch(@Nonnull World world, @Nonnull BatchTerrainRequest request) throws Exception {
         List<BatchTerrainResult> results = new ArrayList<>(request.chunks().size());
-        long deadline = System.nanoTime() + BATCH_TERRAIN_TIMEOUT.toNanos();
+        long deadline = System.nanoTime() + config.mesh().batchTerrainTimeout().toNanos();
         for (ChunkCoord chunk : request.chunks()) {
             long remainingMillis = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
             if (remainingMillis <= 0) {
@@ -1001,7 +1018,7 @@ public final class TerrascapeWebServer {
     }
 
     private MapRegionResult getMapRegion(@Nonnull World world, @Nonnull MapRegionRequest request) throws Exception {
-        String key = request.key();
+        String key = request.key(config.mapView().tileSize());
         byte[] memoryCached = readMapRegionMemoryCache(key);
         if (memoryCached != null) {
             return new MapRegionResult(memoryCached, "memory");
@@ -1045,7 +1062,8 @@ public final class TerrascapeWebServer {
         }
 
         int chunkCount = request.radius() * 2 + 1;
-        int outputSize = chunkCount * MAP_REGION_TILE_SIZE;
+        int tileSize = config.mapView().tileSize();
+        int outputSize = chunkCount * tileSize;
         BufferedImage composite = new BufferedImage(outputSize, outputSize, BufferedImage.TYPE_INT_ARGB);
         List<CompletableFuture<Void>> futures = new ArrayList<>(chunkCount * chunkCount);
         int minChunkX = request.centerX() - request.radius();
@@ -1056,18 +1074,18 @@ public final class TerrascapeWebServer {
             for (int dx = 0; dx < chunkCount; dx++) {
                 int chunkX = minChunkX + dx;
                 int chunkZ = minChunkZ + dz;
-                int outputX = dx * MAP_REGION_TILE_SIZE;
-                int outputY = dz * MAP_REGION_TILE_SIZE;
+                int outputX = dx * tileSize;
+                int outputY = dz * tileSize;
                 boolean allowGenerate = Math.max(
                         Math.abs(chunkX - request.centerX()),
-                        Math.abs(chunkZ - request.centerZ())) <= MAP_REGION_GENERATE_RADIUS;
+                        Math.abs(chunkZ - request.centerZ())) <= config.mapView().generateRadius();
                 futures.add(getMapTileImage(mapManager, world.getName(), chunkX, chunkZ, allowGenerate)
                         .thenAccept(tile -> {
                             if (tile == null) {
                                 missingCacheOnlyTiles.incrementAndGet();
                                 return;
                             }
-                            drawCachedMapRegionTile(composite, tile, outputX, outputY);
+                            drawCachedMapRegionTile(composite, tile, outputX, outputY, tileSize);
                         }));
             }
         }
@@ -1082,26 +1100,26 @@ public final class TerrascapeWebServer {
                 });
     }
 
-    private static void drawMapRegionTile(@Nonnull BufferedImage composite, @Nullable MapImage mapImage,
-                                          int outputX, int outputY) {
+    private void drawMapRegionTile(@Nonnull BufferedImage composite, @Nullable MapImage mapImage,
+                                   int outputX, int outputY) {
         if (mapImage == null || mapImage.palette == null || mapImage.packedIndices == null
                 || mapImage.width <= 0 || mapImage.height <= 0) {
             return;
         }
         synchronized (composite) {
-            MapTilePngEncoder.drawMapImage(composite, mapImage, outputX, outputY, MAP_REGION_TILE_SIZE);
+            MapTilePngEncoder.drawMapImage(composite, mapImage, outputX, outputY, config.mapView().tileSize());
         }
     }
 
     private static void drawCachedMapRegionTile(@Nonnull BufferedImage composite, @Nullable BufferedImage tile,
-                                                int outputX, int outputY) {
+                                                int outputX, int outputY, int tileSize) {
         if (tile == null) {
             return;
         }
         synchronized (composite) {
             Graphics2D graphics = composite.createGraphics();
             try {
-                graphics.drawImage(tile, outputX, outputY, MAP_REGION_TILE_SIZE, MAP_REGION_TILE_SIZE, null);
+                graphics.drawImage(tile, outputX, outputY, tileSize, tileSize, null);
             } finally {
                 graphics.dispose();
             }
@@ -1194,9 +1212,8 @@ public final class TerrascapeWebServer {
 
     private Path terrainOutputPath(@Nonnull TerrainRequest request) {
         String safeWorld = safeName(request.worldName());
-        return plugin.terrascapeDir()
-                .resolve("terrain")
-                .resolve(FORMAT_VERSION)
+        return config.folders().terrainCacheDir()
+                .resolve(config.mesh().terrainFormatVersion())
                 .resolve(safeWorld)
                 .resolve(request.cacheLayer())
                 .resolve(request.chunkX() + "_" + request.chunkZ() + ".glb");
@@ -1224,7 +1241,8 @@ public final class TerrascapeWebServer {
     }
 
     private void evictMemoryCache() {
-        while ((memoryCache.size() > MAX_MEMORY_CACHE_ENTRIES || memoryCacheBytes > MAX_MEMORY_CACHE_BYTES)
+        while ((memoryCache.size() > config.cache().memoryTerrainEntries()
+                || memoryCacheBytes > config.cache().memoryTerrainBytes())
                 && !memoryCache.isEmpty()) {
             Map.Entry<String, TerrainResult> eldest = memoryCache.entrySet().iterator().next();
             memoryCacheBytes -= eldest.getValue().glb().length;
@@ -1267,16 +1285,15 @@ public final class TerrascapeWebServer {
         try {
             Files.createDirectories(glbPath.getParent());
             Files.write(glbPath, result.glb());
-            Files.writeString(metadataPath, result.metadataJson());
+            Files.writeString(metadataPath, result.metadataJson(config.mesh().terrainFormatVersion()));
         } catch (IOException e) {
             plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to write terrain cache entry " + glbPath);
         }
     }
 
     private Path mapRegionOutputPath(@Nonnull MapRegionRequest request) {
-        return plugin.terrascapeDir()
-                .resolve("map-region")
-                .resolve("tile-" + MAP_REGION_TILE_SIZE)
+        return config.folders().mapRegionCacheDir()
+                .resolve("tile-" + config.mapView().tileSize())
                 .resolve(safeName(request.worldName()))
                 .resolve("r" + request.radius())
                 .resolve(request.centerX() + "_" + request.centerZ() + ".png");
@@ -1301,8 +1318,8 @@ public final class TerrascapeWebServer {
     }
 
     private void evictMapRegionMemoryCache() {
-        while ((mapRegionMemoryCache.size() > MAX_MAP_REGION_MEMORY_CACHE_ENTRIES
-                || mapRegionMemoryCacheBytes > MAX_MAP_REGION_MEMORY_CACHE_BYTES)
+        while ((mapRegionMemoryCache.size() > config.cache().memoryMapRegionEntries()
+                || mapRegionMemoryCacheBytes > config.cache().memoryMapRegionBytes())
                 && !mapRegionMemoryCache.isEmpty()) {
             Map.Entry<String, byte[]> eldest = mapRegionMemoryCache.entrySet().iterator().next();
             mapRegionMemoryCacheBytes -= eldest.getValue().length;
@@ -1370,8 +1387,8 @@ public final class TerrascapeWebServer {
                             return;
                         }
                         BufferedImage tile = new BufferedImage(
-                                MAP_REGION_TILE_SIZE,
-                                MAP_REGION_TILE_SIZE,
+                                config.mapView().tileSize(),
+                                config.mapView().tileSize(),
                                 BufferedImage.TYPE_INT_RGB);
                         drawMapRegionTile(tile, mapImage, 0, 0);
                         putMapTileMemoryCache(key, tile);
@@ -1386,8 +1403,8 @@ public final class TerrascapeWebServer {
         return future;
     }
 
-    private static String mapTileKey(@Nonnull String worldName, int chunkX, int chunkZ) {
-        return worldName + ":" + MAP_REGION_TILE_SIZE + ":" + chunkX + ":" + chunkZ;
+    private String mapTileKey(@Nonnull String worldName, int chunkX, int chunkZ) {
+        return worldName + ":" + config.mapView().tileSize() + ":" + chunkX + ":" + chunkZ;
     }
 
     @Nullable
@@ -1400,7 +1417,7 @@ public final class TerrascapeWebServer {
     private void putMapTileMemoryCache(@Nonnull String key, @Nonnull BufferedImage tile) {
         synchronized (mapTileMemoryCacheLock) {
             mapTileMemoryCache.put(key, tile);
-            while (mapTileMemoryCache.size() > MAX_MAP_TILE_MEMORY_CACHE_ENTRIES && !mapTileMemoryCache.isEmpty()) {
+            while (mapTileMemoryCache.size() > config.cache().memoryMapTileEntries() && !mapTileMemoryCache.isEmpty()) {
                 String eldest = mapTileMemoryCache.keySet().iterator().next();
                 mapTileMemoryCache.remove(eldest);
             }
@@ -1408,9 +1425,8 @@ public final class TerrascapeWebServer {
     }
 
     private Path terrainMapTilePath(@Nonnull String worldName, int chunkX, int chunkZ) {
-        return plugin.terrascapeDir()
-                .resolve("terrain")
-                .resolve(FORMAT_VERSION)
+        return config.folders().terrainCacheDir()
+                .resolve(config.mesh().terrainFormatVersion())
                 .resolve(safeName(worldName))
                 .resolve("map")
                 .resolve(chunkX + "_" + chunkZ + ".png");
@@ -1419,7 +1435,7 @@ public final class TerrascapeWebServer {
     private Path legacyMapTileOutputPath(@Nonnull String worldName, int chunkX, int chunkZ) {
         return plugin.terrascapeDir()
                 .resolve("map-tile")
-                .resolve("tile-" + MAP_REGION_TILE_SIZE)
+                .resolve("tile-" + config.mapView().tileSize())
                 .resolve(safeName(worldName))
                 .resolve(chunkX + "_" + chunkZ + ".png");
     }
@@ -1483,7 +1499,7 @@ public final class TerrascapeWebServer {
     }
 
     private DiskStats scanDiskCache() {
-        Path root = plugin.terrascapeDir().resolve("terrain").toAbsolutePath().normalize();
+        Path root = config.folders().terrainCacheDir().toAbsolutePath().normalize();
         if (!Files.exists(root)) {
             return DiskStats.empty();
         }
@@ -1551,7 +1567,7 @@ public final class TerrascapeWebServer {
         return new TerrainRequest(decode(parts[0]), chunkX, chunkZ, includeDetails, includeCosmetics, cosmeticsOnly, visualDetailMode);
     }
 
-    private static MapRegionRequest parseMapRegionRequest(@Nonnull String path) {
+    private MapRegionRequest parseMapRegionRequest(@Nonnull String path) {
         String prefix = "/api/mapregion/";
         if (!path.startsWith(prefix) || !path.endsWith(".png")) {
             return null;
@@ -1570,10 +1586,10 @@ public final class TerrascapeWebServer {
                 decode(parts[0]),
                 centerX,
                 centerZ,
-                Math.max(0, Math.min(MAX_MAP_REGION_RADIUS, radius)));
+                Math.max(0, Math.min(config.mapView().maxRegionRadius(), radius)));
     }
 
-    private static BatchTerrainRequest parseBatchTerrainRequest(@Nonnull String body) {
+    private static BatchTerrainRequest parseBatchTerrainRequest(@Nonnull String body, int maxBatchChunks) {
         String worldName = findString(WORLD_PATTERN, body, "world");
         List<ChunkCoord> chunks = new ArrayList<>();
         Matcher matcher = CHUNK_OBJECT_PATTERN.matcher(body);
@@ -1582,8 +1598,8 @@ public final class TerrascapeWebServer {
             if (!CHUNK_X_PATTERN.matcher(object).find() || !CHUNK_Z_PATTERN.matcher(object).find()) {
                 continue;
             }
-            if (chunks.size() >= MAX_BATCH_CHUNKS) {
-                throw new IllegalArgumentException("batch_too_large_max_" + MAX_BATCH_CHUNKS);
+            if (chunks.size() >= maxBatchChunks) {
+                throw new IllegalArgumentException("batch_too_large_max_" + maxBatchChunks);
             }
             chunks.add(new ChunkCoord(
                     findInt(CHUNK_X_PATTERN, object, "chunkX"),
@@ -1602,7 +1618,10 @@ public final class TerrascapeWebServer {
         return new BatchTerrainRequest(worldName, chunks, asset);
     }
 
-    private static World findWorld(@Nonnull String worldName) {
+    private World findWorld(@Nonnull String worldName) {
+        if (!config.worlds().allows(worldName)) {
+            return null;
+        }
         Universe universe = Universe.get();
         if (universe == null) {
             return null;
@@ -1650,13 +1669,12 @@ public final class TerrascapeWebServer {
     @Nullable
     private byte[] readOrFetchPlayerAvatar(@Nonnull String uuid, @Nullable String username, @Nullable String skinKey) {
         String cacheToken = safeName(uuid) + (skinKey == null || skinKey.isBlank() ? "" : "-" + safeName(skinKey));
-        Path cachePath = plugin.terrascapeDir()
-                .resolve("player-avatars")
+        Path cachePath = config.folders().playerAvatarsDir()
                 .resolve(cacheToken + ".png");
         try {
             if (Files.isRegularFile(cachePath)) {
                 long ageMs = System.currentTimeMillis() - Files.getLastModifiedTime(cachePath).toMillis();
-                if (ageMs <= PLAYER_AVATAR_CACHE_TTL_MS) {
+                if (ageMs <= config.entities().playerAvatarCacheTtl().toMillis()) {
                     return Files.readAllBytes(cachePath);
                 }
             }
@@ -1685,7 +1703,7 @@ public final class TerrascapeWebServer {
     @Nullable
     private byte[] fetchPlayerAvatar(@Nonnull String username) {
         String encodedName = URLEncoder.encode(username, StandardCharsets.UTF_8);
-        URI uri = URI.create(PLAYER_AVATAR_RENDER_BASE_URL + encodedName + "?size=" + PLAYER_AVATAR_SIZE);
+        URI uri = URI.create(PLAYER_AVATAR_RENDER_BASE_URL + encodedName + "?size=" + config.entities().playerAvatarSize());
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
                 .timeout(Duration.ofSeconds(8))
@@ -1694,7 +1712,7 @@ public final class TerrascapeWebServer {
         try {
             HttpResponse<byte[]> response = AVATAR_HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray());
             byte[] body = response.body();
-            if (response.statusCode() != 200 || body == null || body.length == 0 || body.length > MAX_PLAYER_AVATAR_BYTES) {
+            if (response.statusCode() != 200 || body == null || body.length == 0 || body.length > config.entities().maxPlayerAvatarBytes()) {
                 plugin.getLogger().at(Level.FINE).log("Player avatar fetch failed for " + username
                         + ": status=" + response.statusCode()
                         + " bytes=" + (body == null ? 0 : body.length));
@@ -1737,12 +1755,12 @@ public final class TerrascapeWebServer {
         }
         List<MobSnapshot> mobs = candidates.stream()
                 .sorted(Comparator.comparingDouble(MobCandidate::distanceSq))
-                .limit(MAX_MOB_SNAPSHOTS)
+                .limit(config.entities().maxMobSnapshots())
                 .map(MobCandidate::snapshot)
                 .toList();
         logMobScan(world, store, stats, mobs);
         logMobConnectSampleIfNeeded(world, playerPositions.size(), stats, mobs);
-        return new MobFeedSnapshot(mobs, stats, playerPositions.size(), MOB_RADAR_RADIUS);
+        return new MobFeedSnapshot(mobs, stats, playerPositions.size(), MOB_RADAR_RADIUS, config.entities().maxMobSnapshots());
     }
 
     private String snapshotEntitiesForStream(@Nonnull World world, boolean includePlayers, boolean includeMobs) {
@@ -1794,7 +1812,7 @@ public final class TerrascapeWebServer {
 
     @Nullable
     private byte[] readOrCacheGeneratedMobIcon(@Nonnull String fileName) {
-        Path cachePath = plugin.terrascapeDir().resolve("mob-icons").resolve(fileName);
+        Path cachePath = config.folders().mobIconsDir().resolve(fileName);
         try {
             if (Files.isRegularFile(cachePath)) {
                 return Files.readAllBytes(cachePath);
@@ -1826,6 +1844,9 @@ public final class TerrascapeWebServer {
             }
         }
 
+        if (!config.features().lazyMobIcons()) {
+            return null;
+        }
         Path zipPath = resolveAssetsZipPath();
         if (zipPath == null) {
             return null;
@@ -1866,14 +1887,11 @@ public final class TerrascapeWebServer {
             return cached;
         }
 
-        String explicit = firstNonBlank(
-                System.getProperty("hytale.assets_zip"),
-                System.getenv("HYTALE_ASSETS_ZIP"));
+        Path explicit = config.folders().assetsZip();
         if (explicit != null) {
-            Path explicitPath = Paths.get(explicit).toAbsolutePath().normalize();
-            if (Files.isRegularFile(explicitPath)) {
-                assetsZipPath = explicitPath;
-                return explicitPath;
+            if (Files.isRegularFile(explicit)) {
+                assetsZipPath = explicit;
+                return explicit;
             }
         }
 
@@ -1908,6 +1926,9 @@ public final class TerrascapeWebServer {
 
     private List<Path> assetSearchRoots() {
         LinkedHashSet<Path> roots = new LinkedHashSet<>();
+        if (config.folders().assetsRoot() != null) {
+            roots.add(config.folders().assetsRoot());
+        }
         addPathIfPresent(roots, System.getProperty("terrascape.assets_root"));
         addPathIfPresent(roots, System.getenv("SYNTH_TERRASCAPE_ASSETS_ROOT"));
         addPathIfPresent(roots, System.getProperty("hytale.assets_root"));
@@ -1927,9 +1948,9 @@ public final class TerrascapeWebServer {
         roots.add(Paths.get(value).toAbsolutePath().normalize());
     }
 
-    private static String entityFeedJson(@Nonnull World world,
-                                         @Nonnull List<PlayerSnapshot> players,
-                                         @Nonnull MobFeedSnapshot mobFeed) {
+    private String entityFeedJson(@Nonnull World world,
+                                  @Nonnull List<PlayerSnapshot> players,
+                                  @Nonnull MobFeedSnapshot mobFeed) {
         String playerJson = players.stream()
                 .map(PlayerSnapshot::toJson)
                 .collect(Collectors.joining(","));
@@ -1937,7 +1958,7 @@ public final class TerrascapeWebServer {
                 .map(MobSnapshot::toJson)
                 .collect(Collectors.joining(","));
         return "{\"ok\":true,\"world\":\"" + escapeJson(world.getName()) + "\""
-                + ",\"intervalMs\":" + ENTITY_STREAM_INTERVAL_MS
+                + ",\"intervalMs\":" + config.entities().streamInterval().toMillis()
                 + ",\"players\":[" + playerJson + "]"
                 + ",\"mobs\":[" + mobJson + "]"
                 + ",\"mobRadar\":" + Math.round(mobFeed.radar())
@@ -3176,6 +3197,19 @@ public final class TerrascapeWebServer {
         exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
     }
 
+    private boolean isAdminRequest(@Nonnull HttpExchange exchange) {
+        String expected = config.security().adminToken();
+        if (expected.isBlank()) {
+            return true;
+        }
+        String headerToken = exchange.getRequestHeaders().getFirst("X-Terrascape-Admin-Token");
+        if (expected.equals(headerToken)) {
+            return true;
+        }
+        String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+        return authorization != null && authorization.equals("Bearer " + expected);
+    }
+
     private static String escapeJson(@Nonnull String value) {
         return value.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
@@ -3235,8 +3269,8 @@ public final class TerrascapeWebServer {
     }
 
     private record MapRegionRequest(String worldName, int centerX, int centerZ, int radius) {
-        String key() {
-            return worldName + ":" + MAP_REGION_TILE_SIZE + ":" + centerX + ":" + centerZ + ":" + radius;
+        String key(int tileSize) {
+            return worldName + ":" + tileSize + ":" + centerX + ":" + centerZ + ":" + radius;
         }
     }
 
@@ -3468,9 +3502,9 @@ public final class TerrascapeWebServer {
         }
     }
 
-    private record MobFeedSnapshot(List<MobSnapshot> mobs, MobScanStats stats, int players, double radar) {
+    private record MobFeedSnapshot(List<MobSnapshot> mobs, MobScanStats stats, int players, double radar, int max) {
         static MobFeedSnapshot empty() {
-            return new MobFeedSnapshot(List.of(), new MobScanStats(), 0, MOB_RADAR_RADIUS);
+            return new MobFeedSnapshot(List.of(), new MobScanStats(), 0, MOB_RADAR_RADIUS, MAX_MOB_SNAPSHOTS);
         }
 
         String toJson(@Nonnull String worldName) {
@@ -3479,7 +3513,7 @@ public final class TerrascapeWebServer {
                     .collect(Collectors.joining(","));
             return "{\"ok\":true"
                     + ",\"world\":\"" + escapeJson(worldName) + "\""
-                    + ",\"max\":" + MAX_MOB_SNAPSHOTS
+                    + ",\"max\":" + max
                     + ",\"radar\":" + Math.round(radar)
                     + ",\"players\":" + players
                     + ",\"mobs\":[" + mobJson + "]"
@@ -3696,8 +3730,8 @@ public final class TerrascapeWebServer {
             return new TerrainResult(glb, columns, vertices, triangles, details, detailKeys, source);
         }
 
-        String metadataJson() {
-            return "{\"format\":\"" + FORMAT_VERSION + "\""
+        String metadataJson(@Nonnull String formatVersion) {
+            return "{\"format\":\"" + escapeJson(formatVersion) + "\""
                     + ",\"columns\":" + columns
                     + ",\"vertices\":" + vertices
                     + ",\"triangles\":" + triangles

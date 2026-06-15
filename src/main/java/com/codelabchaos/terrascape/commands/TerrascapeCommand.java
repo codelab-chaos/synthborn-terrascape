@@ -88,6 +88,9 @@ public class TerrascapeCommand extends AbstractWorldCommand {
             context.sendMessage(Message.raw("  http    : single " + metrics.singleRequests()
                     + ", batch " + metrics.batchRequests()).color(Color.WHITE));
         }
+        if (plugin.config() != null) {
+            context.sendMessage(Message.raw("  config  : " + plugin.config().configPath()).color(Color.WHITE));
+        }
     }
 
     private void handleSample(@Nonnull String[] args, @Nonnull CommandContext context, @Nonnull World world) {
@@ -133,8 +136,9 @@ public class TerrascapeCommand extends AbstractWorldCommand {
 
     private Path sampleOutputPath(@Nonnull String worldName, int chunkX, int chunkZ) {
         String safeWorld = worldName.replaceAll("[^A-Za-z0-9_.-]", "_");
-        return plugin.terrascapeDir()
-                .resolve("samples")
+        return (plugin.config() == null
+                ? plugin.terrascapeDir().resolve("samples")
+                : plugin.config().folders().samplesDir())
                 .resolve(safeWorld + "_" + chunkX + "_" + chunkZ + ".glb");
     }
 
@@ -143,8 +147,12 @@ public class TerrascapeCommand extends AbstractWorldCommand {
             TerrascapeWebServer.MemoryCacheStats memory = plugin.webServer() == null
                     ? new TerrascapeWebServer.MemoryCacheStats(0, 0)
                     : plugin.webServer().clearMemoryCache();
-            CacheDeleteStats terrain = deleteCacheDirectory("terrain");
-            CacheDeleteStats samples = deleteCacheDirectory("samples");
+            CacheDeleteStats terrain = deleteCacheDirectory(plugin.config() == null
+                    ? plugin.terrascapeDir().resolve("terrain")
+                    : plugin.config().folders().terrainCacheDir());
+            CacheDeleteStats samples = deleteCacheDirectory(plugin.config() == null
+                    ? plugin.terrascapeDir().resolve("samples")
+                    : plugin.config().folders().samplesDir());
             CacheDeleteStats total = terrain.plus(samples);
 
             context.sendMessage(Message.raw("=== SynthTerrascape clearcache ===").color(Color.CYAN));
@@ -162,9 +170,9 @@ public class TerrascapeCommand extends AbstractWorldCommand {
         }
     }
 
-    private CacheDeleteStats deleteCacheDirectory(@Nonnull String childName) throws IOException {
+    private CacheDeleteStats deleteCacheDirectory(@Nonnull Path targetPath) throws IOException {
         Path root = plugin.terrascapeDir().toAbsolutePath().normalize();
-        Path target = root.resolve(childName).normalize();
+        Path target = targetPath.toAbsolutePath().normalize();
         if (!target.startsWith(root)) {
             throw new IOException("Refusing to delete path outside plugin data directory: " + target);
         }
