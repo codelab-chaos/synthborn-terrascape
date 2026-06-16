@@ -1,4 +1,4 @@
-import { chunkId } from './utils.js';
+import { chunkId } from './utils.ts';
 
 export function chunkKeysForWorld(world: string, centerX: number, centerZ: number, radius: number) {
   const keys = [];

@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { logClientEvent } from './client-log.js';
-import { loadMapTilePng } from './library/map-tile-loader.js';
-import { makeMapTileCacheKey, readMapTileCache, writeMapTileCache } from './mesh-cache.js';
-import { MAP_BACKDROP_Y } from './water.js';
-import { chunkId } from './utils.js';
+import { logClientEvent } from '../platform/client-log.ts';
+import { loadMapTilePng } from './map-tile-loader.ts';
+import { makeMapTileCacheKey, readMapTileCache, writeMapTileCache } from '../platform/mesh-cache.ts';
+import { MAP_BACKDROP_Y } from '../scene/water.ts';
+import { chunkId } from '../common/utils.ts';
 
 const CHUNK_SIZE = 32;
 /** Map tiles extend this many chunks beyond the voxel terrain square on each side. */

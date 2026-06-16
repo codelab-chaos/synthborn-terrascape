@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { createMobBadge, updateMobBadge } from './mob-card.js';
-import { clamp } from './utils.js';
+import { createMobBadge, updateMobBadge } from './mob-card.ts';
+import { clamp } from '../common/utils.ts';
 
 const PLAYER_HEAD_TOP_Y = 2.8;
 const PLAYER_CARD_POINTER_MIN_LENGTH = 0.9;

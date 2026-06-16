@@ -1,4 +1,4 @@
-import { applyTriStateValue } from './tri-state-control.js';
+import { applyTriStateValue } from './tri-state-control.ts';
 
 type TriStateValuesById = Record<string, string[]>;
 
