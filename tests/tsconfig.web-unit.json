@@ -9,19 +9,21 @@
     "outDir": "../build/web-unit",
     "strict": false,
     "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     "esModuleInterop": true,
     "sourceMap": true
   },
   "include": [
     "web-unit.test.ts",
-    "../src/main/resources/web/src/chunk-planning.ts",
-    "../src/main/resources/web/src/entity-feed-policy.ts",
-    "../src/main/resources/web/src/map-layer-policy.ts",
-    "../src/main/resources/web/src/resource-stats.ts",
-    "../src/main/resources/web/src/app-state.ts",
-    "../src/main/resources/web/src/terrain-requests.ts",
-    "../src/main/resources/web/src/terrain-stream.ts",
-    "../src/main/resources/web/src/view-preferences.ts",
-    "../src/main/resources/web/src/entity-summary.ts"
+    "../src/main/resources/web/src/common/chunk-planning.ts",
+    "../src/main/resources/web/src/common/entity-feed-policy.ts",
+    "../src/main/resources/web/src/common/map-layer-policy.ts",
+    "../src/main/resources/web/src/common/resource-stats.ts",
+    "../src/main/resources/web/src/common/app-state.ts",
+    "../src/main/resources/web/src/common/terrain-requests.ts",
+    "../src/main/resources/web/src/common/terrain-stream.ts",
+    "../src/main/resources/web/src/common/view-preferences.ts",
+    "../src/main/resources/web/src/common/entity-summary.ts"
   ]
 }

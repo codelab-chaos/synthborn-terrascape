@@ -1,4 +1,4 @@
-import { logClientEvent } from './client-log.js';
+import { logClientEvent } from '../platform/client-log.ts';
 
 const HITCH_THRESHOLD_MS = 50;
 const SEVERE_HITCH_THRESHOLD_MS = 100;

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { chunkId } from './utils.js';
+import { chunkId } from '../common/utils.ts';
 
 const CHUNK_SIZE = 32;
 const PLACEHOLDER_BASE_Y = 96;

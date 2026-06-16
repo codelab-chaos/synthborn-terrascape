@@ -5,18 +5,18 @@ import {
   chunkDistanceSq,
   chunkKeysForWorld,
   sortChunkKeysByPlayerDistance,
-} from '../src/main/resources/web/src/chunk-planning.js';
-import { AppRuntimeState } from '../src/main/resources/web/src/app-state.js';
+} from '../src/main/resources/web/src/common/chunk-planning.ts';
+import { AppRuntimeState } from '../src/main/resources/web/src/common/app-state.ts';
 import {
   terrainCacheKeyFor,
   terrainCosmeticOverlayCacheKeyFor,
   terrainCosmeticOverlayUrlFor,
   terrainUrlFor,
-} from '../src/main/resources/web/src/terrain-requests.js';
+} from '../src/main/resources/web/src/common/terrain-requests.ts';
 import {
   createTerrainStreamStats,
   terrainStreamSnapshot,
-} from '../src/main/resources/web/src/terrain-stream.js';
+} from '../src/main/resources/web/src/common/terrain-stream.ts';
 import {
   floatControlValue,
   fogRangeFromControls,
@@ -24,13 +24,13 @@ import {
   radiusReadout,
   safeWaterMode,
   terrainTuningControlValue,
-} from '../src/main/resources/web/src/view-preferences.js';
+} from '../src/main/resources/web/src/common/view-preferences.ts';
 import {
   compactMobSourceStats,
   compactObject,
   nearestMobsForSample,
   summarizeItems,
-} from '../src/main/resources/web/src/entity-summary.js';
+} from '../src/main/resources/web/src/common/entity-summary.ts';
 import {
   liveMobFeedEnabled,
   mobPollDelayMs,
@@ -38,18 +38,18 @@ import {
   positiveIntegerMs,
   wantsEntityStream,
   worldTimePollDelayMs,
-} from '../src/main/resources/web/src/entity-feed-policy.js';
+} from '../src/main/resources/web/src/common/entity-feed-policy.ts';
 import {
   horizonMapKeys,
   mapBackdropCenterFrom,
   mapBackdropRetainStats,
   mapTileLayerKey,
   parseCenterId,
-} from '../src/main/resources/web/src/map-layer-policy.js';
+} from '../src/main/resources/web/src/common/map-layer-policy.ts';
 import {
   collectChunkResourceStats,
   disposeObjectTree,
-} from '../src/main/resources/web/src/resource-stats.js';
+} from '../src/main/resources/web/src/common/resource-stats.ts';
 
 test('normalizes view preference controls', () => {
   assert.equal(terrainTuningControlValue({ value: '99', min: '1', max: '12' }, 4), 12);

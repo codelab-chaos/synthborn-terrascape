@@ -1,9 +1,9 @@
 import {
   bindPairedControl,
   bindRadiusControl,
-} from './library/control-values.js';
-import { bindHudSectionCollapsibles } from './library/collapsible-section.js';
-import { bindTriStateControl } from './library/tri-state-control.js';
+} from '../library/control-values.ts';
+import { bindHudSectionCollapsibles } from '../library/collapsible-section.ts';
+import { bindTriStateControl } from '../library/tri-state-control.ts';
 import {
   chunkXInput,
   chunkZInput,
@@ -46,7 +46,7 @@ import {
   visualDetailModeInput,
   waterModeInput,
   worldSelect,
-} from './dom.js';
+} from './dom.ts';
 
 const MOVEMENT_KEY_CODES = new Set([
   'KeyW',

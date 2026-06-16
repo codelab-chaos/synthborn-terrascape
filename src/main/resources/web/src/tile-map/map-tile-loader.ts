@@ -1,4 +1,4 @@
-import { logClientTiming } from '../client-log.js';
+import { logClientTiming } from '../platform/client-log.ts';
 
 export async function loadMapTilePng(world, chunkX, chunkZ) {
   const url = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.map.png`;
