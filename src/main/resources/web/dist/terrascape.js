@@ -7601,7 +7601,7 @@ function formatBuildTime(iso) {
     return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function mountBuildBadge() {
-    const info = {"version":"0.1.0","channel":"early access","sha":"9e247af-dirty","time":"2026-06-19T03:19:01.552Z"};
+    const info = {"version":"0.1.0","channel":"early access","sha":"6777ecc-dirty","time":"2026-06-19T19:34:32.122Z"};
     const badge = document.createElement('div');
     badge.className = 'build-badge';
     badge.textContent = `v${info.version} [${info.channel}] · ${info.sha} · ${formatBuildTime(info.time)}`;
@@ -8250,6 +8250,115 @@ function maybeUpdateMetrics(force = false) {
 
 /***/ },
 
+/***/ "./src/main/resources/web/src/ui/server-controls.ts"
+/*!**********************************************************!*\
+  !*** ./src/main/resources/web/src/ui/server-controls.ts ***!
+  \**********************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   applyServerControls: () => (/* binding */ applyServerControls)
+/* harmony export */ });
+/* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/ui/dom.ts");
+/* harmony import */ var _control_readers_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./control-readers.js */ "./src/main/resources/web/src/ui/control-readers.ts");
+
+
+const numericOptions = (spec) => spec?.options?.filter((value) => Number.isFinite(value)) ?? [];
+// A disabled toggle is greyed out (kept visible) and forced off so it issues no requests.
+function applyToggle(input, enabled) {
+    if (!input || enabled === undefined)
+        return;
+    if (!enabled)
+        input.checked = false;
+    input.disabled = !enabled;
+}
+// Rebuilds a per-second rate dropdown from server options (values stored as ms, labelled /sec).
+function applyRateSelect(select, spec) {
+    if (!select || !spec)
+        return;
+    const options = numericOptions(spec).filter((value) => value > 0);
+    if (options.length) {
+        const previous = select.value;
+        const toMs = (perSecond) => String(Math.round(1000 / perSecond));
+        select.replaceChildren();
+        for (const perSecond of options) {
+            const option = document.createElement('option');
+            option.value = toMs(perSecond);
+            option.textContent = `${perSecond}/sec`;
+            select.append(option);
+        }
+        const allowed = options.map(toMs);
+        const fallback = spec.default != null ? toMs(spec.default) : allowed[0];
+        select.value = allowed.includes(previous) ? previous : fallback;
+    }
+    if (spec.enabled === false)
+        select.disabled = true;
+}
+// Applies a numeric control to its slider + number pair: options bound the range, out-of-range
+// values clamp in, and a disabled control greys out (kept visible) and snaps to the default.
+function applyRangeControl(rangeEl, numberEl, spec) {
+    if (!spec || !rangeEl || !numberEl)
+        return;
+    const options = numericOptions(spec);
+    const inputs = [rangeEl, numberEl];
+    if (options.length) {
+        const min = Math.min(...options);
+        const max = Math.max(...options);
+        const current = Number(numberEl.value);
+        const clamped = Math.min(max, Math.max(min, Number.isFinite(current) ? current : (spec.default ?? min)));
+        for (const input of inputs) {
+            input.min = String(min);
+            input.max = String(max);
+            input.value = String(clamped);
+        }
+    }
+    const disabled = spec.enabled === false;
+    for (const input of inputs)
+        input.disabled = disabled;
+    if (disabled && spec.default != null) {
+        for (const input of inputs)
+            input.value = String(spec.default);
+    }
+}
+// Stream radius uses the canonical radius setter so its readout stays in sync.
+function applyRadius(spec) {
+    if (!spec || !_dom_js__WEBPACK_IMPORTED_MODULE_0__.radiusInput)
+        return;
+    const options = numericOptions(spec);
+    if (options.length) {
+        const min = Math.min(...options);
+        const max = Math.max(...options);
+        _dom_js__WEBPACK_IMPORTED_MODULE_0__.radiusInput.min = String(min);
+        _dom_js__WEBPACK_IMPORTED_MODULE_0__.radiusInput.max = String(max);
+        const current = (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_1__.radiusValue)();
+        const target = Number.isFinite(current) ? current : (spec.default ?? min);
+        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_1__.setRadiusControlValue)(Math.min(max, Math.max(min, target)));
+    }
+    else if (spec.default != null) {
+        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_1__.setRadiusControlValue)(spec.default);
+    }
+    if (spec.enabled === false)
+        _dom_js__WEBPACK_IMPORTED_MODULE_0__.radiusInput.disabled = true;
+}
+function applyServerControls(controls) {
+    if (!controls)
+        return;
+    applyToggle(_dom_js__WEBPACK_IMPORTED_MODULE_0__.showMobsInput, controls.showMobs);
+    applyToggle(_dom_js__WEBPACK_IMPORTED_MODULE_0__.showPlayersInput, controls.showPlayers);
+    applyToggle(_dom_js__WEBPACK_IMPORTED_MODULE_0__.mapTilesInput, controls.mapTiles);
+    applyToggle(_dom_js__WEBPACK_IMPORTED_MODULE_0__.autoStreamInput, controls.autoStream);
+    applyRateSelect(_dom_js__WEBPACK_IMPORTED_MODULE_0__.mobUpdateRateInput, controls.mobUpdateRate);
+    applyRateSelect(_dom_js__WEBPACK_IMPORTED_MODULE_0__.playerUpdateRateInput, controls.playerUpdateRate);
+    applyRangeControl(_dom_js__WEBPACK_IMPORTED_MODULE_0__.terrainLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_0__.terrainLoadSlotsValueInput, controls.chunksLoadedAtOnce);
+    applyRangeControl(_dom_js__WEBPACK_IMPORTED_MODULE_0__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_0__.terrainSpawnFrameValueInput, controls.spawnPerFrame);
+    applyRangeControl(_dom_js__WEBPACK_IMPORTED_MODULE_0__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_0__.terrainSpawnBudgetValueInput, controls.spawnBudgetMs);
+    applyRadius(controls.streamRadius);
+}
+
+
+/***/ },
+
 /***/ "./src/main/resources/web/src/ui/time-ribbon.ts"
 /*!******************************************************!*\
   !*** ./src/main/resources/web/src/ui/time-ribbon.ts ***!
@@ -8691,6 +8800,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../scene/scene-context.js */ "./src/main/resources/web/src/scene/scene-context.ts");
 /* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/ui/dom.ts");
 /* harmony import */ var _view_persistence_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./view-persistence.js */ "./src/main/resources/web/src/ui/view-persistence.ts");
+/* harmony import */ var _server_controls_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./server-controls.js */ "./src/main/resources/web/src/ui/server-controls.ts");
+
 
 
 
@@ -8700,6 +8811,7 @@ async function loadWorlds() {
     const data = await response.json();
     _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_0__.runtime.experimentalDetailsEnabled = data.features?.experimentalDetails === true;
     _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_0__.runtime.terrainFormatVersion = data.features?.terrainFormatVersion ?? _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_0__.runtime.terrainFormatVersion;
+    (0,_server_controls_js__WEBPACK_IMPORTED_MODULE_3__.applyServerControls)(data.clientControls);
     _dom_js__WEBPACK_IMPORTED_MODULE_1__.worldSelect.replaceChildren();
     for (const world of data.worlds ?? []) {
         const option = document.createElement('option');
