@@ -1,0 +1,24 @@
+{
+  "showMobsEnabled": true,
+  "showPlayersEnabled": true,
+  "mapTilesEnabled": true,
+  "autoStreamEnabled": true,
+
+  "mobUpdateRateOptions": [0.1, 0.2, 0.5, 1],
+  "mobUpdateRateDefault": 0.2,
+
+  "playerUpdateRateOptions": [0.5, 1, 2, 4],
+  "playerUpdateRateDefault": 1,
+
+  "chunksLoadedAtOnceOptions": [1, 2, 4, 6, 8, 12],
+  "chunksLoadedAtOnceDefault": 4,
+
+  "spawnPerFrameOptions": [1, 2, 4, 8, 12],
+  "spawnPerFrameDefault": 2,
+
+  "spawnBudgetMsOptions": [2, 4, 8, 16, 24],
+  "spawnBudgetMsDefault": 4,
+
+  "streamRadiusOptions": [2, 4, 6, 8, 10, 12],
+  "streamRadiusDefault": 8
+}

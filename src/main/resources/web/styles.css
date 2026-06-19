@@ -2,6 +2,28 @@
   box-sizing: border-box;
 }
 
+.build-badge {
+  position: fixed;
+  right: 8px;
+  bottom: 6px;
+  z-index: 50;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgb(12 20 24 / 55%);
+  color: rgb(174 185 181 / 70%);
+  font: 500 15px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+}
+
+.build-badge:hover {
+  color: rgb(233 255 244 / 95%);
+  background: rgb(12 20 24 / 80%);
+}
+
 html,
 body {
   width: 100%;
@@ -60,7 +82,8 @@ body {
   display: grid;
 }
 
-.fps-readout {
+.fps-readout,
+.pos-readout {
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
@@ -68,7 +91,15 @@ body {
   white-space: nowrap;
 }
 
+.info-card-head .info-card-title {
+  margin-right: auto;
+}
+
 .fps-ms {
+  color: #aeb9b5;
+}
+
+.pos-readout #pos-value {
   color: #aeb9b5;
 }
 
@@ -107,6 +138,29 @@ body {
 .titlebar-toggle span {
   color: inherit;
   font-size: inherit;
+}
+
+.titlebar-rate {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+}
+
+.titlebar-rate select {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 7px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 5px;
+  background: rgb(24 33 37 / 78%);
+  color: #d3ddd9;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.titlebar-rate select:hover {
+  border-color: rgb(146 225 191 / 45%);
+  color: #e9fff4;
 }
 
 .panel-toggle {
@@ -271,6 +325,13 @@ body {
 .brand {
   color: #92e1bf;
   font-weight: 700;
+}
+
+.titlebar .brand {
+  color: #fff;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .hud-section {
@@ -547,11 +608,11 @@ button {
 .fog-panel-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
 }
 
-.fog-panel-head > span {
+.fog-panel-head .fog-enable-toggle > span {
   color: #aeb9b5;
   font-size: 12px;
   font-weight: 700;

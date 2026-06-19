@@ -159,8 +159,8 @@ async function runPerfRoute(page, scenario, mode) {
     radius,
     features,
   }));
-  await page.evaluate(() => window.__synthTerrascapeDebug.resetGridLoadCount());
-  await page.evaluate(() => window.__synthTerrascapeDebug.loadGrid({ focus: true }));
+  await page.evaluate(() => window.__terrascapeDebug.resetGridLoadCount());
+  await page.evaluate(() => window.__terrascapeDebug.loadGrid({ focus: true }));
   await waitForReady(page, { centerX, centerZ, radius, features, world });
   await logPerfEvent(page, 'perf_route_start', {
     scenarioId: scenario.id,
@@ -180,7 +180,7 @@ async function runPerfRoute(page, scenario, mode) {
     const skipGridReload = steps === 0 && step.label === 'center';
     if (!skipGridReload) {
       await page.evaluate(({ x, z }) => {
-        return window.__synthTerrascapeDebug.loadGrid({ centerX: x, centerZ: z });
+        return window.__terrascapeDebug.loadGrid({ centerX: x, centerZ: z });
       }, { x: step.x, z: step.z });
       await waitForReady(page, { centerX: step.x, centerZ: step.z, radius, features, world });
     }
@@ -363,10 +363,10 @@ async function injectEspLoad(page, esp, centerX, centerZ) {
       }
     }
     if (players.length > 0) {
-      window.__synthTerrascapeDebug.updatePlayersForTest(players);
+      window.__terrascapeDebug.updatePlayersForTest(players);
     }
     if (mobs.length > 0) {
-      window.__synthTerrascapeDebug.scheduleMobsForTest?.(mobs);
+      window.__terrascapeDebug.scheduleMobsForTest?.(mobs);
     }
   }, {
     players,
@@ -376,7 +376,7 @@ async function injectEspLoad(page, esp, centerX, centerZ) {
   });
   if (mobCount > 0) {
     await expect.poll(async () => {
-      return page.evaluate(() => window.__synthTerrascapeDebug.mobMarkers.size);
+      return page.evaluate(() => window.__terrascapeDebug.mobMarkers.size);
     }, { timeout: 15_000 }).toBe(mobCount);
   }
   await page.waitForTimeout(400);
@@ -410,7 +410,7 @@ async function focusFlyCanvas(page, alreadyFocused) {
 
 async function setAutoStream(page, enabled) {
   await page.evaluate((value) => {
-    window.__synthTerrascapeDebug.setAutoStream(value);
+    window.__terrascapeDebug.setAutoStream(value);
   }, enabled);
 }
 
@@ -424,19 +424,19 @@ async function runFlyLeg(page, { direction, flyChunks, flySprint, flySampleMs, r
   const holdMs = flyHoldMs(flyChunks, flySprint);
   const started = Date.now();
   const before = await page.evaluate(() => ({
-    camera: window.__synthTerrascapeDebug.cameraPose().camera,
-    chunk: window.__synthTerrascapeDebug.streamAnchorChunk(),
+    camera: window.__terrascapeDebug.cameraPose().camera,
+    chunk: window.__terrascapeDebug.streamAnchorChunk(),
   }));
 
   await page.evaluate(({ dx, dz }) => {
-    const pose = window.__synthTerrascapeDebug.cameraPose().camera;
+    const pose = window.__terrascapeDebug.cameraPose().camera;
     const y = pose.y;
-    window.__synthTerrascapeDebug.setCameraPose({
+    window.__terrascapeDebug.setCameraPose({
       camera: { x: pose.x, y, z: pose.z },
       target: { x: pose.x + dx * 64, y, z: pose.z + dz * 64 },
     });
   }, { dx: direction.dx, dz: direction.dz });
-  await page.evaluate(() => window.__synthTerrascapeDebug.resetJankStats());
+  await page.evaluate(() => window.__terrascapeDebug.resetJankStats());
 
   const fpsSamples = [];
   if (flySprint) await page.keyboard.down('Shift');
@@ -445,8 +445,8 @@ async function runFlyLeg(page, { direction, flyChunks, flySprint, flySampleMs, r
   while (Date.now() < endAt) {
     await page.waitForTimeout(flySampleMs);
     fpsSamples.push(await page.evaluate(() => ({
-      fps: Math.round(window.__synthTerrascapeDebug.fpsCounter?.fps ?? 0),
-      frameMs: window.__synthTerrascapeDebug.fpsCounter?.frameMs ?? 0,
+      fps: Math.round(window.__terrascapeDebug.fpsCounter?.fps ?? 0),
+      frameMs: window.__terrascapeDebug.fpsCounter?.frameMs ?? 0,
     })));
   }
   await page.keyboard.up(direction.key);
@@ -455,12 +455,12 @@ async function runFlyLeg(page, { direction, flyChunks, flySprint, flySampleMs, r
   await waitForCameraChunkReady(page, { radius, features });
 
   const after = await page.evaluate(() => ({
-    camera: window.__synthTerrascapeDebug.cameraPose().camera,
-    chunk: window.__synthTerrascapeDebug.streamAnchorChunk(),
-    perf: window.__synthTerrascapeDebug.lastPerfTimings(),
-    mapBackdrop: window.__synthTerrascapeDebug.mapBackdropStats(),
-    jank: window.__synthTerrascapeDebug.jankStats(),
-    chunkPlaceholders: window.__synthTerrascapeDebug.chunkPlaceholderWaiting(),
+    camera: window.__terrascapeDebug.cameraPose().camera,
+    chunk: window.__terrascapeDebug.streamAnchorChunk(),
+    perf: window.__terrascapeDebug.lastPerfTimings(),
+    mapBackdrop: window.__terrascapeDebug.mapBackdropStats(),
+    jank: window.__terrascapeDebug.jankStats(),
+    chunkPlaceholders: window.__terrascapeDebug.chunkPlaceholderWaiting(),
   }));
   const distance = Math.hypot(
     after.camera.x - before.camera.x,
@@ -497,7 +497,7 @@ function sumFinite(values) {
 
 async function waitForCameraChunkReady(page, { radius, features }) {
   await page.waitForTimeout(350);
-  const chunk = await page.evaluate(() => window.__synthTerrascapeDebug.streamAnchorChunk());
+  const chunk = await page.evaluate(() => window.__terrascapeDebug.streamAnchorChunk());
   await waitForReady(page, {
     centerX: chunk.chunkX,
     centerZ: chunk.chunkZ,
@@ -517,7 +517,7 @@ async function waitForReady(page, { centerX, centerZ, radius, features, world = 
     for (let dx = -radius; dx <= radius; dx++) {
       for (let dz = -radius; dz <= radius; dz++) {
         const id = `${world}:${centerX + dx}:${centerZ + dz}`;
-        if (window.__synthTerrascapeDebug.loadedChunks.has(id)) count++;
+        if (window.__terrascapeDebug.loadedChunks.has(id)) count++;
       }
     }
     return count;
@@ -526,7 +526,7 @@ async function waitForReady(page, { centerX, centerZ, radius, features, world = 
   }).toBe(expectedChunks);
 
   if (features.mapTiles !== false) {
-    await expect.poll(async () => page.evaluate(() => window.__synthTerrascapeDebug.mapBackdropStats().loaded), {
+    await expect.poll(async () => page.evaluate(() => window.__terrascapeDebug.mapBackdropStats().loaded), {
       timeout: 90_000,
     }).toBe(1);
   }
@@ -534,7 +534,7 @@ async function waitForReady(page, { centerX, centerZ, radius, features, world = 
 
 async function collectStats(page, centerX, centerZ, radius, features, esp) {
   return await page.evaluate(({ centerX, centerZ, radius, features, esp }) => {
-    const debug = window.__synthTerrascapeDebug;
+    const debug = window.__terrascapeDebug;
     const mapBackdrop = debug.mapBackdropStats();
     const counter = debug.fpsCounter;
     const gpuText = document.querySelector('#metric-gpu')?.textContent ?? '';
