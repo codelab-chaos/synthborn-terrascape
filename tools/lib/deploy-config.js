@@ -14,7 +14,7 @@ const overseer = {
     { local: "overseer-config.json", remote: "synthoverseer/overseer-config.json", optional: true },
   ],
 };
-const terrascape = artifact("synthborn-terrascape", "SynthTerrascape");
+const terrascape = artifact("synthborn-terrascape", "Terrascape");
 
 function artifact(repoName, jarBaseName) {
   return {
@@ -35,7 +35,7 @@ module.exports = {
       rconPort: 25578,
       minRamGB: 2,
       maxRamGB: 6,
-      verifyPattern: "SynthTerrascape started",
+      verifyPattern: "Terrascape started",
       artifacts: [rcon, terrascape],
     },
     combined: {
@@ -48,7 +48,7 @@ module.exports = {
       verifyPattern: [
         "SynthUnits setup complete",
         "SynthOverseer setup complete",
-        "SynthTerrascape started",
+        "Terrascape started",
       ],
       artifacts: [rcon, kyn, overseer, terrascape],
     },

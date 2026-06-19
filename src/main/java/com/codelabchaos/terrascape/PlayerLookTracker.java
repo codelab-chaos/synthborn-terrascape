@@ -25,11 +25,11 @@ import java.util.logging.Level;
 public final class PlayerLookTracker {
     private static final long FRESH_MS = 5 * 60_000L;
 
-    private final SynthTerrascapePlugin plugin;
+    private final TerrascapePlugin plugin;
     private final Map<UUID, Look> latest = new ConcurrentHashMap<>();
     private PacketFilter inboundFilter;
 
-    public PlayerLookTracker(@Nonnull SynthTerrascapePlugin plugin) {
+    public PlayerLookTracker(@Nonnull TerrascapePlugin plugin) {
         this.plugin = plugin;
     }
 

@@ -1,7 +1,31 @@
 const path = require('path');
+const webpack = require('webpack');
+const { execSync } = require('child_process');
+const manifest = require('./src/main/resources/manifest.json');
 
 const webRoot = path.resolve(__dirname, 'src/main/resources/web');
 const webSrc = path.join(webRoot, 'src');
+
+function gitDescribe() {
+  try {
+    const sha = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+    const dirty = execSync('git status --porcelain', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim().length > 0;
+    return dirty ? `${sha}-dirty` : sha;
+  } catch {
+    return 'unknown';
+  }
+}
+
+const buildInfo = {
+  version: manifest.Version,
+  channel: 'early access',
+  sha: gitDescribe(),
+  time: new Date().toISOString(),
+};
 
 module.exports = {
   mode: 'development',
@@ -54,4 +78,9 @@ module.exports = {
     runtimeChunk: false,
     splitChunks: false,
   },
+  plugins: [
+    new webpack.DefinePlugin({
+      __BUILD_INFO__: JSON.stringify(buildInfo),
+    }),
+  ],
 };
