@@ -1,4 +1,4 @@
-# SynthTerrascape Permissions
+# Synthborn: Terrascape Permissions
 
 ## In-Game Commands
 

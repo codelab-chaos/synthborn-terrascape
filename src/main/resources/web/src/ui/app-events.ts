@@ -28,6 +28,7 @@ import {
   mobBlocksPanelInput,
   panelToggle,
   playerUpdateRateInput,
+  mobUpdateRateInput,
   radiusInput,
   radiusRangeInput,
   shadeDarknessInput,
@@ -123,7 +124,7 @@ export function bindAppEvents(bindings: AppEventBindings) {
   window.addEventListener('terrascape:map-backdrop-loaded', bindings.applyMapWaterTint);
 
   bindHudInputs(bindings);
-  bindTriStateControls();
+  bindTriStateControls(bindings.saveViewState);
 }
 
 function bindHudInputs(bindings: AppEventBindings) {
@@ -161,6 +162,10 @@ function bindHudInputs(bindings: AppEventBindings) {
   });
   playerUpdateRateInput.addEventListener('change', () => {
     bindings.restartPlayerPolling();
+    bindings.saveViewState();
+  });
+  mobUpdateRateInput.addEventListener('change', () => {
+    bindings.restartMobPolling();
     bindings.saveViewState();
   });
   for (const input of [treeShadeInput]) {
@@ -228,6 +233,7 @@ function bindHudInputs(bindings: AppEventBindings) {
   }
   panelToggle.addEventListener('click', () => {
     setSettingsPanelOpen(!hudEl.classList.contains('open'));
+    bindings.saveViewState();
   });
   infoCardHeadEl.addEventListener('click', bindings.toggleRenderDetails);
   infoCardHeadEl.addEventListener('keydown', (event) => {
@@ -237,8 +243,8 @@ function bindHudInputs(bindings: AppEventBindings) {
   });
 }
 
-function bindTriStateControls() {
-  bindHudSectionCollapsibles(document);
+function bindTriStateControls(onSectionToggle?: () => void) {
+  bindHudSectionCollapsibles(document, onSectionToggle);
   bindTriStateControl(document, 'cosmetic-blocks-mode', [
     { value: 'off', label: 'Off' },
     { value: 'baked', label: 'Baked' },
@@ -259,6 +265,7 @@ function handleKeyDown(event: KeyboardEvent, bindings: AppEventBindings) {
     event.preventDefault();
     blurFocusedHudControl();
     setSettingsPanelOpen(false);
+    bindings.saveViewState();
     return;
   }
   if (isTypingInHud()) return;
@@ -268,7 +275,7 @@ function handleKeyDown(event: KeyboardEvent, bindings: AppEventBindings) {
   }
 }
 
-function setSettingsPanelOpen(open: boolean) {
+export function setSettingsPanelOpen(open: boolean) {
   hudEl.classList.toggle('open', open);
   panelToggle.classList.toggle('active', open);
   panelToggle.setAttribute('aria-expanded', String(open));

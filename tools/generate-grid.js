@@ -24,7 +24,7 @@ async function main() {
   const results = [];
   let cursor = 0;
 
-  console.log('SynthTerrascape terrain grid scale test');
+  console.log('Terrascape terrain grid scale test');
   console.log(`  url        : ${baseUrl}`);
   console.log(`  world      : ${world}`);
   console.log(`  center     : ${centerX}, ${centerZ}`);

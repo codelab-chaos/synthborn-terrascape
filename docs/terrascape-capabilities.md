@@ -1,8 +1,8 @@
-# SynthTerrascape Capabilities
+# Synthborn: Terrascape Capabilities
 
 ## Purpose
 
-This is the yes/no inventory of capabilities SynthTerrascape needs or has confirmed.
+This is the yes/no inventory of capabilities Terrascape needs or has confirmed.
 
 Write capabilities from the player or operator perspective: what they can visibly do
 with the 3D world view, what the server can safely expose, or what validation proves.
@@ -145,7 +145,7 @@ slots from static data while live position data continues to come from the entit
 
 ### [x] Operator Can Start A Local Terrascape Web Server
 
-Validated on `synth-worldview-mvp`: SynthTerrascape starts a local HTTP server at
+Validated on `synth-worldview-mvp`: Terrascape starts a local HTTP server at
 `http://127.0.0.1:5960`, serves the browser app, and exposes `/api/worlds` plus
 `/api/terrain/{world}/{lod}/{chunkX}/{chunkZ}.glb`.
 
@@ -356,14 +356,14 @@ reported snapshot, mesh, GLB byte size, and output path.
 
 The `/terrascape clearcache` admin command clears generated terrain GLBs and sample GLBs
 from the plugin data directory, then reports deleted file count, directory count, and
-bytes. The command only deletes known SynthTerrascape cache folders under the plugin data
+bytes. The command only deletes known Terrascape cache folders under the plugin data
 directory.
 
 ### [x] Terrascape Generates A GLB For One Real Chunk
 
 Validated with chunk `0,0` in world `default`: `1024/1024` non-empty columns, height
 range `107..144`, `7732` vertices, `3866` triangles, and a `325772` byte GLB written to
-`mods\com.codelabchaos_SynthTerrascape\samples\default_0_0.glb`.
+`mods\com.codelabchaos_Terrascape\samples\default_0_0.glb`.
 
 Current caveat: this first pass samples through the runtime chunk APIs and does not yet
 guard against unexplored chunks by index.

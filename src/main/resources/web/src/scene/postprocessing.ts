@@ -6,7 +6,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 const DEFAULT_FOG_COLOR = new THREE.Color(0xd9f3f2);
 
 const DEPTH_FOG_SHADER = {
-  name: 'SynthTerrascapeDepthFog',
+  name: 'TerrascapeDepthFog',
   uniforms: {
     tDiffuse: { value: null },
     tDepth: { value: null },
@@ -69,10 +69,10 @@ export function createPostProcessing(renderer, scene, camera) {
   const fogPass = new ShaderPass(DEPTH_FOG_SHADER);
   composer.addPass(renderPass);
   composer.addPass(fogPass);
-  fogPass.enabled = true;
+  fogPass.enabled = false;
   setDepthTextureUniform(composer, fogPass);
   updateCameraUniforms(fogPass, camera);
-  return { composer, fogPass, renderPass, enabled: true };
+  return { composer, fogPass, renderPass, enabled: false };
 }
 
 export function setFogOptions(post, options = {}) {

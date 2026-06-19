@@ -1,13 +1,13 @@
-# SynthTerrascape Sprint Board
+# Synthborn: Terrascape Sprint Board
 
-This file is the living backlog for SynthTerrascape. It is driven by
+This file is the living backlog for Terrascape. It is driven by
 `terrascape-capabilities.md`, which is the capability inventory. If a capability is not
 confirmed as implemented, this board should break it into stories, track status, and
 record validation outcomes.
 
-Design reference: `../../docs/terrascape-design.md`
+Design reference: `terrascape-design.md`
 
-Research reference: `../../docs/easywebmap-technical-notes.md`
+Research reference: `easywebmap-technical-notes.md`
 
 ## Status Legend
 
@@ -52,26 +52,26 @@ for browser setup, but MVP closure requires real `WorldChunk`-derived data.
 
 ### Epic 1: Mod Shell And Web Server
 
-Goal: create the minimal SynthTerrascape mod shell and serve a browser app.
+Goal: create the minimal Terrascape mod shell and serve a browser app.
 
-#### Story 1.1 - Create SynthTerrascape Plugin Skeleton
+#### Story 1.1 - Create Terrascape Plugin Skeleton
 
 Status: Closed
 
 Acceptance:
 
-- Gradle/Maven build exists for `mods/SynthWorldview`.
+- Gradle/Maven build exists for `mods/com.codelabchaos_Terrascape`.
 - Plugin manifest loads in Hytale.
-- Startup and shutdown log clear `SynthTerrascape` messages.
+- Startup and shutdown log clear `Terrascape` messages.
 - Plugin data directory is created.
 
 Validation:
 
 - `.\gradlew.bat build` succeeds.
-- `synth-worldview-mvp` boot log shows `SynthTerrascape setup complete`,
-  `SynthTerrascape started`, and `Enabled plugin com.codelabchaos:SynthTerrascape`.
-- Live MVP server has repeatedly booted with `SynthTerrascape listening on
-  http://127.0.0.1:5960` and `Enabled plugin com.codelabchaos:SynthTerrascape`.
+- `synth-worldview-mvp` boot log shows `Terrascape setup complete`,
+  `Terrascape started`, and `Enabled plugin com.codelabchaos:Terrascape`.
+- Live MVP server has repeatedly booted with `Terrascape listening on
+  http://127.0.0.1:5960` and `Enabled plugin com.codelabchaos:Terrascape`.
 
 #### Story 1.2 - Add Config Loader
 
@@ -102,7 +102,7 @@ Acceptance:
 
 Validation:
 
-- Server boot log shows `SynthTerrascape listening on http://127.0.0.1:5960`.
+- Server boot log shows `Terrascape listening on http://127.0.0.1:5960`.
 - `GET /` serves `index.html`.
 - `GET /api/worlds` returns `{"ok":true,"worlds":[{"name":"default"}]}`.
 - Server restart releases and reacquires port `5960`.
@@ -297,9 +297,9 @@ Acceptance:
 Validation:
 
 - Sample command writes GLB files under
-  `mods\com.codelabchaos_SynthTerrascape\samples`.
+  `mods\com.codelabchaos_Terrascape\samples`.
 - HTTP terrain requests write GLBs under
-  `mods\com.codelabchaos_SynthTerrascape\terrain\<world>\lod-<lod>`.
+  `mods\com.codelabchaos_Terrascape\terrain\<world>\lod-<lod>`.
 - Scale-test baseline after radius `1`, `2`, `3`, and `5` runs: `218` cached GLBs,
   `67,233,924` bytes total.
 - `/terrascape clearcache` deletes current disk artifacts for `terrain` and `samples`.

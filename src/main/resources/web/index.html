@@ -41,6 +41,14 @@
         <input id="mob-blocks" type="checkbox" checked>
         <span>Mob Blocks</span>
       </label>
+      <label class="titlebar-rate" title="How often mobs refresh (updates per second)">
+        <select id="mob-update-rate" aria-label="Mob update frequency">
+          <option value="10000">0.1/sec</option>
+          <option value="5000" selected>0.2/sec</option>
+          <option value="2000">0.5/sec</option>
+          <option value="1000">1/sec</option>
+        </select>
+      </label>
       <button id="panel-toggle" class="panel-toggle" type="button" aria-label="Toggle controls" aria-expanded="false">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="3"></circle>
@@ -116,8 +124,22 @@
           <span>Land motion</span>
         </label>
       </div>
-      <label class="paired-control" title="Maximum terrain chunks fetched and parsed at the same time">
-        <span>Voxel Load Slots</span>
+      <label class="paired-control">
+        <span>Shade Size</span>
+        <div class="range-number">
+          <input id="shade-size" type="range" min="0.5" max="2.2" step="0.05" value="1.85">
+          <input id="shade-size-value" type="number" min="0.5" max="2.2" step="0.05" value="1.85">
+        </div>
+      </label>
+      <label class="paired-control">
+        <span>Shade Dark</span>
+        <div class="range-number">
+          <input id="shade-darkness" type="range" min="0.15" max="1" step="0.01" value="0.4">
+          <input id="shade-darkness-value" type="number" min="0.15" max="1" step="0.01" value="0.4">
+        </div>
+      </label>
+      <label class="paired-control" title="How many terrain pieces download and build in parallel — higher fills the world faster but can stutter">
+        <span>Chunks Loaded at Once</span>
         <div class="range-number">
           <input id="terrain-load-slots" type="range" min="1" max="12" step="1" value="4">
           <input id="terrain-load-slots-value" type="number" min="1" max="12" step="1" value="4">
@@ -163,20 +185,6 @@
           <input id="terrain-spawn-budget-value" type="number" min="1" max="24" step="1" value="4">
         </div>
       </label>
-      <label class="paired-control">
-        <span>Shade Size</span>
-        <div class="range-number">
-          <input id="shade-size" type="range" min="0.5" max="2.2" step="0.05" value="1.85">
-          <input id="shade-size-value" type="number" min="0.5" max="2.2" step="0.05" value="1.85">
-        </div>
-      </label>
-      <label class="paired-control">
-        <span>Shade Dark</span>
-        <div class="range-number">
-          <input id="shade-darkness" type="range" min="0.15" max="1" step="0.01" value="0.4">
-          <input id="shade-darkness-value" type="number" min="0.15" max="1" step="0.01" value="0.4">
-        </div>
-      </label>
       <label>
         <span>Water</span>
         <select id="water-mode">
@@ -187,10 +195,9 @@
       </label>
       <div class="fog-panel">
         <div class="fog-panel-head">
-          <span>Fog</span>
           <label class="toggle fog-enable-toggle">
-            <input id="fog-enabled" type="checkbox" checked>
-            <span>Distance</span>
+            <input id="fog-enabled" type="checkbox">
+            <span>Fog Distance</span>
           </label>
         </div>
         <div class="fog-sliders-row">
@@ -230,13 +237,13 @@
     </form>
   </dialog>
   <aside class="players-panel">
-    <label class="player-rate-control">
-      <span>Update</span>
+    <label class="player-rate-control" title="How often the player list refreshes (updates per second)">
+      <span>Update Freq:</span>
       <select id="player-update-rate">
-        <option value="2000">0.5 Hz</option>
-        <option value="1000" selected>1 Hz</option>
-        <option value="500">2 Hz</option>
-        <option value="250">4 Hz</option>
+        <option value="2000">0.5/sec</option>
+        <option value="1000" selected>1/sec</option>
+        <option value="500">2/sec</option>
+        <option value="250">4/sec</option>
       </select>
     </label>
     <div id="players" class="players">No players</div>
@@ -244,6 +251,10 @@
   <div class="info-card">
     <div id="info-card-head" class="info-card-head" role="button" tabindex="0" aria-expanded="true">
       <span class="info-card-title">Render Details</span>
+      <span class="pos-readout" aria-label="Camera position">
+        <span class="pos-label">POS</span>
+        <span id="pos-value">[0, 0, 0]</span>
+      </span>
       <span class="fps-readout" aria-label="Frames per second">
         <span class="fps-label">FPS</span>
         <span id="fps-value">0</span>

@@ -14,7 +14,7 @@ Options:
   --rx <n>           Horizontal X radius (default 10)
   --ry <n>           Vertical radius (default 5)
   --rz <n>           Horizontal Z radius (default 10)
-  --url <base>       Terrascape HTTP base (default: WORLDVIEW_URL, SYNTH_TERRASCAPE_URL, or localhost:5960)
+  --url <base>       Terrascape HTTP base (default: WORLDVIEW_URL, TERRASCAPE_URL, or localhost:5960)
   --out <file>       Write JSON response to file
   --summary-only     Print block summary only
   --help, -h         Show this help
@@ -146,7 +146,7 @@ async function main() {
 
 function resolveTerrascapeUrl() {
   return process.env.WORLDVIEW_URL
-    || process.env.SYNTH_TERRASCAPE_URL
+    || process.env.TERRASCAPE_URL
     || "http://127.0.0.1:5960";
 }
 

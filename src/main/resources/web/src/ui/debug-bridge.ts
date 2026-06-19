@@ -106,7 +106,7 @@ function waterMaterialSummary() {
 }
 
 export function exposeDebugState() {
-  window.__synthTerrascapeDebug = {
+  window.__terrascapeDebug = {
     fpsCounter,
     loadedChunks,
     playerMarkers,

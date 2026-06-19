@@ -1,6 +1,6 @@
 package com.codelabchaos.terrascape.web;
 
-import com.codelabchaos.terrascape.SynthTerrascapePlugin;
+import com.codelabchaos.terrascape.TerrascapePlugin;
 import com.codelabchaos.terrascape.PlayerLookTracker;
 import com.codelabchaos.terrascape.config.TerrascapeConfig;
 import com.codelabchaos.terrascape.terrain.GltfWriter;
@@ -136,7 +136,7 @@ public final class TerrascapeWebServer {
             .connectTimeout(Duration.ofSeconds(4))
             .build();
 
-    private final SynthTerrascapePlugin plugin;
+    private final TerrascapePlugin plugin;
     private final TerrascapeConfig config;
     private final String host;
     private final int port;
@@ -144,12 +144,12 @@ public final class TerrascapeWebServer {
     private final NpcRoleIndex npcRoleIndex;
     private final HttpServer server;
     private final ExecutorService staticHttpExecutor = Executors.newFixedThreadPool(STATIC_HTTP_THREADS, runnable -> {
-        Thread thread = new Thread(runnable, "SynthTerrascape-http-static");
+        Thread thread = new Thread(runnable, "Terrascape-http-static");
         thread.setDaemon(true);
         return thread;
     });
     private final ExecutorService apiHttpExecutor = Executors.newFixedThreadPool(API_HTTP_THREADS, runnable -> {
-        Thread thread = new Thread(runnable, "SynthTerrascape-http-api");
+        Thread thread = new Thread(runnable, "Terrascape-http-api");
         thread.setDaemon(true);
         return thread;
     });
@@ -178,7 +178,7 @@ public final class TerrascapeWebServer {
     private volatile Path assetsZipPath;
 
     public TerrascapeWebServer(
-            @Nonnull SynthTerrascapePlugin plugin,
+            @Nonnull TerrascapePlugin plugin,
             @Nonnull TerrascapeConfig config,
             @Nonnull NpcRoleIndex npcRoleIndex
     ) throws IOException {
@@ -207,7 +207,7 @@ public final class TerrascapeWebServer {
 
     public void start() {
         server.start();
-        plugin.getLogger().at(Level.INFO).log("SynthTerrascape listening on http://" + host + ":" + port);
+        plugin.getLogger().at(Level.INFO).log("Terrascape listening on http://" + host + ":" + port);
     }
 
     public void stop() {
@@ -1642,9 +1642,9 @@ public final class TerrascapeWebServer {
                 }
                 Vector3d position = transform.getPosition();
                 Rotation3f transformRotation = transform.getRotation();
-                PlayerLookTracker tracker = SynthTerrascapePlugin.get() == null
+                PlayerLookTracker tracker = TerrascapePlugin.get() == null
                         ? null
-                        : SynthTerrascapePlugin.get().playerLookTracker();
+                        : TerrascapePlugin.get().playerLookTracker();
                 PlayerLookTracker.Snapshot look = tracker == null
                         ? null
                         : tracker.snapshot(playerRef, transformRotation);
@@ -1930,7 +1930,7 @@ public final class TerrascapeWebServer {
             roots.add(config.folders().assetsRoot());
         }
         addPathIfPresent(roots, System.getProperty("terrascape.assets_root"));
-        addPathIfPresent(roots, System.getenv("SYNTH_TERRASCAPE_ASSETS_ROOT"));
+        addPathIfPresent(roots, System.getenv("TERRASCAPE_ASSETS_ROOT"));
         addPathIfPresent(roots, System.getProperty("hytale.assets_root"));
         addPathIfPresent(roots, System.getenv("HYTALE_ASSETS_ROOT"));
         addPathIfPresent(roots, System.getenv("VSCODE_CWD"));

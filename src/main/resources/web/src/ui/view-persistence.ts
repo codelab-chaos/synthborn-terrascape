@@ -24,6 +24,8 @@ import {
   TRI_STATE_VALUES_BY_ID,
 } from './control-readers.ts';
 import { applyLighting, fogControlRange } from '../scene/lighting-controls.ts';
+import { applyCollapsedSectionState, collapsedSectionState } from '../library/collapsible-section.ts';
+import { setSettingsPanelOpen } from './app-events.ts';
 import { playerChunk } from '../camera/camera-director.ts';
 import { syncFlyLookFromCamera } from '../camera/fly-camera.ts';
 import { updateEntityVisibility } from '../entities/entity-feed.ts';
@@ -42,6 +44,7 @@ import {
   fogNearValueInput,
   fogStrengthInput,
   fogStrengthValueInput,
+  hudEl,
   infoCardEl,
   infoCardHeadEl,
   landMotionInput,
@@ -49,6 +52,7 @@ import {
   mapTimeInput,
   mobBlocksInput,
   playerUpdateRateInput,
+  mobUpdateRateInput,
   radiusInput,
   shadeDarknessInput,
   shadeDarknessValueInput,
@@ -114,6 +118,7 @@ export function applyInitialParams() {
   applyFloatParam('fogStrength', fogStrengthInput, fogStrengthValueInput);
   applyFloatParam('fogHorizon', fogHorizonInput, fogHorizonValueInput);
   applySelectParam('playerRate', playerUpdateRateInput);
+  applySelectParam('mobRate', mobUpdateRateInput);
   applyLighting();
   updateEntityVisibility();
 }
@@ -146,6 +151,8 @@ function applyStoredInputs() {
   }
   if (typeof runtime.storedViewState.landMotion === 'boolean') landMotionInput.checked = runtime.storedViewState.landMotion;
   if (typeof runtime.storedViewState.renderDetails === 'boolean') setRenderDetailsOpen(runtime.storedViewState.renderDetails);
+  if (typeof runtime.storedViewState.settingsOpen === 'boolean') setSettingsPanelOpen(runtime.storedViewState.settingsOpen);
+  applyCollapsedSectionState(runtime.storedViewState.sections);
   setPairedControlValue(terrainLoadSlotsInput, terrainLoadSlotsValueInput, runtime.storedViewState.terrainLoadSlots);
   setPairedControlValue(terrainSpawnFrameInput, terrainSpawnFrameValueInput, runtime.storedViewState.terrainSpawnFrame);
   setPairedControlValue(terrainSpawnBudgetInput, terrainSpawnBudgetValueInput, runtime.storedViewState.terrainSpawnMs);
@@ -161,6 +168,9 @@ function applyStoredInputs() {
   setPairedControlValue(fogHorizonInput, fogHorizonValueInput, runtime.storedViewState.fogHorizon);
   if (typeof runtime.storedViewState.playerRate === 'string') {
     applySelectValue(playerUpdateRateInput, runtime.storedViewState.playerRate);
+  }
+  if (typeof runtime.storedViewState.mobRate === 'string') {
+    applySelectValue(mobUpdateRateInput, runtime.storedViewState.mobRate);
   }
 }
 
@@ -250,6 +260,8 @@ export function saveViewState() {
     mobs: showMobsInput.checked,
     mobBlocks: mobBlocksEnabled(),
     renderDetails: !infoCardEl.classList.contains('collapsed'),
+    settingsOpen: hudEl.classList.contains('open'),
+    sections: collapsedSectionState(),
     shade: treeShadeInput.checked,
     mapTime: mapTimeInput.checked,
     mapTiles: mapTilesInput.checked,
@@ -268,6 +280,7 @@ export function saveViewState() {
     fogStrength: readFloatControl(fogStrengthValueInput, 0.9),
     fogHorizon: readFloatControl(fogHorizonValueInput, 0.65),
     playerRate: playerUpdateRateInput.value,
+    mobRate: mobUpdateRateInput.value,
     camera: vectorState(camera.position),
     target: vectorState(target),
   };

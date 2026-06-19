@@ -1,6 +1,6 @@
 package com.codelabchaos.terrascape.commands;
 
-import com.codelabchaos.terrascape.SynthTerrascapePlugin;
+import com.codelabchaos.terrascape.TerrascapePlugin;
 import com.codelabchaos.terrascape.terrain.GltfWriter;
 import com.codelabchaos.terrascape.terrain.TerrainMesh;
 import com.codelabchaos.terrascape.terrain.TerrainMesher;
@@ -28,10 +28,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class TerrascapeCommand extends AbstractWorldCommand {
-    private final SynthTerrascapePlugin plugin;
+    private final TerrascapePlugin plugin;
 
-    public TerrascapeCommand(@Nonnull SynthTerrascapePlugin plugin) {
-        super("terrascape", "SynthTerrascape status and validation commands");
+    public TerrascapeCommand(@Nonnull TerrascapePlugin plugin) {
+        super("terrascape", "Terrascape status and validation commands");
         this.requirePermission("terrascape.admin");
         this.setAllowsExtraArguments(true);
         this.plugin = plugin;
@@ -63,7 +63,7 @@ public class TerrascapeCommand extends AbstractWorldCommand {
             worlds = "<none>";
         }
 
-        context.sendMessage(Message.raw("=== SynthTerrascape status ===").color(Color.CYAN));
+        context.sendMessage(Message.raw("=== Terrascape status ===").color(Color.CYAN));
         context.sendMessage(Message.raw("  plugin  : loaded").color(Color.WHITE));
         context.sendMessage(Message.raw("  uptime  : " + uptime).color(Color.WHITE));
         context.sendMessage(Message.raw("  web     : " + plugin.webAddress()).color(Color.WHITE));
@@ -114,7 +114,7 @@ public class TerrascapeCommand extends AbstractWorldCommand {
             Files.createDirectories(output.getParent());
             Files.write(output, glb);
 
-            context.sendMessage(Message.raw("=== SynthTerrascape sample ===").color(Color.CYAN));
+            context.sendMessage(Message.raw("=== Terrascape sample ===").color(Color.CYAN));
             context.sendMessage(Message.raw("  world     : " + world.getName()).color(Color.WHITE));
             context.sendMessage(Message.raw("  chunk     : " + chunkX + ", " + chunkZ).color(Color.WHITE));
             context.sendMessage(Message.raw("  columns   : " + snapshot.nonEmptyColumns()
@@ -155,7 +155,7 @@ public class TerrascapeCommand extends AbstractWorldCommand {
                     : plugin.config().folders().samplesDir());
             CacheDeleteStats total = terrain.plus(samples);
 
-            context.sendMessage(Message.raw("=== SynthTerrascape clearcache ===").color(Color.CYAN));
+            context.sendMessage(Message.raw("=== Terrascape clearcache ===").color(Color.CYAN));
             context.sendMessage(Message.raw("  files   : " + total.files()).color(Color.WHITE));
             context.sendMessage(Message.raw("  dirs    : " + total.directories()).color(Color.WHITE));
             context.sendMessage(Message.raw("  bytes   : " + total.bytes()).color(Color.WHITE));

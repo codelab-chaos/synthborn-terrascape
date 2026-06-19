@@ -15,56 +15,56 @@ import * as __WEBPACK_EXTERNAL_MODULE_three_addons_postprocessing_ShaderPass_js_
 __webpack_require__.a(module, async (__webpack_handle_async_dependencies__, __webpack_async_result__) => { try {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   applyBooleanParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_16__.applyBooleanParam),
-/* harmony export */   applyFloatParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_16__.applyFloatParam),
-/* harmony export */   applyNumberParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_16__.applyNumberParam),
-/* harmony export */   applySelectParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_16__.applySelectParam),
-/* harmony export */   applySelectValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_16__.applySelectValue),
-/* harmony export */   bindPairedControl: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_16__.bindPairedControl),
-/* harmony export */   bindRadiusControl: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_16__.bindRadiusControl),
-/* harmony export */   chunkDistanceSq: () => (/* reexport safe */ _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_19__.chunkDistanceSq),
-/* harmony export */   chunkKeysForWorld: () => (/* reexport safe */ _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_19__.chunkKeysForWorld),
-/* harmony export */   collectChunkResourceStats: () => (/* reexport safe */ _common_resource_stats_js__WEBPACK_IMPORTED_MODULE_21__.collectChunkResourceStats),
-/* harmony export */   compactMobSourceStats: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_17__.compactMobSourceStats),
-/* harmony export */   compactObject: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_17__.compactObject),
-/* harmony export */   createMobMarker: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_15__.createMobMarker),
-/* harmony export */   createPlayerMarker: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_15__.createPlayerMarker),
-/* harmony export */   createTerrainStreamStats: () => (/* reexport safe */ _common_terrain_stream_js__WEBPACK_IMPORTED_MODULE_23__.createTerrainStreamStats),
-/* harmony export */   disposeObject: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_15__.disposeObject),
-/* harmony export */   disposeObjectTree: () => (/* reexport safe */ _common_resource_stats_js__WEBPACK_IMPORTED_MODULE_21__.disposeObjectTree),
-/* harmony export */   distanceBetween: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_17__.distanceBetween),
-/* harmony export */   floatControlValue: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_24__.floatControlValue),
-/* harmony export */   fogRangeFromControls: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_24__.fogRangeFromControls),
-/* harmony export */   horizonMapKeys: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_20__.horizonMapKeys),
-/* harmony export */   isTruthyParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_16__.isTruthyParam),
-/* harmony export */   liveMobFeedEnabled: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_18__.liveMobFeedEnabled),
-/* harmony export */   mapBackdropCenterFrom: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_20__.mapBackdropCenterFrom),
-/* harmony export */   mapBackdropRetainStats: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_20__.mapBackdropRetainStats),
-/* harmony export */   mapTileLayerKey: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_20__.mapTileLayerKey),
-/* harmony export */   mapTileRetainRadiusFor: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_24__.mapTileRetainRadiusFor),
-/* harmony export */   mobPollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_18__.mobPollDelayMs),
-/* harmony export */   nearestMobsForSample: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_17__.nearestMobsForSample),
-/* harmony export */   normalizePairedValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_16__.normalizePairedValue),
-/* harmony export */   parseCenterId: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_20__.parseCenterId),
-/* harmony export */   playerPollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_18__.playerPollDelayMs),
-/* harmony export */   positiveIntegerMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_18__.positiveIntegerMs),
-/* harmony export */   radiusReadout: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_24__.radiusReadout),
-/* harmony export */   roundCoord: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_17__.roundCoord),
-/* harmony export */   safeWaterMode: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_24__.safeWaterMode),
-/* harmony export */   setNumberInput: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_16__.setNumberInput),
-/* harmony export */   setPairedControlValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_16__.setPairedControlValue),
-/* harmony export */   sortChunkKeysByPlayerDistance: () => (/* reexport safe */ _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_19__.sortChunkKeysByPlayerDistance),
-/* harmony export */   summarizeCountsObject: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_17__.summarizeCountsObject),
-/* harmony export */   summarizeItems: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_17__.summarizeItems),
-/* harmony export */   terrainCacheKeyFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_22__.terrainCacheKeyFor),
-/* harmony export */   terrainCosmeticOverlayCacheKeyFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_22__.terrainCosmeticOverlayCacheKeyFor),
-/* harmony export */   terrainCosmeticOverlayUrlFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_22__.terrainCosmeticOverlayUrlFor),
-/* harmony export */   terrainStreamSnapshot: () => (/* reexport safe */ _common_terrain_stream_js__WEBPACK_IMPORTED_MODULE_23__.terrainStreamSnapshot),
-/* harmony export */   terrainTuningControlValue: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_24__.terrainTuningControlValue),
-/* harmony export */   terrainUrlFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_22__.terrainUrlFor),
-/* harmony export */   updateMobMarkerHeight: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_15__.updateMobMarkerHeight),
-/* harmony export */   wantsEntityStream: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_18__.wantsEntityStream),
-/* harmony export */   worldTimePollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_18__.worldTimePollDelayMs)
+/* harmony export */   applyBooleanParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.applyBooleanParam),
+/* harmony export */   applyFloatParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.applyFloatParam),
+/* harmony export */   applyNumberParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.applyNumberParam),
+/* harmony export */   applySelectParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.applySelectParam),
+/* harmony export */   applySelectValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.applySelectValue),
+/* harmony export */   bindPairedControl: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.bindPairedControl),
+/* harmony export */   bindRadiusControl: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.bindRadiusControl),
+/* harmony export */   chunkDistanceSq: () => (/* reexport safe */ _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_20__.chunkDistanceSq),
+/* harmony export */   chunkKeysForWorld: () => (/* reexport safe */ _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_20__.chunkKeysForWorld),
+/* harmony export */   collectChunkResourceStats: () => (/* reexport safe */ _common_resource_stats_js__WEBPACK_IMPORTED_MODULE_22__.collectChunkResourceStats),
+/* harmony export */   compactMobSourceStats: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.compactMobSourceStats),
+/* harmony export */   compactObject: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.compactObject),
+/* harmony export */   createMobMarker: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_16__.createMobMarker),
+/* harmony export */   createPlayerMarker: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_16__.createPlayerMarker),
+/* harmony export */   createTerrainStreamStats: () => (/* reexport safe */ _common_terrain_stream_js__WEBPACK_IMPORTED_MODULE_24__.createTerrainStreamStats),
+/* harmony export */   disposeObject: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_16__.disposeObject),
+/* harmony export */   disposeObjectTree: () => (/* reexport safe */ _common_resource_stats_js__WEBPACK_IMPORTED_MODULE_22__.disposeObjectTree),
+/* harmony export */   distanceBetween: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.distanceBetween),
+/* harmony export */   floatControlValue: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.floatControlValue),
+/* harmony export */   fogRangeFromControls: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.fogRangeFromControls),
+/* harmony export */   horizonMapKeys: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_21__.horizonMapKeys),
+/* harmony export */   isTruthyParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.isTruthyParam),
+/* harmony export */   liveMobFeedEnabled: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__.liveMobFeedEnabled),
+/* harmony export */   mapBackdropCenterFrom: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_21__.mapBackdropCenterFrom),
+/* harmony export */   mapBackdropRetainStats: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_21__.mapBackdropRetainStats),
+/* harmony export */   mapTileLayerKey: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_21__.mapTileLayerKey),
+/* harmony export */   mapTileRetainRadiusFor: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.mapTileRetainRadiusFor),
+/* harmony export */   mobPollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__.mobPollDelayMs),
+/* harmony export */   nearestMobsForSample: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.nearestMobsForSample),
+/* harmony export */   normalizePairedValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.normalizePairedValue),
+/* harmony export */   parseCenterId: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_21__.parseCenterId),
+/* harmony export */   playerPollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__.playerPollDelayMs),
+/* harmony export */   positiveIntegerMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__.positiveIntegerMs),
+/* harmony export */   radiusReadout: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.radiusReadout),
+/* harmony export */   roundCoord: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.roundCoord),
+/* harmony export */   safeWaterMode: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.safeWaterMode),
+/* harmony export */   setNumberInput: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.setNumberInput),
+/* harmony export */   setPairedControlValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.setPairedControlValue),
+/* harmony export */   sortChunkKeysByPlayerDistance: () => (/* reexport safe */ _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_20__.sortChunkKeysByPlayerDistance),
+/* harmony export */   summarizeCountsObject: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.summarizeCountsObject),
+/* harmony export */   summarizeItems: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.summarizeItems),
+/* harmony export */   terrainCacheKeyFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainCacheKeyFor),
+/* harmony export */   terrainCosmeticOverlayCacheKeyFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainCosmeticOverlayCacheKeyFor),
+/* harmony export */   terrainCosmeticOverlayUrlFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainCosmeticOverlayUrlFor),
+/* harmony export */   terrainStreamSnapshot: () => (/* reexport safe */ _common_terrain_stream_js__WEBPACK_IMPORTED_MODULE_24__.terrainStreamSnapshot),
+/* harmony export */   terrainTuningControlValue: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.terrainTuningControlValue),
+/* harmony export */   terrainUrlFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainUrlFor),
+/* harmony export */   updateMobMarkerHeight: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_16__.updateMobMarkerHeight),
+/* harmony export */   wantsEntityStream: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__.wantsEntityStream),
+/* harmony export */   worldTimePollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__.worldTimePollDelayMs)
 /* harmony export */ });
 /* harmony import */ var _ui_app_events_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./ui/app-events.js */ "./src/main/resources/web/src/ui/app-events.ts");
 /* harmony import */ var _ui_dom_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./ui/dom.js */ "./src/main/resources/web/src/ui/dom.ts");
@@ -78,19 +78,21 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./camera/fly-camera.js */ "./src/main/resources/web/src/camera/fly-camera.ts");
 /* harmony import */ var _ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./ui/view-persistence.js */ "./src/main/resources/web/src/ui/view-persistence.ts");
 /* harmony import */ var _ui_debug_bridge_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./ui/debug-bridge.js */ "./src/main/resources/web/src/ui/debug-bridge.ts");
-/* harmony import */ var _ui_world_selector_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./ui/world-selector.js */ "./src/main/resources/web/src/ui/world-selector.ts");
-/* harmony import */ var _scene_viewport_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./scene/viewport.js */ "./src/main/resources/web/src/scene/viewport.ts");
-/* harmony import */ var _scene_frame_loop_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./scene/frame-loop.js */ "./src/main/resources/web/src/scene/frame-loop.ts");
-/* harmony import */ var _entities_players_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./entities/players.js */ "./src/main/resources/web/src/entities/players.ts");
-/* harmony import */ var _library_control_values_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./library/control-values.js */ "./src/main/resources/web/src/library/control-values.ts");
-/* harmony import */ var _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./common/entity-summary.js */ "./src/main/resources/web/src/common/entity-summary.ts");
-/* harmony import */ var _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./common/entity-feed-policy.js */ "./src/main/resources/web/src/common/entity-feed-policy.ts");
-/* harmony import */ var _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./common/chunk-planning.js */ "./src/main/resources/web/src/common/chunk-planning.ts");
-/* harmony import */ var _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./common/map-layer-policy.js */ "./src/main/resources/web/src/common/map-layer-policy.ts");
-/* harmony import */ var _common_resource_stats_js__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./common/resource-stats.js */ "./src/main/resources/web/src/common/resource-stats.ts");
-/* harmony import */ var _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./common/terrain-requests.js */ "./src/main/resources/web/src/common/terrain-requests.ts");
-/* harmony import */ var _common_terrain_stream_js__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./common/terrain-stream.js */ "./src/main/resources/web/src/common/terrain-stream.ts");
-/* harmony import */ var _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./common/view-preferences.js */ "./src/main/resources/web/src/common/view-preferences.ts");
+/* harmony import */ var _ui_build_badge_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./ui/build-badge.js */ "./src/main/resources/web/src/ui/build-badge.ts");
+/* harmony import */ var _ui_world_selector_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./ui/world-selector.js */ "./src/main/resources/web/src/ui/world-selector.ts");
+/* harmony import */ var _scene_viewport_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./scene/viewport.js */ "./src/main/resources/web/src/scene/viewport.ts");
+/* harmony import */ var _scene_frame_loop_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./scene/frame-loop.js */ "./src/main/resources/web/src/scene/frame-loop.ts");
+/* harmony import */ var _entities_players_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./entities/players.js */ "./src/main/resources/web/src/entities/players.ts");
+/* harmony import */ var _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./library/control-values.js */ "./src/main/resources/web/src/library/control-values.ts");
+/* harmony import */ var _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./common/entity-summary.js */ "./src/main/resources/web/src/common/entity-summary.ts");
+/* harmony import */ var _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./common/entity-feed-policy.js */ "./src/main/resources/web/src/common/entity-feed-policy.ts");
+/* harmony import */ var _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./common/chunk-planning.js */ "./src/main/resources/web/src/common/chunk-planning.ts");
+/* harmony import */ var _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./common/map-layer-policy.js */ "./src/main/resources/web/src/common/map-layer-policy.ts");
+/* harmony import */ var _common_resource_stats_js__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./common/resource-stats.js */ "./src/main/resources/web/src/common/resource-stats.ts");
+/* harmony import */ var _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./common/terrain-requests.js */ "./src/main/resources/web/src/common/terrain-requests.ts");
+/* harmony import */ var _common_terrain_stream_js__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./common/terrain-stream.js */ "./src/main/resources/web/src/common/terrain-stream.ts");
+/* harmony import */ var _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./common/view-preferences.js */ "./src/main/resources/web/src/common/view-preferences.ts");
+
 
 
 
@@ -149,15 +151,16 @@ __webpack_require__.r(__webpack_exports__);
     updateRadiusReadout: _ui_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.updateRadiusReadout,
     zoomFlyView: _camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_9__.zoomFlyView,
     reloadTerrainForVisualOptions: _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_6__.reloadTerrainForVisualOptions,
-    resize: _scene_viewport_js__WEBPACK_IMPORTED_MODULE_13__.resizeViewport,
+    resize: _scene_viewport_js__WEBPACK_IMPORTED_MODULE_14__.resizeViewport,
 });
 (0,_ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_10__.applyInitialParams)();
 (0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.setRadiusControlValue)((0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.radiusValue)());
 (0,_ui_debug_bridge_js__WEBPACK_IMPORTED_MODULE_11__.exposeDebugState)();
-(0,_scene_viewport_js__WEBPACK_IMPORTED_MODULE_13__.resizeViewport)();
+(0,_ui_build_badge_js__WEBPACK_IMPORTED_MODULE_12__.mountBuildBadge)();
+(0,_scene_viewport_js__WEBPACK_IMPORTED_MODULE_14__.resizeViewport)();
 _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.timeRibbon.update(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.worldTime);
-(0,_scene_frame_loop_js__WEBPACK_IMPORTED_MODULE_14__.startFrameLoop)();
-await (0,_ui_world_selector_js__WEBPACK_IMPORTED_MODULE_12__.loadWorlds)();
+(0,_scene_frame_loop_js__WEBPACK_IMPORTED_MODULE_15__.startFrameLoop)();
+await (0,_ui_world_selector_js__WEBPACK_IMPORTED_MODULE_13__.loadWorlds)();
 await _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.npcCatalog.load();
 if (_ui_dom_js__WEBPACK_IMPORTED_MODULE_1__.worldSelect.value) {
     _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.hasStarted = true;
@@ -1428,13 +1431,16 @@ async function refreshMobs() {
         _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_6__.runtime.isRefreshingMobs = false;
     }
 }
+function mobUpdateRateMs() {
+    return (0,_common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_5__.positiveIntegerMs)(_ui_dom_js__WEBPACK_IMPORTED_MODULE_10__.mobUpdateRateInput.value, MOB_POLL_MS);
+}
 function mobPollDelayMs() {
     return (0,_common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_5__.mobPollDelayMs)({
         showMobs: _ui_dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked,
         liveMobFeed: liveMobFeedEnabled(),
         lastPollFailed: _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_6__.runtime.lastMobPollFailed,
         lastMobCount: _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_6__.runtime.lastMobCount,
-        activeMs: MOB_POLL_MS,
+        activeMs: mobUpdateRateMs(),
         emptyMs: EMPTY_MOB_POLL_MS,
         errorMs: MOB_POLL_ERROR_MS,
     });
@@ -3162,7 +3168,9 @@ function createChunkLandMotion() {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   applyCollapsedSectionState: () => (/* binding */ applyCollapsedSectionState),
 /* harmony export */   bindHudSectionCollapsibles: () => (/* binding */ bindHudSectionCollapsibles),
+/* harmony export */   collapsedSectionState: () => (/* binding */ collapsedSectionState),
 /* harmony export */   setHudSectionCollapsed: () => (/* binding */ setHudSectionCollapsed)
 /* harmony export */ });
 function setHudSectionOpen(section, open) {
@@ -3175,17 +3183,21 @@ function setHudSectionOpen(section, open) {
 function toggleHudSection(section) {
     setHudSectionOpen(section, section.classList.contains('collapsed'));
 }
-function bindHudSectionCollapsibles(root = document) {
+function bindHudSectionCollapsibles(root = document, onToggle) {
     for (const head of root.querySelectorAll('.hud-section-head')) {
         const section = head.closest('.hud-section');
         if (!section)
             continue;
-        head.addEventListener('click', () => toggleHudSection(section));
+        const toggle = () => {
+            toggleHudSection(section);
+            onToggle?.();
+        };
+        head.addEventListener('click', toggle);
         head.addEventListener('keydown', (event) => {
             if (event.key !== 'Enter' && event.key !== ' ')
                 return;
             event.preventDefault();
-            toggleHudSection(section);
+            toggle();
         });
     }
 }
@@ -3194,6 +3206,25 @@ function setHudSectionCollapsed(sectionId, collapsed) {
     if (!section)
         return;
     setHudSectionOpen(section, !collapsed);
+}
+// Reads the collapsed state of every identifiable HUD section as a { sectionId: collapsed } map.
+function collapsedSectionState(root = document) {
+    const state = {};
+    for (const section of root.querySelectorAll('.hud-section[data-section]')) {
+        const id = section.dataset.section;
+        if (id)
+            state[id] = section.classList.contains('collapsed');
+    }
+    return state;
+}
+// Restores collapsed state from a { sectionId: collapsed } map; unknown/missing sections are left untouched.
+function applyCollapsedSectionState(state) {
+    if (!state || typeof state !== 'object')
+        return;
+    for (const [id, collapsed] of Object.entries(state)) {
+        if (typeof collapsed === 'boolean')
+            setHudSectionCollapsed(id, collapsed);
+    }
 }
 
 
@@ -4692,7 +4723,7 @@ __webpack_require__.r(__webpack_exports__);
 
 const DEFAULT_FOG_COLOR = new three__WEBPACK_IMPORTED_MODULE_0__.Color(0xd9f3f2);
 const DEPTH_FOG_SHADER = {
-    name: 'SynthTerrascapeDepthFog',
+    name: 'TerrascapeDepthFog',
     uniforms: {
         tDiffuse: { value: null },
         tDepth: { value: null },
@@ -4754,10 +4785,10 @@ function createPostProcessing(renderer, scene, camera) {
     const fogPass = new three_addons_postprocessing_ShaderPass_js__WEBPACK_IMPORTED_MODULE_3__.ShaderPass(DEPTH_FOG_SHADER);
     composer.addPass(renderPass);
     composer.addPass(fogPass);
-    fogPass.enabled = true;
+    fogPass.enabled = false;
     setDepthTextureUniform(composer, fogPass);
     updateCameraUniforms(fogPass, camera);
-    return { composer, fogPass, renderPass, enabled: true };
+    return { composer, fogPass, renderPass, enabled: false };
 }
 function setFogOptions(post, options = {}) {
     post.enabled = options.enabled !== false;
@@ -7324,7 +7355,8 @@ async function loadMapTilePng(world, chunkX, chunkZ) {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   bindAppEvents: () => (/* binding */ bindAppEvents),
-/* harmony export */   isTypingInHud: () => (/* binding */ isTypingInHud)
+/* harmony export */   isTypingInHud: () => (/* binding */ isTypingInHud),
+/* harmony export */   setSettingsPanelOpen: () => (/* binding */ setSettingsPanelOpen)
 /* harmony export */ });
 /* harmony import */ var _library_control_values_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../library/control-values.js */ "./src/main/resources/web/src/library/control-values.ts");
 /* harmony import */ var _library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../library/collapsible-section.js */ "./src/main/resources/web/src/library/collapsible-section.ts");
@@ -7375,7 +7407,7 @@ function bindAppEvents(bindings) {
     });
     window.addEventListener('terrascape:map-backdrop-loaded', bindings.applyMapWaterTint);
     bindHudInputs(bindings);
-    bindTriStateControls();
+    bindTriStateControls(bindings.saveViewState);
 }
 function bindHudInputs(bindings) {
     _dom_js__WEBPACK_IMPORTED_MODULE_3__.debugBoundsInput.addEventListener('change', bindings.updateDebugBounds);
@@ -7413,6 +7445,10 @@ function bindHudInputs(bindings) {
     });
     _dom_js__WEBPACK_IMPORTED_MODULE_3__.playerUpdateRateInput.addEventListener('change', () => {
         bindings.restartPlayerPolling();
+        bindings.saveViewState();
+    });
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.mobUpdateRateInput.addEventListener('change', () => {
+        bindings.restartMobPolling();
         bindings.saveViewState();
     });
     for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_3__.treeShadeInput]) {
@@ -7481,6 +7517,7 @@ function bindHudInputs(bindings) {
     }
     _dom_js__WEBPACK_IMPORTED_MODULE_3__.panelToggle.addEventListener('click', () => {
         setSettingsPanelOpen(!_dom_js__WEBPACK_IMPORTED_MODULE_3__.hudEl.classList.contains('open'));
+        bindings.saveViewState();
     });
     _dom_js__WEBPACK_IMPORTED_MODULE_3__.infoCardHeadEl.addEventListener('click', bindings.toggleRenderDetails);
     _dom_js__WEBPACK_IMPORTED_MODULE_3__.infoCardHeadEl.addEventListener('keydown', (event) => {
@@ -7490,8 +7527,8 @@ function bindHudInputs(bindings) {
         bindings.toggleRenderDetails();
     });
 }
-function bindTriStateControls() {
-    (0,_library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_1__.bindHudSectionCollapsibles)(document);
+function bindTriStateControls(onSectionToggle) {
+    (0,_library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_1__.bindHudSectionCollapsibles)(document, onSectionToggle);
     (0,_library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_2__.bindTriStateControl)(document, 'cosmetic-blocks-mode', [
         { value: 'off', label: 'Off' },
         { value: 'baked', label: 'Baked' },
@@ -7513,6 +7550,7 @@ function handleKeyDown(event, bindings) {
         event.preventDefault();
         blurFocusedHudControl();
         setSettingsPanelOpen(false);
+        bindings.saveViewState();
         return;
     }
     if (isTypingInHud())
@@ -7540,6 +7578,38 @@ function blurFocusedHudControl() {
 }
 function isFlyLookActive(domElement) {
     return document.pointerLockElement === domElement;
+}
+
+
+/***/ },
+
+/***/ "./src/main/resources/web/src/ui/build-badge.ts"
+/*!******************************************************!*\
+  !*** ./src/main/resources/web/src/ui/build-badge.ts ***!
+  \******************************************************/
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   mountBuildBadge: () => (/* binding */ mountBuildBadge)
+/* harmony export */ });
+function formatBuildTime(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime()))
+        return iso;
+    const pad = (value) => String(value).padStart(2, '0');
+    return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+function mountBuildBadge() {
+    const info = {"version":"0.1.0","channel":"early access","sha":"9e247af-dirty","time":"2026-06-19T03:19:01.552Z"};
+    const badge = document.createElement('div');
+    badge.className = 'build-badge';
+    badge.textContent = `v${info.version} [${info.channel}] · ${info.sha} · ${formatBuildTime(info.time)}`;
+    badge.title = `Release v${info.version} [${info.channel}]\nBuild ${info.sha}\n${info.time}\n(click to copy commit sha)`;
+    badge.addEventListener('click', () => {
+        navigator.clipboard?.writeText(info.sha).catch(() => { });
+    });
+    document.body.appendChild(badge);
 }
 
 
@@ -7686,9 +7756,11 @@ __webpack_require__.r(__webpack_exports__);
 function updateCoordinates() {
     const target = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.controls.target;
     const chunk = (0,_camera_camera_director_js__WEBPACK_IMPORTED_MODULE_0__.playerChunk)();
+    const cameraCoords = `${(0,_common_utils_js__WEBPACK_IMPORTED_MODULE_1__.formatCoord)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.camera.position.x)}, ${(0,_common_utils_js__WEBPACK_IMPORTED_MODULE_1__.formatCoord)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.camera.position.y)}, ${(0,_common_utils_js__WEBPACK_IMPORTED_MODULE_1__.formatCoord)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.camera.position.z)}`;
     _dom_js__WEBPACK_IMPORTED_MODULE_3__.coordTargetEl.textContent = `${(0,_common_utils_js__WEBPACK_IMPORTED_MODULE_1__.formatCoord)(target.x)}, ${(0,_common_utils_js__WEBPACK_IMPORTED_MODULE_1__.formatCoord)(target.y)}, ${(0,_common_utils_js__WEBPACK_IMPORTED_MODULE_1__.formatCoord)(target.z)}`;
     _dom_js__WEBPACK_IMPORTED_MODULE_3__.coordChunkEl.textContent = `${chunk.chunkX}, ${chunk.chunkZ}`;
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.coordCameraEl.textContent = `${(0,_common_utils_js__WEBPACK_IMPORTED_MODULE_1__.formatCoord)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.camera.position.x)}, ${(0,_common_utils_js__WEBPACK_IMPORTED_MODULE_1__.formatCoord)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.camera.position.y)}, ${(0,_common_utils_js__WEBPACK_IMPORTED_MODULE_1__.formatCoord)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.camera.position.z)}`;
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.coordCameraEl.textContent = cameraCoords;
+    _dom_js__WEBPACK_IMPORTED_MODULE_3__.posValueEl.textContent = `[${cameraCoords}]`;
 }
 
 
@@ -7761,7 +7833,7 @@ function waterMaterialSummary() {
     return summaries;
 }
 function exposeDebugState() {
-    window.__synthTerrascapeDebug = {
+    window.__terrascapeDebug = {
         fpsCounter: _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_4__.fpsCounter,
         loadedChunks: _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_4__.loadedChunks,
         playerMarkers: _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_4__.playerMarkers,
@@ -7951,9 +8023,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   metricResourcesEl: () => (/* binding */ metricResourcesEl),
 /* harmony export */   mobBlocksInput: () => (/* binding */ mobBlocksInput),
 /* harmony export */   mobBlocksPanelInput: () => (/* binding */ mobBlocksPanelInput),
+/* harmony export */   mobUpdateRateInput: () => (/* binding */ mobUpdateRateInput),
 /* harmony export */   panelToggle: () => (/* binding */ panelToggle),
 /* harmony export */   playerUpdateRateInput: () => (/* binding */ playerUpdateRateInput),
 /* harmony export */   playersEl: () => (/* binding */ playersEl),
+/* harmony export */   posValueEl: () => (/* binding */ posValueEl),
 /* harmony export */   radiusDiameterEl: () => (/* binding */ radiusDiameterEl),
 /* harmony export */   radiusInput: () => (/* binding */ radiusInput),
 /* harmony export */   radiusRangeInput: () => (/* binding */ radiusRangeInput),
@@ -7994,6 +8068,7 @@ const showMobsInput = document.querySelector('#show-mobs');
 const mobBlocksInput = document.querySelector('#mob-blocks');
 const mobBlocksPanelInput = document.querySelector('#mob-blocks-panel');
 const playerUpdateRateInput = document.querySelector('#player-update-rate');
+const mobUpdateRateInput = document.querySelector('#mob-update-rate');
 const treeShadeInput = document.querySelector('#tree-shade');
 const mapTilesInput = document.querySelector('#map-tiles');
 const clearMeshCacheButton = document.querySelector('#clear-mesh-cache');
@@ -8039,6 +8114,7 @@ const metricCenterEl = document.querySelector('#metric-center');
 const coordTargetEl = document.querySelector('#coord-target');
 const coordChunkEl = document.querySelector('#coord-chunk');
 const coordCameraEl = document.querySelector('#coord-camera');
+const posValueEl = document.querySelector('#pos-value');
 const playersEl = document.querySelector('#players');
 const infoCardEl = document.querySelector('.info-card');
 const infoCardHeadEl = document.querySelector('#info-card-head');
@@ -8290,10 +8366,14 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../scene/scene-context.js */ "./src/main/resources/web/src/scene/scene-context.ts");
 /* harmony import */ var _control_readers_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./control-readers.js */ "./src/main/resources/web/src/ui/control-readers.ts");
 /* harmony import */ var _scene_lighting_controls_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../scene/lighting-controls.js */ "./src/main/resources/web/src/scene/lighting-controls.ts");
-/* harmony import */ var _camera_camera_director_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../camera/camera-director.js */ "./src/main/resources/web/src/camera/camera-director.ts");
-/* harmony import */ var _camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../camera/fly-camera.js */ "./src/main/resources/web/src/camera/fly-camera.ts");
-/* harmony import */ var _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../entities/entity-feed.js */ "./src/main/resources/web/src/entities/entity-feed.ts");
-/* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/ui/dom.ts");
+/* harmony import */ var _library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../library/collapsible-section.js */ "./src/main/resources/web/src/library/collapsible-section.ts");
+/* harmony import */ var _app_events_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./app-events.js */ "./src/main/resources/web/src/ui/app-events.ts");
+/* harmony import */ var _camera_camera_director_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../camera/camera-director.js */ "./src/main/resources/web/src/camera/camera-director.ts");
+/* harmony import */ var _camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../camera/fly-camera.js */ "./src/main/resources/web/src/camera/fly-camera.ts");
+/* harmony import */ var _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../entities/entity-feed.js */ "./src/main/resources/web/src/entities/entity-feed.ts");
+/* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/ui/dom.ts");
+
+
 
 
 
@@ -8306,118 +8386,125 @@ __webpack_require__.r(__webpack_exports__);
 const VISUAL_DEFAULTS_VERSION = 2;
 function setRenderDetailsOpen(open) {
     const isOpen = open === true;
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardEl.classList.toggle('collapsed', !isOpen);
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardHeadEl.setAttribute('aria-expanded', String(isOpen));
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardHeadEl.title = isOpen ? 'Hide render details' : 'Show render details';
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.infoCardEl.classList.toggle('collapsed', !isOpen);
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.infoCardHeadEl.setAttribute('aria-expanded', String(isOpen));
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.infoCardHeadEl.title = isOpen ? 'Hide render details' : 'Show render details';
 }
 function toggleRenderDetails() {
-    setRenderDetailsOpen(_dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardEl.classList.contains('collapsed'));
+    setRenderDetailsOpen(_dom_js__WEBPACK_IMPORTED_MODULE_10__.infoCardEl.classList.contains('collapsed'));
     saveViewState();
 }
 function applyInitialParams() {
     applyStoredInputs();
-    applyNumberParam('chunkX', _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput);
-    applyNumberParam('chunkZ', _dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput);
-    applyNumberParam('radius', _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput);
-    applyBooleanParam('auto', _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput);
-    applyBooleanParam('bounds', _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput);
-    applyBooleanParam('players', _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput);
-    applyBooleanParam('mobs', _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput);
-    applyBooleanParam('mobBlocks', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput);
-    (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.syncMobBlocksInputs)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.mobBlocksInput.checked);
-    applyBooleanParam('shade', _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput);
-    applyBooleanParam('mapTiles', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput);
+    applyNumberParam('chunkX', _dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkXInput);
+    applyNumberParam('chunkZ', _dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkZInput);
+    applyNumberParam('radius', _dom_js__WEBPACK_IMPORTED_MODULE_10__.radiusInput);
+    applyBooleanParam('auto', _dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput);
+    applyBooleanParam('bounds', _dom_js__WEBPACK_IMPORTED_MODULE_10__.debugBoundsInput);
+    applyBooleanParam('players', _dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput);
+    applyBooleanParam('mobs', _dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput);
+    applyBooleanParam('mobBlocks', _dom_js__WEBPACK_IMPORTED_MODULE_10__.mobBlocksInput);
+    (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.syncMobBlocksInputs)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.mobBlocksInput.checked);
+    applyBooleanParam('shade', _dom_js__WEBPACK_IMPORTED_MODULE_10__.treeShadeInput);
+    applyBooleanParam('mapTiles', _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput);
     applyCosmeticModeParam();
-    applySelectParam('visualDetail', _dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput);
-    applyBooleanParam('landMotion', _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput);
-    applyBooleanParam('mapTime', _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput);
-    applyNumberParam('terrainLoadSlots', _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput);
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput.value;
-    applyNumberParam('terrainSpawnFrame', _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput);
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput.value;
-    applyNumberParam('terrainSpawnMs', _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput);
-    _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput.value;
-    applyFloatParam('shadeSize', _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput);
-    applyFloatParam('shadeDarkness', _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput);
-    applySelectParam('water', _dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput);
-    applyBooleanParam('fog', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput);
-    applyFloatParam('fogNear', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearValueInput);
-    applyFloatParam('fogFar', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarValueInput);
-    applyFloatParam('fogStrength', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput);
-    applyFloatParam('fogHorizon', _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput);
-    applySelectParam('playerRate', _dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput);
+    applySelectParam('visualDetail', _dom_js__WEBPACK_IMPORTED_MODULE_10__.visualDetailModeInput);
+    applyBooleanParam('landMotion', _dom_js__WEBPACK_IMPORTED_MODULE_10__.landMotionInput);
+    applyBooleanParam('mapTime', _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTimeInput);
+    applyNumberParam('terrainLoadSlots', _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsValueInput);
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsValueInput.value;
+    applyNumberParam('terrainSpawnFrame', _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameValueInput);
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameValueInput.value;
+    applyNumberParam('terrainSpawnMs', _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetValueInput);
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetValueInput.value;
+    applyFloatParam('shadeSize', _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeValueInput);
+    applyFloatParam('shadeDarkness', _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeDarknessValueInput);
+    applySelectParam('water', _dom_js__WEBPACK_IMPORTED_MODULE_10__.waterModeInput);
+    applyBooleanParam('fog', _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogEnabledInput);
+    applyFloatParam('fogNear', _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogNearValueInput);
+    applyFloatParam('fogFar', _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogFarValueInput);
+    applyFloatParam('fogStrength', _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogStrengthValueInput);
+    applyFloatParam('fogHorizon', _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogHorizonValueInput);
+    applySelectParam('playerRate', _dom_js__WEBPACK_IMPORTED_MODULE_10__.playerUpdateRateInput);
+    applySelectParam('mobRate', _dom_js__WEBPACK_IMPORTED_MODULE_10__.mobUpdateRateInput);
     (0,_scene_lighting_controls_js__WEBPACK_IMPORTED_MODULE_4__.applyLighting)();
-    (0,_entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__.updateEntityVisibility)();
+    (0,_entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_9__.updateEntityVisibility)();
 }
 function applyStoredInputs() {
     if (!_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState)
         return;
     if (_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.visualDefaultsVersion !== VISUAL_DEFAULTS_VERSION) {
-        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, 'split');
-        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput, 'all');
+        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput, 'split');
+        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.visualDetailModeInput, 'all');
     }
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setNumberInput)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.chunkX);
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setNumberInput)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.chunkZ);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setNumberInput)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkXInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.chunkX);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setNumberInput)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkZInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.chunkZ);
     (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.setRadiusControlValue)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.radius);
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.auto === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.auto;
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.auto;
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.bounds === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.bounds;
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.debugBoundsInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.bounds;
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.players === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.players;
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.players;
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mobs === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mobs;
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mobs;
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mobBlocks === 'boolean')
         (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.syncMobBlocksInputs)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mobBlocks);
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.shade === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.shade;
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.treeShadeInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.shade;
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mapTime === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mapTime;
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTimeInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mapTime;
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mapTiles === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mapTiles;
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mapTiles;
     if (_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.cosmeticsMode === 'string') {
-        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.cosmeticsMode);
+        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.cosmeticsMode);
     }
     if (_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.cosmetics === 'boolean' && !_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.cosmeticsMode) {
-        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.cosmetics ? 'baked' : 'off');
+        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.cosmetics ? 'baked' : 'off');
     }
     if (_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.visualDetailMode === 'string') {
-        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.visualDetailModeInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.visualDetailMode);
+        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.visualDetailModeInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.visualDetailMode);
     }
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.landMotion === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.landMotion;
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.landMotionInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.landMotion;
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.renderDetails === 'boolean')
         setRenderDetailsOpen(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.renderDetails);
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainLoadSlotsValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.terrainLoadSlots);
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnFrameValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.terrainSpawnFrame);
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.terrainSpawnBudgetValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.terrainSpawnMs);
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.shadeSize);
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.shadeDarkness);
+    if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.settingsOpen === 'boolean')
+        (0,_app_events_js__WEBPACK_IMPORTED_MODULE_6__.setSettingsPanelOpen)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.settingsOpen);
+    (0,_library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_5__.applyCollapsedSectionState)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.sections);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.terrainLoadSlots);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.terrainSpawnFrame);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.terrainSpawnMs);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.shadeSize);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeDarknessValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.shadeDarkness);
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.water === 'string') {
-        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.waterModeInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.water);
+        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.waterModeInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.water);
     }
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.fog === 'boolean')
-        _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.fog;
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogNearValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.fogNear);
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogFarValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.fogFar);
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.fogStrength);
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.fogHorizon);
+        _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogEnabledInput.checked = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.fog;
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogNearValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.fogNear);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogFarValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.fogFar);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogStrengthValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.fogStrength);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogHorizonValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.fogHorizon);
     if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.playerRate === 'string') {
-        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.playerRate);
+        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.playerUpdateRateInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.playerRate);
+    }
+    if (typeof _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mobRate === 'string') {
+        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.mobUpdateRateInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mobRate);
     }
 }
 function applyStoredWorld() {
     if (!_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState?.world)
         return;
-    (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.world);
+    (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.world);
 }
 function applyInitialWorldParam() {
     const world = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.initialParams.get('world');
     if (!world)
         return;
-    for (const option of _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.options) {
+    for (const option of _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.options) {
         if (option.value === world) {
-            _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value = world;
+            _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value = world;
             return;
         }
     }
@@ -8426,7 +8513,7 @@ function applyNumberParam(name, input) {
     const parsed = (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.applyNumberParam)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.initialParams, name, input);
     if (parsed === null)
         return;
-    if (input === _dom_js__WEBPACK_IMPORTED_MODULE_8__.radiusInput) {
+    if (input === _dom_js__WEBPACK_IMPORTED_MODULE_10__.radiusInput) {
         (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.setRadiusControlValue)(parsed);
     }
 }
@@ -8436,13 +8523,13 @@ function applyBooleanParam(name, input) {
 function applyCosmeticModeParam() {
     const mode = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.initialParams.get('cosmeticsMode');
     if (mode === 'off' || mode === 'baked' || mode === 'split') {
-        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, mode);
+        (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput, mode);
         return;
     }
     const legacy = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.initialParams.get('cosmetics');
     if (legacy === null)
         return;
-    (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput, (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.isTruthyParam)(legacy) ? 'baked' : 'off');
+    (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput, (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.isTruthyParam)(legacy) ? 'baked' : 'off');
 }
 function applyFloatParam(name, ...inputs) {
     (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.applyFloatParam)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.initialParams, name, ...inputs);
@@ -8462,7 +8549,7 @@ function restoreCameraPose() {
     _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.camera.position.set(cameraState.x, cameraState.y, cameraState.z);
     _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.controls.target.set(targetState.x, targetState.y, targetState.z);
     _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.controls.update();
-    (0,_camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_6__.syncFlyLookFromCamera)();
+    (0,_camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_8__.syncFlyLookFromCamera)();
     _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.hasFocusedInitialGrid = true;
     _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.hasRestoredCameraPose = true;
     return true;
@@ -8471,40 +8558,43 @@ function hasExplicitViewParams() {
     return ['world', 'chunkX', 'chunkZ', 'radius'].some((name) => _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.initialParams.has(name));
 }
 function saveViewState() {
-    if (!_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.hasStarted || !_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value)
+    if (!_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.hasStarted || !_dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value)
         return;
     const target = _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.controls.target;
-    const chunk = (0,_camera_camera_director_js__WEBPACK_IMPORTED_MODULE_5__.playerChunk)();
+    const chunk = (0,_camera_camera_director_js__WEBPACK_IMPORTED_MODULE_7__.playerChunk)();
     const state = {
-        world: _dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value,
+        world: _dom_js__WEBPACK_IMPORTED_MODULE_10__.worldSelect.value,
         visualDefaultsVersion: VISUAL_DEFAULTS_VERSION,
-        chunkX: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10) || chunk.chunkX,
-        chunkZ: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10) || chunk.chunkZ,
+        chunkX: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkXInput.value, 10) || chunk.chunkX,
+        chunkZ: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_10__.chunkZInput.value, 10) || chunk.chunkZ,
         radius: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.radiusValue)(),
-        auto: _dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked,
-        bounds: _dom_js__WEBPACK_IMPORTED_MODULE_8__.debugBoundsInput.checked,
-        players: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showPlayersInput.checked,
-        mobs: _dom_js__WEBPACK_IMPORTED_MODULE_8__.showMobsInput.checked,
+        auto: _dom_js__WEBPACK_IMPORTED_MODULE_10__.autoStreamInput.checked,
+        bounds: _dom_js__WEBPACK_IMPORTED_MODULE_10__.debugBoundsInput.checked,
+        players: _dom_js__WEBPACK_IMPORTED_MODULE_10__.showPlayersInput.checked,
+        mobs: _dom_js__WEBPACK_IMPORTED_MODULE_10__.showMobsInput.checked,
         mobBlocks: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.mobBlocksEnabled)(),
-        renderDetails: !_dom_js__WEBPACK_IMPORTED_MODULE_8__.infoCardEl.classList.contains('collapsed'),
-        shade: _dom_js__WEBPACK_IMPORTED_MODULE_8__.treeShadeInput.checked,
-        mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTimeInput.checked,
-        mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked,
-        cosmeticsMode: _dom_js__WEBPACK_IMPORTED_MODULE_8__.cosmeticBlocksModeInput.value,
+        renderDetails: !_dom_js__WEBPACK_IMPORTED_MODULE_10__.infoCardEl.classList.contains('collapsed'),
+        settingsOpen: _dom_js__WEBPACK_IMPORTED_MODULE_10__.hudEl.classList.contains('open'),
+        sections: (0,_library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_5__.collapsedSectionState)(),
+        shade: _dom_js__WEBPACK_IMPORTED_MODULE_10__.treeShadeInput.checked,
+        mapTime: _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTimeInput.checked,
+        mapTiles: _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTilesInput.checked,
+        cosmeticsMode: _dom_js__WEBPACK_IMPORTED_MODULE_10__.cosmeticBlocksModeInput.value,
         visualDetailMode: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.visualDetailMode)(),
-        landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_8__.landMotionInput.checked,
+        landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_10__.landMotionInput.checked,
         terrainLoadSlots: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.terrainLoadConcurrency)(),
         terrainSpawnFrame: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.terrainPromotionsPerFrame)(),
         terrainSpawnMs: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.terrainPromotionBudgetMs)(),
-        shadeSize: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeSizeValueInput.value),
-        shadeDarkness: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_8__.shadeDarknessValueInput.value),
+        shadeSize: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeValueInput.value),
+        shadeDarkness: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeDarknessValueInput.value),
         water: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.waterModeValue)(),
-        fog: _dom_js__WEBPACK_IMPORTED_MODULE_8__.fogEnabledInput.checked,
+        fog: _dom_js__WEBPACK_IMPORTED_MODULE_10__.fogEnabledInput.checked,
         fogNear: (0,_scene_lighting_controls_js__WEBPACK_IMPORTED_MODULE_4__.fogControlRange)().near,
         fogFar: (0,_scene_lighting_controls_js__WEBPACK_IMPORTED_MODULE_4__.fogControlRange)().far,
-        fogStrength: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.readFloatControl)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogStrengthValueInput, 0.9),
-        fogHorizon: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.readFloatControl)(_dom_js__WEBPACK_IMPORTED_MODULE_8__.fogHorizonValueInput, 0.65),
-        playerRate: _dom_js__WEBPACK_IMPORTED_MODULE_8__.playerUpdateRateInput.value,
+        fogStrength: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.readFloatControl)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogStrengthValueInput, 0.9),
+        fogHorizon: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.readFloatControl)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.fogHorizonValueInput, 0.65),
+        playerRate: _dom_js__WEBPACK_IMPORTED_MODULE_10__.playerUpdateRateInput.value,
+        mobRate: _dom_js__WEBPACK_IMPORTED_MODULE_10__.mobUpdateRateInput.value,
         camera: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_0__.vectorState)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.camera.position),
         target: (0,_view_state_js__WEBPACK_IMPORTED_MODULE_0__.vectorState)(target),
     };

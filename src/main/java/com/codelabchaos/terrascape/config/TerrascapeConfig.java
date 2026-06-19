@@ -50,17 +50,17 @@ public record TerrascapeConfig(
     ) {
         Path base = dataDirectory.toAbsolutePath().normalize();
         Http http = new Http(
-                string(properties, "http.host", "SYNTH_TERRASCAPE_HOST", "127.0.0.1"),
-                integer(properties, "http.port", "SYNTH_TERRASCAPE_PORT", 5960, 1, 65535));
+                string(properties, "http.host", "TERRASCAPE_HOST", "127.0.0.1"),
+                integer(properties, "http.port", "TERRASCAPE_PORT", 5960, 1, 65535));
         Worlds worlds = new Worlds(stringSet(properties, "worlds.allowlist", null, Set.of()));
-        Security security = new Security(stringAllowBlank(properties, "security.adminToken", "SYNTH_TERRASCAPE_ADMIN_TOKEN", ""));
+        Security security = new Security(stringAllowBlank(properties, "security.adminToken", "TERRASCAPE_ADMIN_TOKEN", ""));
         Folders folders = new Folders(
                 path(base, string(properties, "folders.terrainCache", null, "terrain")),
                 path(base, string(properties, "folders.mapRegionCache", null, "map-region")),
                 path(base, string(properties, "folders.samples", null, "samples")),
                 path(base, string(properties, "folders.playerAvatars", null, "player-avatars")),
                 path(base, string(properties, "folders.mobIcons", null, "mob-icons")),
-                optionalPath(string(properties, "folders.assetsRoot", "SYNTH_TERRASCAPE_ASSETS_ROOT", null)),
+                optionalPath(string(properties, "folders.assetsRoot", "TERRASCAPE_ASSETS_ROOT", null)),
                 optionalPath(firstNonBlank(
                         override("folders.assetsZip", null),
                         System.getProperty("hytale.assets_zip"),
@@ -79,7 +79,7 @@ public record TerrascapeConfig(
                 bytes(properties, "cache.memoryMapRegionBytes", null, 64L * 1024L * 1024L, 0, Long.MAX_VALUE),
                 integer(properties, "cache.memoryMapTileEntries", null, 20_000, 0, 1_000_000));
         Features features = new Features(
-                bool(properties, "features.experimentalDetails", "SYNTH_TERRASCAPE_EXPERIMENTAL_DETAILS", true),
+                bool(properties, "features.experimentalDetails", "TERRASCAPE_EXPERIMENTAL_DETAILS", true),
                 bool(properties, "features.clientTelemetry", null, true),
                 bool(properties, "features.playerAvatars", null, true),
                 bool(properties, "features.lazyMobIcons", null, true),
@@ -108,7 +108,7 @@ public record TerrascapeConfig(
 
     public static String defaultFileText() {
         return """
-                # SynthTerrascape server configuration
+                # Terrascape server configuration
                 # Restart the Hytale server after changing this file.
                 # System properties with matching names and documented environment variables override file values.
 

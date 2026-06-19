@@ -1,4 +1,4 @@
-# SynthTerrascape Architecture and Performance Review
+# Synthborn: Terrascape Architecture and Performance Review
 
 Date: 2026-06-05
 
@@ -6,7 +6,7 @@ Goal: maximize visible voxel terrain first, then map tiles, while preserving a u
 
 ## Executive Summary
 
-SynthTerrascape has the right core shape: server-side terrain sampling and mesh generation, client-side Three.js rendering, disk and memory caches on both sides, and smoke/perf tooling that exercises the real deployed app. The biggest limit is not one bad algorithm. It is ownership drift: the two largest files have become runtime coordinators, service layers, data stores, debug surfaces, and UI controllers at the same time.
+Terrascape has the right core shape: server-side terrain sampling and mesh generation, client-side Three.js rendering, disk and memory caches on both sides, and smoke/perf tooling that exercises the real deployed app. The biggest limit is not one bad algorithm. It is ownership drift: the two largest files have become runtime coordinators, service layers, data stores, debug surfaces, and UI controllers at the same time.
 
 The highest-value work is to split the pipeline by ownership and make the loading path explicitly staged:
 
@@ -24,7 +24,7 @@ That keeps the current tween, but makes the scene fill faster because data fetch
 
 Main files:
 
-- `SynthTerrascapePlugin.java`: plugin lifecycle, settings, command registration, web server construction.
+- `TerrascapePlugin.java`: plugin lifecycle, settings, command registration, web server construction.
 - `TerrascapeWebServer.java`: HTTP routing, static web serving, terrain API, map tile API, map region API, player API, mob API, entity SSE stream, avatars, asset/icon lookup, JSON parsing, memory caches, disk caches, metrics, and debug formatting.
 - `TerrainSampler.java`: chunk-to-column/detail sampling.
 - `TerrainMesher.java`: column/detail-to-surface mesh generation.
@@ -295,7 +295,7 @@ Proposed Java package boundaries:
 
 ```text
 com.codelabchaos.terrascape
-  SynthTerrascapePlugin
+  TerrascapePlugin
   commands/
   terrain/
     TerrainSampler
