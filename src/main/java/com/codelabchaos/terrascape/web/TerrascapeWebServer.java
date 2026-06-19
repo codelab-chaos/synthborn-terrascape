@@ -2,6 +2,7 @@ package com.codelabchaos.terrascape.web;
 
 import com.codelabchaos.terrascape.TerrascapePlugin;
 import com.codelabchaos.terrascape.PlayerLookTracker;
+import com.codelabchaos.terrascape.config.ServerControls;
 import com.codelabchaos.terrascape.config.TerrascapeConfig;
 import com.codelabchaos.terrascape.terrain.GltfWriter;
 import com.codelabchaos.terrascape.terrain.TerrainDetail;
@@ -138,6 +139,7 @@ public final class TerrascapeWebServer {
 
     private final TerrascapePlugin plugin;
     private final TerrascapeConfig config;
+    private final ServerControls serverControls;
     private final String host;
     private final int port;
     private final boolean experimentalDetailsEnabled;
@@ -184,6 +186,8 @@ public final class TerrascapeWebServer {
     ) throws IOException {
         this.plugin = plugin;
         this.config = config;
+        this.serverControls = ServerControls.load(config.configPath().getParent(),
+                message -> plugin.getLogger().at(Level.WARNING).log(message));
         this.host = config.http().host();
         this.port = config.http().port();
         this.experimentalDetailsEnabled = config.features().experimentalDetails();
@@ -287,7 +291,8 @@ public final class TerrascapeWebServer {
                 .collect(Collectors.joining(","));
         writeJson(exchange, 200, "{\"ok\":true,\"features\":{\"experimentalDetails\":" + experimentalDetailsEnabled
                 + ",\"terrainFormatVersion\":\"" + config.mesh().terrainFormatVersion() + "\""
-                + "},\"worlds\":[" + worlds + "]}");
+                + "},\"clientControls\":" + serverControls.toClientJson()
+                + ",\"worlds\":[" + worlds + "]}");
     }
 
     private void handleClientLog(@Nonnull HttpExchange exchange) throws IOException {
@@ -355,6 +360,10 @@ public final class TerrascapeWebServer {
     private void handlePlayers(@Nonnull HttpExchange exchange) throws IOException {
         if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
             writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+        if (!serverControls.showPlayers()) {
+            writeJson(exchange, 200, "{\"ok\":true,\"players\":[]}");
             return;
         }
 
@@ -483,6 +492,10 @@ public final class TerrascapeWebServer {
     private void handleMobs(@Nonnull HttpExchange exchange) throws IOException {
         if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
             writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+        if (!serverControls.showMobs()) {
+            writeJson(exchange, 200, "{\"ok\":true,\"mobs\":[]}");
             return;
         }
 
