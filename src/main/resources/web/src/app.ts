@@ -53,6 +53,7 @@ import {
   toggleRenderDetails,
 } from './ui/view-persistence.ts';
 import { exposeDebugState } from './ui/debug-bridge.ts';
+import { mountBuildBadge } from './ui/build-badge.ts';
 import { loadWorlds } from './ui/world-selector.ts';
 import { resizeViewport } from './scene/viewport.ts';
 import { startFrameLoop } from './scene/frame-loop.ts';
@@ -106,6 +107,7 @@ bindAppEvents({
 applyInitialParams();
 setRadiusControlValue(radiusValue());
 exposeDebugState();
+mountBuildBadge();
 resizeViewport();
 timeRibbon.update(runtime.worldTime);
 startFrameLoop();

@@ -13,8 +13,8 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.logging.Level;
 
-public class SynthTerrascapePlugin extends JavaPlugin {
-    private static SynthTerrascapePlugin instance;
+public class TerrascapePlugin extends JavaPlugin {
+    private static TerrascapePlugin instance;
 
     private Instant startedAt;
     private TerrascapeConfig config;
@@ -22,11 +22,11 @@ public class SynthTerrascapePlugin extends JavaPlugin {
     private NpcRoleIndex npcRoleIndex;
     private PlayerLookTracker playerLookTracker;
 
-    public SynthTerrascapePlugin(@Nonnull JavaPluginInit init) {
+    public TerrascapePlugin(@Nonnull JavaPluginInit init) {
         super(init);
     }
 
-    public static SynthTerrascapePlugin get() {
+    public static TerrascapePlugin get() {
         return instance;
     }
 
@@ -74,7 +74,7 @@ public class SynthTerrascapePlugin extends JavaPlugin {
         playerLookTracker = new PlayerLookTracker(this);
         playerLookTracker.register();
         getCommandRegistry().registerCommand(new TerrascapeCommand(this));
-        getLogger().at(Level.INFO).log("SynthTerrascape setup complete.");
+        getLogger().at(Level.INFO).log("Terrascape setup complete.");
     }
 
     @Override
@@ -83,18 +83,18 @@ public class SynthTerrascapePlugin extends JavaPlugin {
 
         try {
             config = TerrascapeConfig.load(getDataDirectory());
-            getLogger().at(Level.INFO).log("SynthTerrascape config loaded from " + config.configPath());
+            getLogger().at(Level.INFO).log("Terrascape config loaded from " + config.configPath());
             webServer = new TerrascapeWebServer(this, config, npcRoleIndex);
             webServer.start();
         } catch (IOException e) {
-            getLogger().at(Level.SEVERE).withCause(e).log("Failed to start SynthTerrascape HTTP server.");
+            getLogger().at(Level.SEVERE).withCause(e).log("Failed to start Terrascape HTTP server.");
         }
-        getLogger().at(Level.INFO).log("SynthTerrascape started.");
+        getLogger().at(Level.INFO).log("Terrascape started.");
     }
 
     @Override
     protected void shutdown() {
-        getLogger().at(Level.INFO).log("SynthTerrascape shutting down.");
+        getLogger().at(Level.INFO).log("Terrascape shutting down.");
         if (webServer != null) {
             webServer.stop();
             webServer = null;

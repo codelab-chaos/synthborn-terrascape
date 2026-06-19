@@ -43,6 +43,7 @@ import {
 import {
   playersEl,
   playerUpdateRateInput,
+  mobUpdateRateInput,
   showMobsInput,
   showPlayersInput,
   worldSelect,
@@ -134,13 +135,17 @@ export async function refreshMobs() {
   }
 }
 
+function mobUpdateRateMs() {
+  return positiveIntegerMs(mobUpdateRateInput.value, MOB_POLL_MS);
+}
+
 function mobPollDelayMs() {
   return computeMobPollDelayMs({
     showMobs: showMobsInput.checked,
     liveMobFeed: liveMobFeedEnabled(),
     lastPollFailed: runtime.lastMobPollFailed,
     lastMobCount: runtime.lastMobCount,
-    activeMs: MOB_POLL_MS,
+    activeMs: mobUpdateRateMs(),
     emptyMs: EMPTY_MOB_POLL_MS,
     errorMs: MOB_POLL_ERROR_MS,
   });

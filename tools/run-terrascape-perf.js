@@ -269,7 +269,7 @@ function clearServerCache() {
 function resolveTerrascapeUrl(port = 5960) {
   loadRemoteEnv();
   if (process.env.WORLDVIEW_URL) return process.env.WORLDVIEW_URL;
-  if (process.env.SYNTH_TERRASCAPE_URL) return process.env.SYNTH_TERRASCAPE_URL;
+  if (process.env.TERRASCAPE_URL) return process.env.TERRASCAPE_URL;
   const host = process.env.SYNTH_RCON_HOST || process.env.HYTALE_REMOTE_HOST;
   if (host) return `http://${host.replace(/^https?:\/\//, '').split(':')[0]}:${port}`;
   return `http://127.0.0.1:${port}`;

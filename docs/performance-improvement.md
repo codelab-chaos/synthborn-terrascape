@@ -50,8 +50,8 @@ Telemetry: `map_backdrop_reuse` client-log events; `mapBackdropStats()` now expo
 ### Reproduce
 
 ```bash
-cd mods/SynthWorldview
-WORLDVIEW_URL=http://<host>:5960 node tools/run-terrascape-perf.js \
+cd mods/com.codelabchaos_Terrascape
+TERRASCAPE_URL=http://<host>:5960 node tools/run-terrascape-perf.js \
   --extensive --config tools/perf-suite-map-pan.json --runs 1 --wet \
   --report-dir perf-history/map-pan-after
 ```

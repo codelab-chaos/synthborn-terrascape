@@ -1,6 +1,6 @@
-# SynthTerrascape Proposed Design
+# Synthborn: Terrascape Proposed Design
 
-SynthTerrascape is a proposed Hytale server mod for a live, navigable 3D view of a
+Synthborn: Terrascape is a proposed Hytale server mod for a live, navigable 3D view of a
 running world. It takes the useful shape of EasyWebMap - embedded web server, chunk
 addressing, cache-backed asset generation, player tracking, and browser rendering - and
 changes the streamed asset from a 2D PNG tile to a conservative 3D terrain mesh.
@@ -53,7 +53,7 @@ Browser Three.js client
         |
         | GET static app, GET worlds, WS players, POST mesh batch
         v
-Netty web server inside SynthTerrascape
+Netty web server inside Terrascape
         |
         +--> PlayerTracker
         |
@@ -70,7 +70,7 @@ Netty web server inside SynthTerrascape
 
 The mod can start by copying the EasyWebMap server structure:
 
-- `SynthTerrascapePlugin`
+- `TerrascapePlugin`
 - `TerrascapeConfig`
 - `WebServer`
 - `HttpRequestHandler`
@@ -340,7 +340,7 @@ The MVP is complete when:
 
 ## Relationship To EasyWebMap
 
-EasyWebMap proves the web-server and tile-streaming skeleton. SynthTerrascape should copy
+EasyWebMap proves the web-server and tile-streaming skeleton. Terrascape should copy
 that architecture shamelessly, but keep a sharper MVP line:
 
 - 2D PNG tiles become 3D GLB chunks.

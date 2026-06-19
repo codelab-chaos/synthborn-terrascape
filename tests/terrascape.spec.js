@@ -10,7 +10,7 @@ test('supports canvas-scoped FPS fly look, capped zoom, and sprint movement', as
   await expect(page.locator('#player-update-rate')).not.toBeFocused();
 
   await page.evaluate(() => {
-    window.__synthTerrascapeDebug.setCameraPose({
+    window.__terrascapeDebug.setCameraPose({
       camera: { x: 16, y: 100, z: 16 },
       target: { x: 100, y: 100, z: 0 },
       lookAt: { x: 16, y: 100, z: -48 },
@@ -18,24 +18,24 @@ test('supports canvas-scoped FPS fly look, capped zoom, and sprint movement', as
   });
 
   await page.evaluate(() => {
-    window.__synthTerrascapeDebug.applyFlyLookDelta(100, -50);
+    window.__terrascapeDebug.applyFlyLookDelta(100, -50);
   });
-  const lookedPose = await page.evaluate(() => window.__synthTerrascapeDebug.cameraPose());
+  const lookedPose = await page.evaluate(() => window.__terrascapeDebug.cameraPose());
   expect(lookedPose.target.x).toBeGreaterThan(1);
   expect(lookedPose.target.y).toBeGreaterThan(100);
   await page.waitForTimeout(400);
   await expect(page.locator('#status')).toHaveText('Loaded 1 chunks around 0, 0');
   await expect(page.locator('#coord-chunk')).toHaveText('0, 0');
-  expect(await page.evaluate(() => window.__synthTerrascapeDebug.activeCenterId())).toBe('default:0:0');
+  expect(await page.evaluate(() => window.__terrascapeDebug.activeCenterId())).toBe('default:0:0');
 
   const zoomPose = await page.evaluate(() => {
-    window.__synthTerrascapeDebug.setCameraPose({
+    window.__terrascapeDebug.setCameraPose({
       camera: { x: 0, y: 1190, z: 100 },
       target: { x: 0, y: 1300, z: 0 },
       lookAt: { x: 0, y: 1300, z: 0 },
     });
-    window.__synthTerrascapeDebug.zoomFlyView(-100000);
-    return window.__synthTerrascapeDebug.cameraPose();
+    window.__terrascapeDebug.zoomFlyView(-100000);
+    return window.__terrascapeDebug.cameraPose();
   });
   expect(zoomPose.camera.y).toBeLessThanOrEqual(1200);
 
@@ -46,19 +46,19 @@ test('supports canvas-scoped FPS fly look, capped zoom, and sprint movement', as
 
 async function flyForwardDistance(page, sprint) {
   await page.evaluate(() => {
-    window.__synthTerrascapeDebug.setCameraPose({
+    window.__terrascapeDebug.setCameraPose({
       camera: { x: 16, y: 100, z: 16 },
       target: { x: 16, y: 100, z: -48 },
       lookAt: { x: 16, y: 100, z: -48 },
     });
   });
-  const before = await page.evaluate(() => window.__synthTerrascapeDebug.cameraPose().camera);
+  const before = await page.evaluate(() => window.__terrascapeDebug.cameraPose().camera);
   if (sprint) await page.keyboard.down('Shift');
   await page.keyboard.down('w');
   await page.waitForTimeout(220);
   await page.keyboard.up('w');
   if (sprint) await page.keyboard.up('Shift');
-  const after = await page.evaluate(() => window.__synthTerrascapeDebug.cameraPose().camera);
+  const after = await page.evaluate(() => window.__terrascapeDebug.cameraPose().camera);
   return Math.hypot(after.x - before.x, after.y - before.y, after.z - before.z);
 }
 
@@ -70,10 +70,10 @@ test('renders water materials and ignores removed shader water mode', async ({ p
   await expect(page.locator('#shader-effect')).toHaveCount(0);
   await expect(page.locator('#sun-lighting')).toHaveCount(0);
   await expect.poll(async () => page.evaluate(() => {
-    return window.__synthTerrascapeDebug.waterMaterialSummary().length;
+    return window.__terrascapeDebug.waterMaterialSummary().length;
   })).toBeGreaterThan(0);
 
-  const waterMaterials = await page.evaluate(() => window.__synthTerrascapeDebug.waterMaterialSummary());
+  const waterMaterials = await page.evaluate(() => window.__terrascapeDebug.waterMaterialSummary());
   expect(waterMaterials.every((material) => material.type === 'ShaderMaterial')).toBe(true);
   expect(waterMaterials.every((material) => material.toneMapped === false)).toBe(true);
   expect(waterMaterials.every((material) => material.fog === false)).toBe(true);
@@ -84,7 +84,7 @@ test('renders water materials and ignores removed shader water mode', async ({ p
 
   const firstTime = waterMaterials[0].time;
   await page.waitForTimeout(250);
-  const updatedTime = await page.evaluate(() => window.__synthTerrascapeDebug.waterMaterialSummary()[0]?.time);
+  const updatedTime = await page.evaluate(() => window.__terrascapeDebug.waterMaterialSummary()[0]?.time);
   expect(updatedTime).toBeGreaterThan(firstTime);
 });
 
@@ -101,14 +101,14 @@ test('map tiles serve PNGs, bind textures, and render map pixels', async ({ page
   expect(body[1]).toBe(0x50);
 
   await expect.poll(async () => {
-    const stats = await page.evaluate(() => window.__synthTerrascapeDebug.mapTileSceneStats());
+    const stats = await page.evaluate(() => window.__terrascapeDebug.mapTileSceneStats());
     return stats.meshCount;
   }, { timeout: 45000 }).toBeGreaterThanOrEqual(9);
 
-  const backdropY = await page.evaluate(() => window.__synthTerrascapeDebug.mapBackdropY());
+  const backdropY = await page.evaluate(() => window.__terrascapeDebug.mapBackdropY());
   expect(backdropY).toBe(112);
 
-  const audit = await page.evaluate(() => window.__synthTerrascapeDebug.auditMapTiles());
+  const audit = await page.evaluate(() => window.__terrascapeDebug.auditMapTiles());
   expect(audit.count).toBeGreaterThanOrEqual(9);
   expect(audit.issues).toEqual([]);
   for (const tile of audit.tiles) {
@@ -117,13 +117,13 @@ test('map tiles serve PNGs, bind textures, and render map pixels', async ({ page
     expect(tile.hasTexture).toBe(true);
   }
 
-  const centerProbe = await page.evaluate(() => window.__synthTerrascapeDebug.probeMapTilePixel(0, 0));
+  const centerProbe = await page.evaluate(() => window.__terrascapeDebug.probeMapTilePixel(0, 0));
   expect(centerProbe.ok, JSON.stringify(centerProbe)).toBe(true);
   expect(centerProbe.sampled).toBeTruthy();
   expect(centerProbe.skyDistance).toBeGreaterThan(24);
 
   await expect.poll(async () => {
-    const probe = await page.evaluate(() => window.__synthTerrascapeDebug.probeMapTilePixel(2, 0));
+    const probe = await page.evaluate(() => window.__terrascapeDebug.probeMapTilePixel(2, 0));
     return probe.ok;
   }, { timeout: 45000 }).toBe(true);
 });
@@ -152,16 +152,16 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#sun-lighting')).toHaveCount(0);
   await expect(page.locator('#experimental-details-state')).toHaveCount(0);
   const experimentalDetailsEnabled = await page.evaluate(
-    () => window.__synthTerrascapeDebug.experimentalDetailsEnabled(),
+    () => window.__terrascapeDebug.experimentalDetailsEnabled(),
   );
   await expect(page.locator('#show-players')).toBeChecked();
   await expect(page.locator('#map-time')).not.toBeChecked();
-  await expect(page.locator('#fog-enabled')).toBeChecked();
+  await expect(page.locator('#fog-enabled')).not.toBeChecked();
   await expect(page.locator('#fog-near')).toHaveValue('150');
   await expect(page.locator('#fog-far')).toHaveValue('620');
   await expect(page.locator('#fog-strength')).toHaveValue('0.9');
   await expect(page.locator('#fog-horizon')).toHaveValue('0.65');
-  expect(await page.evaluate(() => window.__synthTerrascapeDebug.cameraPose().fov)).toBe(70);
+  expect(await page.evaluate(() => window.__terrascapeDebug.cameraPose().fov)).toBe(70);
   await expect(page.locator('#height-grade')).toHaveCount(0);
   await expect(page.locator('#atmosphere-lighting')).toHaveCount(0);
   await expect(page.locator('#tree-shade')).toBeChecked();
@@ -171,10 +171,10 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#visual-detail-mode')).toHaveValue('all');
   await setControlValue('#cosmetic-blocks-mode', 'baked');
   await expect(page.locator('#cosmetic-blocks-mode')).toHaveValue('baked');
-  expect(await page.evaluate(() => window.__synthTerrascapeDebug.viewState().cosmeticsMode)).toBe('baked');
+  expect(await page.evaluate(() => window.__terrascapeDebug.viewState().cosmeticsMode)).toBe('baked');
   await setControlValue('#visual-detail-mode', 'basic');
   await expect(page.locator('#visual-detail-mode')).toHaveValue('basic');
-  expect(await page.evaluate(() => window.__synthTerrascapeDebug.viewState().visualDetailMode)).toBe('basic');
+  expect(await page.evaluate(() => window.__terrascapeDebug.viewState().visualDetailMode)).toBe('basic');
   await setControlValue('#visual-detail-mode', 'all');
   await expect(page.locator('#visual-detail-mode')).toHaveValue('all');
   await setControlValue('#cosmetic-blocks-mode', 'split');
@@ -195,13 +195,13 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
     await expect(page.locator('#terrain-load-slots')).toHaveValue('6');
     await expect(page.locator('#terrain-spawn-frame-value')).toHaveValue('5');
     await expect(page.locator('#terrain-spawn-budget')).toHaveValue('9');
-    expect(await page.evaluate(() => window.__synthTerrascapeDebug.terrainTuning())).toEqual({
+    expect(await page.evaluate(() => window.__terrascapeDebug.terrainTuning())).toEqual({
       loadSlots: 6,
       spawnFrame: 5,
       spawnBudgetMs: 9,
     });
   }
-  const mapTileFog = await page.evaluate(() => window.__synthTerrascapeDebug.skySummary());
+  const mapTileFog = await page.evaluate(() => window.__terrascapeDebug.skySummary());
   expect(mapTileFog.fogType).toBe(null);
   expect(mapTileFog.postFogEnabled).toBe(true);
   expect(mapTileFog.postFogNear).toBe(150);
@@ -209,7 +209,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(typeof mapTileFog.postFogColor.r).toBe('number');
   let mapBackdrop = null;
   await expect.poll(async () => {
-    mapBackdrop = await page.evaluate(() => window.__synthTerrascapeDebug.mapBackdropStats());
+    mapBackdrop = await page.evaluate(() => window.__terrascapeDebug.mapBackdropStats());
     return mapBackdrop.textureSize !== '';
   }).toBe(true);
   expect(mapBackdrop.radius).toBeLessThanOrEqual(108);
@@ -218,14 +218,14 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(mapBackdrop.chunks).toBe(mapBackdrop.radius * 2 + 1);
   expect(mapBackdrop.textureSize).toBe('32x32');
   await page.evaluate(() => {
-    window.__synthTerrascapeDebug.setCameraPose({
+    window.__terrascapeDebug.setCameraPose({
       camera: { x: 80, y: 180, z: -40 },
       target: { x: 16, y: 122, z: 16 },
       lookAt: { x: 16, y: 122, z: 16 },
     });
   });
   await expect.poll(async () => page.evaluate(() => {
-    const stats = window.__synthTerrascapeDebug.mapBackdropStats();
+    const stats = window.__terrascapeDebug.mapBackdropStats();
     return `${stats.loaded}:${stats.centerX}:${stats.centerZ}`;
   }), { timeout: 20000 }).toBe('1:0:0');
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 0, 0');
@@ -256,7 +256,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#metric-loaded')).toBeVisible();
   await expect(page.locator('#info-card-head')).toHaveAttribute('aria-expanded', 'true');
   await expect.poll(async () => page.evaluate(() => {
-    const counter = window.__synthTerrascapeDebug?.fpsCounter;
+    const counter = window.__terrascapeDebug?.fpsCounter;
     return typeof counter?.fps === 'number' && typeof counter?.frameMs === 'number';
   })).toBe(true);
   const markerShape = await page.evaluate(async () => {
@@ -432,7 +432,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(paddedMobMarkerShape.height).toBeLessThan(2.3);
 
   const testMobVisible = await page.evaluate(() => {
-    window.__synthTerrascapeDebug.updateMobsForTest([{
+    window.__terrascapeDebug.updateMobsForTest([{
       id: 'test-chicken',
       type: 'Chicken',
       label: 'Chicken',
@@ -443,7 +443,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       color: '#ffd36a',
       source: 'test',
     }]);
-    const marker = window.__synthTerrascapeDebug.mobMarkers.get('test-chicken');
+    const marker = window.__terrascapeDebug.mobMarkers.get('test-chicken');
     return {
       visible: marker?.visible === true,
       label: marker?.userData.mob?.label,
@@ -463,12 +463,12 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(testMobVisible.headshotName).toBe('mob-headshot-block');
 
   const mobDistanceOpacity = await page.evaluate(async () => {
-    window.__synthTerrascapeDebug.setCameraPose({
+    window.__terrascapeDebug.setCameraPose({
       camera: { x: 0, y: 120, z: 0 },
       target: { x: 32, y: 120, z: 32 },
       lookAt: { x: 32, y: 120, z: 32 },
     });
-    window.__synthTerrascapeDebug.updateMobsForTest([
+    window.__terrascapeDebug.updateMobsForTest([
       {
         id: 'test-near-card',
         type: 'Chicken',
@@ -492,8 +492,8 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
     ]);
     await new Promise((resolve) => requestAnimationFrame(resolve));
     await new Promise((resolve) => requestAnimationFrame(resolve));
-    const near = window.__synthTerrascapeDebug.mobMarkers.get('test-near-card');
-    const far = window.__synthTerrascapeDebug.mobMarkers.get('test-far-card');
+    const near = window.__terrascapeDebug.mobMarkers.get('test-near-card');
+    const far = window.__terrascapeDebug.mobMarkers.get('test-far-card');
     return {
       nearCardOpacity: near?.userData.badge?.material?.opacity,
       farCardOpacity: far?.userData.badge?.material?.opacity,
@@ -509,7 +509,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await page.locator('#mob-blocks').uncheck();
   await expect(page.locator('#mob-blocks-panel')).not.toBeChecked();
   const mobBlocksHidden = await page.evaluate(() => {
-    window.__synthTerrascapeDebug.updateMobsForTest([{
+    window.__terrascapeDebug.updateMobsForTest([{
       id: 'test-chicken',
       type: 'Chicken',
       label: 'Chicken',
@@ -520,11 +520,11 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       color: '#ffd36a',
       source: 'test',
     }]);
-    const marker = window.__synthTerrascapeDebug.mobMarkers.get('test-chicken');
+    const marker = window.__terrascapeDebug.mobMarkers.get('test-chicken');
     return {
-      markerCount: window.__synthTerrascapeDebug.mobMarkers.size,
+      markerCount: window.__terrascapeDebug.mobMarkers.size,
       blockVisible: marker?.userData.headshotBlock?.visible,
-      viewState: window.__synthTerrascapeDebug.viewState().mobBlocks,
+      viewState: window.__terrascapeDebug.viewState().mobBlocks,
     };
   });
   expect(mobBlocksHidden.markerCount).toBe(1);
@@ -534,24 +534,24 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#mob-blocks-panel')).toBeChecked();
   await expect(page.locator('#mob-blocks')).toBeChecked();
   await expect.poll(async () => page.evaluate(() => {
-    const marker = window.__synthTerrascapeDebug.mobMarkers.get('test-chicken');
+    const marker = window.__terrascapeDebug.mobMarkers.get('test-chicken');
     return marker?.userData.headshotBlock?.visible;
   })).toBe(true);
 
   await page.locator('#show-mobs').uncheck();
   await expect.poll(async () => page.evaluate(() => {
-    return window.__synthTerrascapeDebug.mobMarkers.size;
+    return window.__terrascapeDebug.mobMarkers.size;
   })).toBe(0);
   await expect(page.locator('#metric-mobs')).toHaveText('hidden');
-  await expect.poll(async () => page.evaluate(() => window.__synthTerrascapeDebug.entityStreamState().mobs)).toBe(false);
+  await expect.poll(async () => page.evaluate(() => window.__terrascapeDebug.entityStreamState().mobs)).toBe(false);
   await page.locator('#show-mobs').check();
   await expect.poll(async () => page.evaluate(() => {
-    const state = window.__synthTerrascapeDebug.entityStreamState();
+    const state = window.__terrascapeDebug.entityStreamState();
     return state.mobs === state.liveMobFeed;
   })).toBe(true);
 
   const predatorMobVisible = await page.evaluate(() => {
-    window.__synthTerrascapeDebug.updateMobsForTest([{
+    window.__terrascapeDebug.updateMobsForTest([{
       id: 'test-bear',
       type: 'Bear_Grizzly',
       label: 'Bear_Grizzly',
@@ -583,11 +583,11 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       source: 'test',
     }]);
     return {
-      bearAttack: window.__synthTerrascapeDebug.mobMarkers.get('test-bear')?.userData.mob?.attackDamage,
-      bearHp: window.__synthTerrascapeDebug.mobMarkers.get('test-bear')?.userData.mob?.hp,
-      boarAttack: window.__synthTerrascapeDebug.mobMarkers.get('test-boar')?.userData.mob?.attackDamage,
-      skeletonAttack: window.__synthTerrascapeDebug.mobMarkers.get('test-skeleton')?.userData.mob?.attackDamage,
-      skeletonHp: window.__synthTerrascapeDebug.mobMarkers.get('test-skeleton')?.userData.mob?.hp,
+      bearAttack: window.__terrascapeDebug.mobMarkers.get('test-bear')?.userData.mob?.attackDamage,
+      bearHp: window.__terrascapeDebug.mobMarkers.get('test-bear')?.userData.mob?.hp,
+      boarAttack: window.__terrascapeDebug.mobMarkers.get('test-boar')?.userData.mob?.attackDamage,
+      skeletonAttack: window.__terrascapeDebug.mobMarkers.get('test-skeleton')?.userData.mob?.attackDamage,
+      skeletonHp: window.__terrascapeDebug.mobMarkers.get('test-skeleton')?.userData.mob?.hp,
     };
   });
   expect(predatorMobVisible.bearAttack).toBe(38);
@@ -629,7 +629,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await setControlChecked('#show-players', true);
   const avatarTesterTileState = await page.evaluate(() => {
     const uuid = '00000000-0000-0000-0000-000000000001';
-    window.__synthTerrascapeDebug.updatePlayersForTest([{
+    window.__terrascapeDebug.updatePlayersForTest([{
       uuid,
       name: 'Avatar Tester',
       avatarUrl: '/api/player-avatar/00000000-0000-0000-0000-000000000001.png?name=Avatar%20Tester',
@@ -638,7 +638,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       z: 0,
       yaw: 0,
     }]);
-    const tile = window.__synthTerrascapeDebug.playerTiles.get(uuid);
+    const tile = window.__terrascapeDebug.playerTiles.get(uuid);
     return {
       avatarText: tile?.avatar?.textContent ?? '',
       nameText: tile?.name?.textContent ?? '',
@@ -647,7 +647,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(avatarTesterTileState.avatarText).toContain('AT');
   expect(avatarTesterTileState.nameText).toBe('Avatar Tester');
   const pitchedEyePose = await page.evaluate(() => {
-    window.__synthTerrascapeDebug.updatePlayersForTest([{
+    window.__terrascapeDebug.updatePlayersForTest([{
       uuid: '00000000-0000-0000-0000-000000000001',
       name: 'Avatar Tester',
       avatarUrl: '/api/player-avatar/00000000-0000-0000-0000-000000000001.png?name=Avatar%20Tester',
@@ -657,16 +657,16 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       yaw: 0,
       pitch: 30,
     }]);
-    window.__synthTerrascapeDebug.setPlayerEyeViewForTest('00000000-0000-0000-0000-000000000001');
-    return window.__synthTerrascapeDebug.cameraPose();
+    window.__terrascapeDebug.setPlayerEyeViewForTest('00000000-0000-0000-0000-000000000001');
+    return window.__terrascapeDebug.cameraPose();
   });
   expect(pitchedEyePose.target.y - pitchedEyePose.camera.y).toBeGreaterThan(5.8);
   expect(pitchedEyePose.target.z).toBeLessThan(pitchedEyePose.camera.z - 9);
   await page.evaluate(() => {
-    window.__synthTerrascapeDebug.setPlayerEyeViewForTest(null);
+    window.__terrascapeDebug.setPlayerEyeViewForTest(null);
   });
   const yawedEyePose = await page.evaluate(() => {
-    window.__synthTerrascapeDebug.updatePlayersForTest([{
+    window.__terrascapeDebug.updatePlayersForTest([{
       uuid: '00000000-0000-0000-0000-000000000003',
       name: 'Left Turn',
       avatarUrl: '/api/player-avatar/00000000-0000-0000-0000-000000000003.png?name=Left%20Turn',
@@ -676,8 +676,8 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       yaw: -90,
       pitch: 0,
     }]);
-    window.__synthTerrascapeDebug.setPlayerEyeViewForTest('00000000-0000-0000-0000-000000000003');
-    return window.__synthTerrascapeDebug.cameraPose();
+    window.__terrascapeDebug.setPlayerEyeViewForTest('00000000-0000-0000-0000-000000000003');
+    return window.__terrascapeDebug.cameraPose();
   });
   expect(yawedEyePose.target.x - yawedEyePose.camera.x).toBeGreaterThan(9);
   expect(Math.abs(yawedEyePose.target.z - yawedEyePose.camera.z)).toBeLessThan(1);
@@ -693,14 +693,14 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       yaw: 0,
       pitch: 0,
     };
-    window.__synthTerrascapeDebug.updatePlayersForTest([player]);
-    window.__synthTerrascapeDebug.setPlayerEyeViewForTest(player.uuid);
+    window.__terrascapeDebug.updatePlayersForTest([player]);
+    window.__terrascapeDebug.setPlayerEyeViewForTest(player.uuid);
     await frame();
-    window.__synthTerrascapeDebug.updatePlayersForTest([{ ...player, yaw: -90 }]);
+    window.__terrascapeDebug.updatePlayersForTest([{ ...player, yaw: -90 }]);
     const samples = [];
     for (let i = 0; i < 8; i += 1) {
       await frame();
-      const pose = window.__synthTerrascapeDebug.cameraPose();
+      const pose = window.__terrascapeDebug.cameraPose();
       samples.push(pose.target.x - pose.camera.x);
     }
     return samples;
@@ -710,14 +710,14 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(yawLerpMagnitudes.every((sample, index) => index === 0 || sample >= yawLerpMagnitudes[index - 1] - 0.05))
     .toBe(true);
   await page.evaluate(() => {
-    window.__synthTerrascapeDebug.setPlayerEyeViewForTest(null);
+    window.__terrascapeDebug.setPlayerEyeViewForTest(null);
   });
   const streamAnchor = await page.evaluate(() => {
-    window.__synthTerrascapeDebug.setCameraPose({
+    window.__terrascapeDebug.setCameraPose({
       camera: { x: 976, y: 180, z: 976 },
       target: { x: 976, y: 120, z: 916 },
     });
-    window.__synthTerrascapeDebug.updatePlayersForTest([{
+    window.__terrascapeDebug.updatePlayersForTest([{
       uuid: '00000000-0000-0000-0000-000000000001',
       name: 'Avatar Tester',
       avatarUrl: '/api/player-avatar/00000000-0000-0000-0000-000000000001.png?name=Avatar%20Tester',
@@ -726,12 +726,12 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       z: 64,
       yaw: 0,
     }]);
-    return window.__synthTerrascapeDebug.streamAnchorChunk();
+    return window.__terrascapeDebug.streamAnchorChunk();
   });
   expect(streamAnchor).toEqual({ chunkX: 30, chunkZ: 30 });
   const playerAvatarReuse = await page.evaluate(() => {
     const onePixelPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
-    window.__synthTerrascapeDebug.updatePlayersForTest([{
+    window.__terrascapeDebug.updatePlayersForTest([{
       uuid: '00000000-0000-0000-0000-000000000002',
       name: 'Stable Avatar',
       avatarUrl: onePixelPng,
@@ -740,10 +740,10 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       z: 1,
       yaw: 0,
     }]);
-    const tile = window.__synthTerrascapeDebug.playerTiles.get('00000000-0000-0000-0000-000000000002');
+    const tile = window.__terrascapeDebug.playerTiles.get('00000000-0000-0000-0000-000000000002');
     const before = tile?.avatarImage;
     const beforeElement = tile?.element;
-    window.__synthTerrascapeDebug.updatePlayersForTest([{
+    window.__terrascapeDebug.updatePlayersForTest([{
       uuid: '00000000-0000-0000-0000-000000000002',
       name: 'Stable Avatar',
       avatarUrl: onePixelPng,
@@ -752,13 +752,13 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       z: 2,
       yaw: 0,
     }]);
-    const afterTile = window.__synthTerrascapeDebug.playerTiles.get('00000000-0000-0000-0000-000000000002');
+    const afterTile = window.__terrascapeDebug.playerTiles.get('00000000-0000-0000-0000-000000000002');
     const after = afterTile?.avatarImage;
     return before instanceof HTMLImageElement && before === after && beforeElement === afterTile?.element;
   });
   expect(playerAvatarReuse).toBe(true);
   await page.evaluate((players) => {
-    window.__synthTerrascapeDebug.updatePlayersForTest(players);
+    window.__terrascapeDebug.updatePlayersForTest(players);
   }, playersPayload.players);
 
   const timeResponse = await page.request.get('/api/time/default');
@@ -774,50 +774,50 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
     input.dispatchEvent(new Event('change', { bubbles: true }));
   });
   const afternoonSky = await page.evaluate(() => {
-    window.__synthTerrascapeDebug.setWorldTimeForTest({
+    window.__terrascapeDebug.setWorldTimeForTest({
       dayProgress: 0.645,
       sunlightFactor: 0.2,
       phase: 'afternoon',
       sunDirection: { x: 0.35, y: -0.85, z: -0.2 },
     });
-    return window.__synthTerrascapeDebug.skySummary();
+    return window.__terrascapeDebug.skySummary();
   });
   expect(afternoonSky.starsVisible).toBe(false);
   expect(afternoonSky.background.b).toBeGreaterThan(afternoonSky.background.r);
   const mapDistanceFog = await page.evaluate(async () => {
-    window.__synthTerrascapeDebug.setCameraPose({
+    window.__terrascapeDebug.setCameraPose({
       camera: { x: 80, y: 180, z: -40 },
       target: { x: 40, y: 122, z: 40 },
       lookAt: { x: 40, y: 122, z: 40 },
     });
     await new Promise((resolve) => requestAnimationFrame(resolve));
-    return window.__synthTerrascapeDebug.skySummary();
+    return window.__terrascapeDebug.skySummary();
   });
   expect(mapDistanceFog.fogType).toBe(null);
   expect(mapDistanceFog.postFogEnabled).toBe(true);
   expect(mapDistanceFog.postFogNear).toBe(150);
   expect(mapDistanceFog.postFogFar).toBe(620);
   const sunsetSky = await page.evaluate(() => {
-    window.__synthTerrascapeDebug.setWorldTimeForTest({
+    window.__terrascapeDebug.setWorldTimeForTest({
       dayProgress: 0.758,
       sunlightFactor: 0,
       phase: 'sunset',
       sunDirection: { x: 0.58, y: -0.61, z: -0.13 },
     });
-    return window.__synthTerrascapeDebug.skySummary();
+    return window.__terrascapeDebug.skySummary();
   });
   expect(sunsetSky.starsVisible).toBe(false);
   const nightSky = await page.evaluate(() => {
-    window.__synthTerrascapeDebug.setWorldTimeForTest({
+    window.__terrascapeDebug.setWorldTimeForTest({
       dayProgress: 0.04,
       sunlightFactor: 0,
       phase: 'midnight',
       sunDirection: { x: -0.2, y: 0.9, z: 0.2 },
     });
-    return window.__synthTerrascapeDebug.skySummary();
+    return window.__terrascapeDebug.skySummary();
   });
   expect(nightSky.starsVisible).toBe(true);
-  const nightLighting = await page.evaluate(() => window.__synthTerrascapeDebug.lightingSummary());
+  const nightLighting = await page.evaluate(() => window.__terrascapeDebug.lightingSummary());
   expect(nightLighting.ambientIntensity).toBeGreaterThan(0.65);
   expect(nightLighting.ambientIntensity).toBeLessThan(0.9);
   expect(nightLighting.sunIntensity).toBeLessThan(0.25);
@@ -951,12 +951,12 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await setControlValue('#water-mode', 'solid');
   await expect(page.locator('#water-mode')).toHaveValue('solid');
   await expect.poll(async () => page.evaluate(() => {
-    return window.__synthTerrascapeDebug.waterMaterialSummary().every((material) => material.shaderMix === 0);
+    return window.__terrascapeDebug.waterMaterialSummary().every((material) => material.shaderMix === 0);
   })).toBe(true);
   await setControlValue('#water-mode', 'transparent');
   await expect(page.locator('#water-mode')).toHaveValue('transparent');
   await expect.poll(async () => page.evaluate(() => {
-    return window.__synthTerrascapeDebug.waterMaterialSummary().every((material) => material.alpha === 0.48);
+    return window.__terrascapeDebug.waterMaterialSummary().every((material) => material.alpha === 0.48);
   })).toBe(true);
   await setControlValue('#water-mode', 'hidden');
   await expect(page.locator('#water-mode')).toHaveValue('hidden');
@@ -971,8 +971,8 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await setControlValue('#shade-size', '1.6', 'input');
   await expect(page.locator('#shade-size-value')).toHaveValue('1.6');
   await setControlChecked('#fog-enabled', false);
-  expect(await page.evaluate(() => window.__synthTerrascapeDebug.viewState().fog.enabled)).toBe(false);
-  expect(await page.evaluate(() => window.__synthTerrascapeDebug.skySummary().postFogEnabled)).toBe(false);
+  expect(await page.evaluate(() => window.__terrascapeDebug.viewState().fog.enabled)).toBe(false);
+  expect(await page.evaluate(() => window.__terrascapeDebug.skySummary().postFogEnabled)).toBe(false);
   await setControlChecked('#fog-enabled', true);
   await setControlValue('#fog-near-value', '240', 'input');
   await setControlValue('#fog-far', '900', 'input');
@@ -982,7 +982,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#fog-far-value')).toHaveValue('900');
   await expect(page.locator('#fog-strength')).toHaveValue('0.72');
   await expect(page.locator('#fog-horizon-value')).toHaveValue('1.1');
-  expect(await page.evaluate(() => window.__synthTerrascapeDebug.viewState().fog)).toEqual({
+  expect(await page.evaluate(() => window.__terrascapeDebug.viewState().fog)).toEqual({
     enabled: true,
     near: 240,
     far: 900,

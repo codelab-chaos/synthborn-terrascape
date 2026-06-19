@@ -1,6 +1,6 @@
-# SynthTerrascape Configuration
+# Synthborn: Terrascape Configuration
 
-SynthTerrascape creates `terrascape.properties` in the plugin data folder on first
+Terrascape creates `terrascape.properties` in the plugin data folder on first
 startup. Restart the Hytale server after changing it.
 
 Values in the file can be overridden with Java system properties. Prefix config keys
@@ -14,12 +14,12 @@ The existing deployment environment variables still work for the common boot opt
 
 | Option | Purpose | Env override |
 | --- | --- | --- |
-| `http.host` | Address the web server binds to. Keep `127.0.0.1` unless the reverse proxy or host firewall is ready. | `SYNTH_TERRASCAPE_HOST` |
-| `http.port` | Web server port. | `SYNTH_TERRASCAPE_PORT` |
-| `features.experimentalDetails` | Enables enhanced terrain detail requests. | `SYNTH_TERRASCAPE_EXPERIMENTAL_DETAILS` |
-| `folders.assetsRoot` | Optional extracted Hytale asset root for lazy mob icons. | `SYNTH_TERRASCAPE_ASSETS_ROOT` |
+| `http.host` | Address the web server binds to. Keep `127.0.0.1` unless the reverse proxy or host firewall is ready. | `TERRASCAPE_HOST` |
+| `http.port` | Web server port. | `TERRASCAPE_PORT` |
+| `features.experimentalDetails` | Enables enhanced terrain detail requests. | `TERRASCAPE_EXPERIMENTAL_DETAILS` |
+| `folders.assetsRoot` | Optional extracted Hytale asset root for lazy mob icons. | `TERRASCAPE_ASSETS_ROOT` |
 | `folders.assetsZip` | Optional `Assets.zip` path for lazy mob icons. | `HYTALE_ASSETS_ZIP` |
-| `security.adminToken` | Optional token for admin/debug web endpoints. | `SYNTH_TERRASCAPE_ADMIN_TOKEN` |
+| `security.adminToken` | Optional token for admin/debug web endpoints. | `TERRASCAPE_ADMIN_TOKEN` |
 
 ## Sections
 
