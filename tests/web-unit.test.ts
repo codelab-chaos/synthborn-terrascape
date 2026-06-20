@@ -20,7 +20,6 @@ import {
 import {
   floatControlValue,
   fogRangeFromControls,
-  mapTileRetainRadiusFor,
   radiusReadout,
   safeWaterMode,
   terrainTuningControlValue,
@@ -67,8 +66,6 @@ test('normalizes view preference controls', () => {
     chunks: 49,
     text: '7 x 7 chunks, 49 meshes',
   });
-  assert.equal(mapTileRetainRadiusFor(8, false, 8), 16);
-  assert.equal(mapTileRetainRadiusFor(8, true, 8, 1), 17);
 });
 
 test('initializes app runtime state in one owned object', () => {

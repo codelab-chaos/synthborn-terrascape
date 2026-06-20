@@ -41,7 +41,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   mapBackdropCenterFrom: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_22__.mapBackdropCenterFrom),
 /* harmony export */   mapBackdropRetainStats: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_22__.mapBackdropRetainStats),
 /* harmony export */   mapTileLayerKey: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_22__.mapTileLayerKey),
-/* harmony export */   mapTileRetainRadiusFor: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_26__.mapTileRetainRadiusFor),
 /* harmony export */   mobPollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_20__.mobPollDelayMs),
 /* harmony export */   nearestMobsForSample: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_19__.nearestMobsForSample),
 /* harmony export */   normalizePairedValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__.normalizePairedValue),
@@ -1252,7 +1251,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   floatControlValue: () => (/* binding */ floatControlValue),
 /* harmony export */   fogRangeFromControls: () => (/* binding */ fogRangeFromControls),
-/* harmony export */   mapTileRetainRadiusFor: () => (/* binding */ mapTileRetainRadiusFor),
 /* harmony export */   radiusReadout: () => (/* binding */ radiusReadout),
 /* harmony export */   safeWaterMode: () => (/* binding */ safeWaterMode),
 /* harmony export */   terrainTuningControlValue: () => (/* binding */ terrainTuningControlValue)
@@ -1293,11 +1291,6 @@ function radiusReadout(radius) {
         chunks,
         text: `${diameter} x ${diameter} chunks, ${chunks} meshes`,
     };
-}
-function mapTileRetainRadiusFor(terrainRadius, streamLoad, horizonMargin, retainMargin = 1) {
-    return streamLoad
-        ? terrainRadius + retainMargin + horizonMargin
-        : terrainRadius + horizonMargin;
 }
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -6596,7 +6589,6 @@ function terrainCosmeticOverlayUrl(world, chunkX, chunkZ) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   MAP_HORIZON_MARGIN: () => (/* binding */ MAP_HORIZON_MARGIN),
 /* harmony export */   auditMapTiles: () => (/* binding */ auditMapTiles),
 /* harmony export */   clearMapBackdrop: () => (/* binding */ clearMapBackdrop),
 /* harmony export */   configureMapBackdrop: () => (/* binding */ configureMapBackdrop),
@@ -6625,8 +6617,6 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const CHUNK_SIZE = 32;
-/** Map tiles extend this many chunks beyond the voxel terrain square on each side. */
-const MAP_HORIZON_MARGIN = 8;
 const SKY_RGB = { r: 23, g: 52, b: 84 };
 const RISE_START_Y = -48;
 const RISE_MS = 140;
@@ -7635,7 +7625,7 @@ function formatBuildTime(iso) {
     return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function mountBuildBadge() {
-    const info = {"version":"0.1.0","channel":"early access","sha":"97e778f-dirty","time":"2026-06-20T01:05:32.880Z"};
+    const info = {"version":"0.1.0","channel":"early access","sha":"680d1ae-dirty","time":"2026-06-20T06:23:00.737Z"};
     const badge = document.createElement('div');
     badge.className = 'build-badge';
     badge.textContent = `v${info.version} [${info.channel}] · ${info.sha} · ${formatBuildTime(info.time)}`;
@@ -7668,7 +7658,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   cosmeticBlocksSplit: () => (/* binding */ cosmeticBlocksSplit),
 /* harmony export */   landMotionEnabled: () => (/* binding */ landMotionEnabled),
 /* harmony export */   mapTileRadius: () => (/* binding */ mapTileRadius),
-/* harmony export */   mapTileRetainRadius: () => (/* binding */ mapTileRetainRadius),
 /* harmony export */   mobBlocksEnabled: () => (/* binding */ mobBlocksEnabled),
 /* harmony export */   radiusValue: () => (/* binding */ radiusValue),
 /* harmony export */   readFloatControl: () => (/* binding */ readFloatControl),
@@ -7684,12 +7673,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   waterModeValue: () => (/* binding */ waterModeValue)
 /* harmony export */ });
 /* harmony import */ var _common_utils_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../common/utils.js */ "./src/main/resources/web/src/common/utils.ts");
-/* harmony import */ var _tile_map_map_backdrop_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../tile-map/map-backdrop.js */ "./src/main/resources/web/src/tile-map/map-backdrop.ts");
-/* harmony import */ var _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../common/view-preferences.js */ "./src/main/resources/web/src/common/view-preferences.ts");
-/* harmony import */ var _library_control_values_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../library/control-values.js */ "./src/main/resources/web/src/library/control-values.ts");
-/* harmony import */ var _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../scene/scene-context.js */ "./src/main/resources/web/src/scene/scene-context.ts");
-/* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/ui/dom.ts");
-
+/* harmony import */ var _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../common/view-preferences.js */ "./src/main/resources/web/src/common/view-preferences.ts");
+/* harmony import */ var _library_control_values_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../library/control-values.js */ "./src/main/resources/web/src/library/control-values.ts");
+/* harmony import */ var _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../scene/scene-context.js */ "./src/main/resources/web/src/scene/scene-context.ts");
+/* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/ui/dom.ts");
 
 
 
@@ -7710,43 +7697,40 @@ const DEFAULT_TILE_LOAD_CONCURRENCY = 4;
 // Map tile distance is an independent knob, but never smaller than the voxel mesh radius — tiles
 // must at least cover the loaded meshes (below that, tiles add nothing the voxels don't already).
 function mapTileRadius() {
-    return Math.max(terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTileRadiusValueInput, DEFAULT_MAP_TILE_RADIUS), radiusValue());
+    return Math.max(terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_4__.mapTileRadiusValueInput, DEFAULT_MAP_TILE_RADIUS), radiusValue());
 }
 function tileLoadConcurrency() {
-    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.tileLoadSlotsValueInput, DEFAULT_TILE_LOAD_CONCURRENCY);
-}
-function mapTileRetainRadius(terrainRadius, streamLoad = false) {
-    return (0,_common_view_preferences_js__WEBPACK_IMPORTED_MODULE_2__.mapTileRetainRadiusFor)(terrainRadius, streamLoad, _tile_map_map_backdrop_js__WEBPACK_IMPORTED_MODULE_1__.MAP_HORIZON_MARGIN, AUTO_STREAM_RETAIN_MARGIN);
+    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_4__.tileLoadSlotsValueInput, DEFAULT_TILE_LOAD_CONCURRENCY);
 }
 function terrainLoadConcurrency() {
-    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.terrainLoadSlotsValueInput, DEFAULT_TERRAIN_LOAD_CONCURRENCY);
+    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_4__.terrainLoadSlotsValueInput, DEFAULT_TERRAIN_LOAD_CONCURRENCY);
 }
 function terrainPromotionBudgetMs() {
-    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.terrainSpawnBudgetValueInput, DEFAULT_TERRAIN_PROMOTION_BUDGET_MS);
+    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_4__.terrainSpawnBudgetValueInput, DEFAULT_TERRAIN_PROMOTION_BUDGET_MS);
 }
 function terrainPromotionsPerFrame() {
-    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.terrainSpawnFrameValueInput, DEFAULT_TERRAIN_PROMOTIONS_PER_FRAME);
+    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_4__.terrainSpawnFrameValueInput, DEFAULT_TERRAIN_PROMOTIONS_PER_FRAME);
 }
 function terrainTuningValue(input, fallback) {
-    return (0,_common_view_preferences_js__WEBPACK_IMPORTED_MODULE_2__.terrainTuningControlValue)(input, fallback);
+    return (0,_common_view_preferences_js__WEBPACK_IMPORTED_MODULE_1__.terrainTuningControlValue)(input, fallback);
 }
 function readFloatControl(input, fallback) {
-    return (0,_common_view_preferences_js__WEBPACK_IMPORTED_MODULE_2__.floatControlValue)(input, fallback);
+    return (0,_common_view_preferences_js__WEBPACK_IMPORTED_MODULE_1__.floatControlValue)(input, fallback);
 }
 function landMotionEnabled() {
-    return _dom_js__WEBPACK_IMPORTED_MODULE_5__.landMotionInput?.checked !== false;
+    return _dom_js__WEBPACK_IMPORTED_MODULE_4__.landMotionInput?.checked !== false;
 }
 function mobBlocksEnabled() {
-    return _dom_js__WEBPACK_IMPORTED_MODULE_5__.mobBlocksInput.checked === true;
+    return _dom_js__WEBPACK_IMPORTED_MODULE_4__.mobBlocksInput.checked === true;
 }
 function syncMobBlocksInputs(checked) {
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.mobBlocksInput.checked = checked === true;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.mobBlocksPanelInput.checked = checked === true;
+    _dom_js__WEBPACK_IMPORTED_MODULE_4__.mobBlocksInput.checked = checked === true;
+    _dom_js__WEBPACK_IMPORTED_MODULE_4__.mobBlocksPanelInput.checked = checked === true;
 }
 function cosmeticBlocksMode() {
-    if (!_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_4__.runtime.experimentalDetailsEnabled)
+    if (!_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_3__.runtime.experimentalDetailsEnabled)
         return 'off';
-    const value = _dom_js__WEBPACK_IMPORTED_MODULE_5__.cosmeticBlocksModeInput?.value;
+    const value = _dom_js__WEBPACK_IMPORTED_MODULE_4__.cosmeticBlocksModeInput?.value;
     return value === 'baked' || value === 'split' ? value : 'off';
 }
 function cosmeticBlocksBaked() {
@@ -7756,27 +7740,27 @@ function cosmeticBlocksSplit() {
     return cosmeticBlocksMode() === 'split';
 }
 function visualDetailMode() {
-    const value = _dom_js__WEBPACK_IMPORTED_MODULE_5__.visualDetailModeInput?.value;
+    const value = _dom_js__WEBPACK_IMPORTED_MODULE_4__.visualDetailModeInput?.value;
     return value === 'basic' || value === 'structures' || value === 'all' ? value : 'all';
 }
 function applySelectValue(input, value) {
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_3__.applySelectValue)(input, value, TRI_STATE_VALUES_BY_ID);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_2__.applySelectValue)(input, value, TRI_STATE_VALUES_BY_ID);
 }
 function setRadiusControlValue(value) {
-    const normalized = (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_3__.normalizePairedValue)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusRangeInput, Math.round(Number(value)));
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusRangeInput.value = normalized;
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value = normalized;
+    const normalized = (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_2__.normalizePairedValue)(_dom_js__WEBPACK_IMPORTED_MODULE_4__.radiusRangeInput, Math.round(Number(value)));
+    _dom_js__WEBPACK_IMPORTED_MODULE_4__.radiusRangeInput.value = normalized;
+    _dom_js__WEBPACK_IMPORTED_MODULE_4__.radiusInput.value = normalized;
     updateRadiusReadout();
     return normalized;
 }
 function radiusValue() {
-    return Math.max(0, (0,_common_utils_js__WEBPACK_IMPORTED_MODULE_0__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput.value, 10), 0));
+    return Math.max(0, (0,_common_utils_js__WEBPACK_IMPORTED_MODULE_0__.numberOr)(Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_4__.radiusInput.value, 10), 0));
 }
 function updateRadiusReadout() {
-    _dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusDiameterEl.textContent = (0,_common_view_preferences_js__WEBPACK_IMPORTED_MODULE_2__.radiusReadout)(radiusValue()).text;
+    _dom_js__WEBPACK_IMPORTED_MODULE_4__.radiusDiameterEl.textContent = (0,_common_view_preferences_js__WEBPACK_IMPORTED_MODULE_1__.radiusReadout)(radiusValue()).text;
 }
 function waterModeValue() {
-    return (0,_common_view_preferences_js__WEBPACK_IMPORTED_MODULE_2__.safeWaterMode)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput.value);
+    return (0,_common_view_preferences_js__WEBPACK_IMPORTED_MODULE_1__.safeWaterMode)(_dom_js__WEBPACK_IMPORTED_MODULE_4__.waterModeInput.value);
 }
 
 
@@ -9130,7 +9114,6 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_three_addons_postprocessing_ShaderPas
 /******/ const __webpack_exports__mapBackdropCenterFrom = __webpack_exports__.mapBackdropCenterFrom;
 /******/ const __webpack_exports__mapBackdropRetainStats = __webpack_exports__.mapBackdropRetainStats;
 /******/ const __webpack_exports__mapTileLayerKey = __webpack_exports__.mapTileLayerKey;
-/******/ const __webpack_exports__mapTileRetainRadiusFor = __webpack_exports__.mapTileRetainRadiusFor;
 /******/ const __webpack_exports__mobPollDelayMs = __webpack_exports__.mobPollDelayMs;
 /******/ const __webpack_exports__nearestMobsForSample = __webpack_exports__.nearestMobsForSample;
 /******/ const __webpack_exports__normalizePairedValue = __webpack_exports__.normalizePairedValue;
@@ -9154,5 +9137,5 @@ module.exports = __WEBPACK_EXTERNAL_MODULE_three_addons_postprocessing_ShaderPas
 /******/ const __webpack_exports__updateMobMarkerHeight = __webpack_exports__.updateMobMarkerHeight;
 /******/ const __webpack_exports__wantsEntityStream = __webpack_exports__.wantsEntityStream;
 /******/ const __webpack_exports__worldTimePollDelayMs = __webpack_exports__.worldTimePollDelayMs;
-/******/ export { __webpack_exports__applyBooleanParam as applyBooleanParam, __webpack_exports__applyFloatParam as applyFloatParam, __webpack_exports__applyNumberParam as applyNumberParam, __webpack_exports__applySelectParam as applySelectParam, __webpack_exports__applySelectValue as applySelectValue, __webpack_exports__bindPairedControl as bindPairedControl, __webpack_exports__bindRadiusControl as bindRadiusControl, __webpack_exports__chunkDistanceSq as chunkDistanceSq, __webpack_exports__chunkKeysForWorld as chunkKeysForWorld, __webpack_exports__collectChunkResourceStats as collectChunkResourceStats, __webpack_exports__compactMobSourceStats as compactMobSourceStats, __webpack_exports__compactObject as compactObject, __webpack_exports__createMobMarker as createMobMarker, __webpack_exports__createPlayerMarker as createPlayerMarker, __webpack_exports__createTerrainStreamStats as createTerrainStreamStats, __webpack_exports__disposeObject as disposeObject, __webpack_exports__disposeObjectTree as disposeObjectTree, __webpack_exports__distanceBetween as distanceBetween, __webpack_exports__floatControlValue as floatControlValue, __webpack_exports__fogRangeFromControls as fogRangeFromControls, __webpack_exports__horizonMapKeys as horizonMapKeys, __webpack_exports__isTruthyParam as isTruthyParam, __webpack_exports__liveMobFeedEnabled as liveMobFeedEnabled, __webpack_exports__mapBackdropCenterFrom as mapBackdropCenterFrom, __webpack_exports__mapBackdropRetainStats as mapBackdropRetainStats, __webpack_exports__mapTileLayerKey as mapTileLayerKey, __webpack_exports__mapTileRetainRadiusFor as mapTileRetainRadiusFor, __webpack_exports__mobPollDelayMs as mobPollDelayMs, __webpack_exports__nearestMobsForSample as nearestMobsForSample, __webpack_exports__normalizePairedValue as normalizePairedValue, __webpack_exports__parseCenterId as parseCenterId, __webpack_exports__playerPollDelayMs as playerPollDelayMs, __webpack_exports__positiveIntegerMs as positiveIntegerMs, __webpack_exports__radiusReadout as radiusReadout, __webpack_exports__roundCoord as roundCoord, __webpack_exports__safeWaterMode as safeWaterMode, __webpack_exports__setNumberInput as setNumberInput, __webpack_exports__setPairedControlValue as setPairedControlValue, __webpack_exports__sortChunkKeysByPlayerDistance as sortChunkKeysByPlayerDistance, __webpack_exports__summarizeCountsObject as summarizeCountsObject, __webpack_exports__summarizeItems as summarizeItems, __webpack_exports__terrainCacheKeyFor as terrainCacheKeyFor, __webpack_exports__terrainCosmeticOverlayCacheKeyFor as terrainCosmeticOverlayCacheKeyFor, __webpack_exports__terrainCosmeticOverlayUrlFor as terrainCosmeticOverlayUrlFor, __webpack_exports__terrainStreamSnapshot as terrainStreamSnapshot, __webpack_exports__terrainTuningControlValue as terrainTuningControlValue, __webpack_exports__terrainUrlFor as terrainUrlFor, __webpack_exports__updateMobMarkerHeight as updateMobMarkerHeight, __webpack_exports__wantsEntityStream as wantsEntityStream, __webpack_exports__worldTimePollDelayMs as worldTimePollDelayMs };
+/******/ export { __webpack_exports__applyBooleanParam as applyBooleanParam, __webpack_exports__applyFloatParam as applyFloatParam, __webpack_exports__applyNumberParam as applyNumberParam, __webpack_exports__applySelectParam as applySelectParam, __webpack_exports__applySelectValue as applySelectValue, __webpack_exports__bindPairedControl as bindPairedControl, __webpack_exports__bindRadiusControl as bindRadiusControl, __webpack_exports__chunkDistanceSq as chunkDistanceSq, __webpack_exports__chunkKeysForWorld as chunkKeysForWorld, __webpack_exports__collectChunkResourceStats as collectChunkResourceStats, __webpack_exports__compactMobSourceStats as compactMobSourceStats, __webpack_exports__compactObject as compactObject, __webpack_exports__createMobMarker as createMobMarker, __webpack_exports__createPlayerMarker as createPlayerMarker, __webpack_exports__createTerrainStreamStats as createTerrainStreamStats, __webpack_exports__disposeObject as disposeObject, __webpack_exports__disposeObjectTree as disposeObjectTree, __webpack_exports__distanceBetween as distanceBetween, __webpack_exports__floatControlValue as floatControlValue, __webpack_exports__fogRangeFromControls as fogRangeFromControls, __webpack_exports__horizonMapKeys as horizonMapKeys, __webpack_exports__isTruthyParam as isTruthyParam, __webpack_exports__liveMobFeedEnabled as liveMobFeedEnabled, __webpack_exports__mapBackdropCenterFrom as mapBackdropCenterFrom, __webpack_exports__mapBackdropRetainStats as mapBackdropRetainStats, __webpack_exports__mapTileLayerKey as mapTileLayerKey, __webpack_exports__mobPollDelayMs as mobPollDelayMs, __webpack_exports__nearestMobsForSample as nearestMobsForSample, __webpack_exports__normalizePairedValue as normalizePairedValue, __webpack_exports__parseCenterId as parseCenterId, __webpack_exports__playerPollDelayMs as playerPollDelayMs, __webpack_exports__positiveIntegerMs as positiveIntegerMs, __webpack_exports__radiusReadout as radiusReadout, __webpack_exports__roundCoord as roundCoord, __webpack_exports__safeWaterMode as safeWaterMode, __webpack_exports__setNumberInput as setNumberInput, __webpack_exports__setPairedControlValue as setPairedControlValue, __webpack_exports__sortChunkKeysByPlayerDistance as sortChunkKeysByPlayerDistance, __webpack_exports__summarizeCountsObject as summarizeCountsObject, __webpack_exports__summarizeItems as summarizeItems, __webpack_exports__terrainCacheKeyFor as terrainCacheKeyFor, __webpack_exports__terrainCosmeticOverlayCacheKeyFor as terrainCosmeticOverlayCacheKeyFor, __webpack_exports__terrainCosmeticOverlayUrlFor as terrainCosmeticOverlayUrlFor, __webpack_exports__terrainStreamSnapshot as terrainStreamSnapshot, __webpack_exports__terrainTuningControlValue as terrainTuningControlValue, __webpack_exports__terrainUrlFor as terrainUrlFor, __webpack_exports__updateMobMarkerHeight as updateMobMarkerHeight, __webpack_exports__wantsEntityStream as wantsEntityStream, __webpack_exports__worldTimePollDelayMs as worldTimePollDelayMs };
 /******/ 

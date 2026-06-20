@@ -1,8 +1,6 @@
 import { numberOr } from '../common/utils.ts';
-import { MAP_HORIZON_MARGIN } from '../tile-map/map-backdrop.ts';
 import {
   floatControlValue,
-  mapTileRetainRadiusFor,
   radiusReadout,
   safeWaterMode,
   terrainTuningControlValue,
@@ -48,10 +46,6 @@ export function mapTileRadius() {
 
 export function tileLoadConcurrency() {
   return terrainTuningValue(tileLoadSlotsValueInput, DEFAULT_TILE_LOAD_CONCURRENCY);
-}
-
-export function mapTileRetainRadius(terrainRadius, streamLoad = false) {
-  return mapTileRetainRadiusFor(terrainRadius, streamLoad, MAP_HORIZON_MARGIN, AUTO_STREAM_RETAIN_MARGIN);
 }
 
 export function terrainLoadConcurrency() {

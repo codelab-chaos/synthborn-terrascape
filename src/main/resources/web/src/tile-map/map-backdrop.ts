@@ -6,8 +6,6 @@ import { MAP_BACKDROP_Y } from '../scene/water.ts';
 import { chunkId } from '../common/utils.ts';
 
 const CHUNK_SIZE = 32;
-/** Map tiles extend this many chunks beyond the voxel terrain square on each side. */
-export const MAP_HORIZON_MARGIN = 8;
 const SKY_RGB = { r: 23, g: 52, b: 84 };
 const RISE_START_Y = -48;
 const RISE_MS = 140;
