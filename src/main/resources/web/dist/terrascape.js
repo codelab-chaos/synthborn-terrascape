@@ -15,83 +15,85 @@ import * as __WEBPACK_EXTERNAL_MODULE_three_addons_postprocessing_ShaderPass_js_
 __webpack_require__.a(module, async (__webpack_handle_async_dependencies__, __webpack_async_result__) => { try {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   applyBooleanParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.applyBooleanParam),
-/* harmony export */   applyFloatParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.applyFloatParam),
-/* harmony export */   applyNumberParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.applyNumberParam),
-/* harmony export */   applySelectParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.applySelectParam),
-/* harmony export */   applySelectValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.applySelectValue),
-/* harmony export */   bindPairedControl: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.bindPairedControl),
-/* harmony export */   bindRadiusControl: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.bindRadiusControl),
-/* harmony export */   chunkDistanceSq: () => (/* reexport safe */ _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_20__.chunkDistanceSq),
-/* harmony export */   chunkKeysForWorld: () => (/* reexport safe */ _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_20__.chunkKeysForWorld),
-/* harmony export */   collectChunkResourceStats: () => (/* reexport safe */ _common_resource_stats_js__WEBPACK_IMPORTED_MODULE_22__.collectChunkResourceStats),
-/* harmony export */   compactMobSourceStats: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.compactMobSourceStats),
-/* harmony export */   compactObject: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.compactObject),
-/* harmony export */   createMobMarker: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_16__.createMobMarker),
-/* harmony export */   createPlayerMarker: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_16__.createPlayerMarker),
-/* harmony export */   createTerrainStreamStats: () => (/* reexport safe */ _common_terrain_stream_js__WEBPACK_IMPORTED_MODULE_24__.createTerrainStreamStats),
-/* harmony export */   disposeObject: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_16__.disposeObject),
-/* harmony export */   disposeObjectTree: () => (/* reexport safe */ _common_resource_stats_js__WEBPACK_IMPORTED_MODULE_22__.disposeObjectTree),
-/* harmony export */   distanceBetween: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.distanceBetween),
-/* harmony export */   floatControlValue: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.floatControlValue),
-/* harmony export */   fogRangeFromControls: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.fogRangeFromControls),
-/* harmony export */   horizonMapKeys: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_21__.horizonMapKeys),
-/* harmony export */   isTruthyParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.isTruthyParam),
-/* harmony export */   liveMobFeedEnabled: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__.liveMobFeedEnabled),
-/* harmony export */   mapBackdropCenterFrom: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_21__.mapBackdropCenterFrom),
-/* harmony export */   mapBackdropRetainStats: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_21__.mapBackdropRetainStats),
-/* harmony export */   mapTileLayerKey: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_21__.mapTileLayerKey),
-/* harmony export */   mapTileRetainRadiusFor: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.mapTileRetainRadiusFor),
-/* harmony export */   mobPollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__.mobPollDelayMs),
-/* harmony export */   nearestMobsForSample: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.nearestMobsForSample),
-/* harmony export */   normalizePairedValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.normalizePairedValue),
-/* harmony export */   parseCenterId: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_21__.parseCenterId),
-/* harmony export */   playerPollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__.playerPollDelayMs),
-/* harmony export */   positiveIntegerMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__.positiveIntegerMs),
-/* harmony export */   radiusReadout: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.radiusReadout),
-/* harmony export */   roundCoord: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.roundCoord),
-/* harmony export */   safeWaterMode: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.safeWaterMode),
-/* harmony export */   setNumberInput: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.setNumberInput),
-/* harmony export */   setPairedControlValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__.setPairedControlValue),
-/* harmony export */   sortChunkKeysByPlayerDistance: () => (/* reexport safe */ _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_20__.sortChunkKeysByPlayerDistance),
-/* harmony export */   summarizeCountsObject: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.summarizeCountsObject),
-/* harmony export */   summarizeItems: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__.summarizeItems),
-/* harmony export */   terrainCacheKeyFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainCacheKeyFor),
-/* harmony export */   terrainCosmeticOverlayCacheKeyFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainCosmeticOverlayCacheKeyFor),
-/* harmony export */   terrainCosmeticOverlayUrlFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainCosmeticOverlayUrlFor),
-/* harmony export */   terrainStreamSnapshot: () => (/* reexport safe */ _common_terrain_stream_js__WEBPACK_IMPORTED_MODULE_24__.terrainStreamSnapshot),
-/* harmony export */   terrainTuningControlValue: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__.terrainTuningControlValue),
-/* harmony export */   terrainUrlFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__.terrainUrlFor),
-/* harmony export */   updateMobMarkerHeight: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_16__.updateMobMarkerHeight),
-/* harmony export */   wantsEntityStream: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__.wantsEntityStream),
-/* harmony export */   worldTimePollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__.worldTimePollDelayMs)
+/* harmony export */   applyBooleanParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__.applyBooleanParam),
+/* harmony export */   applyFloatParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__.applyFloatParam),
+/* harmony export */   applyNumberParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__.applyNumberParam),
+/* harmony export */   applySelectParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__.applySelectParam),
+/* harmony export */   applySelectValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__.applySelectValue),
+/* harmony export */   bindPairedControl: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__.bindPairedControl),
+/* harmony export */   bindRadiusControl: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__.bindRadiusControl),
+/* harmony export */   chunkDistanceSq: () => (/* reexport safe */ _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_21__.chunkDistanceSq),
+/* harmony export */   chunkKeysForWorld: () => (/* reexport safe */ _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_21__.chunkKeysForWorld),
+/* harmony export */   collectChunkResourceStats: () => (/* reexport safe */ _common_resource_stats_js__WEBPACK_IMPORTED_MODULE_23__.collectChunkResourceStats),
+/* harmony export */   compactMobSourceStats: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_19__.compactMobSourceStats),
+/* harmony export */   compactObject: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_19__.compactObject),
+/* harmony export */   createMobMarker: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_17__.createMobMarker),
+/* harmony export */   createPlayerMarker: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_17__.createPlayerMarker),
+/* harmony export */   createTerrainStreamStats: () => (/* reexport safe */ _common_terrain_stream_js__WEBPACK_IMPORTED_MODULE_25__.createTerrainStreamStats),
+/* harmony export */   disposeObject: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_17__.disposeObject),
+/* harmony export */   disposeObjectTree: () => (/* reexport safe */ _common_resource_stats_js__WEBPACK_IMPORTED_MODULE_23__.disposeObjectTree),
+/* harmony export */   distanceBetween: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_19__.distanceBetween),
+/* harmony export */   floatControlValue: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_26__.floatControlValue),
+/* harmony export */   fogRangeFromControls: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_26__.fogRangeFromControls),
+/* harmony export */   horizonMapKeys: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_22__.horizonMapKeys),
+/* harmony export */   isTruthyParam: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__.isTruthyParam),
+/* harmony export */   liveMobFeedEnabled: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_20__.liveMobFeedEnabled),
+/* harmony export */   mapBackdropCenterFrom: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_22__.mapBackdropCenterFrom),
+/* harmony export */   mapBackdropRetainStats: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_22__.mapBackdropRetainStats),
+/* harmony export */   mapTileLayerKey: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_22__.mapTileLayerKey),
+/* harmony export */   mapTileRetainRadiusFor: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_26__.mapTileRetainRadiusFor),
+/* harmony export */   mobPollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_20__.mobPollDelayMs),
+/* harmony export */   nearestMobsForSample: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_19__.nearestMobsForSample),
+/* harmony export */   normalizePairedValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__.normalizePairedValue),
+/* harmony export */   parseCenterId: () => (/* reexport safe */ _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_22__.parseCenterId),
+/* harmony export */   playerPollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_20__.playerPollDelayMs),
+/* harmony export */   positiveIntegerMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_20__.positiveIntegerMs),
+/* harmony export */   radiusReadout: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_26__.radiusReadout),
+/* harmony export */   roundCoord: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_19__.roundCoord),
+/* harmony export */   safeWaterMode: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_26__.safeWaterMode),
+/* harmony export */   setNumberInput: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__.setNumberInput),
+/* harmony export */   setPairedControlValue: () => (/* reexport safe */ _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__.setPairedControlValue),
+/* harmony export */   sortChunkKeysByPlayerDistance: () => (/* reexport safe */ _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_21__.sortChunkKeysByPlayerDistance),
+/* harmony export */   summarizeCountsObject: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_19__.summarizeCountsObject),
+/* harmony export */   summarizeItems: () => (/* reexport safe */ _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_19__.summarizeItems),
+/* harmony export */   terrainCacheKeyFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_24__.terrainCacheKeyFor),
+/* harmony export */   terrainCosmeticOverlayCacheKeyFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_24__.terrainCosmeticOverlayCacheKeyFor),
+/* harmony export */   terrainCosmeticOverlayUrlFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_24__.terrainCosmeticOverlayUrlFor),
+/* harmony export */   terrainStreamSnapshot: () => (/* reexport safe */ _common_terrain_stream_js__WEBPACK_IMPORTED_MODULE_25__.terrainStreamSnapshot),
+/* harmony export */   terrainTuningControlValue: () => (/* reexport safe */ _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_26__.terrainTuningControlValue),
+/* harmony export */   terrainUrlFor: () => (/* reexport safe */ _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_24__.terrainUrlFor),
+/* harmony export */   updateMobMarkerHeight: () => (/* reexport safe */ _entities_players_js__WEBPACK_IMPORTED_MODULE_17__.updateMobMarkerHeight),
+/* harmony export */   wantsEntityStream: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_20__.wantsEntityStream),
+/* harmony export */   worldTimePollDelayMs: () => (/* reexport safe */ _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_20__.worldTimePollDelayMs)
 /* harmony export */ });
 /* harmony import */ var _ui_app_events_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./ui/app-events.js */ "./src/main/resources/web/src/ui/app-events.ts");
 /* harmony import */ var _ui_dom_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./ui/dom.js */ "./src/main/resources/web/src/ui/dom.ts");
 /* harmony import */ var _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./scene/scene-context.js */ "./src/main/resources/web/src/scene/scene-context.ts");
 /* harmony import */ var _ui_control_readers_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./ui/control-readers.js */ "./src/main/resources/web/src/ui/control-readers.ts");
-/* harmony import */ var _scene_lighting_controls_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./scene/lighting-controls.js */ "./src/main/resources/web/src/scene/lighting-controls.ts");
-/* harmony import */ var _tile_map_map_tile_layer_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./tile-map/map-tile-layer.js */ "./src/main/resources/web/src/tile-map/map-tile-layer.ts");
-/* harmony import */ var _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./terrain/terrain-loader.js */ "./src/main/resources/web/src/terrain/terrain-loader.ts");
-/* harmony import */ var _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./entities/entity-feed.js */ "./src/main/resources/web/src/entities/entity-feed.ts");
-/* harmony import */ var _entities_world_time_feed_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./entities/world-time-feed.js */ "./src/main/resources/web/src/entities/world-time-feed.ts");
-/* harmony import */ var _camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./camera/fly-camera.js */ "./src/main/resources/web/src/camera/fly-camera.ts");
-/* harmony import */ var _ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./ui/view-persistence.js */ "./src/main/resources/web/src/ui/view-persistence.ts");
-/* harmony import */ var _ui_debug_bridge_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./ui/debug-bridge.js */ "./src/main/resources/web/src/ui/debug-bridge.ts");
-/* harmony import */ var _ui_build_badge_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./ui/build-badge.js */ "./src/main/resources/web/src/ui/build-badge.ts");
-/* harmony import */ var _ui_world_selector_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./ui/world-selector.js */ "./src/main/resources/web/src/ui/world-selector.ts");
-/* harmony import */ var _scene_viewport_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./scene/viewport.js */ "./src/main/resources/web/src/scene/viewport.ts");
-/* harmony import */ var _scene_frame_loop_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./scene/frame-loop.js */ "./src/main/resources/web/src/scene/frame-loop.ts");
-/* harmony import */ var _entities_players_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./entities/players.js */ "./src/main/resources/web/src/entities/players.ts");
-/* harmony import */ var _library_control_values_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./library/control-values.js */ "./src/main/resources/web/src/library/control-values.ts");
-/* harmony import */ var _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./common/entity-summary.js */ "./src/main/resources/web/src/common/entity-summary.ts");
-/* harmony import */ var _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./common/entity-feed-policy.js */ "./src/main/resources/web/src/common/entity-feed-policy.ts");
-/* harmony import */ var _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./common/chunk-planning.js */ "./src/main/resources/web/src/common/chunk-planning.ts");
-/* harmony import */ var _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./common/map-layer-policy.js */ "./src/main/resources/web/src/common/map-layer-policy.ts");
-/* harmony import */ var _common_resource_stats_js__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./common/resource-stats.js */ "./src/main/resources/web/src/common/resource-stats.ts");
-/* harmony import */ var _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./common/terrain-requests.js */ "./src/main/resources/web/src/common/terrain-requests.ts");
-/* harmony import */ var _common_terrain_stream_js__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./common/terrain-stream.js */ "./src/main/resources/web/src/common/terrain-stream.ts");
-/* harmony import */ var _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./common/view-preferences.js */ "./src/main/resources/web/src/common/view-preferences.ts");
+/* harmony import */ var _tile_map_map_backdrop_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./tile-map/map-backdrop.js */ "./src/main/resources/web/src/tile-map/map-backdrop.ts");
+/* harmony import */ var _scene_lighting_controls_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./scene/lighting-controls.js */ "./src/main/resources/web/src/scene/lighting-controls.ts");
+/* harmony import */ var _tile_map_map_tile_layer_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./tile-map/map-tile-layer.js */ "./src/main/resources/web/src/tile-map/map-tile-layer.ts");
+/* harmony import */ var _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./terrain/terrain-loader.js */ "./src/main/resources/web/src/terrain/terrain-loader.ts");
+/* harmony import */ var _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./entities/entity-feed.js */ "./src/main/resources/web/src/entities/entity-feed.ts");
+/* harmony import */ var _entities_world_time_feed_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./entities/world-time-feed.js */ "./src/main/resources/web/src/entities/world-time-feed.ts");
+/* harmony import */ var _camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./camera/fly-camera.js */ "./src/main/resources/web/src/camera/fly-camera.ts");
+/* harmony import */ var _ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./ui/view-persistence.js */ "./src/main/resources/web/src/ui/view-persistence.ts");
+/* harmony import */ var _ui_debug_bridge_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./ui/debug-bridge.js */ "./src/main/resources/web/src/ui/debug-bridge.ts");
+/* harmony import */ var _ui_build_badge_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./ui/build-badge.js */ "./src/main/resources/web/src/ui/build-badge.ts");
+/* harmony import */ var _ui_world_selector_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./ui/world-selector.js */ "./src/main/resources/web/src/ui/world-selector.ts");
+/* harmony import */ var _scene_viewport_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./scene/viewport.js */ "./src/main/resources/web/src/scene/viewport.ts");
+/* harmony import */ var _scene_frame_loop_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./scene/frame-loop.js */ "./src/main/resources/web/src/scene/frame-loop.ts");
+/* harmony import */ var _entities_players_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./entities/players.js */ "./src/main/resources/web/src/entities/players.ts");
+/* harmony import */ var _library_control_values_js__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./library/control-values.js */ "./src/main/resources/web/src/library/control-values.ts");
+/* harmony import */ var _common_entity_summary_js__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./common/entity-summary.js */ "./src/main/resources/web/src/common/entity-summary.ts");
+/* harmony import */ var _common_entity_feed_policy_js__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./common/entity-feed-policy.js */ "./src/main/resources/web/src/common/entity-feed-policy.ts");
+/* harmony import */ var _common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./common/chunk-planning.js */ "./src/main/resources/web/src/common/chunk-planning.ts");
+/* harmony import */ var _common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./common/map-layer-policy.js */ "./src/main/resources/web/src/common/map-layer-policy.ts");
+/* harmony import */ var _common_resource_stats_js__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./common/resource-stats.js */ "./src/main/resources/web/src/common/resource-stats.ts");
+/* harmony import */ var _common_terrain_requests_js__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./common/terrain-requests.js */ "./src/main/resources/web/src/common/terrain-requests.ts");
+/* harmony import */ var _common_terrain_stream_js__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./common/terrain-stream.js */ "./src/main/resources/web/src/common/terrain-stream.ts");
+/* harmony import */ var _common_view_preferences_js__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./common/view-preferences.js */ "./src/main/resources/web/src/common/view-preferences.ts");
+
 
 
 
@@ -119,59 +121,60 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-(0,_ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_10__.setRenderDetailsOpen)(!_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState || _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.renderDetails !== false);
+(0,_ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_11__.setRenderDetailsOpen)(!_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState || _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.renderDetails !== false);
 (0,_ui_app_events_js__WEBPACK_IMPORTED_MODULE_0__.bindAppEvents)({
     renderer: _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.renderer,
     pressedKeys: _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.pressedKeys,
     getViewPlayerUuid: () => _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.viewPlayerUuid,
     getFollowPlayerUuid: () => _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.followPlayerUuid,
-    applyFlyLookDelta: _camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_9__.applyFlyLookDelta,
-    applyFogSettings: _scene_lighting_controls_js__WEBPACK_IMPORTED_MODULE_4__.applyFogSettings,
-    applyLighting: _scene_lighting_controls_js__WEBPACK_IMPORTED_MODULE_4__.applyLighting,
-    applyMapWaterTint: _tile_map_map_tile_layer_js__WEBPACK_IMPORTED_MODULE_5__.applyMapWaterTint,
-    applyWaterMode: _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_6__.applyWaterMode,
-    clearMobs: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__.clearMobs,
-    closeEntityStream: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__.closeEntityStream,
-    handleClearMeshCache: _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_6__.handleClearMeshCache,
-    refreshWorldTime: _entities_world_time_feed_js__WEBPACK_IMPORTED_MODULE_8__.refreshWorldTime,
-    restartEntityStream: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__.restartEntityStream,
-    restartMobPolling: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__.restartMobPolling,
-    restartPlayerPolling: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__.restartPlayerPolling,
-    restartWorldTimePolling: _entities_world_time_feed_js__WEBPACK_IMPORTED_MODULE_8__.restartWorldTimePolling,
-    saveViewState: _ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_10__.saveViewState,
-    scheduleControlGridLoad: _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_6__.scheduleControlGridLoad,
+    applyFlyLookDelta: _camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_10__.applyFlyLookDelta,
+    applyFogSettings: _scene_lighting_controls_js__WEBPACK_IMPORTED_MODULE_5__.applyFogSettings,
+    applyLighting: _scene_lighting_controls_js__WEBPACK_IMPORTED_MODULE_5__.applyLighting,
+    applyMapWaterTint: _tile_map_map_tile_layer_js__WEBPACK_IMPORTED_MODULE_6__.applyMapWaterTint,
+    applyWaterMode: _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_7__.applyWaterMode,
+    clearMobs: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_8__.clearMobs,
+    closeEntityStream: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_8__.closeEntityStream,
+    handleClearMeshCache: _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_7__.handleClearMeshCache,
+    refreshWorldTime: _entities_world_time_feed_js__WEBPACK_IMPORTED_MODULE_9__.refreshWorldTime,
+    restartEntityStream: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_8__.restartEntityStream,
+    restartMobPolling: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_8__.restartMobPolling,
+    restartPlayerPolling: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_8__.restartPlayerPolling,
+    restartWorldTimePolling: _entities_world_time_feed_js__WEBPACK_IMPORTED_MODULE_9__.restartWorldTimePolling,
+    saveViewState: _ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_11__.saveViewState,
+    scheduleControlGridLoad: _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_7__.scheduleControlGridLoad,
     setRadiusControlValue: _ui_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.setRadiusControlValue,
-    shouldStartFlyLook: _camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_9__.shouldStartFlyLook,
+    shouldStartFlyLook: _camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_10__.shouldStartFlyLook,
     syncMobBlocksInputs: _ui_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.syncMobBlocksInputs,
-    toggleRenderDetails: _ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_10__.toggleRenderDetails,
-    updateDebugBounds: _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_6__.updateDebugBounds,
-    updateEntityVisibility: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__.updateEntityVisibility,
-    updateMapTileLayer: _tile_map_map_tile_layer_js__WEBPACK_IMPORTED_MODULE_5__.updateMapTileLayer,
-    updatePlayers: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__.updatePlayers,
+    toggleRenderDetails: _ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_11__.toggleRenderDetails,
+    updateDebugBounds: _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_7__.updateDebugBounds,
+    updateEntityVisibility: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_8__.updateEntityVisibility,
+    updateMapTileLayer: _tile_map_map_tile_layer_js__WEBPACK_IMPORTED_MODULE_6__.updateMapTileLayer,
+    updatePlayers: _entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_8__.updatePlayers,
     updateRadiusReadout: _ui_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.updateRadiusReadout,
-    zoomFlyView: _camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_9__.zoomFlyView,
-    reloadTerrainForVisualOptions: _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_6__.reloadTerrainForVisualOptions,
-    resize: _scene_viewport_js__WEBPACK_IMPORTED_MODULE_14__.resizeViewport,
+    zoomFlyView: _camera_fly_camera_js__WEBPACK_IMPORTED_MODULE_10__.zoomFlyView,
+    reloadTerrainForVisualOptions: _terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_7__.reloadTerrainForVisualOptions,
+    resize: _scene_viewport_js__WEBPACK_IMPORTED_MODULE_15__.resizeViewport,
 });
-(0,_ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_10__.applyInitialParams)();
+(0,_ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_11__.applyInitialParams)();
 (0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.setRadiusControlValue)((0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.radiusValue)());
-(0,_ui_debug_bridge_js__WEBPACK_IMPORTED_MODULE_11__.exposeDebugState)();
-(0,_ui_build_badge_js__WEBPACK_IMPORTED_MODULE_12__.mountBuildBadge)();
-(0,_scene_viewport_js__WEBPACK_IMPORTED_MODULE_14__.resizeViewport)();
+(0,_tile_map_map_backdrop_js__WEBPACK_IMPORTED_MODULE_4__.setTileLoadConcurrency)((0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.tileLoadConcurrency)());
+(0,_ui_debug_bridge_js__WEBPACK_IMPORTED_MODULE_12__.exposeDebugState)();
+(0,_ui_build_badge_js__WEBPACK_IMPORTED_MODULE_13__.mountBuildBadge)();
+(0,_scene_viewport_js__WEBPACK_IMPORTED_MODULE_15__.resizeViewport)();
 _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.timeRibbon.update(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.worldTime);
-(0,_scene_frame_loop_js__WEBPACK_IMPORTED_MODULE_15__.startFrameLoop)();
-await (0,_ui_world_selector_js__WEBPACK_IMPORTED_MODULE_13__.loadWorlds)();
+(0,_scene_frame_loop_js__WEBPACK_IMPORTED_MODULE_16__.startFrameLoop)();
+await (0,_ui_world_selector_js__WEBPACK_IMPORTED_MODULE_14__.loadWorlds)();
 await _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.npcCatalog.load();
 if (_ui_dom_js__WEBPACK_IMPORTED_MODULE_1__.worldSelect.value) {
     _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.hasStarted = true;
-    const restoredCameraPose = (0,_ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_10__.restoreCameraPose)();
-    await (0,_entities_world_time_feed_js__WEBPACK_IMPORTED_MODULE_8__.refreshWorldTime)();
-    await (0,_terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_6__.loadGrid)({ focus: !restoredCameraPose }).catch((error) => (0,_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.setStatus)(error.message));
-    (0,_entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__.restartEntityStream)();
-    (0,_entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__.restartPlayerPolling)();
-    (0,_entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_7__.restartMobPolling)();
-    (0,_entities_world_time_feed_js__WEBPACK_IMPORTED_MODULE_8__.restartWorldTimePolling)();
-    (0,_ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_10__.saveViewState)();
+    const restoredCameraPose = (0,_ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_11__.restoreCameraPose)();
+    await (0,_entities_world_time_feed_js__WEBPACK_IMPORTED_MODULE_9__.refreshWorldTime)();
+    await (0,_terrain_terrain_loader_js__WEBPACK_IMPORTED_MODULE_7__.loadGrid)({ focus: !restoredCameraPose }).catch((error) => (0,_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.setStatus)(error.message));
+    (0,_entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_8__.restartEntityStream)();
+    (0,_entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_8__.restartPlayerPolling)();
+    (0,_entities_entity_feed_js__WEBPACK_IMPORTED_MODULE_8__.restartMobPolling)();
+    (0,_entities_world_time_feed_js__WEBPACK_IMPORTED_MODULE_9__.restartWorldTimePolling)();
+    (0,_ui_view_persistence_js__WEBPACK_IMPORTED_MODULE_11__.saveViewState)();
 }
 
 __webpack_async_result__();
@@ -5942,7 +5945,7 @@ async function loadGrid(options = {}) {
     const retainKeys = options.streamLoad === true
         ? (0,_common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_6__.chunkKeysForWorld)(world, centerX, centerZ, radius + _ui_control_readers_js__WEBPACK_IMPORTED_MODULE_15__.AUTO_STREAM_RETAIN_MARGIN)
         : needed;
-    const mapRetainRadius = (0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_15__.mapTileRetainRadius)(radius, options.streamLoad === true);
+    const mapRetainRadius = (0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_15__.mapTileRadius)();
     const mapRetainKeys = (0,_common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_6__.chunkKeysForWorld)(world, centerX, centerZ, mapRetainRadius);
     const streamAnchor = (0,_camera_camera_director_js__WEBPACK_IMPORTED_MODULE_19__.playerChunk)();
     retainOnly(world, retainKeys);
@@ -6605,6 +6608,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   pruneMapTiles: () => (/* binding */ pruneMapTiles),
 /* harmony export */   sampleMapBackdropColor: () => (/* binding */ sampleMapBackdropColor),
 /* harmony export */   setMapTileChunkCovered: () => (/* binding */ setMapTileChunkCovered),
+/* harmony export */   setTileLoadConcurrency: () => (/* binding */ setTileLoadConcurrency),
 /* harmony export */   tickMapTileMotion: () => (/* binding */ tickMapTileMotion),
 /* harmony export */   updateMapBackdrop: () => (/* binding */ updateMapBackdrop)
 /* harmony export */ });
@@ -6628,7 +6632,11 @@ const RISE_START_Y = -48;
 const RISE_MS = 140;
 const RISE_FAILSAFE_MULTIPLIER = 1.5;
 const PROMOTE_PER_FRAME = 96;
-const TILE_LOAD_CONCURRENCY = 4;
+// How many map tiles download in parallel — an independent knob from voxel mesh concurrency.
+let tileLoadConcurrency = 4;
+function setTileLoadConcurrency(value) {
+    tileLoadConcurrency = Math.max(1, Math.floor(value) || 1);
+}
 const IMMEDIATE_TILE_LOAD_LIMIT = 96;
 const TILE_QUEUE_SLICE_SIZE = 48;
 const loadedTiles = new Map();
@@ -6868,7 +6876,7 @@ async function loadMapTilesForKeys(world, keys, options = {}) {
     tileLoadGeneration += 1;
     let loadedImmediateTiles = false;
     if (options.immediate === true && immediateRequests.length > 0 && immediateRequests.length <= IMMEDIATE_TILE_LOAD_LIMIT) {
-        await runWithConcurrency(immediateRequests, TILE_LOAD_CONCURRENCY, async (request) => {
+        await runWithConcurrency(immediateRequests, tileLoadConcurrency, async (request) => {
             if (desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id))
                 return;
             try {
@@ -6915,7 +6923,7 @@ async function processTileLoadQueue() {
             desiredTileLoads.clear();
             break;
         }
-        await runWithConcurrency(requests, TILE_LOAD_CONCURRENCY, async (request) => {
+        await runWithConcurrency(requests, tileLoadConcurrency, async (request) => {
             if (generation !== loadGeneration)
                 return;
             if (desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id))
@@ -7287,20 +7295,18 @@ function syncMapTileLayer(retainKeys = null) {
         return;
     }
     const world = _ui_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
-    const keys = retainKeys ?? (0,_common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_2__.chunkKeysForWorld)(world, Number.parseInt(_ui_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10), Number.parseInt(_ui_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10), (0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_5__.radiusValue)());
+    const keys = retainKeys ?? (0,_common_chunk_planning_js__WEBPACK_IMPORTED_MODULE_2__.chunkKeysForWorld)(world, Number.parseInt(_ui_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkXInput.value, 10), Number.parseInt(_ui_dom_js__WEBPACK_IMPORTED_MODULE_8__.chunkZInput.value, 10), (0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_5__.mapTileRadius)());
     const retainIds = new Set(keys.map((key) => key.id));
     (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_0__.pruneMapTiles)(world, retainIds);
     const center = mapBackdropCenter();
-    const terrainRadius = (0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_5__.radiusValue)();
-    const mapRadius = (0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_5__.mapTileRetainRadius)(terrainRadius, _ui_dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked);
+    const mapRadius = (0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_5__.mapTileRadius)();
     const stats = (0,_map_backdrop_js__WEBPACK_IMPORTED_MODULE_0__.mapBackdropStats)();
     Object.assign(stats, (0,_common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_1__.mapBackdropRetainStats)(center, mapRadius));
     (0,_ui_metrics_js__WEBPACK_IMPORTED_MODULE_6__.updateMetrics)();
 }
 function updateMapTileLayer(options = {}) {
     const center = mapBackdropCenter();
-    const radius = (0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_5__.radiusValue)();
-    const mapRadius = (0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_5__.mapTileRetainRadius)(radius, _ui_dom_js__WEBPACK_IMPORTED_MODULE_8__.autoStreamInput.checked);
+    const mapRadius = (0,_ui_control_readers_js__WEBPACK_IMPORTED_MODULE_5__.mapTileRadius)();
     const world = _ui_dom_js__WEBPACK_IMPORTED_MODULE_8__.worldSelect.value;
     const layerKey = (0,_common_map_layer_policy_js__WEBPACK_IMPORTED_MODULE_1__.mapTileLayerKey)(world, center, mapRadius, _ui_dom_js__WEBPACK_IMPORTED_MODULE_8__.mapTilesInput.checked);
     if (!options.force && layerKey === _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_4__.runtime.mapTileLayerKey) {
@@ -7361,7 +7367,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _library_control_values_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../library/control-values.js */ "./src/main/resources/web/src/library/control-values.ts");
 /* harmony import */ var _library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../library/collapsible-section.js */ "./src/main/resources/web/src/library/collapsible-section.ts");
 /* harmony import */ var _library_tri_state_control_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../library/tri-state-control.js */ "./src/main/resources/web/src/library/tri-state-control.ts");
-/* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/ui/dom.ts");
+/* harmony import */ var _tile_map_map_backdrop_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../tile-map/map-backdrop.js */ "./src/main/resources/web/src/tile-map/map-backdrop.ts");
+/* harmony import */ var _control_readers_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./control-readers.js */ "./src/main/resources/web/src/ui/control-readers.ts");
+/* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/ui/dom.ts");
+
+
 
 
 
@@ -7383,7 +7393,9 @@ const MOVEMENT_KEY_CODES = new Set([
 ]);
 function bindAppEvents(bindings) {
     window.addEventListener('resize', bindings.resize);
-    window.addEventListener('keydown', (event) => handleKeyDown(event, bindings));
+    // Capture phase so movement keys are intercepted before focusable controls (inputs, and
+    // role="button" divs like the panel heads) can act on them.
+    window.addEventListener('keydown', (event) => handleKeyDown(event, bindings), { capture: true });
     window.addEventListener('keyup', (event) => {
         bindings.pressedKeys.delete(event.code);
     });
@@ -7410,21 +7422,21 @@ function bindAppEvents(bindings) {
     bindTriStateControls(bindings.saveViewState);
 }
 function bindHudInputs(bindings) {
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.debugBoundsInput.addEventListener('change', bindings.updateDebugBounds);
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.debugBoundsInput.addEventListener('change', bindings.saveViewState);
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.showPlayersInput.addEventListener('change', () => {
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.debugBoundsInput.addEventListener('change', bindings.updateDebugBounds);
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.debugBoundsInput.addEventListener('change', bindings.saveViewState);
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.showPlayersInput.addEventListener('change', () => {
         bindings.updateEntityVisibility();
         bindings.restartEntityStream();
         bindings.restartPlayerPolling();
         bindings.saveViewState();
     });
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.showMobsInput.addEventListener('change', () => {
-        if (!_dom_js__WEBPACK_IMPORTED_MODULE_3__.showMobsInput.checked) {
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.addEventListener('change', () => {
+        if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked) {
             bindings.clearMobs();
         }
         bindings.updateEntityVisibility();
         bindings.restartEntityStream();
-        if (_dom_js__WEBPACK_IMPORTED_MODULE_3__.showMobsInput.checked) {
+        if (_dom_js__WEBPACK_IMPORTED_MODULE_5__.showMobsInput.checked) {
             bindings.restartMobPolling(0);
         }
         else {
@@ -7437,67 +7449,75 @@ function bindHudInputs(bindings) {
         bindings.updateEntityVisibility();
         bindings.saveViewState();
     };
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.mobBlocksInput.addEventListener('change', onMobBlocksToggle);
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.mobBlocksPanelInput.addEventListener('change', onMobBlocksToggle);
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.waterModeInput.addEventListener('change', () => {
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.mobBlocksInput.addEventListener('change', onMobBlocksToggle);
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.mobBlocksPanelInput.addEventListener('change', onMobBlocksToggle);
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.waterModeInput.addEventListener('change', () => {
         bindings.applyWaterMode();
         bindings.saveViewState();
     });
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.playerUpdateRateInput.addEventListener('change', () => {
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.playerUpdateRateInput.addEventListener('change', () => {
         bindings.restartPlayerPolling();
         bindings.saveViewState();
     });
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.mobUpdateRateInput.addEventListener('change', () => {
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.mobUpdateRateInput.addEventListener('change', () => {
         bindings.restartMobPolling();
         bindings.saveViewState();
     });
-    for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_3__.treeShadeInput]) {
+    for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_5__.treeShadeInput]) {
         const eventName = input.type === 'range' ? 'input' : 'change';
         input.addEventListener(eventName, () => {
             bindings.applyLighting();
             bindings.saveViewState();
         });
     }
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.mapTimeInput.addEventListener('change', () => {
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTimeInput.addEventListener('change', () => {
         bindings.applyLighting();
         bindings.restartWorldTimePolling();
         bindings.saveViewState();
     });
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.mapTilesInput.addEventListener('change', () => {
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTilesInput.addEventListener('change', () => {
         bindings.updateMapTileLayer();
         bindings.saveViewState();
     });
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.cosmeticBlocksModeInput.addEventListener('change', () => {
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.cosmeticBlocksModeInput.addEventListener('change', () => {
         bindings.reloadTerrainForVisualOptions();
         bindings.saveViewState();
     });
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.visualDetailModeInput.addEventListener('change', () => {
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.visualDetailModeInput.addEventListener('change', () => {
         bindings.reloadTerrainForVisualOptions();
         bindings.saveViewState();
     });
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.clearMeshCacheButton?.addEventListener('click', () => {
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.clearMeshCacheButton?.addEventListener('click', () => {
         void bindings.handleClearMeshCache();
     });
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.landMotionInput.addEventListener('change', bindings.saveViewState);
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindRadiusControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.radiusRangeInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.radiusInput, {
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.landMotionInput.addEventListener('change', bindings.saveViewState);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindRadiusControl)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusRangeInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.radiusInput, {
         setRadius: bindings.setRadiusControlValue,
         updateReadout: bindings.updateRadiusReadout,
         onChange: bindings.scheduleControlGridLoad,
     });
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.terrainLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.terrainLoadSlotsValueInput, { onSave: bindings.saveViewState });
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.terrainSpawnFrameValueInput, { onSave: bindings.saveViewState });
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.terrainSpawnBudgetValueInput, { onSave: bindings.saveViewState });
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.shadeSizeValueInput, { onUpdate: bindings.applyLighting, onSave: bindings.saveViewState });
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.shadeDarknessValueInput, { onUpdate: bindings.applyLighting, onSave: bindings.saveViewState });
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.fogEnabledInput.addEventListener('change', () => {
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.terrainLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.terrainLoadSlotsValueInput, { onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTileRadiusInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTileRadiusValueInput, {
+        onUpdate: bindings.updateMapTileLayer,
+        onSave: bindings.saveViewState,
+    });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.tileLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.tileLoadSlotsValueInput, {
+        onUpdate: () => (0,_tile_map_map_backdrop_js__WEBPACK_IMPORTED_MODULE_3__.setTileLoadConcurrency)((0,_control_readers_js__WEBPACK_IMPORTED_MODULE_4__.tileLoadConcurrency)()),
+        onSave: bindings.saveViewState,
+    });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.terrainSpawnFrameValueInput, { onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.terrainSpawnBudgetValueInput, { onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeSizeValueInput, { onUpdate: bindings.applyLighting, onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeDarknessInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.shadeDarknessValueInput, { onUpdate: bindings.applyLighting, onSave: bindings.saveViewState });
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.fogEnabledInput.addEventListener('change', () => {
         bindings.applyFogSettings();
         bindings.saveViewState();
     });
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.fogNearValueInput, { onUpdate: bindings.applyFogSettings, onSave: bindings.saveViewState });
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.fogFarValueInput, { onUpdate: bindings.applyFogSettings, onSave: bindings.saveViewState });
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.fogStrengthValueInput, { onUpdate: bindings.applyFogSettings, onSave: bindings.saveViewState });
-    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_3__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.fogHorizonValueInput, { onUpdate: bindings.applyFogSettings, onSave: bindings.saveViewState });
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.worldSelect.addEventListener('change', () => {
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.fogNearInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.fogNearValueInput, { onUpdate: bindings.applyFogSettings, onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.fogFarInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.fogFarValueInput, { onUpdate: bindings.applyFogSettings, onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.fogStrengthInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.fogStrengthValueInput, { onUpdate: bindings.applyFogSettings, onSave: bindings.saveViewState });
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_0__.bindPairedControl)(_dom_js__WEBPACK_IMPORTED_MODULE_5__.fogHorizonInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.fogHorizonValueInput, { onUpdate: bindings.applyFogSettings, onSave: bindings.saveViewState });
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.worldSelect.addEventListener('change', () => {
         bindings.closeEntityStream();
         bindings.updatePlayers([]);
         bindings.clearMobs();
@@ -7509,18 +7529,18 @@ function bindHudInputs(bindings) {
         bindings.scheduleControlGridLoad();
         bindings.saveViewState();
     });
-    for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_3__.chunkXInput, _dom_js__WEBPACK_IMPORTED_MODULE_3__.chunkZInput]) {
+    for (const input of [_dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkXInput, _dom_js__WEBPACK_IMPORTED_MODULE_5__.chunkZInput]) {
         if (!input)
             continue;
         input.addEventListener('input', bindings.scheduleControlGridLoad);
         input.addEventListener('change', bindings.scheduleControlGridLoad);
     }
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.panelToggle.addEventListener('click', () => {
-        setSettingsPanelOpen(!_dom_js__WEBPACK_IMPORTED_MODULE_3__.hudEl.classList.contains('open'));
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.panelToggle.addEventListener('click', () => {
+        setSettingsPanelOpen(!_dom_js__WEBPACK_IMPORTED_MODULE_5__.hudEl.classList.contains('open'));
         bindings.saveViewState();
     });
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.infoCardHeadEl.addEventListener('click', bindings.toggleRenderDetails);
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.infoCardHeadEl.addEventListener('keydown', (event) => {
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.infoCardHeadEl.addEventListener('click', bindings.toggleRenderDetails);
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.infoCardHeadEl.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' && event.key !== ' ')
             return;
         event.preventDefault();
@@ -7545,10 +7565,10 @@ function handleKeyDown(event, bindings) {
         const confirmDialog = document.querySelector('#confirm-dialog');
         if (confirmDialog?.open)
             return;
-        if (!_dom_js__WEBPACK_IMPORTED_MODULE_3__.hudEl.classList.contains('open'))
+        blurFocusedHudControl();
+        if (!_dom_js__WEBPACK_IMPORTED_MODULE_5__.hudEl.classList.contains('open'))
             return;
         event.preventDefault();
-        blurFocusedHudControl();
         setSettingsPanelOpen(false);
         bindings.saveViewState();
         return;
@@ -7556,24 +7576,38 @@ function handleKeyDown(event, bindings) {
     if (isTypingInHud())
         return;
     if (MOVEMENT_KEY_CODES.has(event.code)) {
+        // Blur any focused control and stop the event before it reaches that control's own handler.
+        blurFocusedHudControl();
         event.preventDefault();
+        event.stopPropagation();
         bindings.pressedKeys.add(event.code);
     }
 }
 function setSettingsPanelOpen(open) {
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.hudEl.classList.toggle('open', open);
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.panelToggle.classList.toggle('active', open);
-    _dom_js__WEBPACK_IMPORTED_MODULE_3__.panelToggle.setAttribute('aria-expanded', String(open));
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.hudEl.classList.toggle('open', open);
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.panelToggle.classList.toggle('active', open);
+    _dom_js__WEBPACK_IMPORTED_MODULE_5__.panelToggle.setAttribute('aria-expanded', String(open));
 }
+// True only when the user is genuinely typing text — so movement keys (incl. Space) are left
+// alone. Checkboxes, selects, range sliders and buttons are NOT text entry: keys should drive
+// the camera and the focused control gets blurred instead of activated.
 function isTypingInHud() {
     const active = document.activeElement;
-    return active instanceof HTMLInputElement
-        || active instanceof HTMLSelectElement
-        || active instanceof HTMLTextAreaElement;
+    if (active instanceof HTMLTextAreaElement) {
+        return true;
+    }
+    if (active instanceof HTMLInputElement) {
+        const textTypes = new Set(['text', 'number', 'search', 'email', 'url', 'tel', 'password']);
+        return textTypes.has(active.type);
+    }
+    return false;
 }
 function blurFocusedHudControl() {
-    if (isTypingInHud()) {
-        document.activeElement.blur();
+    const active = document.activeElement;
+    // Blur any focused control, including focusable role="button" divs (panel/section heads),
+    // so keyboard/Space no longer activates them. The canvas/body never need to stay focused.
+    if (active instanceof HTMLElement && active !== document.body) {
+        active.blur();
     }
 }
 function isFlyLookActive(domElement) {
@@ -7601,13 +7635,14 @@ function formatBuildTime(iso) {
     return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function mountBuildBadge() {
-    const info = {"version":"0.1.0","channel":"early access","sha":"6777ecc-dirty","time":"2026-06-19T19:34:32.122Z"};
+    const info = {"version":"0.1.0","channel":"early access","sha":"97e778f-dirty","time":"2026-06-20T01:05:32.880Z"};
     const badge = document.createElement('div');
     badge.className = 'build-badge';
     badge.textContent = `v${info.version} [${info.channel}] · ${info.sha} · ${formatBuildTime(info.time)}`;
-    badge.title = `Release v${info.version} [${info.channel}]\nBuild ${info.sha}\n${info.time}\n(click to copy commit sha)`;
+    badge.title = `Release v${info.version} [${info.channel}]\nBuild ${info.sha}\n${info.time}\n(click to copy build info)`;
+    const clipboardLine = `Terrascape v${info.version} [${info.channel}] · ${info.sha} · ${info.time}`;
     badge.addEventListener('click', () => {
-        navigator.clipboard?.writeText(info.sha).catch(() => { });
+        navigator.clipboard?.writeText(clipboardLine).catch(() => { });
     });
     document.body.appendChild(badge);
 }
@@ -7632,6 +7667,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   cosmeticBlocksMode: () => (/* binding */ cosmeticBlocksMode),
 /* harmony export */   cosmeticBlocksSplit: () => (/* binding */ cosmeticBlocksSplit),
 /* harmony export */   landMotionEnabled: () => (/* binding */ landMotionEnabled),
+/* harmony export */   mapTileRadius: () => (/* binding */ mapTileRadius),
 /* harmony export */   mapTileRetainRadius: () => (/* binding */ mapTileRetainRadius),
 /* harmony export */   mobBlocksEnabled: () => (/* binding */ mobBlocksEnabled),
 /* harmony export */   radiusValue: () => (/* binding */ radiusValue),
@@ -7642,6 +7678,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   terrainPromotionBudgetMs: () => (/* binding */ terrainPromotionBudgetMs),
 /* harmony export */   terrainPromotionsPerFrame: () => (/* binding */ terrainPromotionsPerFrame),
 /* harmony export */   terrainTuningValue: () => (/* binding */ terrainTuningValue),
+/* harmony export */   tileLoadConcurrency: () => (/* binding */ tileLoadConcurrency),
 /* harmony export */   updateRadiusReadout: () => (/* binding */ updateRadiusReadout),
 /* harmony export */   visualDetailMode: () => (/* binding */ visualDetailMode),
 /* harmony export */   waterModeValue: () => (/* binding */ waterModeValue)
@@ -7668,6 +7705,16 @@ const AUTO_STREAM_RETAIN_MARGIN = 1;
 const DEFAULT_TERRAIN_LOAD_CONCURRENCY = 4;
 const DEFAULT_TERRAIN_PROMOTION_BUDGET_MS = 4;
 const DEFAULT_TERRAIN_PROMOTIONS_PER_FRAME = 2;
+const DEFAULT_MAP_TILE_RADIUS = 16;
+const DEFAULT_TILE_LOAD_CONCURRENCY = 4;
+// Map tile distance is an independent knob, but never smaller than the voxel mesh radius — tiles
+// must at least cover the loaded meshes (below that, tiles add nothing the voxels don't already).
+function mapTileRadius() {
+    return Math.max(terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.mapTileRadiusValueInput, DEFAULT_MAP_TILE_RADIUS), radiusValue());
+}
+function tileLoadConcurrency() {
+    return terrainTuningValue(_dom_js__WEBPACK_IMPORTED_MODULE_5__.tileLoadSlotsValueInput, DEFAULT_TILE_LOAD_CONCURRENCY);
+}
 function mapTileRetainRadius(terrainRadius, streamLoad = false) {
     return (0,_common_view_preferences_js__WEBPACK_IMPORTED_MODULE_2__.mapTileRetainRadiusFor)(terrainRadius, streamLoad, _tile_map_map_backdrop_js__WEBPACK_IMPORTED_MODULE_1__.MAP_HORIZON_MARGIN, AUTO_STREAM_RETAIN_MARGIN);
 }
@@ -8012,6 +8059,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   infoCardEl: () => (/* binding */ infoCardEl),
 /* harmony export */   infoCardHeadEl: () => (/* binding */ infoCardHeadEl),
 /* harmony export */   landMotionInput: () => (/* binding */ landMotionInput),
+/* harmony export */   mapTileRadiusInput: () => (/* binding */ mapTileRadiusInput),
+/* harmony export */   mapTileRadiusValueInput: () => (/* binding */ mapTileRadiusValueInput),
 /* harmony export */   mapTilesInput: () => (/* binding */ mapTilesInput),
 /* harmony export */   mapTimeInput: () => (/* binding */ mapTimeInput),
 /* harmony export */   metricCenterEl: () => (/* binding */ metricCenterEl),
@@ -8048,6 +8097,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   terrainSpawnBudgetValueInput: () => (/* binding */ terrainSpawnBudgetValueInput),
 /* harmony export */   terrainSpawnFrameInput: () => (/* binding */ terrainSpawnFrameInput),
 /* harmony export */   terrainSpawnFrameValueInput: () => (/* binding */ terrainSpawnFrameValueInput),
+/* harmony export */   tileLoadSlotsInput: () => (/* binding */ tileLoadSlotsInput),
+/* harmony export */   tileLoadSlotsValueInput: () => (/* binding */ tileLoadSlotsValueInput),
 /* harmony export */   timeCycleLabelEl: () => (/* binding */ timeCycleLabelEl),
 /* harmony export */   treeShadeInput: () => (/* binding */ treeShadeInput),
 /* harmony export */   visualDetailModeInput: () => (/* binding */ visualDetailModeInput),
@@ -8077,6 +8128,10 @@ const visualDetailModeInput = document.querySelector('#visual-detail-mode');
 const landMotionInput = document.querySelector('#land-motion');
 const terrainLoadSlotsInput = document.querySelector('#terrain-load-slots');
 const terrainLoadSlotsValueInput = document.querySelector('#terrain-load-slots-value');
+const mapTileRadiusInput = document.querySelector('#map-tile-radius');
+const mapTileRadiusValueInput = document.querySelector('#map-tile-radius-value');
+const tileLoadSlotsInput = document.querySelector('#tile-load-slots');
+const tileLoadSlotsValueInput = document.querySelector('#tile-load-slots-value');
 const terrainSpawnFrameInput = document.querySelector('#terrain-spawn-frame');
 const terrainSpawnFrameValueInput = document.querySelector('#terrain-spawn-frame-value');
 const terrainSpawnBudgetInput = document.querySelector('#terrain-spawn-budget');
@@ -8262,6 +8317,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./dom.js */ "./src/main/resources/web/src/ui/dom.ts");
 /* harmony import */ var _control_readers_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./control-readers.js */ "./src/main/resources/web/src/ui/control-readers.ts");
+/* harmony import */ var _tile_map_map_backdrop_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../tile-map/map-backdrop.js */ "./src/main/resources/web/src/tile-map/map-backdrop.ts");
+
 
 
 const numericOptions = (spec) => spec?.options?.filter((value) => Number.isFinite(value)) ?? [];
@@ -8297,14 +8354,20 @@ function applyRateSelect(select, spec) {
 }
 // Applies a numeric control to its slider + number pair: options bound the range, out-of-range
 // values clamp in, and a disabled control greys out (kept visible) and snaps to the default.
+function sliderBounds(spec) {
+    if (Number.isFinite(spec.min) && Number.isFinite(spec.max)) {
+        return { min: spec.min, max: spec.max };
+    }
+    const options = numericOptions(spec);
+    return options.length ? { min: Math.min(...options), max: Math.max(...options) } : null;
+}
 function applyRangeControl(rangeEl, numberEl, spec) {
     if (!spec || !rangeEl || !numberEl)
         return;
-    const options = numericOptions(spec);
+    const bounds = sliderBounds(spec);
     const inputs = [rangeEl, numberEl];
-    if (options.length) {
-        const min = Math.min(...options);
-        const max = Math.max(...options);
+    if (bounds) {
+        const { min, max } = bounds;
         const current = Number(numberEl.value);
         const clamped = Math.min(max, Math.max(min, Number.isFinite(current) ? current : (spec.default ?? min)));
         for (const input of inputs) {
@@ -8325,10 +8388,9 @@ function applyRangeControl(rangeEl, numberEl, spec) {
 function applyRadius(spec) {
     if (!spec || !_dom_js__WEBPACK_IMPORTED_MODULE_0__.radiusInput)
         return;
-    const options = numericOptions(spec);
-    if (options.length) {
-        const min = Math.min(...options);
-        const max = Math.max(...options);
+    const bounds = sliderBounds(spec);
+    if (bounds) {
+        const { min, max } = bounds;
         _dom_js__WEBPACK_IMPORTED_MODULE_0__.radiusInput.min = String(min);
         _dom_js__WEBPACK_IMPORTED_MODULE_0__.radiusInput.max = String(max);
         const current = (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_1__.radiusValue)();
@@ -8354,6 +8416,9 @@ function applyServerControls(controls) {
     applyRangeControl(_dom_js__WEBPACK_IMPORTED_MODULE_0__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_0__.terrainSpawnFrameValueInput, controls.spawnPerFrame);
     applyRangeControl(_dom_js__WEBPACK_IMPORTED_MODULE_0__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_0__.terrainSpawnBudgetValueInput, controls.spawnBudgetMs);
     applyRadius(controls.streamRadius);
+    applyRangeControl(_dom_js__WEBPACK_IMPORTED_MODULE_0__.mapTileRadiusInput, _dom_js__WEBPACK_IMPORTED_MODULE_0__.mapTileRadiusValueInput, controls.mapTileRadius);
+    applyRangeControl(_dom_js__WEBPACK_IMPORTED_MODULE_0__.tileLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_0__.tileLoadSlotsValueInput, controls.tilesLoadedAtOnce);
+    (0,_tile_map_map_backdrop_js__WEBPACK_IMPORTED_MODULE_2__.setTileLoadConcurrency)((0,_control_readers_js__WEBPACK_IMPORTED_MODULE_1__.tileLoadConcurrency)());
 }
 
 
@@ -8522,6 +8587,10 @@ function applyInitialParams() {
     applyBooleanParam('mapTime', _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTimeInput);
     applyNumberParam('terrainLoadSlots', _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsValueInput);
     _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsValueInput.value;
+    applyNumberParam('mapTileRadius', _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTileRadiusValueInput);
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTileRadiusInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTileRadiusValueInput.value;
+    applyNumberParam('tilesAtOnce', _dom_js__WEBPACK_IMPORTED_MODULE_10__.tileLoadSlotsValueInput);
+    _dom_js__WEBPACK_IMPORTED_MODULE_10__.tileLoadSlotsInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_10__.tileLoadSlotsValueInput.value;
     applyNumberParam('terrainSpawnFrame', _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameValueInput);
     _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameInput.value = _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameValueInput.value;
     applyNumberParam('terrainSpawnMs', _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetValueInput);
@@ -8582,6 +8651,8 @@ function applyStoredInputs() {
         (0,_app_events_js__WEBPACK_IMPORTED_MODULE_6__.setSettingsPanelOpen)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.settingsOpen);
     (0,_library_collapsible_section_js__WEBPACK_IMPORTED_MODULE_5__.applyCollapsedSectionState)(_scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.sections);
     (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainLoadSlotsValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.terrainLoadSlots);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTileRadiusInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTileRadiusValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.mapTileRadius);
+    (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.tileLoadSlotsInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.tileLoadSlotsValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.tilesAtOnce);
     (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnFrameValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.terrainSpawnFrame);
     (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.terrainSpawnBudgetValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.terrainSpawnMs);
     (0,_library_control_values_js__WEBPACK_IMPORTED_MODULE_1__.setPairedControlValue)(_dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeInput, _dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeValueInput, _scene_scene_context_js__WEBPACK_IMPORTED_MODULE_2__.runtime.storedViewState.shadeSize);
@@ -8692,6 +8763,8 @@ function saveViewState() {
         visualDetailMode: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.visualDetailMode)(),
         landMotion: _dom_js__WEBPACK_IMPORTED_MODULE_10__.landMotionInput.checked,
         terrainLoadSlots: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.terrainLoadConcurrency)(),
+        mapTileRadius: Number.parseInt(_dom_js__WEBPACK_IMPORTED_MODULE_10__.mapTileRadiusValueInput.value, 10) || 16,
+        tilesAtOnce: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.tileLoadConcurrency)(),
         terrainSpawnFrame: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.terrainPromotionsPerFrame)(),
         terrainSpawnMs: (0,_control_readers_js__WEBPACK_IMPORTED_MODULE_3__.terrainPromotionBudgetMs)(),
         shadeSize: Number.parseFloat(_dom_js__WEBPACK_IMPORTED_MODULE_10__.shadeSizeValueInput.value),

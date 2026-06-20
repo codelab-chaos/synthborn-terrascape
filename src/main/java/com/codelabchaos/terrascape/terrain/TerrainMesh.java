@@ -24,7 +24,6 @@ public record TerrainMesh(
     public record TerrainPart(
             String name,
             float[] positions,
-            float[] normals,
             float[] colors,
             int[] indices,
             int vertexCount,

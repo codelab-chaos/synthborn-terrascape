@@ -43,7 +43,7 @@ import {
   AUTO_STREAM_RETAIN_MARGIN,
   cosmeticBlocksSplit,
   landMotionEnabled,
-  mapTileRetainRadius,
+  mapTileRadius,
   radiusValue,
   setRadiusControlValue,
   terrainLoadConcurrency,
@@ -171,7 +171,7 @@ export async function loadGrid(options = {}) {
   const retainKeys = options.streamLoad === true
     ? chunkKeysForWorld(world, centerX, centerZ, radius + AUTO_STREAM_RETAIN_MARGIN)
     : needed;
-  const mapRetainRadius = mapTileRetainRadius(radius, options.streamLoad === true);
+  const mapRetainRadius = mapTileRadius();
   const mapRetainKeys = chunkKeysForWorld(world, centerX, centerZ, mapRetainRadius);
   const streamAnchor = playerChunk();
   retainOnly(world, retainKeys);

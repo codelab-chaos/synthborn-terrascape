@@ -13,7 +13,12 @@ const RISE_START_Y = -48;
 const RISE_MS = 140;
 const RISE_FAILSAFE_MULTIPLIER = 1.5;
 const PROMOTE_PER_FRAME = 96;
-const TILE_LOAD_CONCURRENCY = 4;
+// How many map tiles download in parallel — an independent knob from voxel mesh concurrency.
+let tileLoadConcurrency = 4;
+
+export function setTileLoadConcurrency(value: number) {
+  tileLoadConcurrency = Math.max(1, Math.floor(value) || 1);
+}
 const IMMEDIATE_TILE_LOAD_LIMIT = 96;
 const TILE_QUEUE_SLICE_SIZE = 48;
 
@@ -331,7 +336,7 @@ export async function loadMapTilesForKeys(
   tileLoadGeneration += 1;
   let loadedImmediateTiles = false;
   if (options.immediate === true && immediateRequests.length > 0 && immediateRequests.length <= IMMEDIATE_TILE_LOAD_LIMIT) {
-    await runWithConcurrency(immediateRequests, TILE_LOAD_CONCURRENCY, async (request) => {
+    await runWithConcurrency(immediateRequests, tileLoadConcurrency, async (request) => {
       if (desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id)) return;
       try {
         const result = await loadTileRequest(request, loadGeneration);
@@ -378,7 +383,7 @@ async function processTileLoadQueue() {
       break;
     }
 
-    await runWithConcurrency(requests, TILE_LOAD_CONCURRENCY, async (request) => {
+    await runWithConcurrency(requests, tileLoadConcurrency, async (request) => {
       if (generation !== loadGeneration) return;
       if (desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id)) return;
       try {

@@ -13,9 +13,10 @@ export function mountBuildBadge() {
   const badge = document.createElement('div');
   badge.className = 'build-badge';
   badge.textContent = `v${info.version} [${info.channel}] · ${info.sha} · ${formatBuildTime(info.time)}`;
-  badge.title = `Release v${info.version} [${info.channel}]\nBuild ${info.sha}\n${info.time}\n(click to copy commit sha)`;
+  badge.title = `Release v${info.version} [${info.channel}]\nBuild ${info.sha}\n${info.time}\n(click to copy build info)`;
+  const clipboardLine = `Terrascape v${info.version} [${info.channel}] · ${info.sha} · ${info.time}`;
   badge.addEventListener('click', () => {
-    navigator.clipboard?.writeText(info.sha).catch(() => {});
+    navigator.clipboard?.writeText(clipboardLine).catch(() => {});
   });
   document.body.appendChild(badge);
 }
