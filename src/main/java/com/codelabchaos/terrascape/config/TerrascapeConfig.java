@@ -84,7 +84,8 @@ public record TerrascapeConfig(
                 bool(properties, "features.playerAvatars", null, true),
                 bool(properties, "features.lazyMobIcons", null, true),
                 bool(properties, "features.mobDebugEndpoint", null, false),
-                bool(properties, "features.entityStream", null, true));
+                bool(properties, "features.entityStream", null, true),
+                bool(properties, "features.metricsEndpoint", null, true));
         MapView mapView = new MapView(
                 integer(properties, "map.tileSize", null, 32, 1, 512),
                 integer(properties, "map.maxRegionRadius", null, 108, 0, 512),
@@ -156,6 +157,7 @@ public record TerrascapeConfig(
                 features.lazyMobIcons=true
                 features.mobDebugEndpoint=false
                 features.entityStream=true
+                features.metricsEndpoint=true
 
                 # Map tiles
                 map.tileSize=32
@@ -359,7 +361,8 @@ public record TerrascapeConfig(
             boolean playerAvatars,
             boolean lazyMobIcons,
             boolean mobDebugEndpoint,
-            boolean entityStream
+            boolean entityStream,
+            boolean metricsEndpoint
     ) {
     }
 
