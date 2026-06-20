@@ -185,11 +185,11 @@ of truth, no scattered flags.
 - [ ] Provide a CSV export (flatten of the NDJSON columns) for spreadsheet/BI tools.
 - [ ] Add a diff/trend mode: compare two runs / two profiles / over-time on a fixed (feature, setting, stage, metric).
 - [ ] Commit documented **baseline rows** per profile here once first measured, as the reference series.
-- [ ] **QUEUED — Reporting page/app**: a small self-contained HTML app that loads the report data
-      (`perf-history/baseline-*.json`, later `series.ndjson`) and renders "Kibana-like" graphs —
-      latency per setting/feature, cold-vs-warm, server CPU/heap over a run, trend across runs.
-      Client-only (no backend); a single HTML file with a charting lib is fine. Filters by
-      target/phase/setting; pulls straight from the JSON the baseline runner already writes.
+- [x] **Reporting page** — [`tools/metrics-report.html`](../tools/metrics-report.html): a single
+      self-contained HTML file (no backend, no dependencies, works over `file://`). Load one or more
+      `perf-history/baseline-*.json` via picker or drag-drop; renders per-run bar charts
+      (time-to-deliver, server CPU peak, heap peak) for mesh/tile × cold/warm plus a summary table.
+      Next: trend-across-runs and reading the tidy `series.ndjson` once that lands.
 
 ## Suggested milestones
 
