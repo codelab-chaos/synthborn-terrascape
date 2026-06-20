@@ -44,12 +44,6 @@ export function radiusReadout(radius) {
   };
 }
 
-export function mapTileRetainRadiusFor(terrainRadius, streamLoad, horizonMargin, retainMargin = 1) {
-  return streamLoad
-    ? terrainRadius + retainMargin + horizonMargin
-    : terrainRadius + horizonMargin;
-}
-
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
