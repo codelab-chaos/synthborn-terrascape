@@ -63,6 +63,7 @@
   <h1>Terrascape Baseline Metrics <small>mesh &amp; tile · cold vs warm</small></h1>
   <div class="controls">
     <span class="legend"><span class="c">cold (gen)</span><span class="w">warm (cached)</span></span>
+    <button id="reload">Reload</button>
     <label class="file">Load JSON…<input id="file" type="file" accept="application/json,.json" multiple></label>
     <button id="clear">Clear</button>
   </div>
@@ -152,12 +153,34 @@
     });
   }
 
+  // When served by tools/serve-metrics.js, discover and load every baseline automatically.
+  async function autoLoad() {
+    let list;
+    try {
+      const res = await fetch('baselines.json', { cache: 'no-store' });
+      if (!res.ok) return false;
+      list = await res.json();
+    } catch { return false; }
+    if (!Array.isArray(list) || !list.length) return false;
+    for (const name of list) {
+      try {
+        const json = await (await fetch('perf-history/' + encodeURIComponent(name), { cache: 'no-store' })).json();
+        if (json && json.rows) { json.runId = json.runId || name; loaded.push(json); }
+      } catch { /* skip unreadable file */ }
+    }
+    dropEl.textContent = 'No baselines found in perf-history/. Run `npm run perf:baseline` to generate one.';
+    render();
+    return true;
+  }
+
   document.getElementById('file').addEventListener('change', (e) => readFiles(e.target.files));
   document.getElementById('clear').addEventListener('click', () => { loaded.length = 0; render(); });
+  document.getElementById('reload').addEventListener('click', () => { loaded.length = 0; autoLoad(); });
   ['dragover', 'dragenter'].forEach((ev) => dropEl.addEventListener(ev, (e) => { e.preventDefault(); dropEl.classList.add('hot'); }));
   ['dragleave', 'drop'].forEach((ev) => dropEl.addEventListener(ev, (e) => { e.preventDefault(); dropEl.classList.remove('hot'); }));
   dropEl.addEventListener('drop', (e) => readFiles(e.dataTransfer.files));
-  render();
+
+  autoLoad().then((served) => { if (!served) render(); });
 </script>
 </body>
 </html>
