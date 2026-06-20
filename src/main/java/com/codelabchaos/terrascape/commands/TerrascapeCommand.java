@@ -45,7 +45,7 @@ public class TerrascapeCommand extends AbstractWorldCommand {
         switch (subcommand) {
             case "status" -> sendStatus(context);
             case "sample" -> handleSample(args, context, world);
-            case "clearcache" -> handleClearCache(context);
+            case "clearcache" -> handleClearCache(context, args.length >= 3 ? args[2].toLowerCase() : "all");
             default -> sendUsage(context);
         }
     }
@@ -142,27 +142,38 @@ public class TerrascapeCommand extends AbstractWorldCommand {
                 .resolve(safeWorld + "_" + chunkX + "_" + chunkZ + ".glb");
     }
 
-    private void handleClearCache(@Nonnull CommandContext context) {
+    private void handleClearCache(@Nonnull CommandContext context, @Nonnull String target) {
+        boolean clearMesh = target.equals("all") || target.equals("mesh");
+        boolean clearTiles = target.equals("all") || target.equals("tiles");
+        if (!clearMesh && !clearTiles) {
+            context.sendMessage(Message.raw("Usage: /terrascape clearcache [mesh|tiles|all]").color(Color.YELLOW));
+            return;
+        }
         try {
-            TerrascapeWebServer.MemoryCacheStats memory = plugin.webServer() == null
-                    ? new TerrascapeWebServer.MemoryCacheStats(0, 0)
-                    : plugin.webServer().clearMemoryCache();
-            CacheDeleteStats terrain = deleteCacheDirectory(plugin.config() == null
-                    ? plugin.terrascapeDir().resolve("terrain")
-                    : plugin.config().folders().terrainCacheDir());
-            CacheDeleteStats samples = deleteCacheDirectory(plugin.config() == null
-                    ? plugin.terrascapeDir().resolve("samples")
-                    : plugin.config().folders().samplesDir());
-            CacheDeleteStats total = terrain.plus(samples);
+            context.sendMessage(Message.raw("=== Terrascape clearcache (" + target + ") ===").color(Color.CYAN));
 
-            context.sendMessage(Message.raw("=== Terrascape clearcache ===").color(Color.CYAN));
-            context.sendMessage(Message.raw("  files   : " + total.files()).color(Color.WHITE));
-            context.sendMessage(Message.raw("  dirs    : " + total.directories()).color(Color.WHITE));
-            context.sendMessage(Message.raw("  bytes   : " + total.bytes()).color(Color.WHITE));
-            context.sendMessage(Message.raw("  terrain : " + terrain.files() + " files").color(Color.WHITE));
-            context.sendMessage(Message.raw("  samples : " + samples.files() + " files").color(Color.WHITE));
-            context.sendMessage(Message.raw("  memory  : " + memory.entries()
-                    + " entries, " + formatBytes(memory.bytes())).color(Color.WHITE));
+            if (clearMesh) {
+                TerrascapeWebServer.MemoryCacheStats memory = plugin.webServer() == null
+                        ? new TerrascapeWebServer.MemoryCacheStats(0, 0)
+                        : plugin.webServer().clearMemoryCache();
+                CacheDeleteStats terrain = deleteCacheDirectory(plugin.config() == null
+                        ? plugin.terrascapeDir().resolve("terrain")
+                        : plugin.config().folders().terrainCacheDir());
+                CacheDeleteStats samples = deleteCacheDirectory(plugin.config() == null
+                        ? plugin.terrascapeDir().resolve("samples")
+                        : plugin.config().folders().samplesDir());
+                CacheDeleteStats total = terrain.plus(samples);
+                context.sendMessage(Message.raw("  mesh files  : " + total.files()
+                        + " (" + total.bytes() + " bytes)").color(Color.WHITE));
+                context.sendMessage(Message.raw("  mesh memory : " + memory.entries()
+                        + " entries, " + formatBytes(memory.bytes())).color(Color.WHITE));
+            }
+
+            if (clearTiles) {
+                int tiles = plugin.webServer() == null ? 0 : plugin.webServer().clearMapTileCache();
+                context.sendMessage(Message.raw("  tile memory : " + tiles + " entries").color(Color.WHITE));
+            }
+
             context.sendMessage(Message.raw("  cleared : " + plugin.terrascapeDir()).color(Color.GREEN));
         } catch (Exception e) {
             plugin.getLogger().at(Level.WARNING).withCause(e).log("Terrascape clearcache failed.");
@@ -190,7 +201,7 @@ public class TerrascapeCommand extends AbstractWorldCommand {
     }
 
     private static void sendUsage(@Nonnull CommandContext context) {
-        context.sendMessage(Message.raw("Usage: /terrascape status | /terrascape sample <chunkX> <chunkZ> | /terrascape clearcache").color(Color.YELLOW));
+        context.sendMessage(Message.raw("Usage: /terrascape status | /terrascape sample <chunkX> <chunkZ> | /terrascape clearcache [mesh|tiles|all]").color(Color.YELLOW));
     }
 
     private static Integer parseInt(@Nonnull String value) {

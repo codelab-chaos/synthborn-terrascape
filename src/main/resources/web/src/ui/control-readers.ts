@@ -18,6 +18,8 @@ import {
   radiusInput,
   radiusRangeInput,
   terrainLoadSlotsValueInput,
+  mapTileRadiusValueInput,
+  tileLoadSlotsValueInput,
   terrainSpawnBudgetValueInput,
   terrainSpawnFrameValueInput,
   visualDetailModeInput,
@@ -35,6 +37,18 @@ export const AUTO_STREAM_RETAIN_MARGIN = 1;
 const DEFAULT_TERRAIN_LOAD_CONCURRENCY = 4;
 const DEFAULT_TERRAIN_PROMOTION_BUDGET_MS = 4;
 const DEFAULT_TERRAIN_PROMOTIONS_PER_FRAME = 2;
+const DEFAULT_MAP_TILE_RADIUS = 16;
+const DEFAULT_TILE_LOAD_CONCURRENCY = 4;
+
+// Map tile distance is an independent knob, but never smaller than the voxel mesh radius — tiles
+// must at least cover the loaded meshes (below that, tiles add nothing the voxels don't already).
+export function mapTileRadius() {
+  return Math.max(terrainTuningValue(mapTileRadiusValueInput, DEFAULT_MAP_TILE_RADIUS), radiusValue());
+}
+
+export function tileLoadConcurrency() {
+  return terrainTuningValue(tileLoadSlotsValueInput, DEFAULT_TILE_LOAD_CONCURRENCY);
+}
 
 export function mapTileRetainRadius(terrainRadius, streamLoad = false) {
   return mapTileRetainRadiusFor(terrainRadius, streamLoad, MAP_HORIZON_MARGIN, AUTO_STREAM_RETAIN_MARGIN);

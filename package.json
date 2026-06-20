@@ -28,11 +28,12 @@
     "perf:postdeploy": "node tools/run-terrascape-perf.js --post-deploy --both",
     "perf:postdeploy:extensive": "node tools/run-terrascape-perf.js --post-deploy --extensive --runs 2 --clear-server-cache",
     "probe": "node tools/probe-blocks.js",
-    "parse-client-log": "node tools/parse-client-log.js"
+    "parse-client-log": "node tools/parse-client-log.js",
+    "perf:baseline": "node tools/run-terrascape-baseline.js"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Chad Neff",
+  "license": "MIT",
   "type": "commonjs",
   "description": "",
   "devDependencies": {

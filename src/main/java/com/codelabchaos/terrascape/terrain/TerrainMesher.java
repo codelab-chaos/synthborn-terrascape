@@ -340,7 +340,6 @@ public final class TerrainMesher {
     private static final class MeshBuilder {
         private final String name;
         private final List<Float> positions = new ArrayList<>();
-        private final List<Float> normals = new ArrayList<>();
         private final List<Float> colors = new ArrayList<>();
         private final List<Integer> indices = new ArrayList<>();
         private int vertexCount;
@@ -405,9 +404,8 @@ public final class TerrainMesher {
             positions.add(x);
             positions.add(y);
             positions.add(z);
-            normals.add(nx);
-            normals.add(ny);
-            normals.add(nz);
+            // Normals intentionally dropped: terrain renders unlit (baked AO/shade in vertex color),
+            // so the NORMAL attribute is dead weight. nx/ny/nz are kept in the signature for callers.
             colors.add(srgbToLinear(((rgb >>> 16) & 0xff) / 255.0f * shade));
             colors.add(srgbToLinear(((rgb >>> 8) & 0xff) / 255.0f * shade));
             colors.add(srgbToLinear((rgb & 0xff) / 255.0f * shade));
@@ -426,7 +424,6 @@ public final class TerrainMesher {
             return new TerrainMesh.TerrainPart(
                     name,
                     toFloatArray(positions),
-                    toFloatArray(normals),
                     toFloatArray(colors),
                     indices.stream().mapToInt(Integer::intValue).toArray(),
                     vertexCount,

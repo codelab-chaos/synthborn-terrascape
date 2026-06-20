@@ -104,6 +104,11 @@ import java.util.zip.ZipFile;
 public final class TerrascapeWebServer {
     private static final int MAP_REGION_TILE_SIZE = 32;
     private static final String MAP_REGION_CACHE_CONTROL = "public, max-age=31536000, immutable";
+    // Per-chunk map tiles and meshes are served from the server cache via predictable URLs; let
+    // the browser HTTP-cache them too (moderate TTL balances staleness on changing worlds; dirty
+    // chunks will need explicit busting later).
+    private static final String MAP_TILE_CACHE_CONTROL = "public, max-age=43200";
+    private static final String MESH_CACHE_CONTROL = "public, max-age=43200";
     private static final Duration MAP_REGION_TIMEOUT = Duration.ofSeconds(60);
     private static final int MAP_REGION_GENERATE_RADIUS = 20;
     private static final int MAX_CLIENT_LOG_BYTES = 16 * 1024;
@@ -198,6 +203,7 @@ public final class TerrascapeWebServer {
         this.server.createContext("/api/players", onApi(this::handlePlayers));
         this.server.createContext("/api/player-avatar", onApi(this::handlePlayerAvatar));
         this.server.createContext("/api/time", onApi(this::handleTime));
+        this.server.createContext("/api/metrics", onApi(this::handleMetrics));
         this.server.createContext("/api/mobs", onApi(this::handleMobs));
         this.server.createContext("/api/mob-debug", onApi(this::handleMobDebug));
         this.server.createContext("/api/npc-index", onApi(this::handleNpcIndex));
@@ -273,6 +279,15 @@ public final class TerrascapeWebServer {
             memoryCache.clear();
             memoryCacheBytes = 0;
             return stats;
+        }
+    }
+
+    /** Clears the in-memory map tile cache; returns the number of tile entries evicted. */
+    public int clearMapTileCache() {
+        synchronized (mapTileMemoryCacheLock) {
+            int entries = mapTileMemoryCache.size();
+            mapTileMemoryCache.clear();
+            return entries;
         }
     }
 
@@ -429,6 +444,41 @@ public final class TerrascapeWebServer {
         }
 
         writeCacheableBytes(exchange, 200, bytes, "image/png", "public, max-age=43200");
+    }
+
+    private static boolean acceptsGzip(@Nonnull HttpExchange exchange) {
+        String accept = exchange.getRequestHeaders().getFirst("Accept-Encoding");
+        return accept != null && accept.toLowerCase(java.util.Locale.ROOT).contains("gzip");
+    }
+
+    private static byte[] gzip(@Nonnull byte[] data) throws IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(Math.max(64, data.length / 2));
+        try (java.util.zip.GZIPOutputStream gz = new java.util.zip.GZIPOutputStream(out)) {
+            gz.write(data);
+        }
+        return out.toByteArray();
+    }
+
+    private void handleMetrics(@Nonnull HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+        com.sun.management.OperatingSystemMXBean os =
+                (com.sun.management.OperatingSystemMXBean) java.lang.management.ManagementFactory.getOperatingSystemMXBean();
+        java.lang.management.MemoryUsage heap =
+                java.lang.management.ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
+        int threads = java.lang.management.ManagementFactory.getThreadMXBean().getThreadCount();
+        writeJson(exchange, 200, "{\"ok\":true"
+                + ",\"processCpuLoad\":" + os.getProcessCpuLoad()
+                + ",\"systemCpuLoad\":" + os.getCpuLoad()
+                + ",\"availableProcessors\":" + os.getAvailableProcessors()
+                + ",\"heapUsedBytes\":" + heap.getUsed()
+                + ",\"heapMaxBytes\":" + heap.getMax()
+                + ",\"heapCommittedBytes\":" + heap.getCommitted()
+                + ",\"threads\":" + threads
+                + ",\"timestampMs\":" + System.currentTimeMillis()
+                + "}");
     }
 
     private void handleTime(@Nonnull HttpExchange exchange) throws IOException {
@@ -722,7 +772,7 @@ public final class TerrascapeWebServer {
             long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
 
             exchange.getResponseHeaders().set("Content-Type", "model/gltf-binary");
-            exchange.getResponseHeaders().set("Cache-Control", "no-cache");
+            exchange.getResponseHeaders().set("Cache-Control", MESH_CACHE_CONTROL);
             addCors(exchange);
             exchange.getResponseHeaders().set("X-Terrascape-Columns", Integer.toString(result.columns()));
             exchange.getResponseHeaders().set("X-Terrascape-Vertices", Integer.toString(result.vertices()));
@@ -732,9 +782,14 @@ public final class TerrascapeWebServer {
                 exchange.getResponseHeaders().set("X-Terrascape-Detail-Keys", result.detailKeys());
             }
             exchange.getResponseHeaders().set("X-Terrascape-Cache", result.source());
-            exchange.sendResponseHeaders(200, result.glb().length);
+            byte[] body = result.glb();
+            if (acceptsGzip(exchange)) {
+                body = gzip(body);
+                exchange.getResponseHeaders().set("Content-Encoding", "gzip");
+            }
+            exchange.sendResponseHeaders(200, body.length);
             try (OutputStream outputStream = exchange.getResponseBody()) {
-                outputStream.write(result.glb());
+                outputStream.write(body);
             }
             plugin.getLogger().at(Level.FINE).log("terrain-single world=" + world.getName()
                     + " chunk=" + request.chunkX() + "," + request.chunkZ()
@@ -764,7 +819,7 @@ public final class TerrascapeWebServer {
             MapTileTerrainResult result = generateMapTilePng(world, request);
             long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
             exchange.getResponseHeaders().set("Content-Type", "image/png");
-            exchange.getResponseHeaders().set("Cache-Control", "no-cache");
+            exchange.getResponseHeaders().set("Cache-Control", MAP_TILE_CACHE_CONTROL);
             addCors(exchange);
             exchange.getResponseHeaders().set("X-Terrascape-Cache", result.source());
             exchange.sendResponseHeaders(200, result.png().length);

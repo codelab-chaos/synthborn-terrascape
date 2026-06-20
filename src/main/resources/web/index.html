@@ -145,6 +145,20 @@
           <input id="terrain-load-slots-value" type="number" min="1" max="12" step="1" value="4">
         </div>
       </label>
+      <label class="paired-control" title="How far the flat map tiles extend, in chunks. Always at least the voxel mesh distance.">
+        <span>Map Tile Distance</span>
+        <div class="range-number">
+          <input id="map-tile-radius" type="range" min="0" max="32" step="1" value="16">
+          <input id="map-tile-radius-value" type="number" min="0" max="32" step="1" value="16">
+        </div>
+      </label>
+      <label class="paired-control" title="How many map tiles download in parallel — independent of voxel meshes.">
+        <span>Tiles Loaded at Once</span>
+        <div class="range-number">
+          <input id="tile-load-slots" type="range" min="1" max="16" step="1" value="4">
+          <input id="tile-load-slots-value" type="number" min="1" max="16" step="1" value="4">
+        </div>
+      </label>
       <div class="tri-state-field" title="How decorative floating blocks such as roofs, planks, torches, fire, doors, and furniture are loaded">
         <span>Cosmetic Blocks</span>
         <input id="cosmetic-blocks-mode" type="hidden" value="split">

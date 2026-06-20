@@ -10,15 +10,27 @@
   "playerUpdateRateOptions": [0.5, 1, 2, 4],
   "playerUpdateRateDefault": 1,
 
-  "chunksLoadedAtOnceOptions": [1, 2, 4, 6, 8, 12],
+  "chunksLoadedAtOnceMin": 1,
+  "chunksLoadedAtOnceMax": 12,
   "chunksLoadedAtOnceDefault": 4,
 
-  "spawnPerFrameOptions": [1, 2, 4, 8, 12],
+  "spawnPerFrameMin": 1,
+  "spawnPerFrameMax": 12,
   "spawnPerFrameDefault": 2,
 
-  "spawnBudgetMsOptions": [2, 4, 8, 16, 24],
+  "spawnBudgetMsMin": 1,
+  "spawnBudgetMsMax": 24,
   "spawnBudgetMsDefault": 4,
 
-  "streamRadiusOptions": [2, 4, 6, 8, 10, 12],
-  "streamRadiusDefault": 8
+  "streamRadiusMin": 0,
+  "streamRadiusMax": 12,
+  "streamRadiusDefault": 8,
+
+  "mapTileRadiusMin": 4,
+  "mapTileRadiusMax": 64,
+  "mapTileRadiusDefault": 16,
+
+  "tilesLoadedAtOnceMin": 1,
+  "tilesLoadedAtOnceMax": 16,
+  "tilesLoadedAtOnceDefault": 4
 }

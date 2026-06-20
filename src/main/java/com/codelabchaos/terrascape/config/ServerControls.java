@@ -44,10 +44,13 @@ public final class ServerControls {
     /** On/off feature toggles (config key is {@code <name>Enabled}). */
     private static final List<String> TOGGLES = List.of("showMobs", "showPlayers", "mapTiles", "autoStream");
 
-    /** Numeric controls published as {@code {enabled, options, default}}. */
-    private static final List<String> RANGES = List.of(
-            "mobUpdateRate", "playerUpdateRate", "chunksLoadedAtOnce",
-            "spawnPerFrame", "spawnBudgetMs", "streamRadius");
+    /** Dropdown controls published as {@code {enabled, options, default}}. */
+    private static final List<String> SELECTS = List.of("mobUpdateRate", "playerUpdateRate");
+
+    /** Slider controls published as {@code {enabled, min, max, default}} — admins dial any value in range. */
+    private static final List<String> SLIDERS = List.of(
+            "chunksLoadedAtOnce", "spawnPerFrame", "spawnBudgetMs", "streamRadius",
+            "mapTileRadius", "tilesLoadedAtOnce");
 
     private final JsonObject cfg;
     private final JsonObject defaults;
@@ -97,8 +100,11 @@ public final class ServerControls {
         for (String toggle : TOGGLES) {
             out.addProperty(toggle, boolAt(toggle + "Enabled", true));
         }
-        for (String range : RANGES) {
-            out.add(range, rangeJson(range));
+        for (String select : SELECTS) {
+            out.add(select, selectJson(select));
+        }
+        for (String slider : SLIDERS) {
+            out.add(slider, sliderJson(slider));
         }
         return GSON.toJson(out);
     }
@@ -115,10 +121,19 @@ public final class ServerControls {
         return boolAt("mapTilesEnabled", true);
     }
 
-    private JsonObject rangeJson(@Nonnull String name) {
+    private JsonObject selectJson(@Nonnull String name) {
         JsonObject out = new JsonObject();
         out.addProperty("enabled", boolAt(name + "Enabled", true));
         out.add("options", pick(name + "Options"));
+        out.add("default", pick(name + "Default"));
+        return out;
+    }
+
+    private JsonObject sliderJson(@Nonnull String name) {
+        JsonObject out = new JsonObject();
+        out.addProperty("enabled", boolAt(name + "Enabled", true));
+        out.add("min", pick(name + "Min"));
+        out.add("max", pick(name + "Max"));
         out.add("default", pick(name + "Default"));
         return out;
     }
@@ -162,8 +177,11 @@ public final class ServerControls {
     @Nonnull
     private static Set<String> knownKeys(@Nonnull JsonObject defaults) {
         Set<String> known = new LinkedHashSet<>(defaults.keySet());
-        for (String range : RANGES) {
-            known.add(range + "Enabled");
+        for (String select : SELECTS) {
+            known.add(select + "Enabled");
+        }
+        for (String slider : SLIDERS) {
+            known.add(slider + "Enabled");
         }
         return known;
     }

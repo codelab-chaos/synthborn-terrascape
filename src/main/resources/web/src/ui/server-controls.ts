@@ -12,13 +12,20 @@ import {
   terrainSpawnBudgetValueInput,
   terrainSpawnFrameInput,
   terrainSpawnFrameValueInput,
+  mapTileRadiusInput,
+  mapTileRadiusValueInput,
+  tileLoadSlotsInput,
+  tileLoadSlotsValueInput,
 } from './dom.ts';
-import { radiusValue, setRadiusControlValue } from './control-readers.ts';
+import { radiusValue, setRadiusControlValue, tileLoadConcurrency } from './control-readers.ts';
+import { setTileLoadConcurrency } from '../tile-map/map-backdrop.ts';
 
 // Shape published by the server under `clientControls` in /api/worlds.
 interface RangeSpec {
   enabled?: boolean;
-  options?: number[];
+  options?: number[]; // dropdowns (rates)
+  min?: number; // sliders
+  max?: number; // sliders
   default?: number;
 }
 
@@ -33,6 +40,8 @@ interface ClientControls {
   spawnPerFrame?: RangeSpec;
   spawnBudgetMs?: RangeSpec;
   streamRadius?: RangeSpec;
+  mapTileRadius?: RangeSpec;
+  tilesLoadedAtOnce?: RangeSpec;
 }
 
 const numericOptions = (spec: RangeSpec | undefined): number[] =>
@@ -68,17 +77,24 @@ function applyRateSelect(select: HTMLSelectElement | null, spec: RangeSpec | und
 
 // Applies a numeric control to its slider + number pair: options bound the range, out-of-range
 // values clamp in, and a disabled control greys out (kept visible) and snaps to the default.
+function sliderBounds(spec: RangeSpec): { min: number; max: number } | null {
+  if (Number.isFinite(spec.min) && Number.isFinite(spec.max)) {
+    return { min: spec.min as number, max: spec.max as number };
+  }
+  const options = numericOptions(spec);
+  return options.length ? { min: Math.min(...options), max: Math.max(...options) } : null;
+}
+
 function applyRangeControl(
   rangeEl: HTMLInputElement | null,
   numberEl: HTMLInputElement | null,
   spec: RangeSpec | undefined,
 ) {
   if (!spec || !rangeEl || !numberEl) return;
-  const options = numericOptions(spec);
+  const bounds = sliderBounds(spec);
   const inputs = [rangeEl, numberEl];
-  if (options.length) {
-    const min = Math.min(...options);
-    const max = Math.max(...options);
+  if (bounds) {
+    const { min, max } = bounds;
     const current = Number(numberEl.value);
     const clamped = Math.min(max, Math.max(min, Number.isFinite(current) ? current : (spec.default ?? min)));
     for (const input of inputs) {
@@ -97,10 +113,9 @@ function applyRangeControl(
 // Stream radius uses the canonical radius setter so its readout stays in sync.
 function applyRadius(spec: RangeSpec | undefined) {
   if (!spec || !radiusInput) return;
-  const options = numericOptions(spec);
-  if (options.length) {
-    const min = Math.min(...options);
-    const max = Math.max(...options);
+  const bounds = sliderBounds(spec);
+  if (bounds) {
+    const { min, max } = bounds;
     radiusInput.min = String(min);
     radiusInput.max = String(max);
     const current = radiusValue();
@@ -124,4 +139,7 @@ export function applyServerControls(controls: ClientControls | undefined) {
   applyRangeControl(terrainSpawnFrameInput, terrainSpawnFrameValueInput, controls.spawnPerFrame);
   applyRangeControl(terrainSpawnBudgetInput, terrainSpawnBudgetValueInput, controls.spawnBudgetMs);
   applyRadius(controls.streamRadius);
+  applyRangeControl(mapTileRadiusInput, mapTileRadiusValueInput, controls.mapTileRadius);
+  applyRangeControl(tileLoadSlotsInput, tileLoadSlotsValueInput, controls.tilesLoadedAtOnce);
+  setTileLoadConcurrency(tileLoadConcurrency());
 }

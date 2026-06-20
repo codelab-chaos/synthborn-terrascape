@@ -4,6 +4,8 @@ import {
 } from '../library/control-values.ts';
 import { bindHudSectionCollapsibles } from '../library/collapsible-section.ts';
 import { bindTriStateControl } from '../library/tri-state-control.ts';
+import { setTileLoadConcurrency } from '../tile-map/map-backdrop.ts';
+import { tileLoadConcurrency } from './control-readers.ts';
 import {
   chunkXInput,
   chunkZInput,
@@ -39,6 +41,10 @@ import {
   showPlayersInput,
   terrainLoadSlotsInput,
   terrainLoadSlotsValueInput,
+  mapTileRadiusInput,
+  mapTileRadiusValueInput,
+  tileLoadSlotsInput,
+  tileLoadSlotsValueInput,
   terrainSpawnBudgetInput,
   terrainSpawnBudgetValueInput,
   terrainSpawnFrameInput,
@@ -101,7 +107,9 @@ type AppEventBindings = {
 
 export function bindAppEvents(bindings: AppEventBindings) {
   window.addEventListener('resize', bindings.resize);
-  window.addEventListener('keydown', (event) => handleKeyDown(event, bindings));
+  // Capture phase so movement keys are intercepted before focusable controls (inputs, and
+  // role="button" divs like the panel heads) can act on them.
+  window.addEventListener('keydown', (event) => handleKeyDown(event, bindings), { capture: true });
   window.addEventListener('keyup', (event) => {
     bindings.pressedKeys.delete(event.code);
   });
@@ -202,6 +210,14 @@ function bindHudInputs(bindings: AppEventBindings) {
     onChange: bindings.scheduleControlGridLoad,
   });
   bindPairedControl(terrainLoadSlotsInput, terrainLoadSlotsValueInput, { onSave: bindings.saveViewState });
+  bindPairedControl(mapTileRadiusInput, mapTileRadiusValueInput, {
+    onUpdate: bindings.updateMapTileLayer,
+    onSave: bindings.saveViewState,
+  });
+  bindPairedControl(tileLoadSlotsInput, tileLoadSlotsValueInput, {
+    onUpdate: () => setTileLoadConcurrency(tileLoadConcurrency()),
+    onSave: bindings.saveViewState,
+  });
   bindPairedControl(terrainSpawnFrameInput, terrainSpawnFrameValueInput, { onSave: bindings.saveViewState });
   bindPairedControl(terrainSpawnBudgetInput, terrainSpawnBudgetValueInput, { onSave: bindings.saveViewState });
   bindPairedControl(shadeSizeInput, shadeSizeValueInput, { onUpdate: bindings.applyLighting, onSave: bindings.saveViewState });
@@ -261,16 +277,19 @@ function handleKeyDown(event: KeyboardEvent, bindings: AppEventBindings) {
   if (event.key === 'Escape') {
     const confirmDialog = document.querySelector<HTMLDialogElement>('#confirm-dialog');
     if (confirmDialog?.open) return;
+    blurFocusedHudControl();
     if (!hudEl.classList.contains('open')) return;
     event.preventDefault();
-    blurFocusedHudControl();
     setSettingsPanelOpen(false);
     bindings.saveViewState();
     return;
   }
   if (isTypingInHud()) return;
   if (MOVEMENT_KEY_CODES.has(event.code)) {
+    // Blur any focused control and stop the event before it reaches that control's own handler.
+    blurFocusedHudControl();
     event.preventDefault();
+    event.stopPropagation();
     bindings.pressedKeys.add(event.code);
   }
 }
@@ -281,16 +300,27 @@ export function setSettingsPanelOpen(open: boolean) {
   panelToggle.setAttribute('aria-expanded', String(open));
 }
 
+// True only when the user is genuinely typing text — so movement keys (incl. Space) are left
+// alone. Checkboxes, selects, range sliders and buttons are NOT text entry: keys should drive
+// the camera and the focused control gets blurred instead of activated.
 export function isTypingInHud() {
   const active = document.activeElement;
-  return active instanceof HTMLInputElement
-    || active instanceof HTMLSelectElement
-    || active instanceof HTMLTextAreaElement;
+  if (active instanceof HTMLTextAreaElement) {
+    return true;
+  }
+  if (active instanceof HTMLInputElement) {
+    const textTypes = new Set(['text', 'number', 'search', 'email', 'url', 'tel', 'password']);
+    return textTypes.has(active.type);
+  }
+  return false;
 }
 
 function blurFocusedHudControl() {
-  if (isTypingInHud()) {
-    (document.activeElement as HTMLElement).blur();
+  const active = document.activeElement;
+  // Blur any focused control, including focusable role="button" divs (panel/section heads),
+  // so keyboard/Space no longer activates them. The canvas/body never need to stay focused.
+  if (active instanceof HTMLElement && active !== document.body) {
+    active.blur();
   }
 }
 

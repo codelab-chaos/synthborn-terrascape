@@ -50,10 +50,12 @@ public final class GltfWriter {
             return;
         }
         int positionOffset = binary.writeFloats(part.positions());
-        int normalOffset = binary.writeFloats(part.normals());
         int colorOffset = binary.writeFloats(part.colors());
-        int indexOffset = binary.writeInts(part.indices());
-        layouts.add(new PartLayout(part, materialIndex, positionOffset, normalOffset, colorOffset, indexOffset));
+        boolean shortIndices = part.vertexCount() <= 65535;
+        int indexOffset = shortIndices
+                ? binary.writeUnsignedShorts(part.indices())
+                : binary.writeInts(part.indices());
+        layouts.add(new PartLayout(part, materialIndex, positionOffset, colorOffset, indexOffset, shortIndices));
     }
 
     private static String gltfJson(int binLength, List<PartLayout> layouts, Bounds bounds) {
@@ -65,31 +67,27 @@ public final class GltfWriter {
 
         for (PartLayout layout : layouts) {
             int positionView = bufferView++;
-            int normalView = bufferView++;
             int colorView = bufferView++;
             int indexView = bufferView++;
+            int indexComponentBytes = layout.shortIndices() ? Short.BYTES : Integer.BYTES;
             appendBufferView(bufferViews, positionView, layout.positionOffset(), layout.part().positions().length * Float.BYTES, 34962);
-            appendBufferView(bufferViews, normalView, layout.normalOffset(), layout.part().normals().length * Float.BYTES, 34962);
             appendBufferView(bufferViews, colorView, layout.colorOffset(), layout.part().colors().length * Float.BYTES, 34962);
-            appendBufferView(bufferViews, indexView, layout.indexOffset(), layout.part().indices().length * Integer.BYTES, 34963);
+            appendBufferView(bufferViews, indexView, layout.indexOffset(), layout.part().indices().length * indexComponentBytes, 34963);
 
             Bounds partBounds = Bounds.fromPositions(layout.part().positions());
             int positionAccessor = accessor++;
-            int normalAccessor = accessor++;
             int colorAccessor = accessor++;
             int indexAccessor = accessor++;
             appendPositionAccessor(accessors, positionAccessor, positionView, layout.part().vertexCount(), partBounds);
-            appendVec3Accessor(accessors, normalAccessor, normalView, layout.part().vertexCount());
             appendVec3Accessor(accessors, colorAccessor, colorView, layout.part().vertexCount());
-            appendIndexAccessor(accessors, indexAccessor, indexView, layout.part().indices().length);
+            appendIndexAccessor(accessors, indexAccessor, indexView, layout.part().indices().length,
+                    layout.shortIndices() ? 5123 : 5125);
 
             if (!primitives.isEmpty()) {
                 primitives.append(',');
             }
             primitives.append("{\"attributes\":{\"POSITION\":")
                     .append(positionAccessor)
-                    .append(",\"NORMAL\":")
-                    .append(normalAccessor)
                     .append(",\"COLOR_0\":")
                     .append(colorAccessor)
                     .append("},\"indices\":")
@@ -134,10 +132,11 @@ public final class GltfWriter {
                 .append(",\"type\":\"VEC3\"}");
     }
 
-    private static void appendIndexAccessor(StringBuilder json, int index, int bufferView, int count) {
+    private static void appendIndexAccessor(StringBuilder json, int index, int bufferView, int count, int componentType) {
         appendComma(json, index);
         json.append("{\"bufferView\":").append(bufferView)
-                .append(",\"componentType\":5125,\"count\":").append(count)
+                .append(",\"componentType\":").append(componentType)
+                .append(",\"count\":").append(count)
                 .append(",\"type\":\"SCALAR\"}");
     }
 
@@ -169,9 +168,9 @@ public final class GltfWriter {
             TerrainMesh.TerrainPart part,
             int materialIndex,
             int positionOffset,
-            int normalOffset,
             int colorOffset,
-            int indexOffset
+            int indexOffset,
+            boolean shortIndices
     ) {
     }
 
@@ -195,6 +194,17 @@ public final class GltfWriter {
             ByteBuffer buffer = ByteBuffer.allocate(values.length * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
             for (int value : values) {
                 buffer.putInt(value);
+            }
+            out.writeBytes(buffer.array());
+            return offset;
+        }
+
+        int writeUnsignedShorts(int[] values) {
+            align();
+            int offset = out.size();
+            ByteBuffer buffer = ByteBuffer.allocate(values.length * Short.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            for (int value : values) {
+                buffer.putShort((short) value);
             }
             out.writeBytes(buffer.array());
             return offset;

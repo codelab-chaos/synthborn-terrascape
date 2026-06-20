@@ -12,8 +12,10 @@ import {
   radiusValue,
   setRadiusControlValue,
   syncMobBlocksInputs,
+  tileLoadConcurrency,
   updateRadiusReadout,
 } from './ui/control-readers.ts';
+import { setTileLoadConcurrency } from './tile-map/map-backdrop.ts';
 import {
   applyFogSettings,
   applyLighting,
@@ -106,6 +108,7 @@ bindAppEvents({
 });
 applyInitialParams();
 setRadiusControlValue(radiusValue());
+setTileLoadConcurrency(tileLoadConcurrency());
 exposeDebugState();
 mountBuildBadge();
 resizeViewport();

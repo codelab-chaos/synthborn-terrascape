@@ -17,6 +17,7 @@ import {
   setRadiusControlValue,
   syncMobBlocksInputs,
   terrainLoadConcurrency,
+  tileLoadConcurrency,
   terrainPromotionBudgetMs,
   terrainPromotionsPerFrame,
   visualDetailMode,
@@ -62,6 +63,10 @@ import {
   showPlayersInput,
   terrainLoadSlotsInput,
   terrainLoadSlotsValueInput,
+  mapTileRadiusInput,
+  mapTileRadiusValueInput,
+  tileLoadSlotsInput,
+  tileLoadSlotsValueInput,
   terrainSpawnBudgetInput,
   terrainSpawnBudgetValueInput,
   terrainSpawnFrameInput,
@@ -105,6 +110,10 @@ export function applyInitialParams() {
   applyBooleanParam('mapTime', mapTimeInput);
   applyNumberParam('terrainLoadSlots', terrainLoadSlotsValueInput);
   terrainLoadSlotsInput.value = terrainLoadSlotsValueInput.value;
+  applyNumberParam('mapTileRadius', mapTileRadiusValueInput);
+  mapTileRadiusInput.value = mapTileRadiusValueInput.value;
+  applyNumberParam('tilesAtOnce', tileLoadSlotsValueInput);
+  tileLoadSlotsInput.value = tileLoadSlotsValueInput.value;
   applyNumberParam('terrainSpawnFrame', terrainSpawnFrameValueInput);
   terrainSpawnFrameInput.value = terrainSpawnFrameValueInput.value;
   applyNumberParam('terrainSpawnMs', terrainSpawnBudgetValueInput);
@@ -154,6 +163,8 @@ function applyStoredInputs() {
   if (typeof runtime.storedViewState.settingsOpen === 'boolean') setSettingsPanelOpen(runtime.storedViewState.settingsOpen);
   applyCollapsedSectionState(runtime.storedViewState.sections);
   setPairedControlValue(terrainLoadSlotsInput, terrainLoadSlotsValueInput, runtime.storedViewState.terrainLoadSlots);
+  setPairedControlValue(mapTileRadiusInput, mapTileRadiusValueInput, runtime.storedViewState.mapTileRadius);
+  setPairedControlValue(tileLoadSlotsInput, tileLoadSlotsValueInput, runtime.storedViewState.tilesAtOnce);
   setPairedControlValue(terrainSpawnFrameInput, terrainSpawnFrameValueInput, runtime.storedViewState.terrainSpawnFrame);
   setPairedControlValue(terrainSpawnBudgetInput, terrainSpawnBudgetValueInput, runtime.storedViewState.terrainSpawnMs);
   setPairedControlValue(shadeSizeInput, shadeSizeValueInput, runtime.storedViewState.shadeSize);
@@ -269,6 +280,8 @@ export function saveViewState() {
     visualDetailMode: visualDetailMode(),
     landMotion: landMotionInput.checked,
     terrainLoadSlots: terrainLoadConcurrency(),
+    mapTileRadius: Number.parseInt(mapTileRadiusValueInput.value, 10) || 16,
+    tilesAtOnce: tileLoadConcurrency(),
     terrainSpawnFrame: terrainPromotionsPerFrame(),
     terrainSpawnMs: terrainPromotionBudgetMs(),
     shadeSize: Number.parseFloat(shadeSizeValueInput.value),

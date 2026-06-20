@@ -13,11 +13,10 @@ import { chunkKeysForWorld, sortChunkKeysByPlayerDistance } from '../common/chun
 import { sampleMapBackdropColor } from './map-backdrop.ts';
 import { tintWaterMaterialsFromMap } from '../scene/water.ts';
 import { grid, loadedChunks, renderer, runtime, scene } from '../scene/scene-context.ts';
-import { landMotionEnabled, mapTileRetainRadius, radiusValue } from '../ui/control-readers.ts';
+import { landMotionEnabled, mapTileRadius } from '../ui/control-readers.ts';
 import { updateMetrics } from '../ui/metrics.ts';
 import { playerChunk } from '../camera/camera-director.ts';
 import {
-  autoStreamInput,
   chunkXInput,
   chunkZInput,
   mapTilesInput,
@@ -54,13 +53,12 @@ export function syncMapTileLayer(retainKeys = null) {
     world,
     Number.parseInt(chunkXInput.value, 10),
     Number.parseInt(chunkZInput.value, 10),
-    radiusValue(),
+    mapTileRadius(),
   );
   const retainIds = new Set(keys.map((key) => key.id));
   pruneMapTiles(world, retainIds);
   const center = mapBackdropCenter();
-  const terrainRadius = radiusValue();
-  const mapRadius = mapTileRetainRadius(terrainRadius, autoStreamInput.checked);
+  const mapRadius = mapTileRadius();
   const stats = mapBackdropStats();
   Object.assign(stats, mapBackdropRetainStats(center, mapRadius));
   updateMetrics();
@@ -68,8 +66,7 @@ export function syncMapTileLayer(retainKeys = null) {
 
 export function updateMapTileLayer(options = {}) {
   const center = mapBackdropCenter();
-  const radius = radiusValue();
-  const mapRadius = mapTileRetainRadius(radius, autoStreamInput.checked);
+  const mapRadius = mapTileRadius();
   const world = worldSelect.value;
   const layerKey = buildMapTileLayerKey(world, center, mapRadius, mapTilesInput.checked);
   if (!options.force && layerKey === runtime.mapTileLayerKey) {
