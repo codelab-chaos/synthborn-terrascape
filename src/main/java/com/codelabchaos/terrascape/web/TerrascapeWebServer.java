@@ -464,6 +464,10 @@ public final class TerrascapeWebServer {
             writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
             return;
         }
+        if (!config.features().metricsEndpoint()) {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"metrics_disabled\"}");
+            return;
+        }
         com.sun.management.OperatingSystemMXBean os =
                 (com.sun.management.OperatingSystemMXBean) java.lang.management.ManagementFactory.getOperatingSystemMXBean();
         java.lang.management.MemoryUsage heap =
