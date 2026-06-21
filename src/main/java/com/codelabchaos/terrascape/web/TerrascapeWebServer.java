@@ -148,9 +148,8 @@ public final class TerrascapeWebServer {
     static final int MAX_MOB_DEBUG_SUMMARY_ITEMS = 32;
     static final int MAX_MOB_SNAPSHOTS = 256;
     static final double MOB_RADAR_RADIUS = 500.0d;
-    private static final double MOB_RADAR_RADIUS_SQ = MOB_RADAR_RADIUS * MOB_RADAR_RADIUS;
+    static final double MOB_RADAR_RADIUS_SQ = MOB_RADAR_RADIUS * MOB_RADAR_RADIUS;
     private static final long ENTITY_STREAM_INTERVAL_MS = 1000L;
-    private static final String PLAYER_AVATAR_RENDER_BASE_URL = "https://hyvatar.io/render/";
     private static final int PLAYER_AVATAR_SIZE = 64;
     private static final int MAX_PLAYER_AVATAR_BYTES = 512 * 1024;
     private static final long PLAYER_AVATAR_CACHE_TTL_MS = Duration.ofHours(12).toMillis();
@@ -161,10 +160,6 @@ public final class TerrascapeWebServer {
     private static final Pattern ASSET_PATTERN = Pattern.compile("\"asset\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern MOB_ICON_PATH_PATTERN = Pattern.compile("^/mob-icons/([A-Za-z0-9_.-]+\\.png)$");
     private static final Pattern PLAYER_AVATAR_PATH_PATTERN = Pattern.compile("^/api/player-avatar/([A-Za-z0-9-]{1,64})\\.png$");
-    private static final String GENERATED_ICON_ENTRY_PREFIX = "Common/Icons/ModelsGenerated/";
-    private static final HttpClient AVATAR_HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(4))
-            .build();
 
     private final TerrascapePlugin plugin;
     private final TerrascapeConfig config;
@@ -190,25 +185,18 @@ public final class TerrascapeWebServer {
     private final ConcurrentHashMap<String, CompletableFuture<TerrainResult>> pendingTerrain = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CompletableFuture<MapRegionResult>> pendingMapRegions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CompletableFuture<BufferedImage>> pendingMapTiles = new ConcurrentHashMap<>();
-    private final Object memoryCacheLock = new Object();
-    private final LinkedHashMap<String, TerrainResult> memoryCache = new LinkedHashMap<>(32, 0.75f, true);
-    private final Object mapRegionMemoryCacheLock = new Object();
-    private final LinkedHashMap<String, byte[]> mapRegionMemoryCache = new LinkedHashMap<>(16, 0.75f, true);
-    private final Object mapTileMemoryCacheLock = new Object();
-    private final LinkedHashMap<String, BufferedImage> mapTileMemoryCache = new LinkedHashMap<>(1024, 0.75f, true);
-    private long memoryCacheBytes;
-    private long mapRegionMemoryCacheBytes;
+    private final MeshCache meshCache;
+    private final MapRegionCache mapRegionCache;
+    private final MapTileCache mapTileCache;
+    private final AvatarService avatarService;
+    private final AssetLocator assetLocator;
+    private final MobScanner mobScanner;
     private final AtomicInteger activeGenerations = new AtomicInteger();
     private final AtomicLong singleRequests = new AtomicLong();
     private final AtomicLong batchRequests = new AtomicLong();
     private final AtomicLong generatedChunks = new AtomicLong();
-    private final AtomicLong memoryCacheHits = new AtomicLong();
-    private final AtomicLong diskCacheHits = new AtomicLong();
     private final AtomicLong coalescedRequests = new AtomicLong();
     private final AtomicLong failedGenerations = new AtomicLong();
-    private final AtomicLong lastMobDebugLogMillis = new AtomicLong();
-    private final ConcurrentHashMap<String, Integer> lastMobSamplePlayerCounts = new ConcurrentHashMap<>();
-    private volatile Path assetsZipPath;
 
     public TerrascapeWebServer(
             @Nonnull TerrascapePlugin plugin,
@@ -219,6 +207,12 @@ public final class TerrascapeWebServer {
         this.config = config;
         this.accessGate = new AccessGate(plugin.accessTokens(), () -> config.access().restricted());
         this.cors = new CorsPolicy(config.cors());
+        this.meshCache = new MeshCache(config, plugin);
+        this.mapRegionCache = new MapRegionCache(config, plugin);
+        this.mapTileCache = new MapTileCache(config, plugin);
+        this.avatarService = new AvatarService(config, plugin);
+        this.assetLocator = new AssetLocator(config, plugin);
+        this.mobScanner = new MobScanner(config, plugin, npcRoleIndex);
         this.serverControls = ServerControls.load(config.configPath().getParent(),
                 message -> plugin.getLogger().at(Level.WARNING).log(message));
         this.host = config.http().host();
@@ -318,20 +312,20 @@ public final class TerrascapeWebServer {
     }
 
     public Metrics metrics() {
-        DiskStats diskStats = scanDiskCache();
+        DiskStats diskStats = meshCache.scanDisk();
         return new Metrics(
                 singleRequests.get(),
                 batchRequests.get(),
                 generatedChunks.get(),
-                memoryCacheHits.get(),
-                diskCacheHits.get(),
+                meshCache.memoryHits(),
+                meshCache.diskHits(),
                 coalescedRequests.get(),
                 failedGenerations.get(),
                 activeGenerations.get(),
                 pendingTerrain.size(),
                 config.mesh().maxConcurrentGenerations(),
-                memoryCacheSize(),
-                memoryCacheBytes(),
+                meshCache.memorySize(),
+                meshCache.memoryBytes(),
                 config.cache().memoryTerrainEntries(),
                 config.cache().memoryTerrainBytes(),
                 diskStats.files(),
@@ -339,21 +333,12 @@ public final class TerrascapeWebServer {
     }
 
     public MemoryCacheStats clearMemoryCache() {
-        synchronized (memoryCacheLock) {
-            MemoryCacheStats stats = new MemoryCacheStats(memoryCache.size(), memoryCacheBytes);
-            memoryCache.clear();
-            memoryCacheBytes = 0;
-            return stats;
-        }
+        return meshCache.clear();
     }
 
     /** Clears the in-memory map tile cache; returns the number of tile entries evicted. */
     public int clearMapTileCache() {
-        synchronized (mapTileMemoryCacheLock) {
-            int entries = mapTileMemoryCache.size();
-            mapTileMemoryCache.clear();
-            return entries;
-        }
+        return mapTileCache.clear();
     }
 
     private void handleWorlds(@Nonnull HttpExchange exchange) throws IOException {
@@ -497,7 +482,7 @@ public final class TerrascapeWebServer {
         String uuid = matcher.group(1);
         String username = queryParam(exchange, "name");
         String skinKey = queryParam(exchange, "skin");
-        byte[] bytes = readOrFetchPlayerAvatar(uuid, username, skinKey);
+        byte[] bytes = avatarService.readOrFetch(uuid, username, skinKey);
         if (bytes == null || bytes.length == 0) {
             writeText(exchange, 404, "not found", "text/plain; charset=utf-8");
             return;
@@ -617,7 +602,7 @@ public final class TerrascapeWebServer {
         CompletableFuture<MobFeedSnapshot> future = new CompletableFuture<>();
         world.execute(() -> {
             try {
-                future.complete(snapshotMobs(world));
+                future.complete(mobScanner.snapshotMobs(world));
             } catch (Exception e) {
                 future.completeExceptionally(e);
             }
@@ -664,7 +649,7 @@ public final class TerrascapeWebServer {
         CompletableFuture<String> future = new CompletableFuture<>();
         world.execute(() -> {
             try {
-                future.complete(mobDebugJson(world));
+                future.complete(mobScanner.mobDebugJson(world));
             } catch (Exception e) {
                 future.completeExceptionally(e);
             }
@@ -920,7 +905,7 @@ public final class TerrascapeWebServer {
     }
 
     private MapTileTerrainResult generateMapTilePng(@Nonnull World world, @Nonnull TerrainMapTileRequest request) throws Exception {
-        byte[] diskCached = readTerrainMapTileDiskCache(request);
+        byte[] diskCached = mapTileCache.readTerrainDisk(request);
         if (diskCached != null) {
             return new MapTileTerrainResult(diskCached, "disk");
         }
@@ -936,7 +921,7 @@ public final class TerrascapeWebServer {
             throw new IllegalStateException("map_tile_missing");
         }
         byte[] png = MapTilePngEncoder.encode(tile);
-        writeTerrainMapTileDiskCache(request, png);
+        mapTileCache.writeTerrainDisk(request, png);
         return new MapTileTerrainResult(png, "generated");
     }
 
@@ -1033,16 +1018,14 @@ public final class TerrascapeWebServer {
 
     private TerrainResult generateTerrain(@Nonnull World world, @Nonnull TerrainRequest request) throws Exception {
         String key = request.key();
-        TerrainResult memoryCached = readMemoryCache(key);
+        TerrainResult memoryCached = meshCache.readMemory(key);
         if (memoryCached != null) {
-            memoryCacheHits.incrementAndGet();
             return memoryCached.withSource("memory");
         }
 
-        TerrainResult diskCached = readDiskCache(request);
+        TerrainResult diskCached = meshCache.readDisk(request);
         if (diskCached != null) {
-            diskCacheHits.incrementAndGet();
-            putMemoryCache(key, diskCached);
+            meshCache.putMemory(key, diskCached);
             return diskCached.withSource("disk");
         }
 
@@ -1096,8 +1079,8 @@ public final class TerrascapeWebServer {
             }
         });
         TerrainResult result = future.get(config.mesh().terrainTimeout().toMillis(), TimeUnit.MILLISECONDS);
-        putMemoryCache(key, result);
-        writeDiskCache(request, result);
+        meshCache.putMemory(key, result);
+        meshCache.writeDisk(request, result);
         return result;
     }
 
@@ -1134,14 +1117,14 @@ public final class TerrascapeWebServer {
 
     private MapRegionResult getMapRegion(@Nonnull World world, @Nonnull MapRegionRequest request) throws Exception {
         String key = request.key(config.mapView().tileSize());
-        byte[] memoryCached = readMapRegionMemoryCache(key);
+        byte[] memoryCached = mapRegionCache.readMemory(key);
         if (memoryCached != null) {
             return new MapRegionResult(memoryCached, "memory");
         }
 
-        byte[] diskCached = readMapRegionDiskCache(request);
+        byte[] diskCached = mapRegionCache.readDisk(request);
         if (diskCached != null) {
-            putMapRegionMemoryCache(key, diskCached);
+            mapRegionCache.putMemory(key, diskCached);
             return new MapRegionResult(diskCached, "disk");
         }
 
@@ -1156,8 +1139,8 @@ public final class TerrascapeWebServer {
                     .get(MAP_REGION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             byte[] bytes = generated.bytes();
             if (bytes.length > 0 && generated.complete()) {
-                putMapRegionMemoryCache(key, bytes);
-                writeMapRegionDiskCache(request, bytes);
+                mapRegionCache.putMemory(key, bytes);
+                mapRegionCache.writeDisk(request, bytes);
             }
             MapRegionResult result = new MapRegionResult(bytes, generated.complete() ? "generated" : "generated-partial");
             future.complete(result);
@@ -1325,162 +1308,21 @@ public final class TerrascapeWebServer {
         }
     }
 
-    private Path terrainOutputPath(@Nonnull TerrainRequest request) {
-        String safeWorld = safeName(request.worldName());
-        return config.folders().terrainCacheDir()
-                .resolve(config.mesh().terrainFormatVersion())
-                .resolve(safeWorld)
-                .resolve(request.cacheLayer())
-                .resolve(request.chunkX() + "_" + request.chunkZ() + ".glb");
-    }
-
-    private Path terrainMetadataPath(@Nonnull TerrainRequest request) {
-        return Path.of(terrainOutputPath(request).toString() + ".json");
-    }
-
-    private TerrainResult readMemoryCache(@Nonnull String key) {
-        synchronized (memoryCacheLock) {
-            return memoryCache.get(key);
-        }
-    }
-
-    private void putMemoryCache(@Nonnull String key, @Nonnull TerrainResult result) {
-        synchronized (memoryCacheLock) {
-            TerrainResult previous = memoryCache.put(key, result.withSource("memory"));
-            if (previous != null) {
-                memoryCacheBytes -= previous.glb().length;
-            }
-            memoryCacheBytes += result.glb().length;
-            evictMemoryCache();
-        }
-    }
-
-    private void evictMemoryCache() {
-        while ((memoryCache.size() > config.cache().memoryTerrainEntries()
-                || memoryCacheBytes > config.cache().memoryTerrainBytes())
-                && !memoryCache.isEmpty()) {
-            Map.Entry<String, TerrainResult> eldest = memoryCache.entrySet().iterator().next();
-            memoryCacheBytes -= eldest.getValue().glb().length;
-            memoryCache.remove(eldest.getKey());
-        }
-    }
-
-    private int memoryCacheSize() {
-        synchronized (memoryCacheLock) {
-            return memoryCache.size();
-        }
-    }
-
-    private long memoryCacheBytes() {
-        synchronized (memoryCacheLock) {
-            return memoryCacheBytes;
-        }
-    }
-
-    private TerrainResult readDiskCache(@Nonnull TerrainRequest request) {
-        Path glbPath = terrainOutputPath(request);
-        Path metadataPath = terrainMetadataPath(request);
-        if (!Files.isRegularFile(glbPath) || !Files.isRegularFile(metadataPath)) {
-            return null;
-        }
-
-        try {
-            byte[] glb = Files.readAllBytes(glbPath);
-            TerrainMetadata metadata = TerrainMetadata.parse(Files.readString(metadataPath));
-            return new TerrainResult(glb, metadata.columns(), metadata.vertices(), metadata.triangles(), metadata.details(), metadata.detailKeys(), "disk");
-        } catch (Exception e) {
-            plugin.getLogger().at(Level.FINE).log("Ignoring invalid terrain cache entry " + glbPath + ": " + e.getMessage());
-            return null;
-        }
-    }
-
-    private void writeDiskCache(@Nonnull TerrainRequest request, @Nonnull TerrainResult result) {
-        Path glbPath = terrainOutputPath(request);
-        Path metadataPath = terrainMetadataPath(request);
-        try {
-            Files.createDirectories(glbPath.getParent());
-            Files.write(glbPath, result.glb());
-            Files.writeString(metadataPath, result.metadataJson(config.mesh().terrainFormatVersion()));
-        } catch (IOException e) {
-            plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to write terrain cache entry " + glbPath);
-        }
-    }
-
-    private Path mapRegionOutputPath(@Nonnull MapRegionRequest request) {
-        return config.folders().mapRegionCacheDir()
-                .resolve("tile-" + config.mapView().tileSize())
-                .resolve(safeName(request.worldName()))
-                .resolve("r" + request.radius())
-                .resolve(request.centerX() + "_" + request.centerZ() + ".png");
-    }
-
-    @Nullable
-    private byte[] readMapRegionMemoryCache(@Nonnull String key) {
-        synchronized (mapRegionMemoryCacheLock) {
-            return mapRegionMemoryCache.get(key);
-        }
-    }
-
-    private void putMapRegionMemoryCache(@Nonnull String key, byte[] bytes) {
-        synchronized (mapRegionMemoryCacheLock) {
-            byte[] previous = mapRegionMemoryCache.put(key, bytes);
-            if (previous != null) {
-                mapRegionMemoryCacheBytes -= previous.length;
-            }
-            mapRegionMemoryCacheBytes += bytes.length;
-            evictMapRegionMemoryCache();
-        }
-    }
-
-    private void evictMapRegionMemoryCache() {
-        while ((mapRegionMemoryCache.size() > config.cache().memoryMapRegionEntries()
-                || mapRegionMemoryCacheBytes > config.cache().memoryMapRegionBytes())
-                && !mapRegionMemoryCache.isEmpty()) {
-            Map.Entry<String, byte[]> eldest = mapRegionMemoryCache.entrySet().iterator().next();
-            mapRegionMemoryCacheBytes -= eldest.getValue().length;
-            mapRegionMemoryCache.remove(eldest.getKey());
-        }
-    }
-
-    @Nullable
-    private byte[] readMapRegionDiskCache(@Nonnull MapRegionRequest request) {
-        Path path = mapRegionOutputPath(request);
-        if (!Files.isRegularFile(path)) {
-            return null;
-        }
-        try {
-            return Files.readAllBytes(path);
-        } catch (IOException e) {
-            plugin.getLogger().at(Level.FINE).log("Ignoring invalid map-region cache entry " + path + ": " + e.getMessage());
-            return null;
-        }
-    }
-
-    private void writeMapRegionDiskCache(@Nonnull MapRegionRequest request, byte[] bytes) {
-        Path path = mapRegionOutputPath(request);
-        try {
-            Files.createDirectories(path.getParent());
-            Files.write(path, bytes);
-        } catch (IOException e) {
-            plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to write map-region cache entry " + path);
-        }
-    }
-
     private CompletableFuture<BufferedImage> getMapTileImage(
             @Nonnull WorldMapManager mapManager,
             @Nonnull String worldName,
             int chunkX,
             int chunkZ,
             boolean allowGenerate) {
-        String key = mapTileKey(worldName, chunkX, chunkZ);
-        BufferedImage memoryCached = readMapTileMemoryCache(key);
+        String key = mapTileCache.key(worldName, chunkX, chunkZ);
+        BufferedImage memoryCached = mapTileCache.readMemory(key);
         if (memoryCached != null) {
             return CompletableFuture.completedFuture(memoryCached);
         }
 
-        BufferedImage diskCached = readMapTileDiskCache(worldName, chunkX, chunkZ);
+        BufferedImage diskCached = mapTileCache.readDisk(worldName, chunkX, chunkZ);
         if (diskCached != null) {
-            putMapTileMemoryCache(key, diskCached);
+            mapTileCache.putMemory(key, diskCached);
             return CompletableFuture.completedFuture(diskCached);
         }
 
@@ -1506,8 +1348,8 @@ public final class TerrascapeWebServer {
                                 config.mapView().tileSize(),
                                 BufferedImage.TYPE_INT_RGB);
                         drawMapRegionTile(tile, mapImage, 0, 0);
-                        putMapTileMemoryCache(key, tile);
-                        writeMapTileDiskCache(worldName, chunkX, chunkZ, tile);
+                        mapTileCache.putMemory(key, tile);
+                        mapTileCache.writeDisk(worldName, chunkX, chunkZ, tile);
                         future.complete(tile);
                     } catch (Exception e) {
                         future.completeExceptionally(e);
@@ -1518,121 +1360,6 @@ public final class TerrascapeWebServer {
         return future;
     }
 
-    private String mapTileKey(@Nonnull String worldName, int chunkX, int chunkZ) {
-        return worldName + ":" + config.mapView().tileSize() + ":" + chunkX + ":" + chunkZ;
-    }
-
-    @Nullable
-    private BufferedImage readMapTileMemoryCache(@Nonnull String key) {
-        synchronized (mapTileMemoryCacheLock) {
-            return mapTileMemoryCache.get(key);
-        }
-    }
-
-    private void putMapTileMemoryCache(@Nonnull String key, @Nonnull BufferedImage tile) {
-        synchronized (mapTileMemoryCacheLock) {
-            mapTileMemoryCache.put(key, tile);
-            while (mapTileMemoryCache.size() > config.cache().memoryMapTileEntries() && !mapTileMemoryCache.isEmpty()) {
-                String eldest = mapTileMemoryCache.keySet().iterator().next();
-                mapTileMemoryCache.remove(eldest);
-            }
-        }
-    }
-
-    private Path terrainMapTilePath(@Nonnull String worldName, int chunkX, int chunkZ) {
-        return config.folders().terrainCacheDir()
-                .resolve(config.mesh().terrainFormatVersion())
-                .resolve(safeName(worldName))
-                .resolve("map")
-                .resolve(chunkX + "_" + chunkZ + ".png");
-    }
-
-    private Path legacyMapTileOutputPath(@Nonnull String worldName, int chunkX, int chunkZ) {
-        return plugin.terrascapeDir()
-                .resolve("map-tile")
-                .resolve("tile-" + config.mapView().tileSize())
-                .resolve(safeName(worldName))
-                .resolve(chunkX + "_" + chunkZ + ".png");
-    }
-
-    private Path mapTileOutputPath(@Nonnull String worldName, int chunkX, int chunkZ) {
-        return terrainMapTilePath(worldName, chunkX, chunkZ);
-    }
-
-    @Nullable
-    private byte[] readTerrainMapTileDiskCache(@Nonnull TerrainMapTileRequest request) {
-        for (Path path : List.of(
-                terrainMapTilePath(request.worldName(), request.chunkX(), request.chunkZ()),
-                legacyMapTileOutputPath(request.worldName(), request.chunkX(), request.chunkZ()))) {
-            if (!Files.isRegularFile(path)) {
-                continue;
-            }
-            try {
-                return Files.readAllBytes(path);
-            } catch (IOException e) {
-                plugin.getLogger().at(Level.FINE).log("Ignoring invalid terrain map-tile cache entry " + path + ": " + e.getMessage());
-            }
-        }
-        return null;
-    }
-
-    private void writeTerrainMapTileDiskCache(@Nonnull TerrainMapTileRequest request, byte[] png) {
-        Path path = terrainMapTilePath(request.worldName(), request.chunkX(), request.chunkZ());
-        try {
-            Files.createDirectories(path.getParent());
-            Files.write(path, png);
-        } catch (IOException e) {
-            plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to write terrain map-tile cache entry " + path);
-        }
-    }
-
-    @Nullable
-    private BufferedImage readMapTileDiskCache(@Nonnull String worldName, int chunkX, int chunkZ) {
-        Path path = terrainMapTilePath(worldName, chunkX, chunkZ);
-        if (!Files.isRegularFile(path)) {
-            path = legacyMapTileOutputPath(worldName, chunkX, chunkZ);
-        }
-        if (!Files.isRegularFile(path)) {
-            return null;
-        }
-        try {
-            return ImageIO.read(path.toFile());
-        } catch (IOException e) {
-            plugin.getLogger().at(Level.FINE).log("Ignoring invalid map-tile cache entry " + path + ": " + e.getMessage());
-            return null;
-        }
-    }
-
-    private void writeMapTileDiskCache(@Nonnull String worldName, int chunkX, int chunkZ, @Nonnull BufferedImage tile) {
-        Path path = mapTileOutputPath(worldName, chunkX, chunkZ);
-        try {
-            Files.createDirectories(path.getParent());
-            Files.write(path, MapTilePngEncoder.encode(tile));
-        } catch (IOException e) {
-            plugin.getLogger().at(Level.WARNING).withCause(e).log("Failed to write map-tile cache entry " + path);
-        }
-    }
-
-    private DiskStats scanDiskCache() {
-        Path root = config.folders().terrainCacheDir().toAbsolutePath().normalize();
-        if (!Files.exists(root)) {
-            return DiskStats.empty();
-        }
-
-        long files = 0;
-        long bytes = 0;
-        try (var paths = Files.walk(root)) {
-            for (Path path : paths.toList()) {
-                if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".glb")) {
-                    files++;
-                    bytes += Files.size(path);
-                }
-            }
-        } catch (IOException e) {
-            plugin.getLogger().at(Level.FINE).log("Failed to scan terrain disk cache: " + e.getMessage());
-        }
-        return new DiskStats(files, bytes);
-    }
 
     private static String moduleResourcePath(@Nonnull String requestPath) {
         if ("/npc-details.json".equals(requestPath)) {
@@ -1781,109 +1508,13 @@ public final class TerrascapeWebServer {
         return players;
     }
 
-    @Nullable
-    private byte[] readOrFetchPlayerAvatar(@Nonnull String uuid, @Nullable String username, @Nullable String skinKey) {
-        String cacheToken = safeName(uuid) + (skinKey == null || skinKey.isBlank() ? "" : "-" + safeName(skinKey));
-        Path cachePath = config.folders().playerAvatarsDir()
-                .resolve(cacheToken + ".png");
-        try {
-            if (Files.isRegularFile(cachePath)) {
-                long ageMs = System.currentTimeMillis() - Files.getLastModifiedTime(cachePath).toMillis();
-                if (ageMs <= config.entities().playerAvatarCacheTtl().toMillis()) {
-                    return Files.readAllBytes(cachePath);
-                }
-            }
-        } catch (IOException ignored) {
-        }
-
-        if (username == null || username.isBlank()) {
-            return null;
-        }
-
-        byte[] bytes = fetchPlayerAvatar(username);
-        if (bytes == null || bytes.length == 0) {
-            return null;
-        }
-
-        try {
-            Files.createDirectories(cachePath.getParent());
-            Files.write(cachePath, bytes);
-            plugin.getLogger().at(Level.INFO).log("Cached player avatar from Hyvatar: " + username + " (" + uuid + ")");
-        } catch (IOException e) {
-            plugin.getLogger().at(Level.FINE).withCause(e).log("Unable to cache player avatar: " + username);
-        }
-        return bytes;
-    }
-
-    @Nullable
-    private byte[] fetchPlayerAvatar(@Nonnull String username) {
-        String encodedName = URLEncoder.encode(username, StandardCharsets.UTF_8);
-        URI uri = URI.create(PLAYER_AVATAR_RENDER_BASE_URL + encodedName + "?size=" + config.entities().playerAvatarSize());
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(uri)
-                .timeout(Duration.ofSeconds(8))
-                .GET()
-                .build();
-        try {
-            HttpResponse<byte[]> response = AVATAR_HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            byte[] body = response.body();
-            if (response.statusCode() != 200 || body == null || body.length == 0 || body.length > config.entities().maxPlayerAvatarBytes()) {
-                plugin.getLogger().at(Level.FINE).log("Player avatar fetch failed for " + username
-                        + ": status=" + response.statusCode()
-                        + " bytes=" + (body == null ? 0 : body.length));
-                return null;
-            }
-            return body;
-        } catch (Exception e) {
-            plugin.getLogger().at(Level.FINE).withCause(e).log("Player avatar fetch failed for " + username);
-            return null;
-        }
-    }
-
-    private MobFeedSnapshot snapshotMobs(@Nonnull World world) {
-        Store<EntityStore> store = world.getEntityStore().getStore();
-        Query<EntityStore> npcQuery = Archetype.of(NPCEntity.getComponentType());
-        Query<EntityStore> legacyLivingQuery = Query.and(
-                AllLegacyLivingEntityTypesQuery.INSTANCE,
-                Archetype.of(TransformComponent.getComponentType()));
-        Query<EntityStore> legacyEntityQuery = Query.and(
-                AllLegacyEntityTypesQuery.INSTANCE,
-                Archetype.of(TransformComponent.getComponentType()));
-        Query<EntityStore> transformQuery = Archetype.of(TransformComponent.getComponentType());
-        List<Vector3d> playerPositions = playerPositionsForMobRadar(world);
-        List<MobCandidate> candidates = new ArrayList<>();
-        MobScanStats stats = new MobScanStats();
-        initializeMobScanCounts(store, stats);
-        Set<Integer> seenRefs = new HashSet<>();
-        if (!playerPositions.isEmpty()) {
-            collectMobSnapshotVisibleViewers(world, store, candidates, stats, seenRefs, playerPositions, npcRoleIndex);
-            collectMobSnapshotSpatial(store, EntityModule.get().getNetworkSendableSpatialResourceType(),
-                    candidates, stats, seenRefs, playerPositions, "NetworkSendableSpatial", npcRoleIndex);
-            collectMobSnapshotSpatial(store, NPCPlugin.get().getNpcSpatialResource(),
-                    candidates, stats, seenRefs, playerPositions, "NPCSpatial", npcRoleIndex);
-            collectMobSnapshotSpatial(store, EntityModule.get().getEntitySpatialResourceType(),
-                    candidates, stats, seenRefs, playerPositions, "EntitySpatial", npcRoleIndex);
-            collectMobSnapshotPass(store, npcQuery, candidates, stats, seenRefs, playerPositions, "NPCEntity", npcRoleIndex);
-            collectMobSnapshotPass(store, legacyLivingQuery, candidates, stats, seenRefs, playerPositions, "LegacyLivingEntity", npcRoleIndex);
-            collectMobSnapshotPass(store, legacyEntityQuery, candidates, stats, seenRefs, playerPositions, "LegacyEntity", npcRoleIndex);
-            collectMobSnapshotPass(store, transformQuery, candidates, stats, seenRefs, playerPositions, "TransformFallback", npcRoleIndex);
-        }
-        List<MobSnapshot> mobs = candidates.stream()
-                .sorted(Comparator.comparingDouble(MobCandidate::distanceSq))
-                .limit(config.entities().maxMobSnapshots())
-                .map(MobCandidate::snapshot)
-                .toList();
-        logMobScan(world, store, stats, mobs);
-        logMobConnectSampleIfNeeded(world, playerPositions.size(), stats, mobs);
-        return new MobFeedSnapshot(mobs, stats, playerPositions.size(), MOB_RADAR_RADIUS, config.entities().maxMobSnapshots());
-    }
 
     private String snapshotEntitiesForStream(@Nonnull World world, boolean includePlayers, boolean includeMobs) {
         CompletableFuture<String> future = new CompletableFuture<>();
         world.execute(() -> {
             try {
                 List<PlayerSnapshot> players = includePlayers ? snapshotPlayers(world) : List.of();
-                MobFeedSnapshot mobFeed = includeMobs ? snapshotMobs(world) : MobFeedSnapshot.empty();
+                MobFeedSnapshot mobFeed = includeMobs ? mobScanner.snapshotMobs(world) : MobFeedSnapshot.empty();
                 future.complete(entityFeedJson(world, players, mobFeed));
             } catch (Exception e) {
                 future.completeExceptionally(e);
@@ -1907,7 +1538,7 @@ public final class TerrascapeWebServer {
         }
 
         String fileName = matcher.group(1);
-        byte[] bytes = readOrCacheGeneratedMobIcon(fileName);
+        byte[] bytes = assetLocator.readOrCacheGeneratedMobIcon(fileName);
         if (bytes != null) {
             writeBytes(exchange, 200, bytes, "image/png");
             return true;
@@ -1923,144 +1554,6 @@ public final class TerrascapeWebServer {
 
         writeText(exchange, 404, "not found", "text/plain; charset=utf-8");
         return true;
-    }
-
-    @Nullable
-    private byte[] readOrCacheGeneratedMobIcon(@Nonnull String fileName) {
-        Path cachePath = config.folders().mobIconsDir().resolve(fileName);
-        try {
-            if (Files.isRegularFile(cachePath)) {
-                return Files.readAllBytes(cachePath);
-            }
-        } catch (IOException ignored) {
-        }
-
-        byte[] bytes = readGeneratedMobIcon(fileName);
-        if (bytes == null) {
-            return null;
-        }
-        try {
-            Files.createDirectories(cachePath.getParent());
-            Files.write(cachePath, bytes);
-            plugin.getLogger().at(Level.INFO).log("Cached mob icon from Hytale assets: " + fileName);
-        } catch (IOException e) {
-            plugin.getLogger().at(Level.FINE).withCause(e).log("Unable to cache mob icon: " + fileName);
-        }
-        return bytes;
-    }
-
-    @Nullable
-    private byte[] readGeneratedMobIcon(@Nonnull String fileName) {
-        Path looseIcon = resolveLooseGeneratedIcon(fileName);
-        if (looseIcon != null) {
-            try {
-                return Files.readAllBytes(looseIcon);
-            } catch (IOException ignored) {
-            }
-        }
-
-        if (!config.features().lazyMobIcons()) {
-            return null;
-        }
-        Path zipPath = resolveAssetsZipPath();
-        if (zipPath == null) {
-            return null;
-        }
-        String entryName = GENERATED_ICON_ENTRY_PREFIX + fileName;
-        try (ZipFile zipFile = new ZipFile(zipPath.toFile())) {
-            ZipEntry entry = zipFile.getEntry(entryName);
-            if (entry == null || entry.isDirectory()) {
-                return null;
-            }
-            try (InputStream input = zipFile.getInputStream(entry)) {
-                return input.readAllBytes();
-            }
-        } catch (IOException ignored) {
-            return null;
-        }
-    }
-
-    @Nullable
-    private Path resolveLooseGeneratedIcon(@Nonnull String fileName) {
-        for (Path root : assetSearchRoots()) {
-            Path candidate = root.resolve("_Assets").resolve("Common").resolve("Icons").resolve("ModelsGenerated").resolve(fileName);
-            if (Files.isRegularFile(candidate)) {
-                return candidate.toAbsolutePath().normalize();
-            }
-            candidate = root.resolve("Common").resolve("Icons").resolve("ModelsGenerated").resolve(fileName);
-            if (Files.isRegularFile(candidate)) {
-                return candidate.toAbsolutePath().normalize();
-            }
-        }
-        return null;
-    }
-
-    @Nullable
-    private Path resolveAssetsZipPath() {
-        Path cached = assetsZipPath;
-        if (cached != null && Files.isRegularFile(cached)) {
-            return cached;
-        }
-
-        Path explicit = config.folders().assetsZip();
-        if (explicit != null) {
-            if (Files.isRegularFile(explicit)) {
-                assetsZipPath = explicit;
-                return explicit;
-            }
-        }
-
-        for (Path root : assetSearchRoots()) {
-            for (Path path = root; path != null; path = path.getParent()) {
-                for (Path candidate : assetsZipCandidates(path)) {
-                    if (Files.isRegularFile(candidate)) {
-                        assetsZipPath = candidate.toAbsolutePath().normalize();
-                        plugin.getLogger().at(Level.INFO).log("Resolved Hytale Assets.zip for lazy mob icons: " + assetsZipPath);
-                        return assetsZipPath;
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    private static List<Path> assetsZipCandidates(@Nonnull Path root) {
-        return List.of(
-                root.resolve("Assets.zip"),
-                root.resolve("latest").resolve("Assets.zip"),
-                root.resolve("release").resolve("latest").resolve("Assets.zip"),
-                root.resolve("Client").resolve("latest").resolve("Assets.zip"),
-                root.resolve("Client").resolve("release").resolve("latest").resolve("Assets.zip"),
-                root.resolve("game").resolve("latest").resolve("Assets.zip"),
-                root.resolve("release").resolve("package").resolve("game").resolve("latest").resolve("Assets.zip"),
-                root.resolve("install").resolve("release").resolve("package").resolve("game").resolve("latest").resolve("Assets.zip"),
-                root.resolve("Hytale-API").resolve("latest").resolve("Assets.zip"),
-                root.resolve("Hytale-API").resolve("Client").resolve("latest").resolve("Assets.zip"),
-                root.resolve("Hytale-API").resolve("Client").resolve("release").resolve("latest").resolve("Assets.zip"));
-    }
-
-    private List<Path> assetSearchRoots() {
-        LinkedHashSet<Path> roots = new LinkedHashSet<>();
-        if (config.folders().assetsRoot() != null) {
-            roots.add(config.folders().assetsRoot());
-        }
-        addPathIfPresent(roots, System.getProperty("terrascape.assets_root"));
-        addPathIfPresent(roots, System.getenv("TERRASCAPE_ASSETS_ROOT"));
-        addPathIfPresent(roots, System.getProperty("hytale.assets_root"));
-        addPathIfPresent(roots, System.getenv("HYTALE_ASSETS_ROOT"));
-        addPathIfPresent(roots, System.getenv("VSCODE_CWD"));
-        addPathIfPresent(roots, System.getenv("WORKSPACE_FOLDER"));
-        addPathIfPresent(roots, System.getProperty("user.dir"));
-        roots.add(Paths.get("").toAbsolutePath().normalize());
-        roots.add(plugin.terrascapeDir().toAbsolutePath().normalize());
-        return List.copyOf(roots);
-    }
-
-    private static void addPathIfPresent(@Nonnull LinkedHashSet<Path> roots, @Nullable String value) {
-        if (value == null || value.isBlank()) {
-            return;
-        }
-        roots.add(Paths.get(value).toAbsolutePath().normalize());
     }
 
     private String entityFeedJson(@Nonnull World world,
@@ -2090,584 +1583,6 @@ public final class TerrascapeWebServer {
         output.flush();
     }
 
-    private static void initializeMobScanCounts(@Nonnull Store<EntityStore> store, @Nonnull MobScanStats stats) {
-        stats.storeEntities = safeEntityCount(store, Archetype.of());
-        stats.npcEntities = safeEntityCount(store, Archetype.of(NPCEntity.getComponentType()));
-        stats.transformEntities = safeEntityCount(store, Archetype.of(TransformComponent.getComponentType()));
-        stats.networkSendableEntities = safeEntityCount(store,
-                Archetype.of(TransformComponent.getComponentType(), NetworkId.getComponentType()));
-    }
-
-    private static int safeEntityCount(@Nonnull Store<EntityStore> store, @Nonnull Query<EntityStore> query) {
-        try {
-            return store.getEntityCountFor(query);
-        } catch (Exception ignored) {
-            return -1;
-        }
-    }
-
-    private static void collectMobSnapshotVisibleViewers(@Nonnull World world,
-                                                         @Nonnull Store<EntityStore> store,
-                                                         @Nonnull List<MobCandidate> candidates,
-                                                         @Nonnull MobScanStats stats,
-                                                         @Nonnull Set<Integer> seenRefs,
-                                                         @Nonnull List<Vector3d> playerPositions,
-                                                         @Nonnull NpcRoleIndex npcRoleIndex) {
-        for (PlayerRef playerRef : world.getPlayerRefs()) {
-            try {
-                Ref<EntityStore> playerEntityRef = playerRef.getReference();
-                if (playerEntityRef == null || !playerEntityRef.isValid()) {
-                    continue;
-                }
-                EntityTrackerSystems.EntityViewer viewer = store.getComponent(
-                        playerEntityRef,
-                        EntityModule.get().getEntityViewerComponentType());
-                if (viewer == null || viewer.visible == null) {
-                    continue;
-                }
-                stats.addSource("EntityViewerVisible");
-                stats.viewerVisible += viewer.visible.size();
-                stats.viewerSent += viewer.sent == null ? 0 : viewer.sent.size();
-                collectMobSnapshotRefs(store, viewer.visible, candidates, stats, seenRefs,
-                        playerPositions, "EntityViewerVisible", npcRoleIndex);
-            } catch (Exception ignored) {
-                stats.errors++;
-            }
-        }
-    }
-
-    private static void collectMobSnapshotSpatial(
-            @Nonnull Store<EntityStore> store,
-            @Nonnull ResourceType<EntityStore, SpatialResource<Ref<EntityStore>, EntityStore>> resourceType,
-            @Nonnull List<MobCandidate> candidates,
-            @Nonnull MobScanStats stats,
-            @Nonnull Set<Integer> seenRefs,
-            @Nonnull List<Vector3d> playerPositions,
-            @Nonnull String source,
-            @Nonnull NpcRoleIndex npcRoleIndex) {
-        try {
-            SpatialResource<Ref<EntityStore>, EntityStore> spatial = store.getResource(resourceType);
-            if (spatial == null) {
-                return;
-            }
-            stats.addSource(source);
-            stats.spatialSources++;
-            stats.spatialIndexed += spatial.getSpatialStructure().size();
-            for (Vector3d playerPosition : playerPositions) {
-                List<Ref<EntityStore>> refs = new ArrayList<>();
-                spatial.getSpatialStructure().collect(playerPosition, MOB_RADAR_RADIUS, refs);
-                stats.spatialRefs += refs.size();
-                collectMobSnapshotRefs(store, refs, candidates, stats, seenRefs, playerPositions, source, npcRoleIndex);
-            }
-        } catch (Exception ignored) {
-            stats.errors++;
-        }
-    }
-
-    private static void collectMobSnapshotRefs(@Nonnull Store<EntityStore> store,
-                                               @Nonnull Collection<Ref<EntityStore>> refs,
-                                               @Nonnull List<MobCandidate> candidates,
-                                               @Nonnull MobScanStats stats,
-                                               @Nonnull Set<Integer> seenRefs,
-                                               @Nonnull List<Vector3d> playerPositions,
-                                               @Nonnull String source,
-                                               @Nonnull NpcRoleIndex npcRoleIndex) {
-        for (Ref<EntityStore> ref : refs) {
-            collectMobSnapshotRef(store, ref, candidates, stats, seenRefs, playerPositions, source, npcRoleIndex);
-        }
-    }
-
-    private static void collectMobSnapshotRef(@Nonnull Store<EntityStore> store,
-                                              @Nullable Ref<EntityStore> ref,
-                                              @Nonnull List<MobCandidate> candidates,
-                                              @Nonnull MobScanStats stats,
-                                              @Nonnull Set<Integer> seenRefs,
-                                              @Nonnull List<Vector3d> playerPositions,
-                                              @Nonnull String source,
-                                              @Nonnull NpcRoleIndex npcRoleIndex) {
-        stats.entities++;
-        try {
-            if (ref == null || !ref.isValid()) {
-                stats.invalidRefs++;
-                return;
-            }
-            if (seenRefs.contains(ref.getIndex())) {
-                stats.duplicates++;
-                return;
-            }
-            if (store.getComponent(ref, PlayerRef.getComponentType()) != null) {
-                stats.skippedPlayers++;
-                return;
-            }
-            String nonMobReason = nonMobReason(store, ref);
-            if (nonMobReason != null) {
-                stats.addSkippedType(nonMobReason);
-                stats.skippedNonMobs++;
-                return;
-            }
-            TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
-            if (transform == null) {
-                stats.noTransform++;
-                return;
-            }
-            Vector3d position = transform.getPosition();
-            if (position == null) {
-                stats.noPosition++;
-                return;
-            }
-            double distanceSq = nearestDistanceSq(position, playerPositions);
-            if (distanceSq > MOB_RADAR_RADIUS_SQ) {
-                stats.skippedOutsideRadar++;
-                return;
-            }
-            NPCEntity npc = store.getComponent(ref, NPCEntity.getComponentType());
-            String type = safeMobType(store, ref, npc);
-            if (isSpawnMarkerType(type)) {
-                stats.addSkippedType(type);
-                stats.skippedNonMobs++;
-                return;
-            }
-            seenRefs.add(ref.getIndex());
-            HealthSnapshot health = safeHealth(store, ref);
-            String roleName = safeNpcRoleName(npc);
-            String modelAsset = safeModelAssetId(store, ref);
-            String persistentModelAsset = safePersistentModelAssetId(store, ref);
-            NpcRoleIndex.Entry liveRole = liveNpcEntry(npcRoleIndex, type, roleName, modelAsset, persistentModelAsset);
-            if (liveRole != null) {
-                stats.liveRoleMatches++;
-            }
-            String category = liveRole == null
-                    ? categoryForMob(type)
-                    : categoryForMob(type, liveRole.category());
-            candidates.add(new MobCandidate(distanceSq, new MobSnapshot(
-                    safeMobId(store, ref),
-                    type,
-                    safeMobRole(npc, null, type),
-                    category,
-                    position.x,
-                    position.y,
-                    position.z,
-                    safeYaw(transform),
-                    colorForMob(type),
-                    source,
-                    roleName,
-                    safeNpcNameTranslationKey(npc),
-                    safeNpcTypeIndex(npc),
-                    safeNpcRoleIndex(npc),
-                    modelAsset,
-                    persistentModelAsset,
-                    liveRole == null ? null : liveRole.id(),
-                    liveRole == null ? null : liveRole.category(),
-                    liveRole == null ? null : liveRole.pathHint(),
-                    health.health(),
-                    health.maxHealth())));
-            stats.accepted++;
-            stats.addType(type);
-        } catch (Exception ignored) {
-            stats.errors++;
-        }
-    }
-
-    private static void collectMobSnapshotPass(@Nonnull Store<EntityStore> store,
-                                               @Nonnull Query<EntityStore> query,
-                                               @Nonnull List<MobCandidate> candidates,
-                                               @Nonnull MobScanStats stats,
-                                               @Nonnull Set<Integer> seenRefs,
-                                               @Nonnull List<Vector3d> playerPositions,
-                                               @Nonnull String source,
-                                               @Nonnull NpcRoleIndex npcRoleIndex) {
-        BiPredicate<ArchetypeChunk<EntityStore>, CommandBuffer<EntityStore>> collector = (chunk, ignored) -> {
-            collectMobSnapshots(store, chunk, candidates, stats, seenRefs, playerPositions, source, npcRoleIndex);
-            return true;
-        };
-        store.forEachChunk(query, collector);
-    }
-
-    private static void collectMobSnapshots(@Nonnull Store<EntityStore> store,
-                                            @Nonnull ArchetypeChunk<EntityStore> chunk,
-                                            @Nonnull List<MobCandidate> candidates,
-                                            @Nonnull MobScanStats stats,
-                                            @Nonnull Set<Integer> seenRefs,
-                                            @Nonnull List<Vector3d> playerPositions,
-                                            @Nonnull String source,
-                                            @Nonnull NpcRoleIndex npcRoleIndex) {
-        stats.chunks++;
-        stats.addSource(source);
-        stats.addArchetype(chunk.getArchetype().toString());
-        for (int index = 0; index < chunk.size(); index++) {
-            stats.entities++;
-            try {
-                Ref<EntityStore> ref = chunk.getReferenceTo(index);
-                if (ref == null || !ref.isValid()) {
-                    stats.invalidRefs++;
-                    continue;
-                }
-                if (seenRefs.contains(ref.getIndex())) {
-                    stats.duplicates++;
-                    continue;
-                }
-                if (chunk.getComponent(index, PlayerRef.getComponentType()) != null) {
-                    stats.skippedPlayers++;
-                    continue;
-                }
-                if (isDefinitelyNotMob(chunk, index)) {
-                    stats.skippedNonMobs++;
-                    continue;
-                }
-                TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
-                if (transform == null) {
-                    stats.noTransform++;
-                    continue;
-                }
-                Vector3d position = transform.getPosition();
-                if (position == null) {
-                    stats.noPosition++;
-                    continue;
-                }
-                double distanceSq = nearestDistanceSq(position, playerPositions);
-                if (distanceSq > MOB_RADAR_RADIUS_SQ) {
-                    stats.skippedOutsideRadar++;
-                    continue;
-                }
-                NPCEntity npc = chunk.getComponent(index, NPCEntity.getComponentType());
-                Entity entity = EntityUtils.getEntity(index, chunk);
-                String type = safeMobType(chunk, index, npc, entity);
-                if (isSpawnMarkerType(type)) {
-                    stats.addSkippedType(type);
-                    stats.skippedNonMobs++;
-                    continue;
-                }
-                seenRefs.add(ref.getIndex());
-                HealthSnapshot health = safeHealth(store, ref);
-                String roleName = safeNpcRoleName(npc);
-                String modelAsset = safeModelAssetId(chunk, index);
-                String persistentModelAsset = safePersistentModelAssetId(chunk, index);
-                NpcRoleIndex.Entry liveRole = liveNpcEntry(npcRoleIndex, type, roleName, modelAsset, persistentModelAsset);
-                if (liveRole != null) {
-                    stats.liveRoleMatches++;
-                }
-                String category = liveRole == null
-                        ? categoryForMob(type)
-                        : categoryForMob(type, liveRole.category());
-                candidates.add(new MobCandidate(distanceSq, new MobSnapshot(
-                        safeMobId(chunk, index, ref),
-                        type,
-                        safeMobRole(npc, entity, type),
-                        category,
-                        position.x,
-                        position.y,
-                        position.z,
-                        safeYaw(transform),
-                        colorForMob(type),
-                        source,
-                        roleName,
-                        safeNpcNameTranslationKey(npc),
-                        safeNpcTypeIndex(npc),
-                        safeNpcRoleIndex(npc),
-                        modelAsset,
-                        persistentModelAsset,
-                        liveRole == null ? null : liveRole.id(),
-                        liveRole == null ? null : liveRole.category(),
-                        liveRole == null ? null : liveRole.pathHint(),
-                        health.health(),
-                        health.maxHealth())));
-                stats.accepted++;
-                stats.addType(type);
-            } catch (Exception ignored) {
-                // Individual NPC refs can unload while the ECS chunk is being copied.
-                stats.errors++;
-            }
-        }
-    }
-
-    private static List<Vector3d> playerPositionsForMobRadar(@Nonnull World world) {
-        List<Vector3d> playerPositions = new ArrayList<>();
-        for (PlayerRef playerRef : world.getPlayerRefs()) {
-            try {
-                Transform transform = playerRef.getTransform();
-                if (transform != null && transform.getPosition() != null) {
-                    playerPositions.add(new Vector3d(transform.getPosition()));
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        return playerPositions;
-    }
-
-    private void logMobScan(@Nonnull World world, @Nonnull Store<EntityStore> store,
-                            @Nonnull MobScanStats stats, @Nonnull List<MobSnapshot> mobs) {
-        long now = System.currentTimeMillis();
-        long last = lastMobDebugLogMillis.get();
-        if (now - last < 10_000L) {
-            return;
-        }
-        if (!lastMobDebugLogMillis.compareAndSet(last, now)) {
-            return;
-        }
-
-        String firstMob = mobs.isEmpty() ? "none" : mobs.stream()
-                .limit(5)
-                .map(mob -> mob.type() + "@" + Math.round(mob.x()) + "," + Math.round(mob.y()) + "," + Math.round(mob.z()))
-                .collect(Collectors.joining(";"));
-        plugin.getLogger().at(Level.INFO).log("[mob-feed] world=" + world.getName()
-                + " storeEntities=" + stats.storeEntities
-                + " npcEntities=" + stats.npcEntities
-                + " transformEntities=" + stats.transformEntities
-                + " networkSendableEntities=" + stats.networkSendableEntities
-                + " chunks=" + stats.chunks
-                + " entities=" + stats.entities
-                + " accepted=" + stats.accepted
-                + " duplicates=" + stats.duplicates
-                + " players=" + stats.skippedPlayers
-                + " nonMob=" + stats.skippedNonMobs
-                + " outsideRadar=" + stats.skippedOutsideRadar
-                + " radar=" + Math.round(MOB_RADAR_RADIUS)
-                + " invalid=" + stats.invalidRefs
-                + " noTransform=" + stats.noTransform
-                + " noPosition=" + stats.noPosition
-                + " errors=" + stats.errors
-                + " viewerVisible=" + stats.viewerVisible
-                + " viewerSent=" + stats.viewerSent
-                + " spatialSources=" + stats.spatialSources
-                + " spatialIndexed=" + stats.spatialIndexed
-                + " spatialRefs=" + stats.spatialRefs
-                + " types=" + stats.preview(stats.acceptedTypes)
-                + " skippedTypes=" + stats.preview(stats.skippedTypes)
-                + " sources=" + stats.preview(stats.sources)
-                + " archetypes=" + stats.preview(stats.archetypes)
-                + " first=" + firstMob
-                + " nearby=" + nearbyTransformPreview(world, store));
-    }
-
-    private void logMobConnectSampleIfNeeded(@Nonnull World world, int players,
-                                             @Nonnull MobScanStats stats,
-                                             @Nonnull List<MobSnapshot> mobs) {
-        Integer previous = lastMobSamplePlayerCounts.put(world.getName(), players);
-        if (players <= 0 || (previous != null && previous >= players)) {
-            return;
-        }
-        String nearest = mobs.stream()
-                .limit(12)
-                .map(mob -> mob.type()
-                        + "@" + Math.round(mob.x()) + "," + Math.round(mob.y()) + "," + Math.round(mob.z())
-                        + (mob.liveRoleId() == null ? "" : " role=" + mob.liveRoleId()))
-                .collect(Collectors.joining(";"));
-        plugin.getLogger().at(Level.INFO).log("[mob-connect-sample] world=" + world.getName()
-                + " players=" + players
-                + " mobs=" + mobs.size()
-                + " types=" + stats.preview(stats.acceptedTypes)
-                + " skippedTypes=" + stats.preview(stats.skippedTypes)
-                + " sources=" + stats.preview(stats.sources)
-                + " npcIndexLoaded=" + npcRoleIndex.isLoaded()
-                + " npcIndexSize=" + npcRoleIndex.size()
-                + " nearest=" + (nearest.isBlank() ? "none" : nearest));
-    }
-
-    private static String nearbyTransformPreview(@Nonnull World world, @Nonnull Store<EntityStore> store) {
-        List<Vector3d> playerPositions = new ArrayList<>();
-        for (PlayerRef playerRef : world.getPlayerRefs()) {
-            try {
-                Transform transform = playerRef.getTransform();
-                if (transform != null && transform.getPosition() != null) {
-                    playerPositions.add(new Vector3d(transform.getPosition()));
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        if (playerPositions.isEmpty()) {
-            return "no-players";
-        }
-
-        Query<EntityStore> transformQuery = Archetype.of(TransformComponent.getComponentType());
-        List<NearbyCandidate> candidates = new ArrayList<>();
-        store.forEachChunk(transformQuery, (chunk, ignored) -> {
-            for (int index = 0; index < chunk.size(); index++) {
-                TransformComponent transform = chunk.getComponent(index, TransformComponent.getComponentType());
-                if (transform == null || transform.getPosition() == null) {
-                    continue;
-                }
-                Vector3d position = transform.getPosition();
-                double distanceSq = nearestDistanceSq(position, playerPositions);
-                if (distanceSq > 120.0d * 120.0d) {
-                    continue;
-                }
-                Ref<EntityStore> ref = chunk.getReferenceTo(index);
-                NPCEntity npc = chunk.getComponent(index, NPCEntity.getComponentType());
-                Entity entity = EntityUtils.getEntity(index, chunk);
-                String type = safeMobType(chunk, index, npc, entity);
-                String flags = "";
-                if (chunk.getComponent(index, PlayerRef.getComponentType()) != null) {
-                    flags += " player";
-                }
-                if (isDefinitelyNotMob(chunk, index)) {
-                    flags += " nonmob";
-                }
-                if (isSpawnMarkerType(type)) {
-                    flags += " spawnmarker";
-                }
-                candidates.add(new NearbyCandidate(
-                        ref == null ? -1 : ref.getIndex(),
-                        type,
-                        Math.sqrt(distanceSq),
-                        position.x,
-                        position.y,
-                        position.z,
-                        flags.trim()));
-            }
-            return true;
-        });
-
-        if (candidates.isEmpty()) {
-            return "none-within-120";
-        }
-        return candidates.stream()
-                .sorted(Comparator.comparingDouble(NearbyCandidate::distance))
-                .limit(12)
-                .map(NearbyCandidate::summary)
-                .collect(Collectors.joining(";"));
-    }
-
-    private String mobDebugJson(@Nonnull World world) {
-        Store<EntityStore> store = world.getEntityStore().getStore();
-        MobScanStats stats = new MobScanStats();
-        initializeMobScanCounts(store, stats);
-        collectMobDebugViewerStats(world, store, stats);
-        collectMobDebugSpatialStats(store, EntityModule.get().getNetworkSendableSpatialResourceType(), stats);
-        collectMobDebugSpatialStats(store, NPCPlugin.get().getNpcSpatialResource(), stats);
-        collectMobDebugSpatialStats(store, EntityModule.get().getEntitySpatialResourceType(), stats);
-        List<Vector3d> playerPositions = playerPositionsForMobRadar(world);
-        Query<EntityStore> transformQuery = Archetype.of(TransformComponent.getComponentType());
-        List<NearbyDebugCandidate> candidates = new ArrayList<>();
-        store.forEachChunk(transformQuery, (chunk, ignored) -> {
-            for (int index = 0; index < chunk.size(); index++) {
-                try {
-                    TransformComponent transform = chunk.getComponent(index, TransformComponent.getComponentType());
-                    if (transform == null || transform.getPosition() == null) {
-                        continue;
-                    }
-                    Vector3d position = transform.getPosition();
-                    double distanceSq = playerPositions.isEmpty()
-                            ? 0.0d
-                            : nearestDistanceSq(position, playerPositions);
-                    Ref<EntityStore> ref = chunk.getReferenceTo(index);
-                    NPCEntity npc = chunk.getComponent(index, NPCEntity.getComponentType());
-                    Entity entity = EntityUtils.getEntity(index, chunk);
-                    String type = safeMobType(chunk, index, npc, entity);
-                    String roleName = safeNpcRoleName(npc);
-                    String modelAsset = safeModelAssetId(chunk, index);
-                    String persistentModelAsset = safePersistentModelAssetId(chunk, index);
-                    NpcRoleIndex.Entry liveRole = liveNpcEntry(npcRoleIndex, type, roleName, modelAsset, persistentModelAsset);
-                    String reason = debugMobReason(chunk, index, type, playerPositions, distanceSq);
-                    candidates.add(new NearbyDebugCandidate(
-                            ref == null ? -1 : ref.getIndex(),
-                            type,
-                            reason,
-                            Math.sqrt(distanceSq),
-                            position.x,
-                            position.y,
-                            position.z,
-                            npc != null,
-                            chunk.getComponent(index, PlayerRef.getComponentType()) != null,
-                            roleName,
-                            modelAsset,
-                            persistentModelAsset,
-                            liveRole == null ? null : liveRole.id(),
-                            chunk.getArchetype().toString()));
-                } catch (Exception ignoredCandidate) {
-                }
-            }
-            return true;
-        });
-
-        String candidateJson = candidates.stream()
-                .sorted(Comparator.comparingDouble(NearbyDebugCandidate::distance))
-                .limit(96)
-                .map(NearbyDebugCandidate::toJson)
-                .collect(Collectors.joining(","));
-        return "{\"ok\":true,\"world\":\"" + escapeJson(world.getName()) + "\""
-                + ",\"players\":" + playerPositions.size()
-                + ",\"radar\":" + Math.round(MOB_RADAR_RADIUS)
-                + ",\"sourceStats\":" + stats.toJson()
-                + ",\"candidates\":[" + candidateJson + "]}";
-    }
-
-    private static void collectMobDebugViewerStats(@Nonnull World world,
-                                                   @Nonnull Store<EntityStore> store,
-                                                   @Nonnull MobScanStats stats) {
-        for (PlayerRef playerRef : world.getPlayerRefs()) {
-            try {
-                Ref<EntityStore> playerEntityRef = playerRef.getReference();
-                if (playerEntityRef == null || !playerEntityRef.isValid()) {
-                    continue;
-                }
-                EntityTrackerSystems.EntityViewer viewer = store.getComponent(
-                        playerEntityRef,
-                        EntityModule.get().getEntityViewerComponentType());
-                if (viewer == null || viewer.visible == null) {
-                    continue;
-                }
-                stats.addSource("EntityViewerVisible");
-                stats.viewerVisible += viewer.visible.size();
-                stats.viewerSent += viewer.sent == null ? 0 : viewer.sent.size();
-            } catch (Exception ignored) {
-                stats.errors++;
-            }
-        }
-    }
-
-    private static void collectMobDebugSpatialStats(
-            @Nonnull Store<EntityStore> store,
-            @Nonnull ResourceType<EntityStore, SpatialResource<Ref<EntityStore>, EntityStore>> resourceType,
-            @Nonnull MobScanStats stats) {
-        try {
-            SpatialResource<Ref<EntityStore>, EntityStore> spatial = store.getResource(resourceType);
-            if (spatial == null) {
-                return;
-            }
-            stats.spatialSources++;
-            stats.spatialIndexed += spatial.getSpatialStructure().size();
-        } catch (Exception ignored) {
-            stats.errors++;
-        }
-    }
-
-    private static String debugMobReason(@Nonnull ArchetypeChunk<EntityStore> chunk,
-                                         int index,
-                                         @Nonnull String type,
-                                         @Nonnull List<Vector3d> playerPositions,
-                                         double distanceSq) {
-        if (chunk.getComponent(index, PlayerRef.getComponentType()) != null) {
-            return "player";
-        }
-        String nonMobReason = nonMobReason(chunk, index);
-        if (nonMobReason != null) {
-            return "technical_" + nonMobReason;
-        }
-        if (isSpawnMarkerType(type)) {
-            return "technical_marker";
-        }
-        if (playerPositions.isEmpty()) {
-            return "no_player_anchor";
-        }
-        if (distanceSq > MOB_RADAR_RADIUS_SQ) {
-            return "outside_radar";
-        }
-        return "accepted";
-    }
-
-    private static double nearestDistanceSq(@Nonnull Vector3d position, @Nonnull List<Vector3d> playerPositions) {
-        double best = Double.MAX_VALUE;
-        for (Vector3d playerPosition : playerPositions) {
-            double dx = position.x - playerPosition.x;
-            double dy = position.y - playerPosition.y;
-            double dz = position.z - playerPosition.z;
-            double distanceSq = dx * dx + dy * dy + dz * dz;
-            if (distanceSq < best) {
-                best = distanceSq;
-            }
-        }
-        return best;
-    }
 
 
     private static Integer parseInt(@Nonnull String value) {
