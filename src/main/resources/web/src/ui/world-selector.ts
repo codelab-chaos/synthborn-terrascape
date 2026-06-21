@@ -2,10 +2,11 @@ import { runtime, setStatus } from '../scene/scene-context.ts';
 import { worldSelect } from './dom.ts';
 import { applyInitialWorldParam, applyStoredWorld } from './view-persistence.ts';
 import { applyServerControls } from './server-controls.ts';
+import { apiFetch } from '../platform/api-client.ts';
 
 export async function loadWorlds() {
   setStatus('Loading worlds');
-  const response = await fetch('/api/worlds');
+  const response = await apiFetch('/api/worlds');
   const data = await response.json();
   runtime.experimentalDetailsEnabled = data.features?.experimentalDetails === true;
   runtime.terrainFormatVersion = data.features?.terrainFormatVersion ?? runtime.terrainFormatVersion;

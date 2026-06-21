@@ -1,3 +1,4 @@
+import { apiFetch } from '../platform/api-client.ts';
 function normalizeNpcKey(value) {
   return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
@@ -31,7 +32,7 @@ export function createNpcCatalog({ logClientEvent }) {
 
   async function load() {
     try {
-      const response = await fetch('/npc-details.json');
+      const response = await apiFetch('/npc-details.json');
       if (!response.ok) {
         throw new Error(`NPC details request failed: ${response.status}`);
       }

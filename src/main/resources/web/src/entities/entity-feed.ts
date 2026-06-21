@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { apiFetch } from '../platform/api-client.ts';
 import { logClientEvent } from '../platform/client-log.ts';
 import {
   createMobMarker,
@@ -69,7 +70,7 @@ export async function refreshPlayers() {
   }
   runtime.isRefreshingPlayers = true;
   try {
-    const response = await fetch(`/api/players/${encodeURIComponent(worldSelect.value)}`);
+    const response = await apiFetch(`/api/players/${encodeURIComponent(worldSelect.value)}`);
     if (!response.ok) {
       throw new Error(`Player request failed: ${response.status}`);
     }
@@ -118,7 +119,7 @@ export async function refreshMobs() {
   }
   runtime.isRefreshingMobs = true;
   try {
-    const response = await fetch(`/api/mobs/${encodeURIComponent(worldSelect.value)}`);
+    const response = await apiFetch(`/api/mobs/${encodeURIComponent(worldSelect.value)}`);
     if (!response.ok) {
       throw new Error(`Mob request failed: ${response.status}`);
     }
@@ -389,7 +390,7 @@ async function sampleMobFeedOnPlayerConnect(players) {
   const world = worldSelect.value;
   if (!world || !showMobsInput.checked) return;
   try {
-    const response = await fetch(`/api/mobs/${encodeURIComponent(world)}`);
+    const response = await apiFetch(`/api/mobs/${encodeURIComponent(world)}`);
     if (!response.ok) {
       throw new Error(`Mob sample request failed: ${response.status}`);
     }

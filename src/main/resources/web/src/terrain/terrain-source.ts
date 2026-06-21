@@ -1,4 +1,5 @@
 import { logClientEvent, logClientTiming } from '../platform/client-log.ts';
+import { apiFetch } from '../platform/api-client.ts';
 import { readTerrainCache, writeTerrainCache } from '../platform/mesh-cache.ts';
 import {
   terrainCacheKeyFor,
@@ -99,7 +100,7 @@ export async function fetchArrayBufferWithRetry(url) {
   let lastError;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const response = await fetch(url);
+      const response = await apiFetch(url);
       if (!response.ok) {
         throw new Error(`Terrain request failed: ${response.status}`);
       }
