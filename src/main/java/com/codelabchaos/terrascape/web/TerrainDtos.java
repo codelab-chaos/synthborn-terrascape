@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -95,6 +96,41 @@ record TerrainBatchSummary(
         long vertices,
         long triangles,
         long details) {
+
+    static TerrainBatchSummary summarize(@Nonnull List<BatchTerrainResult> results) {
+        int ok = 0;
+        int errors = 0;
+        int generated = 0;
+        int disk = 0;
+        int memory = 0;
+        long bytes = 0;
+        long columns = 0;
+        long vertices = 0;
+        long triangles = 0;
+        long details = 0;
+
+        for (BatchTerrainResult result : results) {
+            TerrainResult terrain = result.terrain();
+            if (terrain == null || result.error() != null) {
+                errors++;
+                continue;
+            }
+            ok++;
+            bytes += terrain.glb().length;
+            columns += terrain.columns();
+            vertices += terrain.vertices();
+            triangles += terrain.triangles();
+            details += terrain.details();
+            switch (terrain.source()) {
+                case "generated" -> generated++;
+                case "disk" -> disk++;
+                case "memory" -> memory++;
+                default -> {
+                }
+            }
+        }
+        return new TerrainBatchSummary(ok, errors, generated, disk, memory, bytes, columns, vertices, triangles, details);
+    }
 }
 
 record TerrainMetadata(int columns, int vertices, int triangles, int details, String detailKeys) {

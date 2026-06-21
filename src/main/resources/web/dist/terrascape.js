@@ -3346,6 +3346,7 @@ function applySelectValue(input, value, triStateValuesById = {}) {
         return false;
     const triStateValues = triStateValuesById[input.id];
     if (triStateValues) {
+        // Tri-state controls are always backed by a hidden <input>, never a <select>.
         (0,_tri_state_control_js__WEBPACK_IMPORTED_MODULE_0__.applyTriStateValue)(input, value, triStateValues);
         return true;
     }
@@ -7728,7 +7729,7 @@ function formatBuildTime(iso) {
     return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function mountBuildBadge() {
-    const info = {"version":"0.1.0","channel":"early access","sha":"b24b17e-dirty","time":"2026-06-21T08:13:31.206Z"};
+    const info = {"version":"0.1.0","channel":"early access","sha":"5975fda-dirty","time":"2026-06-21T21:47:23.208Z"};
     const badge = document.createElement('div');
     badge.className = 'build-badge';
     badge.textContent = `v${info.version} [${info.channel}] · ${info.sha} · ${formatBuildTime(info.time)}`;

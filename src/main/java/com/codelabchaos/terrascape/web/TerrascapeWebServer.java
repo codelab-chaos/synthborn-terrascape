@@ -153,11 +153,6 @@ public final class TerrascapeWebServer {
     private static final int PLAYER_AVATAR_SIZE = 64;
     private static final int MAX_PLAYER_AVATAR_BYTES = 512 * 1024;
     private static final long PLAYER_AVATAR_CACHE_TTL_MS = Duration.ofHours(12).toMillis();
-    private static final Pattern WORLD_PATTERN = Pattern.compile("\"world\"\\s*:\\s*\"([^\"]+)\"");
-    private static final Pattern CHUNK_OBJECT_PATTERN = Pattern.compile("\\{[^{}]*}");
-    private static final Pattern CHUNK_X_PATTERN = Pattern.compile("\"chunkX\"\\s*:\\s*(-?\\d+)");
-    private static final Pattern CHUNK_Z_PATTERN = Pattern.compile("\"chunkZ\"\\s*:\\s*(-?\\d+)");
-    private static final Pattern ASSET_PATTERN = Pattern.compile("\"asset\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern MOB_ICON_PATH_PATTERN = Pattern.compile("^/mob-icons/([A-Za-z0-9_.-]+\\.png)$");
     private static final Pattern PLAYER_AVATAR_PATH_PATTERN = Pattern.compile("^/api/player-avatar/([A-Za-z0-9-]{1,64})\\.png$");
 
@@ -721,7 +716,7 @@ public final class TerrascapeWebServer {
             return;
         }
 
-        MapRegionRequest request = parseMapRegionRequest(exchange.getRequestURI().getPath());
+        MapRegionRequest request = RequestParsers.parseMapRegionRequest(exchange.getRequestURI().getPath(), config.mapView().maxRegionRadius());
         if (request == null) {
             writeJson(exchange, 400, "{\"ok\":false,\"error\":\"expected_/api/mapregion/{world}/{centerX}/{centerZ}/{radius}.png\"}");
             return;
@@ -778,13 +773,13 @@ public final class TerrascapeWebServer {
             return;
         }
 
-        TerrainMapTileRequest mapTileRequest = parseTerrainMapTileRequest(exchange.getRequestURI().getPath());
+        TerrainMapTileRequest mapTileRequest = RequestParsers.parseTerrainMapTileRequest(exchange.getRequestURI().getPath());
         if (mapTileRequest != null) {
             handleTerrainMapTile(exchange, mapTileRequest);
             return;
         }
 
-        TerrainRequest request = parseTerrainRequest(
+        TerrainRequest request = RequestParsers.parseTerrainRequest(
                 exchange.getRequestURI().getPath(),
                 exchange.getRequestURI().getRawQuery(),
                 experimentalDetailsEnabled);
@@ -948,7 +943,7 @@ public final class TerrascapeWebServer {
 
         BatchTerrainRequest request;
         try {
-            request = parseBatchTerrainRequest(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8), config.mesh().maxBatchChunks());
+            request = RequestParsers.parseBatchTerrainRequest(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8), config.mesh().maxBatchChunks());
         } catch (IllegalArgumentException e) {
             writeJson(exchange, 400, "{\"ok\":false,\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
             return;
@@ -968,7 +963,7 @@ public final class TerrascapeWebServer {
             }
             List<BatchTerrainResult> results = generateTerrainBatch(world, request);
             long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
-            TerrainBatchSummary summary = summarizeTerrainBatch(results);
+            TerrainBatchSummary summary = TerrainBatchSummary.summarize(results);
             StringBuilder json = new StringBuilder(256 + results.size() * 256);
             json.append("{\"ok\":true,\"asset\":\"mesh\",\"maxBatchChunks\":").append(config.mesh().maxBatchChunks()).append(",\"chunks\":[");
             for (int i = 0; i < results.size(); i++) {
@@ -1224,41 +1219,6 @@ public final class TerrascapeWebServer {
         }
     }
 
-    private static TerrainBatchSummary summarizeTerrainBatch(@Nonnull List<BatchTerrainResult> results) {
-        int ok = 0;
-        int errors = 0;
-        int generated = 0;
-        int disk = 0;
-        int memory = 0;
-        long bytes = 0;
-        long columns = 0;
-        long vertices = 0;
-        long triangles = 0;
-        long details = 0;
-
-        for (BatchTerrainResult result : results) {
-            TerrainResult terrain = result.terrain();
-            if (terrain == null || result.error() != null) {
-                errors++;
-                continue;
-            }
-            ok++;
-            bytes += terrain.glb().length;
-            columns += terrain.columns();
-            vertices += terrain.vertices();
-            triangles += terrain.triangles();
-            details += terrain.details();
-            switch (terrain.source()) {
-                case "generated" -> generated++;
-                case "disk" -> disk++;
-                case "memory" -> memory++;
-                default -> {
-                }
-            }
-        }
-        return new TerrainBatchSummary(ok, errors, generated, disk, memory, bytes, columns, vertices, triangles, details);
-    }
-
     private void handleStatic(@Nonnull HttpExchange exchange) {
         try {
             serveStatic(exchange);
@@ -1371,95 +1331,6 @@ public final class TerrascapeWebServer {
         return null;
     }
 
-    private static TerrainMapTileRequest parseTerrainMapTileRequest(@Nonnull String path) {
-        String prefix = "/api/terrain/";
-        if (!path.startsWith(prefix)) {
-            return null;
-        }
-        String[] parts = path.substring(prefix.length()).split("/");
-        if (parts.length != 3 || !parts[2].endsWith(".map.png")) {
-            return null;
-        }
-        Integer chunkX = parseInt(parts[1]);
-        Integer chunkZ = parseInt(parts[2].substring(0, parts[2].length() - ".map.png".length()));
-        if (chunkX == null || chunkZ == null) {
-            return null;
-        }
-        return new TerrainMapTileRequest(decode(parts[0]), chunkX, chunkZ);
-    }
-
-    private static TerrainRequest parseTerrainRequest(@Nonnull String path, @Nullable String rawQuery, boolean includeDetails) {
-        String prefix = "/api/terrain/";
-        if (!path.startsWith(prefix)) {
-            return null;
-        }
-        String[] parts = path.substring(prefix.length()).split("/");
-        if (parts.length != 3 || !parts[2].endsWith(".glb")) {
-            return null;
-        }
-        Integer chunkX = parseInt(parts[1]);
-        Integer chunkZ = parseInt(parts[2].substring(0, parts[2].length() - 4));
-        if (chunkX == null || chunkZ == null) {
-            return null;
-        }
-        String cosmeticsParam = queryParam(rawQuery, "cosmetics");
-        boolean cosmeticsOnly = includeDetails && "only".equalsIgnoreCase(cosmeticsParam);
-        boolean includeCosmetics = includeDetails && (cosmeticsOnly || queryFlag(rawQuery, "cosmetics"));
-        TerrainSampler.VisualDetailMode visualDetailMode = TerrainSampler.VisualDetailMode.fromQuery(queryParam(rawQuery, "visualDetail"));
-        return new TerrainRequest(decode(parts[0]), chunkX, chunkZ, includeDetails, includeCosmetics, cosmeticsOnly, visualDetailMode);
-    }
-
-    private MapRegionRequest parseMapRegionRequest(@Nonnull String path) {
-        String prefix = "/api/mapregion/";
-        if (!path.startsWith(prefix) || !path.endsWith(".png")) {
-            return null;
-        }
-        String[] parts = path.substring(prefix.length(), path.length() - ".png".length()).split("/");
-        if (parts.length != 4) {
-            return null;
-        }
-        Integer centerX = parseInt(parts[1]);
-        Integer centerZ = parseInt(parts[2]);
-        Integer radius = parseInt(parts[3]);
-        if (centerX == null || centerZ == null || radius == null) {
-            return null;
-        }
-        return new MapRegionRequest(
-                decode(parts[0]),
-                centerX,
-                centerZ,
-                Math.max(0, Math.min(config.mapView().maxRegionRadius(), radius)));
-    }
-
-    private static BatchTerrainRequest parseBatchTerrainRequest(@Nonnull String body, int maxBatchChunks) {
-        String worldName = findString(WORLD_PATTERN, body, "world");
-        List<ChunkCoord> chunks = new ArrayList<>();
-        Matcher matcher = CHUNK_OBJECT_PATTERN.matcher(body);
-        while (matcher.find()) {
-            String object = matcher.group();
-            if (!CHUNK_X_PATTERN.matcher(object).find() || !CHUNK_Z_PATTERN.matcher(object).find()) {
-                continue;
-            }
-            if (chunks.size() >= maxBatchChunks) {
-                throw new IllegalArgumentException("batch_too_large_max_" + maxBatchChunks);
-            }
-            chunks.add(new ChunkCoord(
-                    findInt(CHUNK_X_PATTERN, object, "chunkX"),
-                    findInt(CHUNK_Z_PATTERN, object, "chunkZ")));
-        }
-        if (chunks.isEmpty()) {
-            throw new IllegalArgumentException("chunks_required");
-        }
-        String asset = findString(ASSET_PATTERN, body, "asset");
-        if (asset == null || asset.isBlank()) {
-            throw new IllegalArgumentException("asset_required");
-        }
-        if (!"mesh".equalsIgnoreCase(asset) && !"map".equalsIgnoreCase(asset)) {
-            throw new IllegalArgumentException("asset_must_be_mesh_or_map");
-        }
-        return new BatchTerrainRequest(worldName, chunks, asset);
-    }
-
     private World findWorld(@Nonnull String worldName) {
         if (!config.worlds().allows(worldName)) {
             return null;
@@ -1515,7 +1386,7 @@ public final class TerrascapeWebServer {
             try {
                 List<PlayerSnapshot> players = includePlayers ? snapshotPlayers(world) : List.of();
                 MobFeedSnapshot mobFeed = includeMobs ? mobScanner.snapshotMobs(world) : MobFeedSnapshot.empty();
-                future.complete(entityFeedJson(world, players, mobFeed));
+                future.complete(EntityFeed.toJson(world.getName(), config.entities().streamInterval().toMillis(), players, mobFeed));
             } catch (Exception e) {
                 future.completeExceptionally(e);
             }
@@ -1556,25 +1427,6 @@ public final class TerrascapeWebServer {
         return true;
     }
 
-    private String entityFeedJson(@Nonnull World world,
-                                  @Nonnull List<PlayerSnapshot> players,
-                                  @Nonnull MobFeedSnapshot mobFeed) {
-        String playerJson = players.stream()
-                .map(PlayerSnapshot::toJson)
-                .collect(Collectors.joining(","));
-        String mobJson = mobFeed.mobs().stream()
-                .map(MobSnapshot::toJson)
-                .collect(Collectors.joining(","));
-        return "{\"ok\":true,\"world\":\"" + escapeJson(world.getName()) + "\""
-                + ",\"intervalMs\":" + config.entities().streamInterval().toMillis()
-                + ",\"players\":[" + playerJson + "]"
-                + ",\"mobs\":[" + mobJson + "]"
-                + ",\"mobRadar\":" + Math.round(mobFeed.radar())
-                + ",\"mobRadarPlayers\":" + mobFeed.players()
-                + ",\"mobSourceStats\":" + mobFeed.stats().toJson()
-                + "}";
-    }
-
     private static void writeSseEvent(@Nonnull OutputStream output,
                                       @Nonnull String event,
                                       @Nonnull String json) throws IOException {
@@ -1585,13 +1437,6 @@ public final class TerrascapeWebServer {
 
 
 
-    private static Integer parseInt(@Nonnull String value) {
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
 
     private boolean isAdminRequest(@Nonnull HttpExchange exchange) {
         String expected = config.security().adminToken();
