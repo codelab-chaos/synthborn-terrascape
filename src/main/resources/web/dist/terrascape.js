@@ -7625,7 +7625,7 @@ function formatBuildTime(iso) {
     return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function mountBuildBadge() {
-    const info = {"version":"0.1.0","channel":"early access","sha":"680d1ae-dirty","time":"2026-06-20T06:23:00.737Z"};
+    const info = {"version":"0.1.0","channel":"early access","sha":"2117a8c-dirty","time":"2026-06-21T05:56:28.047Z"};
     const badge = document.createElement('div');
     badge.className = 'build-badge';
     badge.textContent = `v${info.version} [${info.channel}] · ${info.sha} · ${formatBuildTime(info.time)}`;
