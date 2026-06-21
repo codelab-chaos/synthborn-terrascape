@@ -1,6 +1,7 @@
 import { bindAppEvents } from './ui/app-events.ts';
 import { worldSelect } from './ui/dom.ts';
 import {
+  initialParams,
   npcCatalog,
   pressedKeys,
   renderer,
@@ -8,6 +9,8 @@ import {
   setStatus,
   timeRibbon,
 } from './scene/scene-context.ts';
+import { onUnauthorized } from './platform/api-client.ts';
+import { bindAccessOverlay, showAccessRequired } from './ui/access-overlay.ts';
 import {
   radiusValue,
   setRadiusControlValue,
@@ -71,6 +74,18 @@ export * from './common/resource-stats.ts';
 export * from './common/terrain-requests.ts';
 export * from './common/terrain-stream.ts';
 export * from './common/view-preferences.ts';
+
+// Surface a clear prompt if the session is rejected (e.g. the access token's TTL lapsed) instead of
+// letting the map silently stop loading.
+bindAccessOverlay();
+onUnauthorized(showAccessRequired);
+// The one-time access key has done its job — the server set a session cookie from it — so keep it
+// out of the address bar, browser history, and any outbound referrer.
+if (initialParams.has('key')) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('key');
+  window.history.replaceState(null, '', url);
+}
 
 setRenderDetailsOpen(!runtime.storedViewState || runtime.storedViewState.renderDetails !== false);
 bindAppEvents({

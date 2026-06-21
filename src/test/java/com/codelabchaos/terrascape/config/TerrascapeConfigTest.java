@@ -28,6 +28,41 @@ class TerrascapeConfigTest {
         assertEquals(5960, config.http().port());
         assertFalse(config.features().mobDebugEndpoint());
         assertFalse(config.security().hasAdminToken());
+        assertTrue(text.contains("cors.enabled=false"));
+        assertFalse(config.cors().enabled());
+        assertTrue(config.cors().allowedOrigins().isEmpty());
+        assertFalse(config.cors().allows("https://map.example.com"));
+    }
+
+    @Test
+    void parsesCorsAllowlistAsAnArray() {
+        Properties properties = new Properties();
+        properties.setProperty("cors.enabled", "true");
+        properties.setProperty("cors.allowedOrigins", "https://map.example.com, https://admin.example.com:8443");
+
+        TerrascapeConfig config = TerrascapeConfig.fromProperties(
+                tempDir.resolve(TerrascapeConfig.FILE_NAME),
+                tempDir,
+                properties);
+
+        assertTrue(config.cors().enabled());
+        assertTrue(config.cors().allows("https://map.example.com"));
+        assertTrue(config.cors().allows("https://admin.example.com:8443"));
+        assertFalse(config.cors().allows("https://evil.example"));
+    }
+
+    @Test
+    void corsDisabledByDefaultEvenWithOriginsListed() {
+        Properties properties = new Properties();
+        properties.setProperty("cors.allowedOrigins", "https://map.example.com");
+
+        TerrascapeConfig config = TerrascapeConfig.fromProperties(
+                tempDir.resolve(TerrascapeConfig.FILE_NAME),
+                tempDir,
+                properties);
+
+        assertFalse(config.cors().enabled());
+        assertFalse(config.cors().allows("https://map.example.com"));
     }
 
     @Test

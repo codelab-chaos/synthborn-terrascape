@@ -26,17 +26,26 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class TerrascapeCommand extends AbstractWorldCommand {
+    /** Full plugin control: status, sampling, cache management, and minting map links. */
+    public static final String PERM_ADMIN = "terrascape.admin";
+    /** Permission to open the web map (mint an access link). Admins grant this to regular users. */
+    public static final String PERM_MAP_USE = "terrascape.map.use";
+
     private final TerrascapePlugin plugin;
 
     public TerrascapeCommand(@Nonnull TerrascapePlugin plugin) {
         super("terrascape", "Terrascape status and validation commands");
-        this.requirePermission("terrascape.admin");
+        // Map access is the lowest bar to invoke the command; admin-only subcommands re-check below.
+        // The hytale:Admin group holds the '*' wildcard, so ops satisfy both nodes automatically.
+        this.requirePermission(PERM_MAP_USE);
         this.setAllowsExtraArguments(true);
         this.plugin = plugin;
     }
@@ -44,15 +53,24 @@ public class TerrascapeCommand extends AbstractWorldCommand {
     @Override
     protected void execute(@Nonnull CommandContext context, @Nonnull World world, @Nonnull Store<EntityStore> store) {
         String[] args = context.getInputString().trim().split("\\s+");
-        String subcommand = args.length >= 2 ? args[1].toLowerCase() : "status";
+        String subcommand = args.length >= 2 ? args[1].toLowerCase() : "";
 
         switch (subcommand) {
-            case "status" -> sendStatus(context);
-            case "sample" -> handleSample(args, context, world);
-            case "clearcache" -> handleClearCache(context, args.length >= 3 ? args[2].toLowerCase() : "all");
+            case "status" -> { if (requireAdmin(context)) sendStatus(context); }
+            case "sample" -> { if (requireAdmin(context)) handleSample(args, context, world); }
+            case "clearcache" -> { if (requireAdmin(context)) handleClearCache(context, args.length >= 3 ? args[2].toLowerCase() : "all"); }
             case "maplink", "maptoken" -> handleMapLink(context, store, subcommand.equals("maptoken"));
             default -> sendUsage(context);
         }
+    }
+
+    /** Gates admin-only subcommands; map-use holders without admin get a clear denial. */
+    private boolean requireAdmin(@Nonnull CommandContext context) {
+        if (context.sender().hasPermission(PERM_ADMIN)) {
+            return true;
+        }
+        context.sendMessage(Message.raw("That subcommand requires the " + PERM_ADMIN + " permission.").color(Color.RED));
+        return false;
     }
 
     private void sendStatus(@Nonnull CommandContext context) {
@@ -226,7 +244,8 @@ public class TerrascapeCommand extends AbstractWorldCommand {
             return;
         }
         Duration ttl = plugin.config().access().tokenTtl();
-        AccessTokens.MintResult result = tokens.mint(sender.getUuid(), ttl);
+        Set<String> scopes = mapScopesFor(context);
+        AccessTokens.MintResult result = tokens.mint(sender.getUuid(), ttl, scopes);
         if (result.token() == null) {
             long minutes = Math.max(1, (result.cooldownMs() + 59_999) / 60_000);
             context.sendMessage(Message.raw("Please wait ~" + minutes + "m before generating another access link.").color(Color.YELLOW));
@@ -236,10 +255,26 @@ public class TerrascapeCommand extends AbstractWorldCommand {
         context.sendMessage(Message.raw("=== Terrascape access ===").color(Color.CYAN));
         context.sendMessage(Message.raw(tokenOnly ? result.token() : mapBaseUrl() + "/?key=" + result.token()).color(Color.GREEN));
         context.sendMessage(Message.raw("Valid until " + expires + " (~" + ttl.toHours()
-                + "h). Bookmark it now - it will not be shown again.").color(Color.WHITE));
+                + "h), scope: " + String.join(", ", scopes)
+                + ". Bookmark it now - it will not be shown again.").color(Color.WHITE));
         if (!plugin.config().access().restricted()) {
             context.sendMessage(Message.raw("Note: access.mode is 'public', so a key is not required yet.").color(Color.YELLOW));
         }
+    }
+
+    /**
+     * Snapshots the player's web capabilities into token scopes: every permitted viewer gets
+     * {@code map}; {@code terrascape.admin} holders also get {@code admin} so their web session can
+     * reach admin-only APIs without a shared admin token.
+     */
+    @Nonnull
+    private Set<String> mapScopesFor(@Nonnull CommandContext context) {
+        Set<String> scopes = new LinkedHashSet<>();
+        scopes.add(AccessTokens.SCOPE_MAP);
+        if (context.sender().hasPermission(PERM_ADMIN)) {
+            scopes.add(AccessTokens.SCOPE_ADMIN);
+        }
+        return scopes;
     }
 
     private String mapBaseUrl() {
@@ -251,7 +286,11 @@ public class TerrascapeCommand extends AbstractWorldCommand {
     }
 
     private static void sendUsage(@Nonnull CommandContext context) {
-        context.sendMessage(Message.raw("Usage: /terrascape status | sample <chunkX> <chunkZ> | clearcache [mesh|tiles|all] | maplink | maptoken").color(Color.YELLOW));
+        if (context.sender().hasPermission(PERM_ADMIN)) {
+            context.sendMessage(Message.raw("Usage: /terrascape status | sample <chunkX> <chunkZ> | clearcache [mesh|tiles|all] | maplink | maptoken").color(Color.YELLOW));
+        } else {
+            context.sendMessage(Message.raw("Usage: /terrascape maplink | maptoken").color(Color.YELLOW));
+        }
     }
 
     private static Integer parseInt(@Nonnull String value) {

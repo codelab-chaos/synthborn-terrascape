@@ -1,4 +1,5 @@
 import { worldTimePollDelayMs as computeWorldTimePollDelayMs } from '../common/entity-feed-policy.ts';
+import { apiFetch } from '../platform/api-client.ts';
 import { logClientEvent } from '../platform/client-log.ts';
 import { applyLighting } from '../scene/lighting-controls.ts';
 import { runtime, timeRibbon } from '../scene/scene-context.ts';
@@ -13,7 +14,7 @@ export async function refreshWorldTime() {
     return;
   }
   try {
-    const response = await fetch(`/api/time/${encodeURIComponent(worldSelect.value)}`);
+    const response = await apiFetch(`/api/time/${encodeURIComponent(worldSelect.value)}`);
     if (!response.ok) {
       throw new Error(`Time request failed: ${response.status}`);
     }

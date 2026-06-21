@@ -5,6 +5,7 @@ import com.codelabchaos.terrascape.commands.TerrascapeCommand;
 import com.codelabchaos.terrascape.config.TerrascapeConfig;
 import com.codelabchaos.terrascape.web.NpcRoleIndex;
 import com.codelabchaos.terrascape.web.TerrascapeWebServer;
+import com.hypixel.hytale.server.core.permissions.PermissionsModule;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 
@@ -79,6 +80,11 @@ public class TerrascapePlugin extends JavaPlugin {
         npcRoleIndex.subscribe(getEventRegistry());
         playerLookTracker = new PlayerLookTracker(this);
         playerLookTracker.register();
+        // Make our nodes discoverable in /perm listings and tab-completion. Admins (the
+        // hytale:Admin group holds '*') already satisfy them; granting terrascape.map.use to a
+        // user or group is how an admin lets specific players open the web map.
+        PermissionsModule.registerPermission(TerrascapeCommand.PERM_ADMIN);
+        PermissionsModule.registerPermission(TerrascapeCommand.PERM_MAP_USE);
         getCommandRegistry().registerCommand(new TerrascapeCommand(this));
         getLogger().at(Level.INFO).log("Terrascape setup complete.");
     }

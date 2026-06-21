@@ -2,6 +2,8 @@ package com.codelabchaos.terrascape.web;
 
 import com.codelabchaos.terrascape.TerrascapePlugin;
 import com.codelabchaos.terrascape.PlayerLookTracker;
+import com.codelabchaos.terrascape.access.AccessGate;
+import com.codelabchaos.terrascape.access.AccessTokens;
 import com.codelabchaos.terrascape.config.ServerControls;
 import com.codelabchaos.terrascape.config.TerrascapeConfig;
 import com.codelabchaos.terrascape.terrain.GltfWriter;
@@ -144,6 +146,8 @@ public final class TerrascapeWebServer {
 
     private final TerrascapePlugin plugin;
     private final TerrascapeConfig config;
+    private final AccessGate accessGate;
+    private final CorsPolicy cors;
     private final ServerControls serverControls;
     private final String host;
     private final int port;
@@ -191,6 +195,8 @@ public final class TerrascapeWebServer {
     ) throws IOException {
         this.plugin = plugin;
         this.config = config;
+        this.accessGate = new AccessGate(plugin.accessTokens(), () -> config.access().restricted());
+        this.cors = new CorsPolicy(config.cors());
         this.serverControls = ServerControls.load(config.configPath().getParent(),
                 message -> plugin.getLogger().at(Level.WARNING).log(message));
         this.host = config.http().host();
@@ -229,6 +235,10 @@ public final class TerrascapeWebServer {
     private HttpHandler onStatic(@Nonnull HttpHandler handler) {
         return exchange -> staticHttpExecutor.execute(() -> {
             try {
+                if (!gatePassed(exchange)) {
+                    writeAccessRequiredPage(exchange);
+                    return;
+                }
                 handler.handle(exchange);
             } catch (IOException error) {
                 plugin.getLogger().at(Level.WARNING).withCause(error).log(
@@ -240,12 +250,45 @@ public final class TerrascapeWebServer {
     private HttpHandler onApi(@Nonnull HttpHandler handler) {
         return exchange -> apiHttpExecutor.execute(() -> {
             try {
+                // Answer CORS preflight centrally and without auth — preflight carries no credentials
+                // and must succeed for the real request to be sent.
+                if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                    cors.applyPreflight(exchange);
+                    exchange.sendResponseHeaders(204, -1);
+                    return;
+                }
+                cors.apply(exchange);
+                if (!gatePassed(exchange)) {
+                    writeJson(exchange, 401, "{\"ok\":false,\"error\":\"access_required\"}");
+                    return;
+                }
                 handler.handle(exchange);
             } catch (IOException error) {
                 plugin.getLogger().at(Level.WARNING).withCause(error).log(
                         "API request failed: " + exchange.getRequestURI().getPath());
             }
         });
+    }
+
+    /**
+     * Outer access check shared by every endpoint. Passes when restricted mode is off, when the
+     * request carries a valid access token, or when a configured admin token is presented (so
+     * server-side monitoring keeps working in restricted mode).
+     */
+    private boolean gatePassed(@Nonnull HttpExchange exchange) {
+        return accessGate.authorize(exchange) || adminTokenMatches(exchange);
+    }
+
+    private void writeAccessRequiredPage(@Nonnull HttpExchange exchange) throws IOException {
+        String html = "<!doctype html><meta charset=\"utf-8\">"
+                + "<title>Terrascape - access required</title>"
+                + "<body style=\"font-family:system-ui,sans-serif;background:#0d1117;color:#c9d1d9;"
+                + "display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0\">"
+                + "<div style=\"text-align:center;max-width:30rem;padding:2rem\">"
+                + "<h1 style=\"font-size:1.25rem\">Access required</h1>"
+                + "<p>This map is in restricted mode. Ask a server admin for an access link, then run "
+                + "<code>/terrascape maplink</code> in-game to generate your own.</p></div></body>";
+        writeText(exchange, 401, html, "text/html; charset=utf-8");
     }
 
     public String address() {
@@ -313,11 +356,6 @@ public final class TerrascapeWebServer {
     private void handleClientLog(@Nonnull HttpExchange exchange) throws IOException {
         if (!config.features().clientTelemetry()) {
             writeJson(exchange, 404, "{\"ok\":false,\"error\":\"client_telemetry_disabled\"}");
-            return;
-        }
-        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
-            addCors(exchange);
-            exchange.sendResponseHeaders(204, -1);
             return;
         }
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
@@ -591,8 +629,8 @@ public final class TerrascapeWebServer {
             writeJson(exchange, 404, "{\"ok\":false,\"error\":\"mob_debug_disabled\"}");
             return;
         }
-        if (!isAdminRequest(exchange)) {
-            writeJson(exchange, 403, "{\"ok\":false,\"error\":\"admin_token_required\"}");
+        if (!isAdminAuthorized(exchange)) {
+            writeJson(exchange, 403, "{\"ok\":false,\"error\":\"admin_authorization_required\"}");
             return;
         }
         if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
@@ -659,7 +697,6 @@ public final class TerrascapeWebServer {
         boolean includePlayers = queryFlag(exchange, "players", true);
         boolean includeMobs = queryFlag(exchange, "mobs", true);
 
-        addCors(exchange);
         exchange.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
         exchange.getResponseHeaders().set("Cache-Control", "no-cache");
         exchange.getResponseHeaders().set("Connection", "keep-alive");
@@ -718,7 +755,6 @@ public final class TerrascapeWebServer {
             exchange.getResponseHeaders().set("X-Terrascape-Map-Region-Cache", result.source());
             exchange.getResponseHeaders().set("Content-Type", "image/png");
             exchange.getResponseHeaders().set("Cache-Control", MAP_REGION_CACHE_CONTROL);
-            addCors(exchange);
             exchange.sendResponseHeaders(200, bytes.length);
             try (OutputStream outputStream = exchange.getResponseBody()) {
                 outputStream.write(bytes);
@@ -777,7 +813,6 @@ public final class TerrascapeWebServer {
 
             exchange.getResponseHeaders().set("Content-Type", "model/gltf-binary");
             exchange.getResponseHeaders().set("Cache-Control", MESH_CACHE_CONTROL);
-            addCors(exchange);
             exchange.getResponseHeaders().set("X-Terrascape-Columns", Integer.toString(result.columns()));
             exchange.getResponseHeaders().set("X-Terrascape-Vertices", Integer.toString(result.vertices()));
             exchange.getResponseHeaders().set("X-Terrascape-Triangles", Integer.toString(result.triangles()));
@@ -824,7 +859,6 @@ public final class TerrascapeWebServer {
             long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
             exchange.getResponseHeaders().set("Content-Type", "image/png");
             exchange.getResponseHeaders().set("Cache-Control", MAP_TILE_CACHE_CONTROL);
-            addCors(exchange);
             exchange.getResponseHeaders().set("X-Terrascape-Cache", result.source());
             exchange.sendResponseHeaders(200, result.png().length);
             try (OutputStream outputStream = exchange.getResponseBody()) {
@@ -3258,21 +3292,40 @@ public final class TerrascapeWebServer {
                                             @Nonnull String contentType, @Nonnull String cacheControl) throws IOException {
         exchange.getResponseHeaders().set("Content-Type", contentType);
         exchange.getResponseHeaders().set("Cache-Control", cacheControl);
-        addCors(exchange);
         exchange.sendResponseHeaders(status, bytes.length);
         try (OutputStream output = exchange.getResponseBody()) {
             output.write(bytes);
         }
     }
 
-    private static void addCors(@Nonnull HttpExchange exchange) {
-        exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
-    }
-
     private boolean isAdminRequest(@Nonnull HttpExchange exchange) {
         String expected = config.security().adminToken();
         if (expected.isBlank()) {
             return true;
+        }
+        return adminTokenMatches(exchange);
+    }
+
+    /**
+     * Authorizes an admin-only endpoint. Satisfied by the shared admin token (the existing
+     * mechanism, which also treats a blank/unconfigured token as open) or by a session whose access
+     * token carries the {@link AccessTokens#SCOPE_ADMIN} scope — i.e. one minted by a player holding
+     * {@code terrascape.admin}. This is how a web client's API permissions follow the player's
+     * in-game permissions without sharing a static token.
+     */
+    private boolean isAdminAuthorized(@Nonnull HttpExchange exchange) {
+        return isAdminRequest(exchange) || AccessGate.hasScope(exchange, AccessTokens.SCOPE_ADMIN);
+    }
+
+    /**
+     * Strict admin-token check: true only when an admin token is configured <i>and</i> presented.
+     * Unlike {@link #isAdminRequest} it does not treat a blank/unconfigured token as a match, so it
+     * is safe to use as an access-gate bypass.
+     */
+    private boolean adminTokenMatches(@Nonnull HttpExchange exchange) {
+        String expected = config.security().adminToken();
+        if (expected.isBlank()) {
+            return false;
         }
         String headerToken = exchange.getRequestHeaders().getFirst("X-Terrascape-Admin-Token");
         if (expected.equals(headerToken)) {

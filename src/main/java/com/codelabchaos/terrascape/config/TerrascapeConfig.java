@@ -25,7 +25,8 @@ public record TerrascapeConfig(
         @Nonnull Features features,
         @Nonnull MapView mapView,
         @Nonnull Entities entities,
-        @Nonnull Access access
+        @Nonnull Access access,
+        @Nonnull Cors cors
 ) {
     public static final String FILE_NAME = "terrascape.properties";
     public static final String DEFAULT_TERRAIN_FORMAT_VERSION = "v26";
@@ -102,7 +103,10 @@ public record TerrascapeConfig(
                 string(properties, "access.mode", "TERRASCAPE_ACCESS_MODE", "public"),
                 Duration.ofHours(integer(properties, "access.tokenTtlHours", null, 24, 1, 8760)),
                 stringAllowBlank(properties, "access.publicBaseUrl", "TERRASCAPE_PUBLIC_URL", ""));
-        return new TerrascapeConfig(configPath.toAbsolutePath().normalize(), http, worlds, security, folders, mesh, cache, features, mapView, entities, access);
+        Cors cors = new Cors(
+                bool(properties, "cors.enabled", "TERRASCAPE_CORS_ENABLED", false),
+                stringSet(properties, "cors.allowedOrigins", "TERRASCAPE_CORS_ORIGINS", Set.of()));
+        return new TerrascapeConfig(configPath.toAbsolutePath().normalize(), http, worlds, security, folders, mesh, cache, features, mapView, entities, access, cors);
     }
 
     public static void writeDefaultFile(@Nonnull Path configPath) throws IOException {
@@ -130,6 +134,15 @@ public record TerrascapeConfig(
                 # Optional bearer token for admin/debug web endpoints.
                 # Send as Authorization: Bearer <token> or X-Terrascape-Admin-Token: <token>.
                 security.adminToken=
+
+                # Cross-Origin Resource Sharing (CORS)
+                # Off by default - the bundled viewer is same-origin and needs no CORS.
+                # Enable only to let browser apps on other domains call these APIs.
+                # cors.allowedOrigins is a comma-separated list of exact origins
+                # (scheme + host + port), e.g. https://map.example.com,https://admin.example.com:8443
+                # Use * to allow any origin (not recommended once credentials are involved).
+                cors.enabled=false
+                cors.allowedOrigins=
 
                 # Folders
                 # Relative paths are resolved under this plugin's data folder.
@@ -390,6 +403,13 @@ public record TerrascapeConfig(
     public record Access(@Nonnull String mode, @Nonnull Duration tokenTtl, @Nonnull String publicBaseUrl) {
         public boolean restricted() {
             return "restricted".equalsIgnoreCase(mode);
+        }
+    }
+
+    public record Cors(boolean enabled, @Nonnull Set<String> allowedOrigins) {
+        /** True if CORS is enabled and the given request Origin is on the allowlist. */
+        public boolean allows(@Nonnull String origin) {
+            return enabled && (allowedOrigins.contains("*") || allowedOrigins.contains(origin));
         }
     }
 }

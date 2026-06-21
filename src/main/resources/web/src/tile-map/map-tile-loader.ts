@@ -1,9 +1,10 @@
 import { logClientTiming } from '../platform/client-log.ts';
+import { apiFetch } from '../platform/api-client.ts';
 
 export async function loadMapTilePng(world, chunkX, chunkZ) {
   const url = `/api/terrain/${encodeURIComponent(world)}/${chunkX}/${chunkZ}.map.png`;
   const started = performance.now();
-  const response = await fetch(url);
+  const response = await apiFetch(url);
   if (!response.ok) {
     throw new Error(`Map tile request failed: ${response.status}`);
   }
