@@ -108,11 +108,7 @@ final class MobScanner {
             collectMobSnapshotPass(store, legacyEntityQuery, candidates, stats, seenRefs, playerPositions, "LegacyEntity", npcRoleIndex);
             collectMobSnapshotPass(store, transformQuery, candidates, stats, seenRefs, playerPositions, "TransformFallback", npcRoleIndex);
         }
-        List<MobSnapshot> mobs = candidates.stream()
-                .sorted(Comparator.comparingDouble(MobCandidate::distanceSq))
-                .limit(config.entities().maxMobSnapshots())
-                .map(MobCandidate::snapshot)
-                .toList();
+        List<MobSnapshot> mobs = MobSelector.topSnapshots(candidates, config.entities().maxMobSnapshots());
         logMobScan(world, store, stats, mobs);
         logMobConnectSampleIfNeeded(world, playerPositions.size(), stats, mobs);
         return new MobFeedSnapshot(mobs, stats, playerPositions.size(), MOB_RADAR_RADIUS, config.entities().maxMobSnapshots());
@@ -213,87 +209,50 @@ final class MobScanner {
                                               @Nonnull List<Vector3d> playerPositions,
                                               @Nonnull String source,
                                               @Nonnull NpcRoleIndex npcRoleIndex) {
-        stats.entities++;
         try {
-            if (ref == null || !ref.isValid()) {
-                stats.invalidRefs++;
-                return;
+            boolean valid = ref != null && ref.isValid();
+            int refIndex = valid ? ref.getIndex() : -1;
+            boolean isPlayer = valid && store.getComponent(ref, PlayerRef.getComponentType()) != null;
+            String nonMob = valid ? nonMobReason(store, ref) : null;
+            TransformComponent transform = valid ? store.getComponent(ref, TransformComponent.getComponentType()) : null;
+            Vector3d position = transform == null ? null : transform.getPosition();
+            NPCEntity npc = (valid && transform != null) ? store.getComponent(ref, NPCEntity.getComponentType()) : null;
+            MobCandidate candidate = MobSelector.select(
+                    refIndex, valid, isPlayer, nonMob != null, nonMob, transform != null, position,
+                    playerPositions, MOB_RADAR_RADIUS_SQ,
+                    () -> safeMobType(store, ref, npc),
+                    stats, seenRefs,
+                    type -> buildRefSnapshot(store, ref, npc, transform, position, type, source, npcRoleIndex, stats));
+            if (candidate != null) {
+                candidates.add(candidate);
             }
-            if (seenRefs.contains(ref.getIndex())) {
-                stats.duplicates++;
-                return;
-            }
-            if (store.getComponent(ref, PlayerRef.getComponentType()) != null) {
-                stats.skippedPlayers++;
-                return;
-            }
-            String nonMobReason = nonMobReason(store, ref);
-            if (nonMobReason != null) {
-                stats.addSkippedType(nonMobReason);
-                stats.skippedNonMobs++;
-                return;
-            }
-            TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
-            if (transform == null) {
-                stats.noTransform++;
-                return;
-            }
-            Vector3d position = transform.getPosition();
-            if (position == null) {
-                stats.noPosition++;
-                return;
-            }
-            double distanceSq = nearestDistanceSq(position, playerPositions);
-            if (distanceSq > MOB_RADAR_RADIUS_SQ) {
-                stats.skippedOutsideRadar++;
-                return;
-            }
-            NPCEntity npc = store.getComponent(ref, NPCEntity.getComponentType());
-            String type = safeMobType(store, ref, npc);
-            if (isSpawnMarkerType(type)) {
-                stats.addSkippedType(type);
-                stats.skippedNonMobs++;
-                return;
-            }
-            seenRefs.add(ref.getIndex());
-            HealthSnapshot health = safeHealth(store, ref);
-            String roleName = safeNpcRoleName(npc);
-            String modelAsset = safeModelAssetId(store, ref);
-            String persistentModelAsset = safePersistentModelAssetId(store, ref);
-            NpcRoleIndex.Entry liveRole = liveNpcEntry(npcRoleIndex, type, roleName, modelAsset, persistentModelAsset);
-            if (liveRole != null) {
-                stats.liveRoleMatches++;
-            }
-            String category = liveRole == null
-                    ? categoryForMob(type)
-                    : categoryForMob(type, liveRole.category());
-            candidates.add(new MobCandidate(distanceSq, new MobSnapshot(
-                    safeMobId(store, ref),
-                    type,
-                    safeMobRole(npc, null, type),
-                    category,
-                    position.x,
-                    position.y,
-                    position.z,
-                    safeYaw(transform),
-                    colorForMob(type),
-                    source,
-                    roleName,
-                    safeNpcNameTranslationKey(npc),
-                    safeNpcTypeIndex(npc),
-                    safeNpcRoleIndex(npc),
-                    modelAsset,
-                    persistentModelAsset,
-                    liveRole == null ? null : liveRole.id(),
-                    liveRole == null ? null : liveRole.category(),
-                    liveRole == null ? null : liveRole.pathHint(),
-                    health.health(),
-                    health.maxHealth())));
-            stats.accepted++;
-            stats.addType(type);
         } catch (Exception ignored) {
             stats.errors++;
         }
+    }
+
+    private static MobSnapshot buildRefSnapshot(@Nonnull Store<EntityStore> store, @Nonnull Ref<EntityStore> ref,
+                                                NPCEntity npc, @Nonnull TransformComponent transform,
+                                                @Nonnull Vector3d position, @Nonnull String type, @Nonnull String source,
+                                                @Nonnull NpcRoleIndex npcRoleIndex, @Nonnull MobScanStats stats) {
+        HealthSnapshot health = safeHealth(store, ref);
+        String roleName = safeNpcRoleName(npc);
+        String modelAsset = safeModelAssetId(store, ref);
+        String persistentModelAsset = safePersistentModelAssetId(store, ref);
+        NpcRoleIndex.Entry liveRole = liveNpcEntry(npcRoleIndex, type, roleName, modelAsset, persistentModelAsset);
+        if (liveRole != null) {
+            stats.liveRoleMatches++;
+        }
+        String category = liveRole == null ? categoryForMob(type) : categoryForMob(type, liveRole.category());
+        return new MobSnapshot(
+                safeMobId(store, ref), type, safeMobRole(npc, null, type), category,
+                position.x, position.y, position.z, safeYaw(transform), colorForMob(type), source,
+                roleName, safeNpcNameTranslationKey(npc), safeNpcTypeIndex(npc), safeNpcRoleIndex(npc),
+                modelAsset, persistentModelAsset,
+                liveRole == null ? null : liveRole.id(),
+                liveRole == null ? null : liveRole.category(),
+                liveRole == null ? null : liveRole.pathHint(),
+                health.health(), health.maxHealth());
     }
 
     private static void collectMobSnapshotPass(@Nonnull Store<EntityStore> store,
@@ -323,89 +282,57 @@ final class MobScanner {
         stats.addSource(source);
         stats.addArchetype(chunk.getArchetype().toString());
         for (int index = 0; index < chunk.size(); index++) {
-            stats.entities++;
+            int i = index;
             try {
-                Ref<EntityStore> ref = chunk.getReferenceTo(index);
-                if (ref == null || !ref.isValid()) {
-                    stats.invalidRefs++;
-                    continue;
+                Ref<EntityStore> ref = chunk.getReferenceTo(i);
+                boolean valid = ref != null && ref.isValid();
+                int refIndex = valid ? ref.getIndex() : -1;
+                boolean isPlayer = valid && chunk.getComponent(i, PlayerRef.getComponentType()) != null;
+                boolean notMob = valid && isDefinitelyNotMob(chunk, i);
+                TransformComponent transform = valid ? store.getComponent(ref, TransformComponent.getComponentType()) : null;
+                Vector3d position = transform == null ? null : transform.getPosition();
+                NPCEntity npc = (valid && transform != null) ? chunk.getComponent(i, NPCEntity.getComponentType()) : null;
+                Entity entity = (valid && transform != null) ? EntityUtils.getEntity(i, chunk) : null;
+                MobCandidate candidate = MobSelector.select(
+                        refIndex, valid, isPlayer, notMob, null, transform != null, position,
+                        playerPositions, MOB_RADAR_RADIUS_SQ,
+                        () -> safeMobType(chunk, i, npc, entity),
+                        stats, seenRefs,
+                        type -> buildChunkSnapshot(store, chunk, i, ref, npc, entity, transform, position, type, source, npcRoleIndex, stats));
+                if (candidate != null) {
+                    candidates.add(candidate);
                 }
-                if (seenRefs.contains(ref.getIndex())) {
-                    stats.duplicates++;
-                    continue;
-                }
-                if (chunk.getComponent(index, PlayerRef.getComponentType()) != null) {
-                    stats.skippedPlayers++;
-                    continue;
-                }
-                if (isDefinitelyNotMob(chunk, index)) {
-                    stats.skippedNonMobs++;
-                    continue;
-                }
-                TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
-                if (transform == null) {
-                    stats.noTransform++;
-                    continue;
-                }
-                Vector3d position = transform.getPosition();
-                if (position == null) {
-                    stats.noPosition++;
-                    continue;
-                }
-                double distanceSq = nearestDistanceSq(position, playerPositions);
-                if (distanceSq > MOB_RADAR_RADIUS_SQ) {
-                    stats.skippedOutsideRadar++;
-                    continue;
-                }
-                NPCEntity npc = chunk.getComponent(index, NPCEntity.getComponentType());
-                Entity entity = EntityUtils.getEntity(index, chunk);
-                String type = safeMobType(chunk, index, npc, entity);
-                if (isSpawnMarkerType(type)) {
-                    stats.addSkippedType(type);
-                    stats.skippedNonMobs++;
-                    continue;
-                }
-                seenRefs.add(ref.getIndex());
-                HealthSnapshot health = safeHealth(store, ref);
-                String roleName = safeNpcRoleName(npc);
-                String modelAsset = safeModelAssetId(chunk, index);
-                String persistentModelAsset = safePersistentModelAssetId(chunk, index);
-                NpcRoleIndex.Entry liveRole = liveNpcEntry(npcRoleIndex, type, roleName, modelAsset, persistentModelAsset);
-                if (liveRole != null) {
-                    stats.liveRoleMatches++;
-                }
-                String category = liveRole == null
-                        ? categoryForMob(type)
-                        : categoryForMob(type, liveRole.category());
-                candidates.add(new MobCandidate(distanceSq, new MobSnapshot(
-                        safeMobId(chunk, index, ref),
-                        type,
-                        safeMobRole(npc, entity, type),
-                        category,
-                        position.x,
-                        position.y,
-                        position.z,
-                        safeYaw(transform),
-                        colorForMob(type),
-                        source,
-                        roleName,
-                        safeNpcNameTranslationKey(npc),
-                        safeNpcTypeIndex(npc),
-                        safeNpcRoleIndex(npc),
-                        modelAsset,
-                        persistentModelAsset,
-                        liveRole == null ? null : liveRole.id(),
-                        liveRole == null ? null : liveRole.category(),
-                        liveRole == null ? null : liveRole.pathHint(),
-                        health.health(),
-                        health.maxHealth())));
-                stats.accepted++;
-                stats.addType(type);
             } catch (Exception ignored) {
                 // Individual NPC refs can unload while the ECS chunk is being copied.
                 stats.errors++;
             }
         }
+    }
+
+    private static MobSnapshot buildChunkSnapshot(@Nonnull Store<EntityStore> store,
+                                                  @Nonnull ArchetypeChunk<EntityStore> chunk, int index,
+                                                  @Nonnull Ref<EntityStore> ref, NPCEntity npc, Entity entity,
+                                                  @Nonnull TransformComponent transform, @Nonnull Vector3d position,
+                                                  @Nonnull String type, @Nonnull String source,
+                                                  @Nonnull NpcRoleIndex npcRoleIndex, @Nonnull MobScanStats stats) {
+        HealthSnapshot health = safeHealth(store, ref);
+        String roleName = safeNpcRoleName(npc);
+        String modelAsset = safeModelAssetId(chunk, index);
+        String persistentModelAsset = safePersistentModelAssetId(chunk, index);
+        NpcRoleIndex.Entry liveRole = liveNpcEntry(npcRoleIndex, type, roleName, modelAsset, persistentModelAsset);
+        if (liveRole != null) {
+            stats.liveRoleMatches++;
+        }
+        String category = liveRole == null ? categoryForMob(type) : categoryForMob(type, liveRole.category());
+        return new MobSnapshot(
+                safeMobId(chunk, index, ref), type, safeMobRole(npc, entity, type), category,
+                position.x, position.y, position.z, safeYaw(transform), colorForMob(type), source,
+                roleName, safeNpcNameTranslationKey(npc), safeNpcTypeIndex(npc), safeNpcRoleIndex(npc),
+                modelAsset, persistentModelAsset,
+                liveRole == null ? null : liveRole.id(),
+                liveRole == null ? null : liveRole.category(),
+                liveRole == null ? null : liveRole.pathHint(),
+                health.health(), health.maxHealth());
     }
 
     private static List<Vector3d> playerPositionsForMobRadar(@Nonnull World world) {
@@ -426,7 +353,7 @@ final class MobScanner {
                             @Nonnull MobScanStats stats, @Nonnull List<MobSnapshot> mobs) {
         long now = System.currentTimeMillis();
         long last = lastMobDebugLogMillis.get();
-        if (now - last < 10_000L) {
+        if (!MobSelector.dueForLog(now, last, 10_000L)) {
             return;
         }
         if (!lastMobDebugLogMillis.compareAndSet(last, now)) {
@@ -471,7 +398,7 @@ final class MobScanner {
                                              @Nonnull MobScanStats stats,
                                              @Nonnull List<MobSnapshot> mobs) {
         Integer previous = lastMobSamplePlayerCounts.put(world.getName(), players);
-        if (players <= 0 || (previous != null && previous >= players)) {
+        if (!MobSelector.shouldLogConnectSample(previous, players)) {
             return;
         }
         String nearest = mobs.stream()
@@ -515,7 +442,7 @@ final class MobScanner {
                     continue;
                 }
                 Vector3d position = transform.getPosition();
-                double distanceSq = nearestDistanceSq(position, playerPositions);
+                double distanceSq = MobSelector.nearestDistanceSq(position, playerPositions);
                 if (distanceSq > 120.0d * 120.0d) {
                     continue;
                 }
@@ -576,7 +503,7 @@ final class MobScanner {
                     Vector3d position = transform.getPosition();
                     double distanceSq = playerPositions.isEmpty()
                             ? 0.0d
-                            : nearestDistanceSq(position, playerPositions);
+                            : MobSelector.nearestDistanceSq(position, playerPositions);
                     Ref<EntityStore> ref = chunk.getReferenceTo(index);
                     NPCEntity npc = chunk.getComponent(index, NPCEntity.getComponentType());
                     Entity entity = EntityUtils.getEntity(index, chunk);
@@ -664,36 +591,12 @@ final class MobScanner {
                                          @Nonnull String type,
                                          @Nonnull List<Vector3d> playerPositions,
                                          double distanceSq) {
-        if (chunk.getComponent(index, PlayerRef.getComponentType()) != null) {
-            return "player";
-        }
-        String nonMobReason = nonMobReason(chunk, index);
-        if (nonMobReason != null) {
-            return "technical_" + nonMobReason;
-        }
-        if (isSpawnMarkerType(type)) {
-            return "technical_marker";
-        }
-        if (playerPositions.isEmpty()) {
-            return "no_player_anchor";
-        }
-        if (distanceSq > MOB_RADAR_RADIUS_SQ) {
-            return "outside_radar";
-        }
-        return "accepted";
-    }
-
-    private static double nearestDistanceSq(@Nonnull Vector3d position, @Nonnull List<Vector3d> playerPositions) {
-        double best = Double.MAX_VALUE;
-        for (Vector3d playerPosition : playerPositions) {
-            double dx = position.x - playerPosition.x;
-            double dy = position.y - playerPosition.y;
-            double dz = position.z - playerPosition.z;
-            double distanceSq = dx * dx + dy * dy + dz * dz;
-            if (distanceSq < best) {
-                best = distanceSq;
-            }
-        }
-        return best;
+        return MobSelector.debugReason(
+                chunk.getComponent(index, PlayerRef.getComponentType()) != null,
+                nonMobReason(chunk, index),
+                isSpawnMarkerType(type),
+                playerPositions.isEmpty(),
+                distanceSq,
+                MOB_RADAR_RADIUS_SQ);
     }
 }
