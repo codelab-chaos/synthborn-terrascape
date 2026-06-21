@@ -1,14 +1,17 @@
 package com.codelabchaos.terrascape.commands;
 
 import com.codelabchaos.terrascape.TerrascapePlugin;
+import com.codelabchaos.terrascape.access.AccessTokens;
 import com.codelabchaos.terrascape.terrain.GltfWriter;
 import com.codelabchaos.terrascape.terrain.TerrainMesh;
 import com.codelabchaos.terrascape.terrain.TerrainMesher;
 import com.codelabchaos.terrascape.terrain.TerrainSampler;
 import com.codelabchaos.terrascape.terrain.TerrainSnapshot;
 import com.codelabchaos.terrascape.web.TerrascapeWebServer;
+import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.Message;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractWorldCommand;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -23,6 +26,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.UUID;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -46,6 +50,7 @@ public class TerrascapeCommand extends AbstractWorldCommand {
             case "status" -> sendStatus(context);
             case "sample" -> handleSample(args, context, world);
             case "clearcache" -> handleClearCache(context, args.length >= 3 ? args[2].toLowerCase() : "all");
+            case "maplink", "maptoken" -> handleMapLink(context, store, subcommand.equals("maptoken"));
             default -> sendUsage(context);
         }
     }
@@ -200,8 +205,53 @@ public class TerrascapeCommand extends AbstractWorldCommand {
         return stats;
     }
 
+    private void handleMapLink(@Nonnull CommandContext context, @Nonnull Store<EntityStore> store, boolean tokenOnly) {
+        if (!context.isPlayer()) {
+            context.sendMessage(Message.raw("Run /terrascape maplink in-game as a player.").color(Color.YELLOW));
+            return;
+        }
+        Ref<EntityStore> playerEntity = context.senderAsPlayerRef();
+        if (playerEntity == null || !playerEntity.isValid()) {
+            context.sendMessage(Message.raw("Could not resolve your player.").color(Color.RED));
+            return;
+        }
+        PlayerRef sender = store.getComponent(playerEntity, PlayerRef.getComponentType());
+        if (sender == null || sender.getUuid() == null) {
+            context.sendMessage(Message.raw("Player has no UUID.").color(Color.RED));
+            return;
+        }
+        AccessTokens tokens = plugin.accessTokens();
+        if (tokens == null || plugin.config() == null) {
+            context.sendMessage(Message.raw("Access tokens unavailable.").color(Color.RED));
+            return;
+        }
+        Duration ttl = plugin.config().access().tokenTtl();
+        AccessTokens.MintResult result = tokens.mint(sender.getUuid(), ttl);
+        if (result.token() == null) {
+            long minutes = Math.max(1, (result.cooldownMs() + 59_999) / 60_000);
+            context.sendMessage(Message.raw("Please wait ~" + minutes + "m before generating another access link.").color(Color.YELLOW));
+            return;
+        }
+        Instant expires = Instant.now().plus(ttl);
+        context.sendMessage(Message.raw("=== Terrascape access ===").color(Color.CYAN));
+        context.sendMessage(Message.raw(tokenOnly ? result.token() : mapBaseUrl() + "/?key=" + result.token()).color(Color.GREEN));
+        context.sendMessage(Message.raw("Valid until " + expires + " (~" + ttl.toHours()
+                + "h). Bookmark it now - it will not be shown again.").color(Color.WHITE));
+        if (!plugin.config().access().restricted()) {
+            context.sendMessage(Message.raw("Note: access.mode is 'public', so a key is not required yet.").color(Color.YELLOW));
+        }
+    }
+
+    private String mapBaseUrl() {
+        String pub = plugin.config().access().publicBaseUrl();
+        if (pub != null && !pub.isBlank()) {
+            return pub.replaceAll("/+$", "");
+        }
+        return "http://" + plugin.config().http().host() + ":" + plugin.config().http().port();
+    }
+
     private static void sendUsage(@Nonnull CommandContext context) {
-        context.sendMessage(Message.raw("Usage: /terrascape status | /terrascape sample <chunkX> <chunkZ> | /terrascape clearcache [mesh|tiles|all]").color(Color.YELLOW));
+        context.sendMessage(Message.raw("Usage: /terrascape status | sample <chunkX> <chunkZ> | clearcache [mesh|tiles|all] | maplink | maptoken").color(Color.YELLOW));
     }
 
     private static Integer parseInt(@Nonnull String value) {
