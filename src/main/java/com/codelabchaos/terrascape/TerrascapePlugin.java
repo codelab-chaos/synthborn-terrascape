@@ -1,5 +1,6 @@
 package com.codelabchaos.terrascape;
 
+import com.codelabchaos.terrascape.access.AccessTokens;
 import com.codelabchaos.terrascape.commands.TerrascapeCommand;
 import com.codelabchaos.terrascape.config.TerrascapeConfig;
 import com.codelabchaos.terrascape.web.NpcRoleIndex;
@@ -18,6 +19,7 @@ public class TerrascapePlugin extends JavaPlugin {
 
     private Instant startedAt;
     private TerrascapeConfig config;
+    private AccessTokens accessTokens;
     private TerrascapeWebServer webServer;
     private NpcRoleIndex npcRoleIndex;
     private PlayerLookTracker playerLookTracker;
@@ -54,6 +56,10 @@ public class TerrascapePlugin extends JavaPlugin {
         return config;
     }
 
+    public AccessTokens accessTokens() {
+        return accessTokens;
+    }
+
     public NpcRoleIndex npcRoleIndex() {
         return npcRoleIndex;
     }
@@ -83,6 +89,7 @@ public class TerrascapePlugin extends JavaPlugin {
 
         try {
             config = TerrascapeConfig.load(getDataDirectory());
+            accessTokens = AccessTokens.load(getDataDirectory());
             getLogger().at(Level.INFO).log("Terrascape config loaded from " + config.configPath());
             webServer = new TerrascapeWebServer(this, config, npcRoleIndex);
             webServer.start();

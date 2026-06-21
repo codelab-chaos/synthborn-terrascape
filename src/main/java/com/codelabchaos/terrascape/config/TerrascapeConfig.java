@@ -24,7 +24,8 @@ public record TerrascapeConfig(
         @Nonnull Cache cache,
         @Nonnull Features features,
         @Nonnull MapView mapView,
-        @Nonnull Entities entities
+        @Nonnull Entities entities,
+        @Nonnull Access access
 ) {
     public static final String FILE_NAME = "terrascape.properties";
     public static final String DEFAULT_TERRAIN_FORMAT_VERSION = "v26";
@@ -97,7 +98,11 @@ public record TerrascapeConfig(
                 integer(properties, "entities.playerAvatarSize", null, 64, 16, 512),
                 bytes(properties, "entities.maxPlayerAvatarBytes", null, 512L * 1024L, 0, 10L * 1024L * 1024L),
                 durationSeconds(properties, "entities.playerAvatarCacheTtlSeconds", null, 12 * 60 * 60, 0, 30 * 24 * 60 * 60));
-        return new TerrascapeConfig(configPath.toAbsolutePath().normalize(), http, worlds, security, folders, mesh, cache, features, mapView, entities);
+        Access access = new Access(
+                string(properties, "access.mode", "TERRASCAPE_ACCESS_MODE", "public"),
+                Duration.ofHours(integer(properties, "access.tokenTtlHours", null, 24, 1, 8760)),
+                stringAllowBlank(properties, "access.publicBaseUrl", "TERRASCAPE_PUBLIC_URL", ""));
+        return new TerrascapeConfig(configPath.toAbsolutePath().normalize(), http, worlds, security, folders, mesh, cache, features, mapView, entities, access);
     }
 
     public static void writeDefaultFile(@Nonnull Path configPath) throws IOException {
@@ -158,6 +163,9 @@ public record TerrascapeConfig(
                 features.mobDebugEndpoint=false
                 features.entityStream=true
                 features.metricsEndpoint=true
+                access.mode=public
+                access.tokenTtlHours=24
+                access.publicBaseUrl=
 
                 # Map tiles
                 map.tileSize=32
@@ -377,5 +385,11 @@ public record TerrascapeConfig(
             long maxPlayerAvatarBytes,
             @Nonnull Duration playerAvatarCacheTtl
     ) {
+    }
+
+    public record Access(@Nonnull String mode, @Nonnull Duration tokenTtl, @Nonnull String publicBaseUrl) {
+        public boolean restricted() {
+            return "restricted".equalsIgnoreCase(mode);
+        }
     }
 }
