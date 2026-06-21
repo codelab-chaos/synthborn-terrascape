@@ -15,15 +15,7 @@
     "sourceMap": true
   },
   "include": [
-    "web-unit.test.ts",
-    "../src/main/resources/web/src/common/chunk-planning.ts",
-    "../src/main/resources/web/src/common/entity-feed-policy.ts",
-    "../src/main/resources/web/src/common/map-layer-policy.ts",
-    "../src/main/resources/web/src/common/resource-stats.ts",
-    "../src/main/resources/web/src/common/app-state.ts",
-    "../src/main/resources/web/src/common/terrain-requests.ts",
-    "../src/main/resources/web/src/common/terrain-stream.ts",
-    "../src/main/resources/web/src/common/view-preferences.ts",
-    "../src/main/resources/web/src/common/entity-summary.ts"
+    "web-unit/**/*.test.ts",
+    "../src/main/resources/web/src/common/*.ts"
   ]
 }
