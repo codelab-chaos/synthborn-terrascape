@@ -222,7 +222,7 @@ if (runReports.length === 2 && suiteConfig) {
 
 function runPlaywright({ runId, reportFile, scenariosPayload }) {
   const playwright = path.join(projectRoot, 'node_modules', '.bin', isWindows ? 'playwright.cmd' : 'playwright');
-  const playwrightArgs = ['test', 'tests/terrascape-perf.spec.js'];
+  const playwrightArgs = ['test', 'tests/e2e/terrascape-perf.spec.js'];
   if (options.headed) {
     playwrightArgs.push('--headed');
   }

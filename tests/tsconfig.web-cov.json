@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.web-unit.json",
+  "compilerOptions": {
+    "outDir": "../build/web-cov",
+    "noEmitOnError": false
+  },
+  "include": [
+    "web-unit/**/*.test.ts",
+    "../src/main/resources/web/src/**/*.ts"
+  ]
+}

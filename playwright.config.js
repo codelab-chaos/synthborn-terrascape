@@ -12,7 +12,7 @@ const { resolveTerrascapeUrl } = require(path.join(
 const baseURL = resolveTerrascapeUrl();
 
 module.exports = defineConfig({
-  testDir: './tests',
+  testDir: './tests/e2e',
   timeout: 60_000,
   expect: {
     timeout: 20_000,

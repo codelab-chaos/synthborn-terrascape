@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -23,6 +24,7 @@ public final class FakeHttpExchange extends HttpExchange {
     private final Headers requestHeaders = new Headers();
     private final Headers responseHeaders = new Headers();
     private final Map<String, Object> attributes = new HashMap<>();
+    private final ByteArrayOutputStream responseBody = new ByteArrayOutputStream();
     private int responseCode = -1;
 
     public FakeHttpExchange(String method, String uri) {
@@ -39,6 +41,11 @@ public final class FakeHttpExchange extends HttpExchange {
     /** The status code passed to {@link #sendResponseHeaders}, or -1 if none was sent. */
     public int sentResponseCode() {
         return responseCode;
+    }
+
+    /** Bytes written to the response body. */
+    public byte[] responseBytes() {
+        return responseBody.toByteArray();
     }
 
     @Override
@@ -92,7 +99,7 @@ public final class FakeHttpExchange extends HttpExchange {
 
     @Override
     public OutputStream getResponseBody() {
-        return OutputStream.nullOutputStream();
+        return responseBody;
     }
 
     @Override

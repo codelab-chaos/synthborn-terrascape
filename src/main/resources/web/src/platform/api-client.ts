@@ -11,7 +11,7 @@ export function onUnauthorized(handler) {
   unauthorizedHandler = handler;
 }
 
-export async function apiFetch(input, init) {
+export async function apiFetch(input, init?) {
   const response = await fetch(input, init);
   if (response.status === 401) {
     notifyUnauthorized();

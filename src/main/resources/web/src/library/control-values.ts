@@ -59,7 +59,8 @@ export function applySelectValue(
   if (!input) return false;
   const triStateValues = triStateValuesById[input.id];
   if (triStateValues) {
-    applyTriStateValue(input, value, triStateValues);
+    // Tri-state controls are always backed by a hidden <input>, never a <select>.
+    applyTriStateValue(input as HTMLInputElement, value, triStateValues);
     return true;
   }
   if (input.tagName === 'SELECT') {

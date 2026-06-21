@@ -5,10 +5,12 @@
   "scripts": {
     "build:web": "webpack --config webpack.config.cjs",
     "test": "npm run test:web",
-    "test:unit": "tsc -p tests/tsconfig.web-unit.json && node --test build/web-unit/tests/web-unit.test.js",
-    "test:unit:coverage": "tsc -p tests/tsconfig.web-unit.json && node --test --experimental-test-coverage --test-coverage-include=build/web-unit/src/main/resources/web/src/common/app-state.js --test-coverage-include=build/web-unit/src/main/resources/web/src/common/chunk-planning.js --test-coverage-include=build/web-unit/src/main/resources/web/src/common/entity-feed-policy.js --test-coverage-include=build/web-unit/src/main/resources/web/src/common/entity-summary.js --test-coverage-include=build/web-unit/src/main/resources/web/src/common/map-layer-policy.js --test-coverage-include=build/web-unit/src/main/resources/web/src/common/resource-stats.js --test-coverage-include=build/web-unit/src/main/resources/web/src/common/terrain-requests.js --test-coverage-include=build/web-unit/src/main/resources/web/src/common/terrain-stream.js --test-coverage-include=build/web-unit/src/main/resources/web/src/common/view-preferences.js --test-coverage-exclude=build/web-unit/tests/*.js build/web-unit/tests/web-unit.test.js",
-    "test:web": "npm run build:web && playwright test tests/terrascape.spec.js",
+    "test:unit": "tsc -p tests/tsconfig.web-unit.json && node --test \"build/web-unit/tests/web-unit/**/*.test.js\"",
+    "test:unit:coverage": "node tools/web-coverage.cjs",
+    "test:web": "npm run build:web && playwright test tests/e2e/terrascape.spec.js",
     "test:java": "sh gradlew test",
+    "coverage:java": "sh gradlew test jacocoTestReport && node tools/jacoco-jest-report.cjs",
+    "coverage": "npm run test:unit:coverage && npm run coverage:java",
     "test:release": "npm run test:java && npm run test:unit && npm run test:web",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
@@ -39,6 +41,7 @@
   "description": "",
   "devDependencies": {
     "@playwright/test": "^1.60.0",
+    "c8": "^11.0.0",
     "three": "^0.184.0",
     "ts-loader": "^9.6.0",
     "typescript": "^6.0.3",
