@@ -10,7 +10,7 @@ import {
   positionSkyObjects,
   createTreeShadeObject,
   updateTreeShadeObject,
-} from '../../../src/main/resources/web/src/scene/lighting.ts';
+} from '../../../web/src/scene/lighting.ts';
 
 const SKY_COLOR = 0x173454;
 

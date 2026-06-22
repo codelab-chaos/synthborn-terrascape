@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   bindAccessOverlay,
   showAccessRequired,
-} from '../../../src/main/resources/web/src/ui/access-overlay.ts';
+} from '../../../web/src/ui/access-overlay.ts';
 
 test('bindAccessOverlay wires the reload button and showAccessRequired reveals the overlay', () => {
   // Build the markup the module reaches for.

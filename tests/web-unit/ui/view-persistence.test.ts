@@ -10,18 +10,18 @@ import {
   restoreCameraPose,
   saveViewState,
   maybeSaveViewState,
-} from '../../../src/main/resources/web/src/ui/view-persistence.ts';
-import { VIEW_STATE_KEY } from '../../../src/main/resources/web/src/ui/view-state.ts';
+} from '../../../web/src/ui/view-persistence.ts';
+import { VIEW_STATE_KEY } from '../../../web/src/ui/view-state.ts';
 import {
   runtime,
   camera,
   controls,
-} from '../../../src/main/resources/web/src/scene/scene-context.ts';
+} from '../../../web/src/scene/scene-context.ts';
 import {
   infoCardEl,
   infoCardHeadEl,
   worldSelect,
-} from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/ui/dom.ts';
 
 function selectWorld(name: string) {
   worldSelect.replaceChildren();

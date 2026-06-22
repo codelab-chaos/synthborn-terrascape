@@ -62,8 +62,10 @@ tasks.register<Exec>("buildWeb") {
 }
 
 tasks.named<ProcessResources>("processResources") {
+    // The webpack bundle (web/dist/terrascape.js) is generated from the TypeScript sources
+    // under <repo>/web/src — which live outside src/main/resources — before resources are
+    // processed into the jar.
     dependsOn("buildWeb")
-    exclude("web/src/**")
 }
 
 tasks.register<Jar>("fatJar") {

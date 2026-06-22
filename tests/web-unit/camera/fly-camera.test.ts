@@ -11,13 +11,13 @@ import {
   isFlyLookActive,
   applyFlyLookDelta,
   handleKeyboardNavigation,
-} from '../../../src/main/resources/web/src/camera/fly-camera.ts';
+} from '../../../web/src/camera/fly-camera.ts';
 import {
   camera,
   controls,
   runtime,
   pressedKeys,
-} from '../../../src/main/resources/web/src/scene/scene-context.ts';
+} from '../../../web/src/scene/scene-context.ts';
 
 function resetRig() {
   runtime.viewPlayerUuid = null;

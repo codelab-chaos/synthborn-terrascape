@@ -7,8 +7,8 @@ import {
   setFogOptions,
   resizePostProcessing,
   renderPostProcessing,
-} from '../../../src/main/resources/web/src/scene/postprocessing.ts';
-import { renderer, scene, camera } from '../../../src/main/resources/web/src/scene/scene-context.ts';
+} from '../../../web/src/scene/postprocessing.ts';
+import { renderer, scene, camera } from '../../../web/src/scene/scene-context.ts';
 
 test('createPostProcessing wires composer, passes, and disables fog by default', () => {
   const post = createPostProcessing(renderer, scene, camera);

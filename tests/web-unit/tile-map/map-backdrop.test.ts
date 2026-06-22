@@ -17,8 +17,8 @@ import {
   setTileLoadConcurrency,
   tickMapTileMotion,
   updateMapBackdrop,
-} from '../../../src/main/resources/web/src/tile-map/map-backdrop.ts';
-import { flushClientLogs } from '../../../src/main/resources/web/src/platform/client-log.ts';
+} from '../../../web/src/tile-map/map-backdrop.ts';
+import { flushClientLogs } from '../../../web/src/platform/client-log.ts';
 
 // Failed-tile logging (logClientEvent) schedules a telemetry flush. Route that flush
 // through a no-op sendBeacon so it never falls back to a real fetch against

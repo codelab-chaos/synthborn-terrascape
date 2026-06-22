@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { startFrameLoop } from '../../../src/main/resources/web/src/scene/frame-loop.ts';
-import { postProcessing, controls } from '../../../src/main/resources/web/src/scene/scene-context.ts';
+import { startFrameLoop } from '../../../web/src/scene/frame-loop.ts';
+import { postProcessing, controls } from '../../../web/src/scene/scene-context.ts';
 
 // startFrameLoop only schedules `animate` via requestAnimationFrame. We capture the
 // scheduled callback (rather than letting it fire on a timer) so we can drive a single

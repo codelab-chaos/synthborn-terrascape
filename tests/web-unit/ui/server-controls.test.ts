@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { applyServerControls } from '../../../src/main/resources/web/src/ui/server-controls.ts';
+import { applyServerControls } from '../../../web/src/ui/server-controls.ts';
 import {
   autoStreamInput,
   mapTilesInput,
@@ -12,7 +12,7 @@ import {
   showPlayersInput,
   terrainLoadSlotsInput,
   terrainLoadSlotsValueInput,
-} from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/ui/dom.ts';
 
 test('applyServerControls is a no-op for undefined controls', () => {
   assert.doesNotThrow(() => applyServerControls(undefined));

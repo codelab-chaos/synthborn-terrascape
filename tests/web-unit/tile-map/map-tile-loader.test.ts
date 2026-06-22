@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { loadMapTilePng } from '../../../src/main/resources/web/src/tile-map/map-tile-loader.ts';
+import { loadMapTilePng } from '../../../web/src/tile-map/map-tile-loader.ts';
 
 function makeResponse({ ok = true, status = 200, bytes = new ArrayBuffer(16), cacheHeader = null } = {}) {
   return {

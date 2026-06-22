@@ -10,7 +10,7 @@ import {
   normalizePairedValue,
   setNumberInput,
   setPairedControlValue,
-} from '../../../src/main/resources/web/src/library/control-values.ts';
+} from '../../../web/src/library/control-values.ts';
 
 // The control helpers only read/write plain properties, so duck-typed objects stand in for the
 // real DOM input elements. (The addEventListener-based bind* helpers are DOM-bound → runtime tier.)

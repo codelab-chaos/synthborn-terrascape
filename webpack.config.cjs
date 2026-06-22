@@ -3,8 +3,10 @@ const webpack = require('webpack');
 const { execSync } = require('child_process');
 const manifest = require('./src/main/resources/manifest.json');
 
+// TypeScript sources live outside the packaged resources, under <repo>/web/src; the
+// bundle is emitted into the shippable resources tree (webRoot/dist/terrascape.js).
 const webRoot = path.resolve(__dirname, 'src/main/resources/web');
-const webSrc = path.join(webRoot, 'src');
+const webSrc = path.resolve(__dirname, 'web/src');
 
 function gitDescribe() {
   try {

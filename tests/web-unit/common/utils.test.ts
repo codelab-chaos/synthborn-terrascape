@@ -9,7 +9,7 @@ import {
   formatBytes,
   formatCoord,
   numberOr,
-} from '../../../src/main/resources/web/src/common/utils.ts';
+} from '../../../web/src/common/utils.ts';
 
 test('builds chunk and center identifiers', () => {
   assert.equal(chunkId('default', -2, 7), 'default:-2:7');

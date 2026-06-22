@@ -5,7 +5,7 @@ import {
   createFpsCounter,
   updateFpsCounter,
   positionFpsCounter,
-} from '../../../src/main/resources/web/src/ui/fps-counter.ts';
+} from '../../../web/src/ui/fps-counter.ts';
 
 function ensureReadoutEls() {
   for (const id of ['fps-value', 'fps-frame']) {

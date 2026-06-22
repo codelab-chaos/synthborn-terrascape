@@ -5,7 +5,7 @@ import {
   logClientEvent,
   logClientTiming,
   flushClientLogs,
-} from '../../../src/main/resources/web/src/platform/client-log.ts';
+} from '../../../web/src/platform/client-log.ts';
 
 // Helper that captures a single flush payload via sendBeacon, returning the parsed body.
 function withBeacon(run: () => void): any {

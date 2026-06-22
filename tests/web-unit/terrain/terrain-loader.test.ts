@@ -13,14 +13,14 @@ import {
   reloadTerrainForVisualOptions,
   scheduleControlGridLoad,
   updateDebugBounds,
-} from '../../../src/main/resources/web/src/terrain/terrain-loader.ts';
+} from '../../../web/src/terrain/terrain-loader.ts';
 import {
   disposalStats,
   loadedChunks,
   runtime,
   scene,
   chunkPlaceholderManager,
-} from '../../../src/main/resources/web/src/scene/scene-context.ts';
+} from '../../../web/src/scene/scene-context.ts';
 import {
   autoStreamInput,
   chunkXInput,
@@ -29,7 +29,7 @@ import {
   mapTilesInput,
   waterModeInput,
   worldSelect,
-} from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/ui/dom.ts';
 
 // --- helpers ----------------------------------------------------------------
 

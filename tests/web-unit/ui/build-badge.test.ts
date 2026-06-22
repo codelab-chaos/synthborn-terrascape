@@ -10,7 +10,7 @@ import test from 'node:test';
   time: '2026-06-21T15:04:00.000Z',
 };
 
-import { mountBuildBadge } from '../../../src/main/resources/web/src/ui/build-badge.ts';
+import { mountBuildBadge } from '../../../web/src/ui/build-badge.ts';
 
 test('mountBuildBadge appends a formatted badge and copies build info on click', () => {
   let copied: string | null = null;

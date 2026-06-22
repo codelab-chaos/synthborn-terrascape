@@ -4,9 +4,9 @@ import test from 'node:test';
 import {
   refreshWorldTime,
   restartWorldTimePolling,
-} from '../../../src/main/resources/web/src/entities/world-time-feed.ts';
-import { runtime } from '../../../src/main/resources/web/src/scene/scene-context.ts';
-import { worldSelect, mapTimeInput } from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/entities/world-time-feed.ts';
+import { runtime } from '../../../web/src/scene/scene-context.ts';
+import { worldSelect, mapTimeInput } from '../../../web/src/ui/dom.ts';
 
 // The failure paths call logClientEvent, which schedules a deferred telemetry flush
 // (navigator.sendBeacon / fetch to /api/client-log) that fires ~2s later and would

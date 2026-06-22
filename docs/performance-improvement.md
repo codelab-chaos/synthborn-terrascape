@@ -70,5 +70,5 @@ In `map-backdrop.ts`:
 
 ## Files changed
 
-- `src/main/resources/web/src/map-backdrop.ts`
-- `src/main/resources/web/src/app.ts` (`mapBackdropCenter`)
+- `web/src/map-backdrop.ts`
+- `web/src/app.ts` (`mapBackdropCenter`)

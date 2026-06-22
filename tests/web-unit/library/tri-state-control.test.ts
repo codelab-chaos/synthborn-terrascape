@@ -5,7 +5,7 @@ import {
   bindTriStateControl,
   setTriStateValue,
   applyTriStateValue,
-} from '../../../src/main/resources/web/src/library/tri-state-control.ts';
+} from '../../../web/src/library/tri-state-control.ts';
 
 const OPTIONS = [
   { value: 'low', label: 'Low' },

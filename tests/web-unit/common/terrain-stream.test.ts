@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   createTerrainStreamStats,
   terrainStreamSnapshot,
-} from '../../../src/main/resources/web/src/common/terrain-stream.ts';
+} from '../../../web/src/common/terrain-stream.ts';
 
 test('builds terrain stream telemetry snapshots', () => {
   const stats = createTerrainStreamStats('default', 10, -4, 2, 25, 3, 22, 1000);

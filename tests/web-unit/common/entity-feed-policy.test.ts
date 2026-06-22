@@ -8,7 +8,7 @@ import {
   positiveIntegerMs,
   wantsEntityStream,
   worldTimePollDelayMs,
-} from '../../../src/main/resources/web/src/common/entity-feed-policy.ts';
+} from '../../../web/src/common/entity-feed-policy.ts';
 
 test('computes entity feed polling policy', () => {
   assert.equal(positiveIntegerMs('250', 1000), 250);

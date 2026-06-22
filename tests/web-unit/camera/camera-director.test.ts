@@ -14,7 +14,7 @@ import {
   updateMobMarkers,
   updatePlayerCameraMode,
   playerCameraYawRad,
-} from '../../../src/main/resources/web/src/camera/camera-director.ts';
+} from '../../../web/src/camera/camera-director.ts';
 import {
   camera,
   controls,
@@ -23,8 +23,8 @@ import {
   playerEyeState,
   playerMarkers,
   mobMarkers,
-} from '../../../src/main/resources/web/src/scene/scene-context.ts';
-import { flushClientLogs } from '../../../src/main/resources/web/src/platform/client-log.ts';
+} from '../../../web/src/scene/scene-context.ts';
+import { flushClientLogs } from '../../../web/src/platform/client-log.ts';
 
 // Guard against any background polling fetch hitting the network and hanging the run.
 const originalFetch = globalThis.fetch;

@@ -9,12 +9,12 @@ import {
   applyFogSettings,
   updateMapDistanceFog,
   applyLighting,
-} from '../../../src/main/resources/web/src/scene/lighting-controls.ts';
+} from '../../../web/src/scene/lighting-controls.ts';
 import {
   scene,
   postProcessing,
   loadedChunks,
-} from '../../../src/main/resources/web/src/scene/scene-context.ts';
+} from '../../../web/src/scene/scene-context.ts';
 import {
   treeShadeInput,
   shadeSizeValueInput,
@@ -25,7 +25,7 @@ import {
   fogEnabledInput,
   fogStrengthValueInput,
   fogHorizonValueInput,
-} from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/ui/dom.ts';
 
 function seedFogInputs() {
   // terrainTuningControlValue clamps to [min, max] (defaults max=64 when absent), so

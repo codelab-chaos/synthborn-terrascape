@@ -1,6 +1,6 @@
 // Shared test environment for the web unit suite.
 //
-// The browser-facing TypeScript under src/main/resources/web/src reads `document`,
+// The browser-facing TypeScript under web/src reads `document`,
 // `window`, `location`, `localStorage`, requestAnimationFrame, etc. at module load
 // time, and the scene singletons in scene/scene-context.ts construct a
 // THREE.WebGLRenderer the moment they are imported. Node has none of this, so before
@@ -124,7 +124,7 @@ if (HTMLCanvasElement) {
 
 // --- Page scaffold -----------------------------------------------------------
 // Every element ui/dom.ts looks up, with the tag the code expects. Derived from the
-// querySelector list in src/main/resources/web/src/ui/dom.ts.
+// querySelector list in web/src/ui/dom.ts.
 const SCAFFOLD = [
   ['#scene', 'canvas'], ['#world', 'select'], ['#chunk-x', 'input'], ['#chunk-z', 'input'],
   ['#radius-range', 'input'], ['#radius', 'input'], ['#radius-diameter', 'div'],

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import {
   createMobBadge,
   updateMobBadge,
-} from '../../../src/main/resources/web/src/entities/mob-card.ts';
+} from '../../../web/src/entities/mob-card.ts';
 
 const color = new THREE.Color('#ff6f91');
 

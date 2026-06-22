@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { resizeViewport } from '../../../src/main/resources/web/src/scene/viewport.ts';
-import { camera } from '../../../src/main/resources/web/src/scene/scene-context.ts';
+import { resizeViewport } from '../../../web/src/scene/viewport.ts';
+import { camera } from '../../../web/src/scene/scene-context.ts';
 
 test('resizeViewport updates the camera aspect from the window size', () => {
   (window as any).innerWidth = 1024;

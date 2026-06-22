@@ -35,8 +35,8 @@ import {
   NOON_LIGHTING_TIME,
   FLY_MOUSE_BUTTONS,
   FOLLOW_MOUSE_BUTTONS,
-} from '../../../src/main/resources/web/src/scene/scene-context.ts';
-import { statusEl } from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/scene/scene-context.ts';
+import { statusEl } from '../../../web/src/ui/dom.ts';
 
 test('core singletons are constructed', () => {
   assert.ok(renderer);

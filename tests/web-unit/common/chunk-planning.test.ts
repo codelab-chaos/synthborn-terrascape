@@ -5,7 +5,7 @@ import {
   chunkDistanceSq,
   chunkKeysForWorld,
   sortChunkKeysByPlayerDistance,
-} from '../../../src/main/resources/web/src/common/chunk-planning.ts';
+} from '../../../web/src/common/chunk-planning.ts';
 
 test('plans chunk keys and player-distance ordering', () => {
   const keys = chunkKeysForWorld('default', 10, -4, 1);

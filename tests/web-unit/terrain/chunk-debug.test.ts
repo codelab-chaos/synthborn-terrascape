@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 
-import { createChunkDebug } from '../../../src/main/resources/web/src/terrain/chunk-debug.ts';
+import { createChunkDebug } from '../../../web/src/terrain/chunk-debug.ts';
 
 test('createChunkDebug builds a named group with bounds lines and a label', () => {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(10, 10, 10));

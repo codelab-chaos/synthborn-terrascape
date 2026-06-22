@@ -25,8 +25,8 @@ import {
   radiusValue,
   updateRadiusReadout,
   waterModeValue,
-} from '../../../src/main/resources/web/src/ui/control-readers.ts';
-import { runtime } from '../../../src/main/resources/web/src/scene/scene-context.ts';
+} from '../../../web/src/ui/control-readers.ts';
+import { runtime } from '../../../web/src/scene/scene-context.ts';
 import {
   cosmeticBlocksModeInput,
   landMotionInput,
@@ -38,7 +38,7 @@ import {
   terrainLoadSlotsValueInput,
   visualDetailModeInput,
   waterModeInput,
-} from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/ui/dom.ts';
 
 test('constant tables describe the tri-state controls', () => {
   assert.deepEqual(COSMETIC_MODE_VALUES, ['off', 'baked', 'split']);

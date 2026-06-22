@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { updateChunkPlaceholders } from '../../../src/main/resources/web/src/terrain/chunk-placeholder-sync.ts';
+import { updateChunkPlaceholders } from '../../../web/src/terrain/chunk-placeholder-sync.ts';
 import {
   chunkPlaceholderManager,
   loadedChunks,
   runtime,
-} from '../../../src/main/resources/web/src/scene/scene-context.ts';
-import { autoStreamInput, radiusInput, worldSelect } from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/scene/scene-context.ts';
+import { autoStreamInput, radiusInput, worldSelect } from '../../../web/src/ui/dom.ts';
 
 // happy-dom's <select> only accepts values backed by an <option>.
 function ensureWorldOption() {

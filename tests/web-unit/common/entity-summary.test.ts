@@ -6,7 +6,7 @@ import {
   compactObject,
   nearestMobsForSample,
   summarizeItems,
-} from '../../../src/main/resources/web/src/common/entity-summary.ts';
+} from '../../../web/src/common/entity-summary.ts';
 
 test('summarizes entity samples for telemetry', () => {
   const mobs = [

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createNpcCatalog } from '../../../src/main/resources/web/src/entities/npc-catalog.ts';
+import { createNpcCatalog } from '../../../web/src/entities/npc-catalog.ts';
 
 function makeCatalog() {
   const events: Array<{ name: string; payload: unknown }> = [];

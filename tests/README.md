@@ -7,7 +7,7 @@ in isolation.
 | Tier | What it covers | Location | Files | Runner |
 | --- | --- | --- | --- | --- |
 | **Java unit** | Server-side logic (config, access gate, tokens, CORS) | `src/test/java/…` (mirrors `src/main/java`) | `*Test.java` | JUnit 5 via Gradle |
-| **Web unit** | Pure browser logic with no DOM/three.js (the `common/` modules) | `tests/web-unit/…` (mirrors `src/main/resources/web/src`) | `*.test.ts` | `node:test` |
+| **Web unit** | Pure browser logic with no DOM/three.js (the `common/` modules) | `tests/web-unit/…` (mirrors `web/src`) | `*.test.ts` | `node:test` |
 | **E2E** | The running viewer in a real browser | `tests/e2e/` | `*.spec.js` | Playwright |
 
 ## Running
@@ -32,7 +32,7 @@ npm run test:release
 
 ## Conventions
 
-- **Mirror the source tree.** A test for `src/main/resources/web/src/common/utils.ts`
+- **Mirror the source tree.** A test for `web/src/common/utils.ts`
   lives at `tests/web-unit/common/utils.test.ts`; a test for
   `…/terrascape/access/AccessGate.java` lives at `…/test/java/…/access/AccessGateTest.java`.
   When you add the first test for a new area (e.g. `terrain/`), create the matching
@@ -47,7 +47,7 @@ npm run test:release
 
 ## Coverage notes
 
-- Web-unit coverage is scoped to `src/main/resources/web/src/common/*.js` — the pure,
+- Web-unit coverage is scoped to `web/src/common/*.js` — the pure,
   framework-free modules. DOM/three.js-coupled modules are intentionally exercised by the
   E2E tier instead of unit tests.
 - Java coverage is reported by JaCoCo (`./gradlew test` emits XML/CSV/HTML). The large
