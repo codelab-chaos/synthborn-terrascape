@@ -5,7 +5,7 @@
   "scripts": {
     "build:web": "webpack --config webpack.config.cjs",
     "test": "npm run test:web",
-    "test:unit": "tsc -p tests/tsconfig.web-unit.json && node --test \"build/web-unit/tests/web-unit/**/*.test.js\"",
+    "test:unit": "tsc -p tests/tsconfig.web-unit.json; node --import ./tests/web-unit-setup.mjs --test \"build/web-unit/tests/web-unit/**/*.test.js\"",
     "test:unit:coverage": "node tools/web-coverage.cjs",
     "test:web": "npm run build:web && playwright test tests/e2e/terrascape.spec.js",
     "test:java": "sh gradlew test",
@@ -42,6 +42,7 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "c8": "^11.0.0",
+    "happy-dom": "^20.10.6",
     "three": "^0.184.0",
     "ts-loader": "^9.6.0",
     "typescript": "^6.0.3",

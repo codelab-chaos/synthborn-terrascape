@@ -23,7 +23,7 @@ const result = spawnSync(npx, [
   // Keep c8's temp + report output under the already-ignored build/ dir.
   '--temp-directory=build/web-cov/.c8-tmp',
   '--reports-dir=build/web-cov/c8-report',
-  'node', '--test', 'build/web-cov/tests/web-unit/**/*.test.js',
+  'node', '--import', './tests/web-unit-setup.mjs', '--test', 'build/web-cov/tests/web-unit/**/*.test.js',
 ], { stdio: 'inherit' });
 
 process.exit(result.status ?? 1);
