@@ -1,5 +1,6 @@
 plugins {
     java
+    jacoco
 }
 
 group = "com.codelabchaos"
@@ -35,6 +36,20 @@ tasks.withType<JavaCompile>().configureEach {
 tasks.test {
     useJUnitPlatform()
     systemProperty("java.util.logging.manager", "com.hypixel.hytale.logger.backend.HytaleLogManager")
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+jacoco {
+    toolVersion = "0.8.13"
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        csv.required.set(true)
+        html.required.set(true)
+    }
 }
 
 val npmCommand = if (System.getProperty("os.name").lowercase().contains("windows")) "npm.cmd" else "npm"
@@ -47,8 +62,10 @@ tasks.register<Exec>("buildWeb") {
 }
 
 tasks.named<ProcessResources>("processResources") {
+    // The webpack bundle (web/dist/terrascape.js) is generated from the TypeScript sources
+    // under <repo>/web/src — which live outside src/main/resources — before resources are
+    // processed into the jar.
     dependsOn("buildWeb")
-    exclude("web/src/**")
 }
 
 tasks.register<Jar>("fatJar") {
