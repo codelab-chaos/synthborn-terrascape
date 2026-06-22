@@ -17,14 +17,16 @@ in isolation.
 ./gradlew test                # or: npm run test:java
 
 # Web unit
-npm run test:unit             # plain run
+npm run test:web              # plain run
 npm run test:unit:coverage    # with line/branch/function coverage
 
 # Both unit tiers with coverage in one shot
-npm run coverage
+npm run coverage              # or: npm run test:unit (alias)
 
-# E2E (needs a running Terrascape server; see playwright.config.js)
-npm run test:web
+# E2E / runtime (needs a running Terrascape server; see playwright.config.js)
+npm run testlive              # full suite
+npm run testlive:headed       # headed browser
+npm run testlive:ui           # Playwright UI mode
 
 # Everything (CI/release)
 npm run test:release
