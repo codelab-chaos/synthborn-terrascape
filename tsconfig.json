@@ -13,5 +13,5 @@
     "rewriteRelativeImportExtensions": true,
     "sourceMap": true
   },
-  "include": ["src/main/resources/web/src/**/*.ts"]
+  "include": ["web/src/**/*.ts"]
 }

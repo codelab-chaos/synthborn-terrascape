@@ -14,3 +14,6 @@ mods/SynthWorldview/src/main/resources/web/mob-icons/
 
 # macOS
 .DS_Store
+
+# Generated webpack bundle (built by `npm run build:web` / gradle buildWeb)
+src/main/resources/web/dist/

@@ -68,6 +68,26 @@ class CorsPolicyTest {
     }
 
     @Test
+    void preflightWithoutRequestedHeadersFallsBackToDefaults() {
+        // No Access-Control-Request-Headers header -> the ternary's false arm uses DEFAULT_ALLOWED_HEADERS (line 58).
+        FakeHttpExchange exchange = new FakeHttpExchange("OPTIONS", "/api/worlds").header("Origin", ORIGIN);
+        policy(true, ORIGIN).applyPreflight(exchange);
+        assertEquals("Authorization, Content-Type, X-Terrascape-Admin-Token",
+                exchange.getResponseHeaders().getFirst("Access-Control-Allow-Headers"));
+    }
+
+    @Test
+    void preflightWithBlankRequestedHeadersFallsBackToDefaults() {
+        // Present-but-blank requested headers also hits the default arm (line 58 condition !requested.isBlank()).
+        FakeHttpExchange exchange = new FakeHttpExchange("OPTIONS", "/api/worlds")
+                .header("Origin", ORIGIN)
+                .header("Access-Control-Request-Headers", "   ");
+        policy(true, ORIGIN).applyPreflight(exchange);
+        assertEquals("Authorization, Content-Type, X-Terrascape-Admin-Token",
+                exchange.getResponseHeaders().getFirst("Access-Control-Allow-Headers"));
+    }
+
+    @Test
     void preflightForUnlistedOriginAdvertisesNothing() {
         FakeHttpExchange exchange = new FakeHttpExchange("OPTIONS", "/api/worlds").header("Origin", "https://evil.example");
         policy(true, ORIGIN).applyPreflight(exchange);
