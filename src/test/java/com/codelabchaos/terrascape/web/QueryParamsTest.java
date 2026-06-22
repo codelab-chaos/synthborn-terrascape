@@ -64,6 +64,20 @@ class QueryParamsTest {
     }
 
     @Test
+    void queryFlagStringTreatsValuelessKeyAsTrue() {
+        // String overload, valueless key: rawKey = whole pair (line 33), value defaults to "true" (line 37).
+        assertTrue(QueryParams.queryFlag("flag", "flag"));
+        assertTrue(QueryParams.queryFlag("x=0&flag", "flag"));
+    }
+
+    @Test
+    void queryParamFromExchangeReturnsNullWhenNoQuery() {
+        // Exchange with no query string -> early null return (line 70).
+        FakeHttpExchange exchange = new FakeHttpExchange("GET", "/api/x");
+        assertNull(QueryParams.queryParam(exchange, "anything"));
+    }
+
+    @Test
     void safeNameReplacesUnsafeCharacters() {
         assertEquals("default_world", QueryParams.safeName("default world"));
         assertEquals("a.b-c_1", QueryParams.safeName("a.b-c_1"));
