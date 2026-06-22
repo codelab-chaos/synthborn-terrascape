@@ -7729,7 +7729,7 @@ function formatBuildTime(iso) {
     return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function mountBuildBadge() {
-    const info = {"version":"0.1.0","channel":"early access","sha":"b7d6598-dirty","time":"2026-06-22T04:18:51.721Z"};
+    const info = {"version":"0.1.0","channel":"early access","sha":"026853d-dirty","time":"2026-06-22T05:24:47.023Z"};
     const badge = document.createElement('div');
     badge.className = 'build-badge';
     badge.textContent = `v${info.version} [${info.channel}] · ${info.sha} · ${formatBuildTime(info.time)}`;

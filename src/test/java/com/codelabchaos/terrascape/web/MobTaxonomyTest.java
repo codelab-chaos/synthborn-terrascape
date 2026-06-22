@@ -85,4 +85,39 @@ class MobTaxonomyTest {
         assertNull(MobTaxonomy.labelFromAssetId("   "));
         assertNull(MobTaxonomy.labelFromAssetId("dir/.json"));
     }
+
+    @Test
+    void colorMapsRemainingCategories() {
+        // Cover the switch arms not hit elsewhere (lines 90-94): livestock, critter, flying, swimming, passive.
+        assertEquals("#ffd36a", MobTaxonomy.colorForMob("Cow"));      // livestock
+        assertEquals("#8ee58b", MobTaxonomy.colorForMob("Rabbit"));   // critter
+        assertEquals("#b8d8ff", MobTaxonomy.colorForMob("Raven"));    // flying
+        assertEquals("#62d4e7", MobTaxonomy.colorForMob("Shark"));    // swimming
+        assertEquals("#a7e06f", MobTaxonomy.colorForMob("Deer"));     // passive
+    }
+
+    @Test
+    void labelFromAssetIdEdgeCases() {
+        // Trailing namespace colon: colon is at the end, so colon+1 < length is false -> keep as-is.
+        assertEquals("Wolf:", MobTaxonomy.labelFromAssetId("Wolf:"));
+        // Trailing path slash: slash+1 < length is false -> path segment is not stripped.
+        assertEquals("dir/", MobTaxonomy.labelFromAssetId("dir/"));
+        // Namespace + path + extension combined are all stripped.
+        assertEquals("Bear", MobTaxonomy.labelFromAssetId("hytale:Common/NPC/Bear.json"));
+        // A bare ".json" (no name) normalizes to blank -> null.
+        assertNull(MobTaxonomy.labelFromAssetId(".json"));
+        // Empty string is blank -> null.
+        assertNull(MobTaxonomy.labelFromAssetId(""));
+    }
+
+    @Test
+    void liveCategoryUndeadAndElementalAreHostile() {
+        // The remaining hostile keywords in the live-category branch (line ~21).
+        assertEquals("hostile", MobTaxonomy.categoryForMob("Florbnak", "Undead"));
+        assertEquals("hostile", MobTaxonomy.categoryForMob("Florbnak", "Elemental"));
+        // "flying" keyword (not just "avian") in the live-category branch.
+        assertEquals("flying", MobTaxonomy.categoryForMob("Florbnak", "Flying"));
+        // "swimming" keyword (not just "fish").
+        assertEquals("swimming", MobTaxonomy.categoryForMob("Florbnak", "Swimming"));
+    }
 }

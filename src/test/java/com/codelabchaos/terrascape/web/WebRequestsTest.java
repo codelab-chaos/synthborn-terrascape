@@ -59,4 +59,33 @@ class WebRequestsTest {
         assertTrue(new BatchTerrainRequest("w", List.of(new ChunkCoord(0, 0)), "MAP").mapAsset());
         assertFalse(new BatchTerrainRequest("w", List.of(), "glb").mapAsset());
     }
+
+    @Test
+    void mapRegionGenerationExposesBytesAndCompletion() {
+        byte[] bytes = {7, 8};
+        MapRegionGeneration gen = new MapRegionGeneration(bytes, true);
+        assertEquals(bytes, gen.bytes());
+        assertTrue(gen.complete());
+        assertFalse(new MapRegionGeneration(new byte[0], false).complete());
+    }
+
+    @Test
+    void mapTileTerrainResultExposesPngAndSource() {
+        byte[] png = {1};
+        MapTileTerrainResult result = new MapTileTerrainResult(png, "disk");
+        assertEquals(png, result.png());
+        assertEquals("disk", result.source());
+    }
+
+    @Test
+    void batchMapTileResultCarriesTileOrError() {
+        MapTileTerrainResult tile = new MapTileTerrainResult(new byte[]{1}, "memory");
+        BatchMapTileResult ok = new BatchMapTileResult(2, 3, tile, null);
+        assertEquals(2, ok.chunkX());
+        assertEquals(3, ok.chunkZ());
+        assertEquals(tile, ok.tile());
+
+        BatchMapTileResult failed = new BatchMapTileResult(4, 5, null, "boom");
+        assertEquals("boom", failed.error());
+    }
 }

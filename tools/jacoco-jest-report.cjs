@@ -96,8 +96,39 @@ const f1 = (n) => n.toFixed(2).padStart(7);
 const sep = `${'-'.repeat(nameWidth)}|---------|----------|---------|---------|-------------------`;
 const header = `${'File'.padEnd(nameWidth)}| % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s`;
 
+// Truncate the uncovered-line list to the terminal width, exactly like the c8/istanbul TS
+// readout: keep the tail and prefix '...'. The fixed prefix (name + 4 pct columns + delimiters)
+// is `nameWidth + 44` chars, matching istanbul's own column math, so both tables clip
+// identically for a given terminal. Falls back to 80 cols when piped (as istanbul does).
+const MAX_COLS = process.stdout.columns || 80;
+function clampMissing(str) {
+  const width = MAX_COLS - (nameWidth + 44);
+  if (!str || width >= str.length) return str;
+  if (width <= 3) return '...'.slice(0, Math.max(0, width));
+  return `...${str.slice(str.length - (width - 3))}`;
+}
+
+// Watermark coloring, matching istanbul's text reporter: bold red < 50, bold yellow 50–80,
+// bold green >= 80 (default [50,80] watermarks). Cells are colored by their own metric; the
+// row name takes its statements class; uncovered lines are red. Only emit ANSI on a TTY (or
+// FORCE_COLOR), and honor NO_COLOR — same gating as c8/supports-color.
+const COLORS = { low: '31;1', medium: '33;1', high: '32;1' };
+const USE_COLOR = process.env.FORCE_COLOR
+  ? true
+  : !process.env.NO_COLOR && Boolean(process.stdout.isTTY);
+const classFor = (pct) => (pct < 50 ? 'low' : pct >= 80 ? 'high' : 'medium');
+const color = (str, clazz) =>
+  USE_COLOR && str && COLORS[clazz] ? `[${COLORS[clazz]}m${str}[0m` : str;
+
 const line = (label, m, uncovered = '') =>
-  `${label.padEnd(nameWidth)}|${f1(m.stmts)}  |${f1(m.branch)}   |${f1(m.funcs)}  |${f1(m.lines)}  | ${uncovered}`;
+  [
+    color(label.padEnd(nameWidth), classFor(m.stmts)),
+    `${color(f1(m.stmts), classFor(m.stmts))}  `,
+    `${color(f1(m.branch), classFor(m.branch))}   `,
+    `${color(f1(m.funcs), classFor(m.funcs))}  `,
+    `${color(f1(m.lines), classFor(m.lines))}  `,
+    ` ${color(clampMissing(uncovered), m.lines === 100 ? 'medium' : 'low')}`,
+  ].join('|');
 
 console.log(sep);
 console.log(header);
