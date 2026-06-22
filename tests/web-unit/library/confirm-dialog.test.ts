@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { confirmAction } from '../../../src/main/resources/web/src/library/confirm-dialog.ts';
+import { confirmAction } from '../../../web/src/library/confirm-dialog.ts';
 
 // The test scaffold does not inject the #confirm-dialog markup, so the module's
 // captured dialog elements are null and confirmAction falls back to window.confirm.

@@ -8,7 +8,7 @@ import {
   hideMapTile,
   setMapTileMatrix,
   syncMapTileCoverage,
-} from '../../../src/main/resources/web/src/tile-map/map-tile-instancer.ts';
+} from '../../../web/src/tile-map/map-tile-instancer.ts';
 
 const CHUNK_SIZE = 32;
 

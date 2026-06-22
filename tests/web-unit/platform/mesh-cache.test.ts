@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import * as meshCache from '../../../src/main/resources/web/src/platform/mesh-cache.ts';
+import * as meshCache from '../../../web/src/platform/mesh-cache.ts';
 
 // A minimal in-memory fake IndexedDB sufficient for mesh-cache.ts. Real browsers
 // and Node lack indexedDB here, so we install a fake on window/globalThis before the

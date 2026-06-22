@@ -7,7 +7,7 @@ import {
   mapBackdropRetainStats,
   mapTileLayerKey,
   parseCenterId,
-} from '../../../src/main/resources/web/src/common/map-layer-policy.ts';
+} from '../../../web/src/common/map-layer-policy.ts';
 
 test('computes map layer policy', () => {
   assert.deepEqual(parseCenterId('default:12:-4'), { chunkX: 12, chunkZ: -4 });

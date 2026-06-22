@@ -14,13 +14,13 @@ import {
   updateEntityVisibility,
   updateMobs,
   updatePlayers,
-} from '../../../src/main/resources/web/src/entities/entity-feed.ts';
+} from '../../../web/src/entities/entity-feed.ts';
 import {
   mobMarkers,
   playerMarkers,
   playerTiles,
   runtime,
-} from '../../../src/main/resources/web/src/scene/scene-context.ts';
+} from '../../../web/src/scene/scene-context.ts';
 import {
   mobUpdateRateInput,
   playerUpdateRateInput,
@@ -28,7 +28,7 @@ import {
   showMobsInput,
   showPlayersInput,
   worldSelect,
-} from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/ui/dom.ts';
 
 // logClientEvent (fired on count changes / refresh failures) schedules a deferred
 // telemetry flush that would surface as an unhandledRejection after a test ends.

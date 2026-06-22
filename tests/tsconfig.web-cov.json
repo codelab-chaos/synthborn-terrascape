@@ -6,6 +6,6 @@
   },
   "include": [
     "web-unit/**/*.test.ts",
-    "../src/main/resources/web/src/**/*.ts"
+    "../web/src/**/*.ts"
   ]
 }

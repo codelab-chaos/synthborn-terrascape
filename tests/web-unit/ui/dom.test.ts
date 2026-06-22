@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import * as dom from '../../../src/main/resources/web/src/ui/dom.ts';
+import * as dom from '../../../web/src/ui/dom.ts';
 
 test('dom module exports resolve every scaffold element (non-null)', () => {
   for (const [name, value] of Object.entries(dom)) {

@@ -5,19 +5,19 @@ import {
   collectResourceStats,
   updateMetrics,
   maybeUpdateMetrics,
-} from '../../../src/main/resources/web/src/ui/metrics.ts';
+} from '../../../web/src/ui/metrics.ts';
 import {
   loadedChunks,
   mobMarkers,
   runtime,
-} from '../../../src/main/resources/web/src/scene/scene-context.ts';
+} from '../../../web/src/scene/scene-context.ts';
 import {
   mapTilesInput,
   metricCenterEl,
   metricLoadedEl,
   metricMobsEl,
   showMobsInput,
-} from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/ui/dom.ts';
 
 test('collectResourceStats summarises the (empty) loaded chunk set', () => {
   loadedChunks.clear();

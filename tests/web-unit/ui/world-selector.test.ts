@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { loadWorlds } from '../../../src/main/resources/web/src/ui/world-selector.ts';
-import { runtime } from '../../../src/main/resources/web/src/scene/scene-context.ts';
-import { worldSelect, statusEl } from '../../../src/main/resources/web/src/ui/dom.ts';
+import { loadWorlds } from '../../../web/src/ui/world-selector.ts';
+import { runtime } from '../../../web/src/scene/scene-context.ts';
+import { worldSelect, statusEl } from '../../../web/src/ui/dom.ts';
 
 function stubFetch(payload: unknown) {
   const original = globalThis.fetch;

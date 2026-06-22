@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createFrameJankRecorder } from '../../../src/main/resources/web/src/scene/frame-jank.ts';
+import { createFrameJankRecorder } from '../../../web/src/scene/frame-jank.ts';
 
 test('createFrameJankRecorder tracks active load kind', () => {
   const rec = createFrameJankRecorder();

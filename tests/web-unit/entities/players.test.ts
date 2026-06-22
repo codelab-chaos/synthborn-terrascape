@@ -10,7 +10,7 @@ import {
   updateMobMarkerHeight,
   updatePlayerMarkerCard,
   updatePlayerMarkerCardHeight,
-} from '../../../src/main/resources/web/src/entities/players.ts';
+} from '../../../web/src/entities/players.ts';
 
 test('createPlayerMarker builds a group with avatar, pointer, and card', () => {
   const marker = createPlayerMarker({ uuid: 'u1', name: 'Alice', x: 1, y: 2, z: 3 });

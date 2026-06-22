@@ -9,7 +9,7 @@
 const { spawnSync } = require('node:child_process');
 
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-const src = 'build/web-cov/src/main/resources/web/src';
+const src = 'build/web-cov/web/src';
 
 spawnSync(npx, ['tsc', '-p', 'tests/tsconfig.web-cov.json'], { stdio: 'inherit' });
 

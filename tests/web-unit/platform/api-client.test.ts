@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { apiFetch, onUnauthorized } from '../../../src/main/resources/web/src/platform/api-client.ts';
+import { apiFetch, onUnauthorized } from '../../../web/src/platform/api-client.ts';
 
 test('apiFetch passes through the response and fires onUnauthorized once on 401', async () => {
   let nextStatus = 200;

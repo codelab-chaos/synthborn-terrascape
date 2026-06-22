@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { updateEmptyGrid } from '../../../src/main/resources/web/src/scene/empty-grid.ts';
-import { camera, grid } from '../../../src/main/resources/web/src/scene/scene-context.ts';
+import { updateEmptyGrid } from '../../../web/src/scene/empty-grid.ts';
+import { camera, grid } from '../../../web/src/scene/scene-context.ts';
 
 test('updateEmptyGrid snaps grid to a 32-unit lattice under the camera', () => {
   camera.position.set(70, 0, -40);

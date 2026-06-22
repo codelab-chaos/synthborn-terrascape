@@ -7,7 +7,7 @@ import {
   radiusReadout,
   safeWaterMode,
   terrainTuningControlValue,
-} from '../../../src/main/resources/web/src/common/view-preferences.ts';
+} from '../../../web/src/common/view-preferences.ts';
 
 test('normalizes view preference controls', () => {
   assert.equal(terrainTuningControlValue({ value: '99', min: '1', max: '12' }, 4), 12);

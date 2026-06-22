@@ -12,12 +12,12 @@ import {
   terrainUrl,
   writeCosmeticOverlayCache,
   writeTerrainChunkCache,
-} from '../../../src/main/resources/web/src/terrain/terrain-source.ts';
-import { runtime } from '../../../src/main/resources/web/src/scene/scene-context.ts';
+} from '../../../web/src/terrain/terrain-source.ts';
+import { runtime } from '../../../web/src/scene/scene-context.ts';
 import {
   cosmeticBlocksModeInput,
   visualDetailModeInput,
-} from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/ui/dom.ts';
 
 function withFetch(stub: typeof fetch, fn: () => Promise<void> | void) {
   const original = globalThis.fetch;

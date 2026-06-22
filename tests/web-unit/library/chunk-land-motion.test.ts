@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import {
   createChunkLandMotion,
   type ChunkLandEntry,
-} from '../../../src/main/resources/web/src/library/chunk-land-motion.ts';
+} from '../../../web/src/library/chunk-land-motion.ts';
 
 function makeEntry(overrides: Partial<ChunkLandEntry> = {}): ChunkLandEntry {
   return {

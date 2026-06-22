@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createTimeRibbon } from '../../../src/main/resources/web/src/ui/time-ribbon.ts';
+import { createTimeRibbon } from '../../../web/src/ui/time-ribbon.ts';
 
 function makeRibbon() {
   const labelEl: any = { value: '' };

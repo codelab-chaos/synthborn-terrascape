@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { AppRuntimeState } from '../../../src/main/resources/web/src/common/app-state.ts';
+import { AppRuntimeState } from '../../../web/src/common/app-state.ts';
 
 test('initializes app runtime state in one owned object', () => {
   const storedViewState = { world: 'default', radius: 3 };

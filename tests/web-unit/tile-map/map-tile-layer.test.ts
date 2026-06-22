@@ -7,9 +7,9 @@ import {
   mapBackdropCenter,
   syncMapTileLayer,
   updateMapTileLayer,
-} from '../../../src/main/resources/web/src/tile-map/map-tile-layer.ts';
-import { runtime, grid, loadedChunks, scene } from '../../../src/main/resources/web/src/scene/scene-context.ts';
-import { clearMapBackdrop, mapBackdropStats } from '../../../src/main/resources/web/src/tile-map/map-backdrop.ts';
+} from '../../../web/src/tile-map/map-tile-layer.ts';
+import { runtime, grid, loadedChunks, scene } from '../../../web/src/scene/scene-context.ts';
+import { clearMapBackdrop, mapBackdropStats } from '../../../web/src/tile-map/map-backdrop.ts';
 import {
   chunkXInput,
   chunkZInput,
@@ -17,7 +17,7 @@ import {
   worldSelect,
   mapTileRadiusValueInput,
   radiusInput,
-} from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/ui/dom.ts';
 
 // Telemetry flushes (failed tile logging) must not fall back to a real fetch.
 (globalThis.navigator as unknown as { sendBeacon: (...args: unknown[]) => boolean })

@@ -7,7 +7,7 @@ import {
   saveStoredViewState,
   vectorState,
   isVectorState,
-} from '../../../src/main/resources/web/src/ui/view-state.ts';
+} from '../../../web/src/ui/view-state.ts';
 
 const LEGACY_KEY = 'synthworldview.viewState.v1';
 

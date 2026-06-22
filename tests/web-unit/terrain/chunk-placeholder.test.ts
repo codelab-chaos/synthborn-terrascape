@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 
-import { createChunkPlaceholderManager } from '../../../src/main/resources/web/src/terrain/chunk-placeholder.ts';
+import { createChunkPlaceholderManager } from '../../../web/src/terrain/chunk-placeholder.ts';
 
 const CHUNK_SIZE = 32;
 const PLACEHOLDER_BASE_Y = 96;

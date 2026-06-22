@@ -6,7 +6,7 @@ import {
   terrainCosmeticOverlayCacheKeyFor,
   terrainCosmeticOverlayUrlFor,
   terrainUrlFor,
-} from '../../../src/main/resources/web/src/common/terrain-requests.ts';
+} from '../../../web/src/common/terrain-requests.ts';
 
 test('builds terrain request URLs and cache keys', () => {
   const bakedOptions = {

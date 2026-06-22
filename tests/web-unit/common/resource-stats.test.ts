@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   collectChunkResourceStats,
   disposeObjectTree,
-} from '../../../src/main/resources/web/src/common/resource-stats.ts';
+} from '../../../web/src/common/resource-stats.ts';
 
 test('collects and disposes object tree resources once', () => {
   const calls = { geometryA: 0, geometryB: 0, materialA: 0, materialB: 0, textureA: 0 };

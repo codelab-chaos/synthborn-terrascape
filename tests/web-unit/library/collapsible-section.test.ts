@@ -6,7 +6,7 @@ import {
   setHudSectionCollapsed,
   collapsedSectionState,
   applyCollapsedSectionState,
-} from '../../../src/main/resources/web/src/library/collapsible-section.ts';
+} from '../../../web/src/library/collapsible-section.ts';
 
 function makeSection(sectionId: string, collapsed = false) {
   const section = document.createElement('div');

@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { updateCoordinates } from '../../../src/main/resources/web/src/ui/coordinate-readout.ts';
-import { camera, controls } from '../../../src/main/resources/web/src/scene/scene-context.ts';
+import { updateCoordinates } from '../../../web/src/ui/coordinate-readout.ts';
+import { camera, controls } from '../../../web/src/scene/scene-context.ts';
 import {
   coordCameraEl,
   coordChunkEl,
   coordTargetEl,
   posValueEl,
-} from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/ui/dom.ts';
 
 test('updateCoordinates writes camera/target/chunk readouts from scene state', () => {
   camera.position.set(40, 122, -8);

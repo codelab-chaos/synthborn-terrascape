@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   createPlayerTile,
   updatePlayerTile,
-} from '../../../src/main/resources/web/src/entities/player-tiles.ts';
+} from '../../../web/src/entities/player-tiles.ts';
 
 function makeContext(overrides: Record<string, unknown> = {}) {
   return {

@@ -1,18 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { exposeDebugState } from '../../../src/main/resources/web/src/ui/debug-bridge.ts';
+import { exposeDebugState } from '../../../web/src/ui/debug-bridge.ts';
 import {
   runtime,
   camera,
   controls,
   loadedChunks,
   mobMarkers,
-} from '../../../src/main/resources/web/src/scene/scene-context.ts';
+} from '../../../web/src/scene/scene-context.ts';
 import {
   autoStreamInput,
   mapTimeInput,
-} from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/ui/dom.ts';
 
 function bridge(): any {
   exposeDebugState();

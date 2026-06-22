@@ -5,7 +5,7 @@ import {
   bindAppEvents,
   setSettingsPanelOpen,
   isTypingInHud,
-} from '../../../src/main/resources/web/src/ui/app-events.ts';
+} from '../../../web/src/ui/app-events.ts';
 import {
   chunkXInput,
   debugBoundsInput,
@@ -22,7 +22,7 @@ import {
   treeShadeInput,
   waterModeInput,
   worldSelect,
-} from '../../../src/main/resources/web/src/ui/dom.ts';
+} from '../../../web/src/ui/dom.ts';
 
 function makeBindings() {
   const calls: Record<string, number> = {};

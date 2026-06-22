@@ -9,7 +9,7 @@ import {
   updateWaterMaterials,
   resolveMapBackdropY,
   MAP_BACKDROP_Y,
-} from '../../../src/main/resources/web/src/scene/water.ts';
+} from '../../../web/src/scene/water.ts';
 
 function waterMesh(name = 'terrascape-water') {
   const mat = new THREE.MeshStandardMaterial({ color: 0x2266aa });
