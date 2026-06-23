@@ -67,6 +67,9 @@ function runCli(config, argv) {
       if (!opts.rconCommand) throw new Error("rcon requires a command after --");
       console.log(rconCommand(ctx, opts.rconCommand));
       break;
+    case "wipe":
+      wipe(ctx, opts);
+      break;
     default:
       usage(config, target);
       throw new Error(`Unknown command: ${command}`);
@@ -87,6 +90,7 @@ function usage(config, target) {
   node tools/deploy.js [--target ${target.id}] [--remote|--local] grep <pattern> [-n N]
   node tools/deploy.js [--target ${target.id}] [--remote|--local] newest
   node tools/deploy.js [--target ${target.id}] [--remote|--local] rcon -- <command>
+  node tools/deploy.js [--target ${target.id}] [--remote|--local] wipe [--yes] [--keep-data]
   node tools/deploy.js targets
 
 Targets: ${targetNames.join(", ")}
@@ -104,7 +108,7 @@ Config:
 }
 
 function parseArgs(argv) {
-  const commands = new Set(["build", "deploy", "restart", "start", "stop", "status", "list", "targets", "verify", "logs", "tail", "grep", "newest", "rcon"]);
+  const commands = new Set(["build", "deploy", "restart", "start", "stop", "status", "list", "targets", "verify", "logs", "tail", "grep", "newest", "rcon", "wipe"]);
   const opts = {
     command: null,
     target: null,
@@ -115,13 +119,15 @@ function parseArgs(argv) {
     wait: false,
     force: false,
     noVerify: false,
-    tolerateDown: true,
     skipRunningCheck: false,
     maxRamGB: null,
     minRamGB: null,
     lines: 80,
     pattern: null,
     rconCommand: null,
+    tolerateDown: true,
+    yes: false,
+    keepData: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -167,6 +173,13 @@ function parseArgs(argv) {
         break;
       case "--skip-running-check":
         opts.skipRunningCheck = true;
+        break;
+      case "--yes":
+      case "-y":
+        opts.yes = true;
+        break;
+      case "--keep-data":
+        opts.keepData = true;
         break;
       case "--max-ram":
         opts.maxRamGB = numberValue(argv, ++i, arg);
@@ -348,6 +361,88 @@ function artifactsFor(target) {
   ];
 }
 
+/** RCON is fail-closed: a token is required for the harness to enable/reach the endpoint. */
+function rconToken() {
+  const token = (process.env.SYNTH_RCON_TOKEN || "").trim();
+  if (!token) {
+    throw new Error("SYNTH_RCON_TOKEN is required — embedded RCON is fail-closed and will not start without a token. Set it in remote-host.env.");
+  }
+  return token;
+}
+
+/** Jar base names this target owns: current artifacts plus any configured legacy names. */
+function wipeNames(target, config) {
+  const current = artifactsFor(target).map((artifact) => artifact.jarBaseName);
+  const legacy = target.legacyArtifacts || config.legacyArtifacts || [];
+  return [...new Set([...current, ...legacy])].map(sanitizeName).filter(Boolean);
+}
+
+function sanitizeName(name) {
+  return String(name).replace(/[^A-Za-z0-9_.-]/g, "");
+}
+
+/**
+ * Removes this target's own mod jars (and their `<Group>_<Name>` data dirs) from the save's
+ * mods folder, leaving everything else (Hytale builtins, other mods) untouched. Opt-in and
+ * guarded: without --yes it only lists what would be removed.
+ */
+function wipe(ctx, opts) {
+  const names = wipeNames(ctx.target, ctx.root);
+  const group = sanitizeName(ctx.root.pluginGroup || "com.codelabchaos");
+  if (ctx.mode === "local") wipeLocal(ctx.target, names, group, opts);
+  else wipeRemote(ctx.target, names, group, opts);
+}
+
+function wipeLocal(target, names, group, opts) {
+  const modsDir = path.join(localSaveDir(target), "mods");
+  if (!fs.existsSync(modsDir)) {
+    console.log(`no mods dir at ${modsDir}`);
+    return;
+  }
+  const entries = new Set(fs.readdirSync(modsDir));
+  const removals = [];
+  for (const name of names) {
+    for (const entry of entries) {
+      if (entry === `${name}.jar` || (entry.startsWith(`${name}-`) && entry.endsWith(".jar"))) removals.push(entry);
+    }
+    if (!opts.keepData && entries.has(`${group}_${name}`)) removals.push(`${group}_${name}`);
+  }
+  const unique = [...new Set(removals)];
+  if (unique.length === 0) {
+    console.log(`nothing to wipe in ${modsDir} (looked for: ${names.join(", ")})`);
+    return;
+  }
+  console.log(`${opts.yes ? "Wiping" : "Would wipe"} in ${modsDir}:`);
+  unique.forEach((entry) => console.log(`  - ${entry}`));
+  if (!opts.yes) {
+    console.log("Re-run with --yes to delete (add --keep-data to preserve plugin data dirs).");
+    return;
+  }
+  for (const entry of unique) fs.rmSync(path.join(modsDir, entry), { recursive: true, force: true });
+  console.log(`wiped ${unique.length} item(s).`);
+}
+
+function wipeRemote(target, names, group, opts) {
+  requireRemoteConfig();
+  const modsDir = `${remoteSaveDir(target)}/mods`;
+  // Use `find` (not shell globs) so unmatched patterns don't error on the remote's zsh.
+  const parts = [`MODS=${remotePathForShell(modsDir)}`];
+  if (!opts.yes) parts.push('echo "Would wipe (pass --yes to delete):"');
+  for (const name of names) {
+    const jarFind = `find "$MODS" -maxdepth 1 \\( -name '${name}-*.jar' -o -name '${name}.jar' \\)`;
+    if (opts.yes) {
+      parts.push(`${jarFind} -exec rm -f {} +`);
+      if (!opts.keepData) parts.push(`rm -rf "$MODS/${group}_${name}"`);
+    } else {
+      parts.push(`${jarFind} -print`);
+      if (!opts.keepData) parts.push(`if [ -e "$MODS/${group}_${name}" ]; then echo "$MODS/${group}_${name}"; fi`);
+    }
+  }
+  if (opts.yes) parts.push('echo "remote wipe complete"');
+  sshRun(parts.join("; "));
+  if (!opts.yes) console.log("Re-run with --yes to delete (add --keep-data to preserve plugin data dirs).");
+}
+
 function buildAll(ctx) {
   const seen = new Set();
   for (const artifact of artifactsFor(ctx.target)) {
@@ -441,6 +536,7 @@ function startServer(ctx, opts = {}) {
 function startServerRemote(ctx, opts = {}) {
   const target = ctx.target;
   requireRemoteConfig();
+  const token = rconToken().replace(/'/g, "'\\''");
   const minRam = opts.minRamGB || target.minRamGB || 2;
   const maxRam = opts.maxRamGB || target.maxRamGB || 6;
   const install = remotePathForShell(process.env.HYTALE_REMOTE_INSTALL);
@@ -449,10 +545,12 @@ function startServerRemote(ctx, opts = {}) {
   const port = bindPort(target.bind);
   const skipCheck = opts.skipRunningCheck ? "true" : "false";
   const terrascapePort = target.terrascapeHttpPort ? ` -Dterrascape.http.port=${target.terrascapeHttpPort}` : "";
+  const rconFlags = `-Dterrascape.rcon.enabled=true -Dterrascape.rcon.host=0.0.0.0 -Dterrascape.rcon.port=${target.rconPort} -Dterrascape.rcon.allowRemote=true -Dterrascape.rcon.token="$RCON_TOKEN"`;
   const cmd = [
     `INSTALL=${install}`,
     `SAVE=${save}`,
     `BIND='${bind}'`,
+    `RCON_TOKEN='${token}'`,
     'JAVA="$INSTALL/jre/latest/Contents/Home/bin/java"',
     'if [ ! -x "$JAVA" ]; then JAVA="$INSTALL/jre/latest/bin/java"; fi',
     'JAR="$INSTALL/game/latest/Server/HytaleServer.jar"',
@@ -463,7 +561,7 @@ function startServerRemote(ctx, opts = {}) {
     port ? `if [ "${skipCheck}" != "true" ] && lsof -i UDP:${port} >/dev/null 2>&1; then echo "UDP port ${port} already in use"; exit 1; fi` : null,
     'mkdir -p "$SAVE/logs"',
     'cd "$SAVE"',
-    `nohup "$JAVA" -Xms${minRam}G -Xmx${maxRam}G -Dsynthrcon.host=0.0.0.0 -Dsynthrcon.port=${target.rconPort} -Dsynthrcon.allowRemote=true -Dterrascape.http.host=0.0.0.0${terrascapePort} -jar "$JAR" --assets "$ASSETS" --auth-mode authenticated --bind "$BIND" >>"$SAVE/logs/dev-server.out" 2>&1 & echo $! > "$SAVE/.dev-server.pid"`,
+    `nohup "$JAVA" -Xms${minRam}G -Xmx${maxRam}G ${rconFlags} -Dterrascape.http.host=0.0.0.0${terrascapePort} -jar "$JAR" --assets "$ASSETS" --auth-mode authenticated --bind "$BIND" >>"$SAVE/logs/dev-server.out" 2>&1 & echo $! > "$SAVE/.dev-server.pid"`,
     'echo "started detached pid=$(cat "$SAVE/.dev-server.pid")"',
   ].filter(Boolean).join(" && ");
   sshRun(cmd);
@@ -484,13 +582,16 @@ function startServerLocal(ctx, opts = {}) {
 
   const minRam = opts.minRamGB || target.minRamGB || 2;
   const maxRam = opts.maxRamGB || target.maxRamGB || 6;
+  const token = rconToken();
   const terrascapePort = target.terrascapeHttpPort ? `-Dterrascape.http.port=${target.terrascapeHttpPort}` : null;
   const args = [
     `-Xms${minRam}G`,
     `-Xmx${maxRam}G`,
-    "-Dsynthrcon.host=0.0.0.0",
-    `-Dsynthrcon.port=${target.rconPort}`,
-    "-Dsynthrcon.allowRemote=true",
+    "-Dterrascape.rcon.enabled=true",
+    "-Dterrascape.rcon.host=0.0.0.0",
+    `-Dterrascape.rcon.port=${target.rconPort}`,
+    "-Dterrascape.rcon.allowRemote=true",
+    `-Dterrascape.rcon.token=${token}`,
     "-Dterrascape.http.host=0.0.0.0",
     terrascapePort,
     "-jar",
