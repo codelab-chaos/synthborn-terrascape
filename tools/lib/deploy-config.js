@@ -28,15 +28,23 @@ module.exports = {
   repoRoot,
   rconDir: rcon.projectDir,
   defaultTarget: "default",
+  // Hytale names a plugin's data directory "<Group>_<Name>". Used by `wipe` to find the
+  // data dirs that belong to our mods (so it never touches Hytale's own builtins).
+  pluginGroup: "com.codelabchaos",
   targets: {
     default: {
       saveName: "synth-worldview-mvp",
       bind: "0.0.0.0:5521",
+      // Terrascape now hosts RCON itself (embedded), so SynthRCON is no longer deployed.
+      // rconPort matches Terrascape's own default (rcon.port=25578).
       rconPort: 25578,
       minRamGB: 2,
       maxRamGB: 6,
       verifyPattern: "Terrascape started",
-      artifacts: [rcon, terrascape],
+      artifacts: [terrascape],
+      // Jar base names that may linger on disk from previous installs but are no longer
+      // deployed — `wipe` cleans these (and their data dirs) alongside current artifacts.
+      legacyArtifacts: ["SynthRCON", "SynthWorldview"],
     },
     combined: {
       saveName: "synthborn-combined",

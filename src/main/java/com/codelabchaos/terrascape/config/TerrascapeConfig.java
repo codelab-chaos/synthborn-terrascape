@@ -26,7 +26,8 @@ public record TerrascapeConfig(
         @Nonnull MapView mapView,
         @Nonnull Entities entities,
         @Nonnull Access access,
-        @Nonnull Cors cors
+        @Nonnull Cors cors,
+        @Nonnull Rcon rcon
 ) {
     public static final String FILE_NAME = "terrascape.properties";
     public static final String DEFAULT_TERRAIN_FORMAT_VERSION = "v26";
@@ -106,7 +107,14 @@ public record TerrascapeConfig(
         Cors cors = new Cors(
                 bool(properties, "cors.enabled", "TERRASCAPE_CORS_ENABLED", false),
                 stringSet(properties, "cors.allowedOrigins", "TERRASCAPE_CORS_ORIGINS", Set.of()));
-        return new TerrascapeConfig(configPath.toAbsolutePath().normalize(), http, worlds, security, folders, mesh, cache, features, mapView, entities, access, cors);
+        Rcon rcon = new Rcon(
+                bool(properties, "rcon.enabled", "TERRASCAPE_RCON_ENABLED", false),
+                string(properties, "rcon.host", "TERRASCAPE_RCON_HOST", "127.0.0.1"),
+                integer(properties, "rcon.port", "TERRASCAPE_RCON_PORT", 25578, 1, 65535),
+                stringAllowBlank(properties, "rcon.token", "TERRASCAPE_RCON_TOKEN", ""),
+                bool(properties, "rcon.allowRemote", "TERRASCAPE_RCON_ALLOW_REMOTE", false),
+                bool(properties, "rcon.dangerPublic", "TERRASCAPE_RCON_DANGER_PUBLIC", false));
+        return new TerrascapeConfig(configPath.toAbsolutePath().normalize(), http, worlds, security, folders, mesh, cache, features, mapView, entities, access, cors, rcon);
     }
 
     public static void writeDefaultFile(@Nonnull Path configPath) throws IOException {
@@ -143,6 +151,22 @@ public record TerrascapeConfig(
                 # Use * to allow any origin (not recommended once credentials are involved).
                 cors.enabled=false
                 cors.allowedOrigins=
+
+                # RCON (remote command endpoint) - OFF by default.
+                # Opt-in HTTP/JSON endpoint that runs server commands. Security is fail-closed:
+                # when enabled, rcon.token is REQUIRED or the endpoint refuses to start. Every
+                # request must send the token as the X-SynthRCON-Token header. Bound to localhost
+                # unless rcon.allowRemote=true (which still requires a token). Each Synthborn mod
+                # uses its own default port; Terrascape's is 25578.
+                rcon.enabled=false
+                rcon.host=127.0.0.1
+                rcon.port=25578
+                rcon.token=
+                rcon.allowRemote=false
+                # DANGER: dev-only escape hatch. true runs RCON OPEN with NO authentication
+                # (the old behavior) when rcon.token is blank — anyone who can reach the port can
+                # run server commands. Only ever use on a trusted local machine. Leave false.
+                rcon.dangerPublic=false
 
                 # Folders
                 # Relative paths are resolved under this plugin's data folder.
@@ -411,5 +435,14 @@ public record TerrascapeConfig(
         public boolean allows(@Nonnull String origin) {
             return enabled && (allowedOrigins.contains("*") || allowedOrigins.contains(origin));
         }
+    }
+
+    /**
+     * Opt-in RCON command endpoint (off by default). Maps to the shared
+     * {@code com.codelabchaos.rcon} core; the security schema is enforced there.
+     * Terrascape's reserved default port is {@code 25578}.
+     */
+    public record Rcon(boolean enabled, @Nonnull String host, int port, @Nonnull String token, boolean allowRemote,
+                       boolean dangerPublic) {
     }
 }

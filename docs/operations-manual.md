@@ -85,20 +85,18 @@ This is for **Synthborn developers**, not mod installers — Terrascape installs
 standalone (above), and every installer-facing section of this manual assumes that.
 
 The repo ships a scripted deploy harness (`tools/deploy.js`) used to push to the
-Synthborn project's own servers for automated deployments. It deploys over SSH, drives
-restart/health through a companion **Synthborn RCON** mod (the `SynthRCON` jar/class),
-and can co-deploy other Synthborn addons via a `combined` target. **None of it is
-required to run Terrascape standalone.**
-The broader cross-addon setup will be covered in the forthcoming Synthborn integration
-docs.
+Synthborn project's own servers for automated deployments. It deploys over SSH and drives
+restart/start/stop/health through **Terrascape's own embedded RCON** (the `default`
+target no longer ships a separate RCON mod). It can also co-deploy other Synthborn addons
+via the `combined` target. **None of it is required to run Terrascape standalone.** The
+broader cross-addon setup will be covered in the forthcoming Synthborn integration docs.
 
-> **Requires the Synthborn RCON project.** The harness's restart/start/stop/health and
-> `rcon` commands all go through Synthborn RCON — it must be built and deployed alongside
-> Terrascape (it's listed as an artifact for every target). **Synthborn RCON is a
-> separate, internal project that is not currently available/published**, so this harness only
-> works inside the Synthborn development environment. Without it, use the standalone
-> install above and your server's own start/stop controls — the `deploy`/`build` jar
-> steps still work, but `restart`, `start`, `stop`, `status`, and `rcon` will not.
+> **The lifecycle commands need RCON enabled + a token.** `restart`/`start`/`stop`/
+> `status`/`rcon` go through the embedded RCON, which is fail-closed — so the harness
+> requires `SYNTH_RCON_TOKEN` to be set and passes it both to the server (it starts
+> Terrascape with `-Dterrascape.rcon.enabled=true … rcon.token=<token>`) and on every
+> request. The `build`, `deploy`, and `wipe` commands need no token. (The `combined`
+> target still uses the separate Synthborn RCON mod, which is internal/unpublished.)
 
 **First-time setup** — copy the example env file and fill it in:
 
@@ -111,10 +109,28 @@ cp remote-host.env.example remote-host.env   # repo root, gitignored
 | `HYTALE_REMOTE_SSH` *or* (`HYTALE_REMOTE_HOST` + `HYTALE_REMOTE_USER`) | SSH target (an alias from `~/.ssh/config`, or user@host) |
 | `HYTALE_REMOTE_SAVES` | Path to the Hytale `Saves` directory on the server |
 | `HYTALE_REMOTE_INSTALL` | Path to the Hytale install on the server |
+| `SYNTH_RCON_TOKEN` | **Required** RCON secret — the harness enables/reaches RCON with it |
 
-Optional: `SYNTH_RCON_HOST` (override RCON/health host), `SYNTH_RCON_TOKEN`
-(sent as `X-SynthRCON-Token` if Synthborn RCON requires auth), `HYTALE_LOCAL_SAVES` /
-`HYTALE_LOCAL_INSTALL` (for `--local` deploys).
+Optional: `SYNTH_RCON_HOST` (override RCON/health host), `HYTALE_LOCAL_SAVES` /
+`HYTALE_LOCAL_INSTALL` (for `--local` deploys; on WSL point `HYTALE_LOCAL_SAVES` at the
+Windows `…/Hytale/UserData/Saves` mount).
+
+**First install on a fresh server is manual** — there's no RCON to automate the very
+first transition (the harness stops a server *through* RCON, which the old/absent build
+doesn't have). Bring up a clean Terrascape install like this:
+
+```sh
+node tools/deploy.js wipe                 # dry run — lists what would be removed
+node tools/deploy.js wipe --yes           # remove old Synthborn jars + data dirs (keeps Hytale builtins)
+node tools/deploy.js deploy               # copy the new Terrascape jar (no RCON/token needed)
+# enable RCON: start the server once with rcon enabled + token (harness `start`, or by hand)
+node tools/deploy.js start                # starts with -Dterrascape.rcon.enabled + token
+```
+
+After that, RCON is up and the normal automated loop (`restart`/`status`/`rcon`) works.
+`wipe` only touches this repo's own jars and their `<Group>_<Name>` data dirs (current +
+legacy names from `deploy-config.js`); `--keep-data` preserves the data dirs, and `--yes`
+is required to actually delete. Add `--local` to operate on the local save instead of SSH.
 
 **Commands:**
 
@@ -127,6 +143,7 @@ Optional: `SYNTH_RCON_HOST` (override RCON/health host), `SYNTH_RCON_TOKEN`
 | Stop / start without redeploy | `node tools/deploy.js stop` / `start` |
 | Show newest deployed jar | `node tools/deploy.js newest` |
 | Send an RCON command | `node tools/deploy.js rcon -- terrascape clearcache` |
+| Wipe this repo's mods (clean install) | `node tools/deploy.js wipe [--yes] [--keep-data]` |
 | List configured targets | `node tools/deploy.js targets` |
 
 Useful flags: `--target <name>`, `--local` (skip SSH), `--max-ram N` / `--min-ram N`
@@ -264,9 +281,60 @@ config (`features.mobDebugEndpoint` defaults to `false`); when enabled, a caller
 authorized by **either** an `admin`-scoped token **or** the configured
 `security.adminToken`.
 
-> **Not shipped yet:** Terrascape intentionally has no browser console, log viewer, or
-> remote command executor — those wait until admin web auth is stronger than a shared
-> token.
+> **Not shipped yet:** there is no in-browser admin console or log viewer. Command
+> execution is available only through the opt-in RCON endpoint below (off by default);
+> an admin-key-gated web console is planned for later.
+
+---
+
+## RCON (optional command endpoint)
+
+RCON is an opt-in HTTP/JSON endpoint that runs server commands remotely. **It is hard
+off by default** (`rcon.enabled=false`) — installing Terrascape does not open it. It is
+disabled-and-fail-closed, so it never runs unauthenticated.
+
+**To enable it**, set both an enable flag and a token in `terrascape.properties`:
+
+```properties
+rcon.enabled=true
+rcon.token=<a long random secret>     # REQUIRED — see below
+```
+
+The security gate is fail-closed and identical across Synthborn mods:
+
+- **Token required when enabled** — if `rcon.enabled=true` and `rcon.token` is blank, the
+  endpoint **refuses to start** and logs an error. There is no unauthenticated mode.
+- **Every request needs the token**, sent as the `X-SynthRCON-Token` header, compared in
+  constant time.
+- **Localhost-only** by default (`rcon.host=127.0.0.1`); non-loopback callers are rejected
+  unless `rcon.allowRemote=true`, which still requires the token.
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `rcon.enabled` | `false` | Master switch — off until explicitly enabled |
+| `rcon.host` | `127.0.0.1` | Bind address (localhost unless exposing) |
+| `rcon.port` | `25578` | Terrascape's reserved RCON port (each mod uses its own) |
+| `rcon.token` | _(blank)_ | Shared secret; **required** when enabled (unless `dangerPublic`) |
+| `rcon.allowRemote` | `false` | Permit non-loopback callers (token still required) |
+| `rcon.dangerPublic` | `false` | **Dev-only.** Allow an open, tokenless endpoint — see below |
+
+Each key also has a `TERRASCAPE_RCON_*` env override (e.g. `TERRASCAPE_RCON_TOKEN`).
+
+> **`rcon.dangerPublic` — open dev mode.** Setting it `true` lets RCON start with a blank
+> token, running fully **open with no authentication** (the old behavior). Anyone who can
+> reach the port can run server commands as the server. The endpoint logs a loud warning on
+> startup. Only ever use it on a trusted local machine; never combine it with
+> `rcon.allowRemote` on an exposed host.
+
+**Wire contract** (stable across mods, so one mod can call another's port):
+
+- `GET /health` → `{"ok":true,"service":"Terrascape"}`
+- `POST /command` with `{"command":"<cmd>"}` and header `X-SynthRCON-Token: <token>` →
+  `{"ok":true,"command":"…","messages":[…]}`
+
+> RCON runs commands with full server authority — treat the token like a root password,
+> keep the endpoint on localhost or behind a trusted network, and never expose the port
+> publicly. (A future admin-key-gated web console will offer a safer in-browser path.)
 
 ---
 
@@ -308,6 +376,7 @@ Key groups (see the generated file's comments for the full list and defaults):
 | `access.*` | View gating | `access.mode` (`public`), `access.tokenTtlHours` (`24`), `access.publicBaseUrl` |
 | `security.*` | Ops auth | `security.adminToken` |
 | `cors.*` | Cross-origin | `cors.enabled` (`false`), `cors.allowedOrigins` |
+| `rcon.*` | Command endpoint (opt-in) | `rcon.enabled` (`false`), `rcon.port` (`25578`), `rcon.token` — see [RCON](#rcon-optional-command-endpoint) |
 | `worlds.*` | Visibility | `worlds.allowlist` |
 | `features.*` | Endpoint toggles | `entityStream`, `playerAvatars`, `clientTelemetry`, `metricsEndpoint`, `mobDebugEndpoint` (`false`), `experimentalDetails` |
 | `map.*` | Map tiles | `map.tileSize` (`32`), `map.generateRadius` (`20`), `map.maxRegionRadius` (`108`) |
@@ -325,39 +394,40 @@ Client-facing display toggles live in a separate `server-config.json` (data dir)
 
 After installing the Terrascape jar and starting the server once, the save folder
 looks like this. The jar lives in `<save>/mods/`; Terrascape's runtime files live in
-its plugin data directory, which the Hytale server resolves under the save's mod area
-(shown here as `mods/terrascape/`).
+its plugin data directory, which the Hytale server names `<Group>_<Name>` from the
+manifest — for Terrascape that is `com.codelabchaos_Terrascape`.
 
 ```
 <Hytale Saves>/
 └── <your-save>/
-    ├── logs/                           # server logs
+    ├── logs/                                # server logs
     ├── mods/
-    │   ├── Terrascape-<version>.jar     # the Terrascape plugin
-    │   └── terrascape/                  # ── Terrascape plugin data directory ──
-    │       ├── terrascape.properties    # config (created on first run)
-    │       ├── server-config.json       # client display toggles
-    │       ├── access-tokens.json       # hashed map tokens + HMAC secret
-    │       ├── terrain/                 # cached terrain mesh GLBs
-    │       ├── map-region/              # cached map-region PNGs
-    │       ├── samples/                 # /terrascape sample output
-    │       ├── player-avatars/          # cached player skin PNGs
-    │       └── mob-icons/               # cached/lazy-loaded mob icons
-    └── …                                # Hytale's own save data (world, region files)
+    │   ├── Terrascape-<version>.jar          # the Terrascape plugin
+    │   └── com.codelabchaos_Terrascape/      # ── Terrascape plugin data directory ──
+    │       ├── terrascape.properties         # config (created on first run)
+    │       ├── server-config.json            # client display toggles
+    │       ├── access-tokens.json            # hashed map tokens + HMAC secret
+    │       ├── terrain/                      # cached terrain mesh GLBs
+    │       ├── map-region/                   # cached map-region PNGs
+    │       ├── map-tile/                     # cached map-tile PNGs
+    │       ├── samples/                      # /terrascape sample output
+    │       ├── player-avatars/               # cached player skin PNGs
+    │       └── mob-icons/                    # cached/lazy-loaded mob icons
+    └── …                                     # Hytale's own save data (world, region files)
 ```
 
 Notes:
-- This assumes Terrascape is the only mod installed. If you run other mods, their jars
-  and data folders sit alongside Terrascape's under `mods/` and don't affect it.
+- This assumes Terrascape is the only mod installed. Other mods (including Hytale's own
+  builtins like `Hytale_HytaleGenerator`) sit alongside under `mods/` and don't affect it.
 - The folder names under the data dir are configurable via the `folders.*` keys —
   the tree shows the defaults (`terrain`, `map-region`, `samples`,
-  `player-avatars`, `mob-icons`). Map tiles are cached in memory only (not on disk).
+  `player-avatars`, `mob-icons`).
 - `access-tokens.json` holds only HMAC hashes + a secret key; it is safe against
   token recovery but should still not be world-readable.
 - The cache directories are safe to delete when the server is stopped (or cleared
   live with `/terrascape clearcache` in-game); they rebuild on demand.
-- Exact parent path of the plugin data directory is assigned by the Hytale server
-  runtime — confirm it from the startup log line `Terrascape config loaded from …`.
+- The data directory name is derived from the manifest `Group`/`Name`; confirm the
+  resolved path from the startup log line `Terrascape config loaded from …`.
 
 ---
 
