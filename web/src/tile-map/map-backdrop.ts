@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { logClientEvent } from '../platform/client-log.ts';
 import { loadMapTilePng } from './map-tile-loader.ts';
 import { makeMapTileCacheKey, readMapTileCache, writeMapTileCache } from '../platform/mesh-cache.ts';
+import { mapTileLightingTint } from '../scene/lighting.ts';
 import { MAP_BACKDROP_Y } from '../scene/water.ts';
 import { chunkId } from '../common/utils.ts';
 
@@ -70,6 +71,7 @@ const pendingRise: RisingTile[] = [];
 const activeRise = new Map<string, RisingTile>();
 const desiredTileLoads = new Map<string, TileLoadRequest>();
 const inFlightTileLoads = new Map<string, { request: TileLoadRequest; promise: Promise<TileLoadResult> }>();
+const activeTileTint = new THREE.Color(0xffffff);
 let loadGeneration = 0;
 let tileLoadGeneration = 0;
 let tileLoadWorker: Promise<void> | null = null;
@@ -155,6 +157,7 @@ function createTileMesh(texture: THREE.Texture, chunkX: number, chunkZ: number) 
   geometry.rotateX(-Math.PI / 2);
   const material = new THREE.MeshBasicMaterial({
     map: texture,
+    color: activeTileTint,
     transparent: true,
     opacity: 0.98,
     depthTest: true,
@@ -166,11 +169,29 @@ function createTileMesh(texture: THREE.Texture, chunkX: number, chunkZ: number) 
     fog: true,
     toneMapped: false,
   });
+  material.userData.terrascapeMapTile = true;
   const mesh = new THREE.Mesh(geometry, material);
   applyTileHeight(mesh, chunkX, chunkZ);
   mesh.name = `map-tile:${chunkX}:${chunkZ}`;
   mesh.renderOrder = 0;
   return mesh;
+}
+
+export function updateMapBackdropLighting(options) {
+  activeTileTint.copy(mapTileLightingTint(options));
+  for (const entry of loadedTiles.values()) {
+    applyTileMaterialTint(entry.mesh.material, activeTileTint);
+  }
+}
+
+function applyTileMaterialTint(material: THREE.Material | THREE.Material[], tint: THREE.Color) {
+  const materials = Array.isArray(material) ? material : [material];
+  for (const mat of materials) {
+    const maybeColored = mat as THREE.Material & { color?: THREE.Color };
+    if (!maybeColored?.color) continue;
+    maybeColored.color.copy(tint);
+    maybeColored.needsUpdate = true;
+  }
 }
 
 function disposeTileEntry(entry: MapTileEntry) {

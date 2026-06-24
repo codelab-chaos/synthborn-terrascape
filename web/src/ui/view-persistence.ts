@@ -59,6 +59,8 @@ import {
   shadeDarknessValueInput,
   shadeSizeInput,
   shadeSizeValueInput,
+  serverCardEl,
+  serverCardHeadEl,
   showMobsInput,
   showPlayersInput,
   terrainLoadSlotsInput,
@@ -83,11 +85,23 @@ export function setRenderDetailsOpen(open) {
   const isOpen = open === true;
   infoCardEl.classList.toggle('collapsed', !isOpen);
   infoCardHeadEl.setAttribute('aria-expanded', String(isOpen));
-  infoCardHeadEl.title = isOpen ? 'Hide render details' : 'Show render details';
+  infoCardHeadEl.setAttribute('title', isOpen ? 'Hide render details' : 'Show render details');
 }
 
 export function toggleRenderDetails() {
   setRenderDetailsOpen(infoCardEl.classList.contains('collapsed'));
+  saveViewState();
+}
+
+export function setServerDetailsOpen(open) {
+  const isOpen = open === true;
+  serverCardEl.classList.toggle('collapsed', !isOpen);
+  serverCardHeadEl.setAttribute('aria-expanded', String(isOpen));
+  serverCardHeadEl.setAttribute('title', isOpen ? 'Hide server details' : 'Show server details');
+}
+
+export function toggleServerDetails() {
+  setServerDetailsOpen(serverCardEl.classList.contains('collapsed'));
   saveViewState();
 }
 
@@ -160,6 +174,7 @@ function applyStoredInputs() {
   }
   if (typeof runtime.storedViewState.landMotion === 'boolean') landMotionInput.checked = runtime.storedViewState.landMotion;
   if (typeof runtime.storedViewState.renderDetails === 'boolean') setRenderDetailsOpen(runtime.storedViewState.renderDetails);
+  if (typeof runtime.storedViewState.serverDetails === 'boolean') setServerDetailsOpen(runtime.storedViewState.serverDetails);
   if (typeof runtime.storedViewState.settingsOpen === 'boolean') setSettingsPanelOpen(runtime.storedViewState.settingsOpen);
   applyCollapsedSectionState(runtime.storedViewState.sections);
   setPairedControlValue(terrainLoadSlotsInput, terrainLoadSlotsValueInput, runtime.storedViewState.terrainLoadSlots);
@@ -271,6 +286,7 @@ export function saveViewState() {
     mobs: showMobsInput.checked,
     mobBlocks: mobBlocksEnabled(),
     renderDetails: !infoCardEl.classList.contains('collapsed'),
+    serverDetails: !serverCardEl.classList.contains('collapsed'),
     settingsOpen: hudEl.classList.contains('open'),
     sections: collapsedSectionState(),
     shade: treeShadeInput.checked,

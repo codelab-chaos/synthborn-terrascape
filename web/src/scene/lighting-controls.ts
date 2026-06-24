@@ -4,6 +4,7 @@ import {
   lightingOptionsFromInputs,
   updateTreeShadeObject,
 } from './lighting.ts';
+import { updateMapBackdropLighting } from '../tile-map/map-backdrop.ts';
 import { fogRangeFromControls } from '../common/view-preferences.ts';
 import { setFogOptions } from './postprocessing.ts';
 import {
@@ -67,6 +68,7 @@ export function updateMapDistanceFog() {
 export function applyLighting() {
   const options = currentLightingOptions();
   applyLightingEnvironment(scene, renderer, lightingRig, options);
+  updateMapBackdropLighting(options);
   applyFogSettings();
   for (const entry of loadedChunks.values()) {
     applyLightingToObject(entry.object, options);

@@ -7,8 +7,10 @@ import {
   lightingOptionsFromInputs,
   applyLightingEnvironment,
   applyLightingToObject,
+  mapTileLightingTint,
   positionSkyObjects,
   createTreeShadeObject,
+  terrainLightingTint,
   updateTreeShadeObject,
 } from '../../../web/src/scene/lighting.ts';
 
@@ -182,6 +184,22 @@ test('applyLightingToObject tints terrain meshes and skips shade/water', () => {
   assert.equal(terrain.material.roughness, 0.88);
   assert.equal(waterMat.roughness, 0.38);
   assert.equal(terrain.material.metalness, 0);
+});
+
+test('lighting tint helpers darken map tiles more strongly than lit terrain at night', () => {
+  const noonTile = mapTileLightingTint({ sun: true, time: { dayProgress: 0.5 } });
+  assert.equal(noonTile.r, 1);
+  assert.equal(noonTile.g, 1);
+  assert.equal(noonTile.b, 1);
+
+  const nightTerrain = terrainLightingTint({ sun: true, time: { dayProgress: 0.0 } });
+  const nightTile = mapTileLightingTint({ sun: true, time: { dayProgress: 0.0 } });
+  assert.ok(nightTerrain.r > nightTile.r);
+  assert.ok(nightTerrain.g > nightTile.g);
+  assert.ok(nightTerrain.b > nightTile.b);
+  assert.ok(nightTile.r < 0.2);
+  assert.ok(nightTile.g < 0.25);
+  assert.ok(nightTile.b < 0.2);
 });
 
 // Builds a chunk that looks like detail (tree) meshes so cluster collection yields shades.

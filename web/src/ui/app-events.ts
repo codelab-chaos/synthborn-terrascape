@@ -33,6 +33,7 @@ import {
   mobUpdateRateInput,
   radiusInput,
   radiusRangeInput,
+  serverCardHeadEl,
   shadeDarknessInput,
   shadeDarknessValueInput,
   shadeSizeInput,
@@ -95,6 +96,7 @@ type AppEventBindings = {
   shouldStartFlyLook: (event: PointerEvent) => boolean;
   syncMobBlocksInputs: (checked: boolean) => void;
   toggleRenderDetails: () => void;
+  toggleServerDetails: () => void;
   updateDebugBounds: () => void;
   updateEntityVisibility: () => void;
   updateMapTileLayer: () => void;
@@ -253,10 +255,21 @@ function bindHudInputs(bindings: AppEventBindings) {
   });
   infoCardHeadEl.addEventListener('click', bindings.toggleRenderDetails);
   infoCardHeadEl.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
+    if (!isActivationKey(event)) return;
     event.preventDefault();
     bindings.toggleRenderDetails();
   });
+  serverCardHeadEl.addEventListener('click', bindings.toggleServerDetails);
+  serverCardHeadEl.addEventListener('keydown', (event) => {
+    if (!isActivationKey(event)) return;
+    event.preventDefault();
+    bindings.toggleServerDetails();
+  });
+}
+
+function isActivationKey(event: Event) {
+  const key = (event as KeyboardEvent).key;
+  return key === 'Enter' || key === ' ';
 }
 
 function bindTriStateControls(onSectionToggle?: () => void) {

@@ -148,7 +148,11 @@ const SCAFFOLD = [
   ['#metric-meshes', 'div'], ['#metric-resources', 'div'], ['#metric-gpu', 'div'],
   ['#metric-disposed', 'div'], ['#metric-mobs', 'div'], ['#metric-center', 'div'],
   ['#coord-target', 'div'], ['#coord-chunk', 'div'], ['#coord-camera', 'div'],
-  ['#pos-value', 'div'], ['#players', 'div'], ['.info-card', 'div'], ['#info-card-head', 'div'],
+  ['#pos-value', 'div'], ['#players', 'div'], ['.server-card', 'div'], ['#server-card-head', 'div'],
+  ['#server-cpu-value', 'div'], ['#server-memory-value', 'div'], ['#server-detail-cpu', 'div'],
+  ['#server-detail-host-cpu', 'div'], ['#server-detail-memory', 'div'],
+  ['#server-detail-host-memory', 'div'], ['#server-detail-threads', 'div'],
+  ['#server-detail-updated', 'div'], ['.info-card', 'div'], ['#info-card-head', 'div'],
 ];
 
 for (const [selector, tag] of SCAFFOLD) {

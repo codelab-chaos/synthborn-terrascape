@@ -55,11 +55,14 @@ import {
   restoreCameraPose,
   saveViewState,
   setRenderDetailsOpen,
+  setServerDetailsOpen,
   toggleRenderDetails,
+  toggleServerDetails,
 } from './ui/view-persistence.ts';
 import { exposeDebugState } from './ui/debug-bridge.ts';
 import { mountBuildBadge } from './ui/build-badge.ts';
 import { loadWorlds } from './ui/world-selector.ts';
+import { startServerDetailsFeed } from './ui/server-details.ts';
 import { resizeViewport } from './scene/viewport.ts';
 import { startFrameLoop } from './scene/frame-loop.ts';
 
@@ -88,6 +91,7 @@ if (initialParams.has('key')) {
 }
 
 setRenderDetailsOpen(!runtime.storedViewState || runtime.storedViewState.renderDetails !== false);
+setServerDetailsOpen(runtime.storedViewState?.serverDetails === true);
 bindAppEvents({
   renderer,
   pressedKeys,
@@ -112,6 +116,7 @@ bindAppEvents({
   shouldStartFlyLook,
   syncMobBlocksInputs,
   toggleRenderDetails,
+  toggleServerDetails,
   updateDebugBounds,
   updateEntityVisibility,
   updateMapTileLayer,
@@ -128,6 +133,7 @@ exposeDebugState();
 mountBuildBadge();
 resizeViewport();
 timeRibbon.update(runtime.worldTime);
+startServerDetailsFeed();
 startFrameLoop();
 await loadWorlds();
 await npcCatalog.load();
