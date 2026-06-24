@@ -262,32 +262,55 @@
     </label>
     <div id="players" class="players">No players</div>
   </aside>
-  <div class="info-card">
-    <div id="info-card-head" class="info-card-head" role="button" tabindex="0" aria-expanded="true">
-      <span class="info-card-title">Render Details</span>
-      <span class="pos-readout" aria-label="Camera position">
-        <span class="pos-label">POS</span>
-        <span id="pos-value">[0, 0, 0]</span>
-      </span>
-      <span class="fps-readout" aria-label="Frames per second">
-        <span class="fps-label">FPS</span>
-        <span id="fps-value">0</span>
-        <span id="fps-frame" class="fps-ms">0.0 ms</span>
-      </span>
+  <div class="bottom-left-stack">
+    <div class="server-card collapsed">
+      <div id="server-card-head" class="info-card-head" role="button" tabindex="0" aria-expanded="false" title="Show server details">
+        <span class="info-card-title">Server Details</span>
+        <span class="server-readout" aria-label="Server CPU">
+          <span class="server-label">CPU</span>
+          <span id="server-cpu-value">--</span>
+        </span>
+        <span class="server-readout" aria-label="Server memory">
+          <span class="server-label">MEM</span>
+          <span id="server-memory-value">--</span>
+        </span>
+      </div>
+      <dl class="info-grid server-grid">
+        <dt>CPU</dt><dd id="server-detail-cpu">pending</dd>
+        <dt>Host CPU</dt><dd id="server-detail-host-cpu">pending</dd>
+        <dt>Heap</dt><dd id="server-detail-memory">pending</dd>
+        <dt>Host RAM</dt><dd id="server-detail-host-memory">pending</dd>
+        <dt>Threads</dt><dd id="server-detail-threads">pending</dd>
+        <dt>Updated</dt><dd id="server-detail-updated">pending</dd>
+      </dl>
     </div>
-    <dl class="info-grid">
-      <dt>Status</dt><dd id="status">Starting</dd>
-      <dt>Loaded</dt><dd id="metric-loaded">0 chunks</dd>
-      <dt>Meshes</dt><dd id="metric-meshes">0</dd>
-      <dt>Resources</dt><dd id="metric-resources">0 geo · 0 mat · 0 tex</dd>
-      <dt>GPU</dt><dd id="metric-gpu">0 geo · 0 tex</dd>
-      <dt>Disposed</dt><dd id="metric-disposed">0c · 0g · 0m · 0t</dd>
-      <dt>Mobs</dt><dd id="metric-mobs">0</dd>
-      <dt>Center</dt><dd id="metric-center">pending</dd>
-      <dt>Target</dt><dd id="coord-target">—</dd>
-      <dt>Chunk</dt><dd id="coord-chunk">—</dd>
-      <dt>Camera</dt><dd id="coord-camera">—</dd>
-    </dl>
+    <div class="info-card">
+      <div id="info-card-head" class="info-card-head" role="button" tabindex="0" aria-expanded="true">
+        <span class="info-card-title">Render Details</span>
+        <span class="pos-readout" aria-label="Camera position">
+          <span class="pos-label">POS</span>
+          <span id="pos-value">[0, 0, 0]</span>
+        </span>
+        <span class="fps-readout" aria-label="Frames per second">
+          <span class="fps-label">FPS</span>
+          <span id="fps-value">0</span>
+          <span id="fps-frame" class="fps-ms">0.0 ms</span>
+        </span>
+      </div>
+      <dl class="info-grid">
+        <dt>Status</dt><dd id="status">Starting</dd>
+        <dt>Loaded</dt><dd id="metric-loaded">0 chunks</dd>
+        <dt>Meshes</dt><dd id="metric-meshes">0</dd>
+        <dt>Resources</dt><dd id="metric-resources">0 geo · 0 mat · 0 tex</dd>
+        <dt>GPU</dt><dd id="metric-gpu">0 geo · 0 tex</dd>
+        <dt>Disposed</dt><dd id="metric-disposed">0c · 0g · 0m · 0t</dd>
+        <dt>Mobs</dt><dd id="metric-mobs">0</dd>
+        <dt>Center</dt><dd id="metric-center">pending</dd>
+        <dt>Target</dt><dd id="coord-target">—</dd>
+        <dt>Chunk</dt><dd id="coord-chunk">—</dd>
+        <dt>Camera</dt><dd id="coord-camera">—</dd>
+      </dl>
+    </div>
   </div>
   <div id="access-overlay" class="access-overlay" hidden>
     <div class="access-overlay-card">

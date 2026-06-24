@@ -504,6 +504,8 @@ public final class TerrascapeWebServer {
                 + ",\"processCpuLoad\":" + os.getProcessCpuLoad()
                 + ",\"systemCpuLoad\":" + os.getCpuLoad()
                 + ",\"availableProcessors\":" + os.getAvailableProcessors()
+                + ",\"freeMemoryBytes\":" + os.getFreeMemorySize()
+                + ",\"totalMemoryBytes\":" + os.getTotalMemorySize()
                 + ",\"heapUsedBytes\":" + heap.getUsed()
                 + ",\"heapMaxBytes\":" + heap.getMax()
                 + ",\"heapCommittedBytes\":" + heap.getCommitted()
