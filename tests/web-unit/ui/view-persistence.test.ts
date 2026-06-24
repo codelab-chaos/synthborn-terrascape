@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import {
   setRenderDetailsOpen,
+  setServerDetailsOpen,
   toggleRenderDetails,
+  toggleServerDetails,
   applyInitialParams,
   applyStoredWorld,
   applyInitialWorldParam,
@@ -20,6 +22,8 @@ import {
 import {
   infoCardEl,
   infoCardHeadEl,
+  serverCardEl,
+  serverCardHeadEl,
   worldSelect,
 } from '../../../web/src/ui/dom.ts';
 
@@ -36,12 +40,12 @@ test('setRenderDetailsOpen toggles the collapsed class and aria/title', () => {
   setRenderDetailsOpen(true);
   assert.ok(!infoCardEl.classList.contains('collapsed'));
   assert.equal(infoCardHeadEl.getAttribute('aria-expanded'), 'true');
-  assert.equal(infoCardHeadEl.title, 'Hide render details');
+  assert.equal(infoCardHeadEl.getAttribute('title'), 'Hide render details');
 
   setRenderDetailsOpen(false);
   assert.ok(infoCardEl.classList.contains('collapsed'));
   assert.equal(infoCardHeadEl.getAttribute('aria-expanded'), 'false');
-  assert.equal(infoCardHeadEl.title, 'Show render details');
+  assert.equal(infoCardHeadEl.getAttribute('title'), 'Show render details');
 });
 
 test('toggleRenderDetails flips the collapsed state', () => {
@@ -53,6 +57,18 @@ test('toggleRenderDetails flips the collapsed state', () => {
   assert.ok(!infoCardEl.classList.contains('collapsed'));
   toggleRenderDetails();
   assert.ok(infoCardEl.classList.contains('collapsed'));
+});
+
+test('server details open state mirrors render details behavior', () => {
+  runtime.hasStarted = false;
+  setServerDetailsOpen(true);
+  assert.ok(!serverCardEl.classList.contains('collapsed'));
+  assert.equal(serverCardHeadEl.getAttribute('aria-expanded'), 'true');
+  assert.equal(serverCardHeadEl.getAttribute('title'), 'Hide server details');
+
+  toggleServerDetails();
+  assert.ok(serverCardEl.classList.contains('collapsed'));
+  assert.equal(serverCardHeadEl.getAttribute('title'), 'Show server details');
 });
 
 test('applyInitialParams runs the full input bootstrap without storedViewState', () => {
@@ -78,6 +94,7 @@ test('applyInitialParams applies a stored view state snapshot', () => {
     visualDetailMode: 'structures',
     landMotion: false,
     renderDetails: true,
+    serverDetails: true,
     settingsOpen: false,
     sections: {},
     terrainLoadSlots: 5,

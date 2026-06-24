@@ -15,5 +15,7 @@ test('dom exports point at the expected ids/classes', () => {
   assert.equal(dom.radiusInput.id, 'radius');
   assert.equal(dom.statusEl.id, 'status');
   assert.ok(dom.hudEl.classList.contains('hud'));
+  assert.ok(dom.serverCardEl.classList.contains('server-card'));
+  assert.equal(dom.serverCardHeadEl.id, 'server-card-head');
   assert.ok(dom.infoCardEl.classList.contains('info-card'));
 });

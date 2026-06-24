@@ -8,6 +8,7 @@ import {
   hideMapTile,
   setMapTileMatrix,
   syncMapTileCoverage,
+  updateMapTileLayerLighting,
 } from '../../../web/src/tile-map/map-tile-instancer.ts';
 
 const CHUNK_SIZE = 32;
@@ -61,10 +62,24 @@ test('createMapTileLayer builds a 3x3 grid of cells indexed by chunk key', () =>
   assert.ok(material.uniforms.map.value instanceof THREE.Texture);
   assert.equal(material.uniforms.textureMinX.value, -64);
   assert.equal(material.uniforms.textureWorldSize.value, 256);
+  assert.equal(material.uniforms.lightingTint.value.r, 1);
+  assert.equal(material.uniforms.lightingTint.value.g, 1);
+  assert.equal(material.uniforms.lightingTint.value.b, 1);
   assert.equal(material.transparent, true);
   assert.equal(material.depthWrite, false);
   assert.equal((material.uniforms.map.value as THREE.Texture).colorSpace, THREE.SRGBColorSpace);
   assert.equal((material.uniforms.map.value as THREE.Texture).anisotropy, 4); // min(4, 16)
+  disposeMapTileLayer(layer);
+});
+
+test('updateMapTileLayerLighting darkens instanced image tiles at night', () => {
+  const layer = buildLayer({ displayRadius: 0 });
+  const material = layer.mesh.material as THREE.ShaderMaterial;
+  updateMapTileLayerLighting(layer, { sun: true, time: { dayProgress: 0.0 } });
+  const tint = material.uniforms.lightingTint.value as THREE.Color;
+  assert.ok(tint.r < 0.2);
+  assert.ok(tint.g < 0.25);
+  assert.ok(tint.b < 0.2);
   disposeMapTileLayer(layer);
 });
 

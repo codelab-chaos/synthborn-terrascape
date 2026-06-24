@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mapTileLightingTint } from '../scene/lighting.ts';
 
 const CHUNK_SIZE = 32;
 
@@ -45,6 +46,7 @@ function createMapTileMaterial(
       textureMinX: { value: textureMinX },
       textureMinZ: { value: textureMinZ },
       textureWorldSize: { value: textureWorldSize },
+      lightingTint: { value: new THREE.Color(0xffffff) },
       opacity: { value: 0.98 },
     },
     vertexShader: `
@@ -63,6 +65,7 @@ function createMapTileMaterial(
     `,
     fragmentShader: `
       uniform sampler2D map;
+      uniform vec3 lightingTint;
       uniform float opacity;
       varying vec2 vMapUv;
       void main() {
@@ -70,7 +73,7 @@ function createMapTileMaterial(
           discard;
         }
         vec4 color = texture2D(map, vMapUv);
-        gl_FragColor = vec4(color.rgb, color.a * opacity);
+        gl_FragColor = vec4(color.rgb * lightingTint, color.a * opacity);
       }
     `,
     transparent: true,
@@ -83,6 +86,16 @@ function createMapTileMaterial(
     fog: false,
     toneMapped: false,
   });
+}
+
+export function updateMapTileLayerLighting(layer: MapTileLayer | null, options) {
+  if (!layer) return;
+  const material = layer.mesh.material as THREE.ShaderMaterial;
+  const tint = material.uniforms.lightingTint?.value;
+  if (tint?.copy) {
+    tint.copy(mapTileLightingTint(options));
+    material.needsUpdate = true;
+  }
 }
 
 function chunkKey(chunkX: number, chunkZ: number) {

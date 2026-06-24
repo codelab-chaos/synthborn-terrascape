@@ -109,6 +109,23 @@ export function applyLightingEnvironment(scene, renderer, rig, options) {
   renderer.setClearColor(scene.background, 1);
 }
 
+export function terrainLightingTint(options) {
+  const time = normalizeTime(options?.time);
+  const daylight = options?.sun === false ? 0.78 : visualDaylight(time.dayProgress);
+  const nightGrade = THREE.MathUtils.clamp((0.72 - daylight) / 0.72, 0, 1);
+  return DAY_TERRAIN_TINT.clone().lerp(NIGHT_TERRAIN_TINT, nightGrade * 0.55);
+}
+
+export function mapTileLightingTint(options) {
+  const time = normalizeTime(options?.time);
+  const daylight = options?.sun === false ? 0.78 : visualDaylight(time.dayProgress);
+  const dawn = dawnAmount(time.dayProgress);
+  const lightLevel = options?.sun === false
+    ? 1
+    : THREE.MathUtils.clamp(THREE.MathUtils.lerp(0.24, 1, daylight) + dawn * 0.08, 0.24, 1);
+  return terrainLightingTint(options).multiplyScalar(lightLevel);
+}
+
 function normalizeFogRange(range, daylight) {
   const fallbackNear = THREE.MathUtils.lerp(1100, 1500, daylight);
   const fallbackFar = THREE.MathUtils.lerp(3600, 5200, daylight);
@@ -449,10 +466,7 @@ function readRange(input, fallback) {
 }
 
 function applyMaterialLightResponse(mesh, options) {
-  const time = normalizeTime(options.time);
-  const daylight = visualDaylight(time.dayProgress);
-  const nightGrade = THREE.MathUtils.clamp((0.72 - daylight) / 0.72, 0, 1);
-  const terrainTint = DAY_TERRAIN_TINT.clone().lerp(NIGHT_TERRAIN_TINT, nightGrade * 0.55);
+  const terrainTint = terrainLightingTint(options);
   const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
   for (const material of materials) {
     if (!material) continue;

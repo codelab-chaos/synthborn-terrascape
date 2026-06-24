@@ -5,6 +5,9 @@ import com.codelabchaos.terrascape.commands.TerrascapeCommand;
 import com.codelabchaos.terrascape.config.TerrascapeConfig;
 import com.codelabchaos.terrascape.web.NpcRoleIndex;
 import com.codelabchaos.terrascape.web.TerrascapeWebServer;
+import com.codelabchaos.rcon.RconConfig;
+import com.codelabchaos.rcon.RconLog;
+import com.codelabchaos.rcon.RconServer;
 import com.hypixel.hytale.server.core.permissions.PermissionsModule;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
@@ -24,6 +27,7 @@ public class TerrascapePlugin extends JavaPlugin {
     private TerrascapeWebServer webServer;
     private NpcRoleIndex npcRoleIndex;
     private PlayerLookTracker playerLookTracker;
+    private RconServer rconServer;
 
     public TerrascapePlugin(@Nonnull JavaPluginInit init) {
         super(init);
@@ -102,12 +106,44 @@ public class TerrascapePlugin extends JavaPlugin {
         } catch (IOException e) {
             getLogger().at(Level.SEVERE).withCause(e).log("Failed to start Terrascape HTTP server.");
         }
+        startRcon();
         getLogger().at(Level.INFO).log("Terrascape started.");
+    }
+
+    /** Starts the opt-in RCON endpoint. The shared core enforces the fail-closed security gate. */
+    private void startRcon() {
+        if (config == null) {
+            return;
+        }
+        TerrascapeConfig.Rcon r = config.rcon();
+        rconServer = new RconServer(
+                new RconConfig(r.enabled(), r.host(), r.port(), r.token(), r.allowRemote(), r.dangerPublic()),
+                "Terrascape",
+                new RconLog() {
+                    @Override
+                    public void info(String message) {
+                        getLogger().at(Level.INFO).log(message);
+                    }
+
+                    @Override
+                    public void error(String message, Throwable cause) {
+                        if (cause != null) {
+                            getLogger().at(Level.SEVERE).withCause(cause).log(message);
+                        } else {
+                            getLogger().at(Level.SEVERE).log(message);
+                        }
+                    }
+                });
+        rconServer.start();
     }
 
     @Override
     protected void shutdown() {
         getLogger().at(Level.INFO).log("Terrascape shutting down.");
+        if (rconServer != null) {
+            rconServer.stop();
+            rconServer = null;
+        }
         if (webServer != null) {
             webServer.stop();
             webServer = null;

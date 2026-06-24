@@ -17,6 +17,7 @@ import {
   mapTimeInput,
   mobBlocksInput,
   panelToggle,
+  serverCardHeadEl,
   showMobsInput,
   showPlayersInput,
   treeShadeInput,
@@ -52,6 +53,7 @@ function makeBindings() {
     shouldStartFlyLook: () => false,
     syncMobBlocksInputs: noop('syncMobBlocksInputs'),
     toggleRenderDetails: noop('toggleRenderDetails'),
+    toggleServerDetails: noop('toggleServerDetails'),
     updateDebugBounds: noop('updateDebugBounds'),
     updateEntityVisibility: noop('updateEntityVisibility'),
     updateMapTileLayer: noop('updateMapTileLayer'),
@@ -161,6 +163,14 @@ test('info card head click and keyboard activation toggle render details', () =>
   const enter = new window.KeyboardEvent('keydown', { key: 'Enter' });
   infoCardHeadEl.dispatchEvent(enter);
   assert.ok((calls.toggleRenderDetails ?? 0) >= before + 2);
+});
+
+test('server card head click and keyboard activation toggle server details', () => {
+  const before = calls.toggleServerDetails ?? 0;
+  serverCardHeadEl.dispatchEvent(new window.Event('click'));
+  const enter = new window.KeyboardEvent('keydown', { key: 'Enter' });
+  serverCardHeadEl.dispatchEvent(enter);
+  assert.ok((calls.toggleServerDetails ?? 0) >= before + 2);
 });
 
 test('keydown: movement key while not typing is captured into pressedKeys', () => {
