@@ -12,13 +12,13 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.hypixel.hytale:Server:0.5.4")
+    compileOnly("com.hypixel.hytale:Server:0.5.6")
     // Gson is provided by the Hytale server runtime; compile against it without bundling.
     compileOnly("com.google.code.gson:gson:2.13.1")
 
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("com.hypixel.hytale:Server:0.5.4")
+    testImplementation("com.hypixel.hytale:Server:0.5.6")
     testImplementation("com.google.code.gson:gson:2.13.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
