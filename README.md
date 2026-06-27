@@ -1,5 +1,7 @@
 # Synthborn: Terrascape
 
+<img src="images/terrascape-title-2.png" width="80%" style="background: transparent" />
+
 Synthborn: Terrascape turns a live Hytale server world into an interactive 3D map you
 explore in a web browser — terrain, mobs, players, and the day/night cycle, streamed
 straight from the running server. It installs as a server-side mod and serves the
