@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -27,17 +28,24 @@ import java.util.regex.Pattern;
  * <p>Wire contract (identical across mods, so one mod could call another's port):
  * <ul>
  *   <li>{@code GET  /health} → {@code {"ok":true,"service":"<name>"}}</li>
- *   <li>{@code POST /command} with {@code {"command":"..."}} and header
- *       {@code X-SynthRCON-Token: <token>} → {@code {"ok":true,"command":...,"messages":[...]}}</li>
+ *   <li>{@code POST /command} with {@code {"command":"..."}} and an auth credential in
+ *       {@code X-SynthRCON-Token} or {@code Authorization: Bearer ...} →
+ *       {@code {"ok":true,"command":...,"messages":[...]}}</li>
  * </ul>
  *
  * <p>Security ({@link #start()} enforces it, fail closed): disabled mods never open the
- * port; an enabled mod with a blank token refuses to start; every request needs the token
- * (constant-time compared); non-loopback callers are rejected unless {@code allowRemote}.
+ * port; an enabled mod with no credential or custom authenticator refuses to start; every request
+ * needs an accepted credential; non-loopback callers are rejected unless {@code allowRemote}.
  */
 public final class RconServer {
-    /** Wire header carrying the bearer token. Kept stable for tooling compatibility. */
+    /** Wire header carrying the bearer credential. Kept stable for tooling compatibility. */
     public static final String AUTH_HEADER = "X-SynthRCON-Token";
+
+    /** Host-provided dynamic credential validator, used when auth is not a single static secret. */
+    @FunctionalInterface
+    public interface TokenAuthorizer {
+        boolean isAuthorized(@Nonnull String token);
+    }
 
     // Generous enough for slow commands (e.g. chunk gen) that the old 5s default aborted mid-flow.
     private static final Duration COMMAND_TIMEOUT = Duration.ofSeconds(90);
@@ -46,28 +54,43 @@ public final class RconServer {
     private final RconConfig config;
     private final String serviceName;
     private final RconLog log;
+    private final TokenAuthorizer tokenAuthorizer;
+    private final String authDescription;
     private HttpServer server;
 
     public RconServer(@Nonnull RconConfig config, @Nonnull String serviceName, @Nonnull RconLog log) {
+        this(config, serviceName, log, staticTokenAuthorizer(config), "credential auth");
+    }
+
+    public RconServer(
+            @Nonnull RconConfig config,
+            @Nonnull String serviceName,
+            @Nonnull RconLog log,
+            @Nullable TokenAuthorizer tokenAuthorizer,
+            @Nonnull String authDescription
+    ) {
         this.config = config;
         this.serviceName = serviceName;
         this.log = log;
+        this.tokenAuthorizer = tokenAuthorizer;
+        this.authDescription = authDescription;
     }
 
     /**
      * Opens the RCON endpoint if it is enabled and the security gate passes.
      *
      * @return {@code true} if the server is now listening; {@code false} if RCON is disabled,
-     *         refused for safety (enabled without a token), or failed to bind.
+     *         refused for safety (enabled without a credential), or failed to bind.
      */
     public boolean start() {
         if (!config.enabled()) {
             log.info(serviceName + " RCON disabled (rcon.enabled=false).");
             return false;
         }
-        if (!config.hasToken() && !config.dangerPublic()) {
-            log.error(serviceName + " RCON is enabled but rcon.token is blank — refusing to start. "
-                    + "Set rcon.token to a secret value (or rcon.dangerPublic=true for an open dev endpoint).", null);
+        if (tokenAuthorizer == null && !config.dangerPublic()) {
+            log.error(serviceName + " RCON is enabled but no authenticator is configured — refusing to start. "
+                    + "Set rcon.password to a secret value, provide a host authenticator, "
+                    + "or set rcon.dangerPublic=true for an open dev endpoint.", null);
             return false;
         }
 
@@ -81,12 +104,12 @@ public final class RconServer {
                 return thread;
             }));
             server.start();
-            if (!config.hasToken()) {
+            if (tokenAuthorizer == null) {
                 log.error("⚠ " + serviceName + " RCON is running OPEN with NO authentication "
                         + "(rcon.dangerPublic) — anyone who can reach " + config.host() + ":" + config.port()
                         + " can run server commands. Never use this on a public or untrusted network.", null);
             }
-            String auth = config.hasToken() ? "token auth" : "OPEN — NO AUTH (dangerPublic)";
+            String auth = tokenAuthorizer == null ? "OPEN — NO AUTH (dangerPublic)" : authDescription;
             String reach = config.allowRemote() ? "remote callers permitted" : "local-only";
             log.info(serviceName + " RCON listening on http://" + config.host() + ":" + config.port()
                     + " with " + auth + ", " + reach + ".");
@@ -155,16 +178,40 @@ public final class RconServer {
         return "127.0.0.1".equals(host) || "0:0:0:0:0:0:0:1".equals(host) || "::1".equals(host);
     }
 
-    /** Constant-time token check, or open when running in dangerPublic mode with no token. */
+    /** Validates the presented credential, or allows open dev mode when dangerPublic was enabled. */
     private boolean isAuthorized(@Nonnull HttpExchange exchange) {
-        if (!config.hasToken()) {
+        if (tokenAuthorizer == null) {
             return true; // open dev mode — only reachable when dangerPublic allowed start
         }
-        String provided = exchange.getRequestHeaders().getFirst(AUTH_HEADER);
+        String provided = requestToken(exchange);
         if (provided == null) {
             return false;
         }
-        return MessageDigest.isEqual(
+        return tokenAuthorizer.isAuthorized(provided);
+    }
+
+    @Nullable
+    private static String requestToken(@Nonnull HttpExchange exchange) {
+        String provided = exchange.getRequestHeaders().getFirst(AUTH_HEADER);
+        if (provided != null && !provided.isBlank()) {
+            return provided;
+        }
+        String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            String bearer = authorization.substring("Bearer ".length()).trim();
+            if (!bearer.isBlank()) {
+                return bearer;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static TokenAuthorizer staticTokenAuthorizer(@Nonnull RconConfig config) {
+        if (!config.hasToken()) {
+            return null;
+        }
+        return provided -> MessageDigest.isEqual(
                 config.token().getBytes(StandardCharsets.UTF_8),
                 provided.getBytes(StandardCharsets.UTF_8));
     }

@@ -91,12 +91,11 @@ target no longer ships a separate RCON mod). It can also co-deploy other Synthbo
 via the `combined` target. **None of it is required to run Terrascape standalone.** The
 broader cross-addon setup will be covered in the forthcoming Synthborn integration docs.
 
-> **The lifecycle commands need RCON enabled + a token.** `restart`/`start`/`stop`/
-> `status`/`rcon` go through the embedded RCON, which is fail-closed — so the harness
-> requires `SYNTH_RCON_TOKEN` to be set and passes it both to the server (it starts
-> Terrascape with `-Dterrascape.rcon.enabled=true … rcon.token=<token>`) and on every
-> request. The `build`, `deploy`, and `wipe` commands need no token. (The `combined`
-> target still uses the separate Synthborn RCON mod, which is internal/unpublished.)
+> **Command execution needs the RCON password.** `stop`/`restart`/`rcon` send commands
+> through embedded RCON, which accepts only `rcon.password` from `terrascape.properties`.
+> Put the same value in local `SYNTH_RCON_PASSWORD`. `start`, `status`, `build`,
+> `deploy`, and `wipe` do not need that password. (The `combined` target still uses the
+> separate Synthborn RCON mod, which is internal/unpublished.)
 
 **First-time setup** — copy the example env file and fill it in:
 
@@ -109,7 +108,7 @@ cp remote-host.env.example remote-host.env   # repo root, gitignored
 | `HYTALE_REMOTE_SSH` *or* (`HYTALE_REMOTE_HOST` + `HYTALE_REMOTE_USER`) | SSH target (an alias from `~/.ssh/config`, or user@host) |
 | `HYTALE_REMOTE_SAVES` | Path to the Hytale `Saves` directory on the server |
 | `HYTALE_REMOTE_INSTALL` | Path to the Hytale install on the server |
-| `SYNTH_RCON_TOKEN` | **Required** RCON secret — the harness enables/reaches RCON with it |
+| `SYNTH_RCON_PASSWORD` | Same value as server-side `rcon.password`; required for RCON commands |
 
 Optional: `SYNTH_RCON_HOST` (override RCON/health host), `HYTALE_LOCAL_SAVES` /
 `HYTALE_LOCAL_INSTALL` (for `--local` deploys; on WSL point `HYTALE_LOCAL_SAVES` at the
@@ -123,11 +122,14 @@ doesn't have). Bring up a clean Terrascape install like this:
 node tools/deploy.js wipe                 # dry run — lists what would be removed
 node tools/deploy.js wipe --yes           # remove old Synthborn jars + data dirs (keeps Hytale builtins)
 node tools/deploy.js deploy               # copy the new Terrascape jar (no RCON/token needed)
-# enable RCON: start the server once with rcon enabled + token (harness `start`, or by hand)
-node tools/deploy.js start                # starts with -Dterrascape.rcon.enabled + token
+node tools/deploy.js start                # starts with Terrascape RCON enabled
 ```
 
-After that, RCON is up and the normal automated loop (`restart`/`status`/`rcon`) works.
+After first start, edit the generated server-side `terrascape.properties` and set
+`rcon.password=<long random password>`, then restart the server. Put that same password in
+local `remote-host.env` as `SYNTH_RCON_PASSWORD` before running command-driving operations
+such as `restart`, `stop`, or `rcon`. `status` checks RCON health and does not need a
+password.
 `wipe` only touches this repo's own jars and their `<Group>_<Name>` data dirs (current +
 legacy names from `deploy-config.js`); `--keep-data` preserves the data dirs, and `--yes`
 is required to actually delete. Add `--local` to operate on the local save instead of SSH.
@@ -197,8 +199,11 @@ documented in the forthcoming Synthborn integration docs.
 
 ## Access control & tokens
 
-Terrascape has two independent gates: a **user access mode** (who can view the
-map) and an **admin token** (server-side ops endpoints).
+Terrascape has separate gates for map viewing, map-side command execution, static web
+ops access, and standalone RCON. The naming rule is:
+
+- `access.*Token*` = generated per-user map tokens, the static debug token, and map-token TTLs.
+- `rcon.password` = static password for the standalone RCON service.
 
 **To require a token for the map** (`access.mode=restricted`):
 
@@ -210,17 +215,18 @@ map) and an **admin token** (server-side ops endpoints).
 
 - Run `/terrascape maplink` (or `/terrascape maptoken`). Requires the
   `terrascape.map.use` permission; admins additionally get an `admin`-scoped token.
-- Tokens last `access.tokenTtlHours` hours (default `24`). Minting is rate-limited
-  per player (back-off 0s → 60s → 5m → 30m → 2h).
+- Viewer tokens last `access.mapTokenTtlHours` hours (default `24`). Tokens minted by admins
+  with the `admin` scope last `access.adminMapTokenTtlHours` hours (default `4`). Minting is
+  rate-limited per player (back-off 0s → 60s → 5m → 30m → 2h).
 - The link carries the token as `?key=<token>`, which the browser promotes to a
   `terrascape_key` cookie. Tokens may also be sent as `Authorization: Bearer <token>`.
 - Only a one-way HMAC-SHA256 hash of each token is stored (in `access-tokens.json`);
   the raw token can never be recovered from disk.
 
-**To enable ops/monitoring endpoints without a user token** (admin token):
+**To enable ops/monitoring endpoints without a user token** (static debug token):
 
-- Set `security.adminToken=<secret>` (or env `TERRASCAPE_ADMIN_TOKEN`).
-- Present it as `X-Terrascape-Admin-Token: <secret>` or `Authorization: Bearer
+- Set `access.debugToken=<secret>` (or env `TERRASCAPE_ACCESS_DEBUG_TOKEN`).
+- Present it as `X-Terrascape-Debug-Token: <secret>` or `Authorization: Bearer
   <secret>`. This unlocks admin-scoped endpoints (`/api/metrics`,
   `/api/mob-debug/{world}`) even in restricted mode.
 
@@ -273,17 +279,26 @@ the token TTL).
 | Scope | Granted to | Unlocks |
 | --- | --- | --- |
 | `map` | any `terrascape.map.use` holder | the viewer and read-only map APIs |
-| `admin` | `terrascape.admin` holders | admin-only web APIs (e.g. `/api/mob-debug`) |
+| `admin` | `terrascape.admin` holders | admin-only web APIs and the map API command proxy |
 
 Because scopes ride in the token, an admin who opens the map with their own link
-reaches admin APIs without any shared secret. Privileged APIs must still be enabled by
-config (`features.mobDebugEndpoint` defaults to `false`); when enabled, a caller is
+reaches admin APIs without any shared secret. Privileged debug APIs must still be enabled
+by config (`features.mobDebugEndpoint` defaults to `false`); when enabled, a caller is
 authorized by **either** an `admin`-scoped token **or** the configured
-`security.adminToken`.
+`access.debugToken`.
 
-> **Not shipped yet:** there is no in-browser admin console or log viewer. Command
-> execution is available only through the opt-in RCON endpoint below (off by default);
-> an admin-key-gated web console is planned for later.
+### Map API command proxy
+
+The bundled Terrascape browser client must run server commands only through the map API:
+
+- `POST /api/rcon/command` with `{"command":"<cmd>"}`.
+- Requires a valid per-user map token carrying both `map` and `admin` scopes.
+- This endpoint is still locked when `access.mode=public`; public visibility alone is not
+  a command credential.
+- `access.debugToken` and `rcon.password` do not authorize this endpoint.
+
+This route is for browser/map workflows. Standalone RCON below is a separate operator/tooling
+surface with its own password and port.
 
 ---
 
@@ -291,50 +306,48 @@ authorized by **either** an `admin`-scoped token **or** the configured
 
 RCON is an opt-in HTTP/JSON endpoint that runs server commands remotely. **It is hard
 off by default** (`rcon.enabled=false`) — installing Terrascape does not open it. It is
-disabled-and-fail-closed, so it never runs unauthenticated.
+disabled-and-fail-closed, so it never runs commands without the configured RCON password.
 
-**To enable it**, set both an enable flag and a token in `terrascape.properties`:
+**To enable it**, set both the enable flag and a password in `terrascape.properties`:
 
 ```properties
 rcon.enabled=true
-rcon.token=<a long random secret>     # REQUIRED — see below
+rcon.password=<long random password>
 ```
 
-The security gate is fail-closed and identical across Synthborn mods:
+The password lives only in the server-side config file; the web interface does not serve
+`terrascape.properties`, `server-config.json`, or `access-tokens.json`.
 
-- **Token required when enabled** — if `rcon.enabled=true` and `rcon.token` is blank, the
-  endpoint **refuses to start** and logs an error. There is no unauthenticated mode.
-- **Every request needs the token**, sent as the `X-SynthRCON-Token` header, compared in
-  constant time.
+- **RCON password required** — map tokens, admin-scoped map tokens, `access.debugToken`,
+  map API command-proxy credentials, missing passwords, and wrong passwords do not authorize
+  standalone RCON commands.
+- **Every command request needs the password**, sent as `X-SynthRCON-Token: <password>` or
+  `Authorization: Bearer <password>`.
 - **Localhost-only** by default (`rcon.host=127.0.0.1`); non-loopback callers are rejected
-  unless `rcon.allowRemote=true`, which still requires the token.
+  unless `rcon.allowRemote=true`, which still requires the RCON password.
 
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `rcon.enabled` | `false` | Master switch — off until explicitly enabled |
 | `rcon.host` | `127.0.0.1` | Bind address (localhost unless exposing) |
 | `rcon.port` | `25578` | Terrascape's reserved RCON port (each mod uses its own) |
-| `rcon.token` | _(blank)_ | Shared secret; **required** when enabled (unless `dangerPublic`) |
-| `rcon.allowRemote` | `false` | Permit non-loopback callers (token still required) |
-| `rcon.dangerPublic` | `false` | **Dev-only.** Allow an open, tokenless endpoint — see below |
+| `rcon.password` | _(blank)_ | Shared RCON password; required when enabled |
+| `rcon.allowRemote` | `false` | Permit non-loopback callers (password still required) |
 
-Each key also has a `TERRASCAPE_RCON_*` env override (e.g. `TERRASCAPE_RCON_TOKEN`).
-
-> **`rcon.dangerPublic` — open dev mode.** Setting it `true` lets RCON start with a blank
-> token, running fully **open with no authentication** (the old behavior). Anyone who can
-> reach the port can run server commands as the server. The endpoint logs a loud warning on
-> startup. Only ever use it on a trusted local machine; never combine it with
-> `rcon.allowRemote` on an exposed host.
+Each key also has a `TERRASCAPE_RCON_*` env override for bind settings, e.g.
+`TERRASCAPE_RCON_ENABLED`. For the developer deploy harness, set local
+`SYNTH_RCON_PASSWORD` to the same value as server-side `rcon.password`.
 
 **Wire contract** (stable across mods, so one mod can call another's port):
 
 - `GET /health` → `{"ok":true,"service":"Terrascape"}`
-- `POST /command` with `{"command":"<cmd>"}` and header `X-SynthRCON-Token: <token>` →
+- `POST /command` with `{"command":"<cmd>"}` and header `X-SynthRCON-Token: <password>` →
   `{"ok":true,"command":"…","messages":[…]}`
 
-> RCON runs commands with full server authority — treat the token like a root password,
-> keep the endpoint on localhost or behind a trusted network, and never expose the port
-> publicly. (A future admin-key-gated web console will offer a safer in-browser path.)
+> RCON runs commands with full server authority — treat `rcon.password` like a root
+> password. Keep the endpoint on localhost or behind a trusted network, and never expose
+> the port publicly. (A future admin-token-gated web console will offer a safer
+> in-browser path.)
 
 ---
 
@@ -361,7 +374,8 @@ The common boot options also have environment-variable overrides:
 | `http.port` | Web server port | `TERRASCAPE_PORT` |
 | `access.mode` | `public` or `restricted` view gating | `TERRASCAPE_ACCESS_MODE` |
 | `access.publicBaseUrl` | URL used in `/terrascape maplink` output | `TERRASCAPE_PUBLIC_URL` |
-| `security.adminToken` | Token for admin/debug web endpoints | `TERRASCAPE_ADMIN_TOKEN` |
+| `access.debugToken` | Static token for ops/debug web endpoints | `TERRASCAPE_ACCESS_DEBUG_TOKEN` |
+| `rcon.password` | RCON command password | `TERRASCAPE_RCON_PASSWORD` |
 | `cors.enabled` | Allow cross-origin browser apps to call the APIs | `TERRASCAPE_CORS_ENABLED` |
 | `cors.allowedOrigins` | Comma-separated exact origins when CORS is on | `TERRASCAPE_CORS_ORIGINS` |
 | `features.experimentalDetails` | Enhanced terrain detail requests | `TERRASCAPE_EXPERIMENTAL_DETAILS` |
@@ -373,10 +387,9 @@ Key groups (see the generated file's comments for the full list and defaults):
 | Group | Purpose | Notable keys |
 | --- | --- | --- |
 | `http.*` | Network binding | `http.host` (`127.0.0.1`), `http.port` (`5960`) |
-| `access.*` | View gating | `access.mode` (`public`), `access.tokenTtlHours` (`24`), `access.publicBaseUrl` |
-| `security.*` | Ops auth | `security.adminToken` |
+| `access.*` | View gating, debug auth, and generated map-token TTLs | `access.mode` (`public`), `access.debugToken`, `access.mapTokenTtlHours` (`24`), `access.adminMapTokenTtlHours` (`4`), `access.publicBaseUrl` |
 | `cors.*` | Cross-origin | `cors.enabled` (`false`), `cors.allowedOrigins` |
-| `rcon.*` | Command endpoint (opt-in) | `rcon.enabled` (`false`), `rcon.port` (`25578`), `rcon.token` — see [RCON](#rcon-optional-command-endpoint) |
+| `rcon.*` | Command endpoint (opt-in) | `rcon.enabled` (`false`), `rcon.port` (`25578`), `rcon.password` — see [RCON](#rcon-optional-command-endpoint) |
 | `worlds.*` | Visibility | `worlds.allowlist` |
 | `features.*` | Endpoint toggles | `entityStream`, `playerAvatars`, `clientTelemetry`, `metricsEndpoint`, `mobDebugEndpoint` (`false`), `experimentalDetails` |
 | `map.*` | Map tiles | `map.tileSize` (`32`), `map.generateRadius` (`20`), `map.maxRegionRadius` (`108`) |

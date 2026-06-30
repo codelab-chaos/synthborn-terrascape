@@ -34,6 +34,12 @@ class JsonTest {
     }
 
     @Test
+    void unescapesJsonStringContent() {
+        assertEquals("say \"hi\"\nnext", Json.unescapeJsonString("say \\\"hi\\\"\\nnext"));
+        assertEquals("abc", Json.unescapeJsonString("\\u0061bc"));
+    }
+
+    @Test
     void round3RoundsToThreeDecimals() {
         assertEquals(1.235, Json.round3(1.23456), 1e-9);
         assertEquals(2.0, Json.round3(2.0), 1e-9);

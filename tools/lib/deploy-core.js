@@ -361,13 +361,13 @@ function artifactsFor(target) {
   ];
 }
 
-/** RCON is fail-closed: a token is required for the harness to enable/reach the endpoint. */
-function rconToken() {
-  const token = (process.env.SYNTH_RCON_TOKEN || "").trim();
-  if (!token) {
-    throw new Error("SYNTH_RCON_TOKEN is required — embedded RCON is fail-closed and will not start without a token. Set it in remote-host.env.");
+/** RCON command execution is fail-closed: use the configured RCON password. */
+function rconCredential() {
+  const credential = (process.env.SYNTH_RCON_PASSWORD || "").trim();
+  if (!credential) {
+    throw new Error("SYNTH_RCON_PASSWORD is required for RCON commands — set it to rcon.password from terrascape.properties.");
   }
-  return token;
+  return credential;
 }
 
 /** Jar base names this target owns: current artifacts plus any configured legacy names. */
@@ -536,7 +536,6 @@ function startServer(ctx, opts = {}) {
 function startServerRemote(ctx, opts = {}) {
   const target = ctx.target;
   requireRemoteConfig();
-  const token = rconToken().replace(/'/g, "'\\''");
   const minRam = opts.minRamGB || target.minRamGB || 2;
   const maxRam = opts.maxRamGB || target.maxRamGB || 6;
   const install = remotePathForShell(process.env.HYTALE_REMOTE_INSTALL);
@@ -545,12 +544,11 @@ function startServerRemote(ctx, opts = {}) {
   const port = bindPort(target.bind);
   const skipCheck = opts.skipRunningCheck ? "true" : "false";
   const terrascapePort = target.terrascapeHttpPort ? ` -Dterrascape.http.port=${target.terrascapeHttpPort}` : "";
-  const rconFlags = `-Dterrascape.rcon.enabled=true -Dterrascape.rcon.host=0.0.0.0 -Dterrascape.rcon.port=${target.rconPort} -Dterrascape.rcon.allowRemote=true -Dterrascape.rcon.token="$RCON_TOKEN"`;
+  const rconFlags = `-Dterrascape.rcon.enabled=true -Dterrascape.rcon.host=0.0.0.0 -Dterrascape.rcon.port=${target.rconPort} -Dterrascape.rcon.allowRemote=true`;
   const cmd = [
     `INSTALL=${install}`,
     `SAVE=${save}`,
     `BIND='${bind}'`,
-    `RCON_TOKEN='${token}'`,
     'JAVA="$INSTALL/jre/latest/Contents/Home/bin/java"',
     'if [ ! -x "$JAVA" ]; then JAVA="$INSTALL/jre/latest/bin/java"; fi',
     'JAR="$INSTALL/game/latest/Server/HytaleServer.jar"',
@@ -582,7 +580,6 @@ function startServerLocal(ctx, opts = {}) {
 
   const minRam = opts.minRamGB || target.minRamGB || 2;
   const maxRam = opts.maxRamGB || target.maxRamGB || 6;
-  const token = rconToken();
   const terrascapePort = target.terrascapeHttpPort ? `-Dterrascape.http.port=${target.terrascapeHttpPort}` : null;
   const args = [
     `-Xms${minRam}G`,
@@ -591,7 +588,6 @@ function startServerLocal(ctx, opts = {}) {
     "-Dterrascape.rcon.host=0.0.0.0",
     `-Dterrascape.rcon.port=${target.rconPort}`,
     "-Dterrascape.rcon.allowRemote=true",
-    `-Dterrascape.rcon.token=${token}`,
     "-Dterrascape.http.host=0.0.0.0",
     terrascapePort,
     "-jar",
@@ -667,27 +663,31 @@ function rconCommand(ctx, command) {
 }
 
 function remoteRconCommand(target, command) {
-  const token = process.env.SYNTH_RCON_TOKEN || "";
-  const tokenArg = token ? ` -H ${remoteShellQuote(`X-SynthRCON-Token: ${token}`)}` : "";
+  const credential = rconCredential();
+  const credentialArg = ` -H ${remoteShellQuote(`X-SynthRCON-Token: ${credential}`)}`;
   const payload = JSON.stringify({ command });
   return sshRun(
     `curl -fsS -X POST ${remoteShellQuote(`http://127.0.0.1:${target.rconPort}/command`)}`
-    + ` -H ${remoteShellQuote("Content-Type: application/json")}${tokenArg}`
+    + ` -H ${remoteShellQuote("Content-Type: application/json")}${credentialArg}`
     + ` -d ${remoteShellQuote(payload)}`,
     { silent: true },
   ).trim();
 }
 
 function httpCommand(host, port, command) {
+  const credential = rconCredential();
   const script = `
 const http = require("node:http");
 const payload = JSON.stringify({ command: process.env.DEPLOY_RCON_COMMAND });
+const credential = process.env.DEPLOY_RCON_CREDENTIAL || "";
+const headers = { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) };
+if (credential) headers["X-SynthRCON-Token"] = credential;
 const req = http.request({
   host: process.env.DEPLOY_RCON_HOST,
   port: Number(process.env.DEPLOY_RCON_PORT),
   path: "/command",
   method: "POST",
-  headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) },
+  headers,
   timeout: 30000,
 }, (res) => {
   let body = "";
@@ -703,7 +703,7 @@ req.on("error", (err) => { console.error(err.message); process.exit(1); });
 req.end(payload);
 `;
   const res = spawnSync(process.execPath, ["-e", script], {
-    env: { ...process.env, DEPLOY_RCON_HOST: host, DEPLOY_RCON_PORT: String(port), DEPLOY_RCON_COMMAND: command },
+    env: { ...process.env, DEPLOY_RCON_CREDENTIAL: credential, DEPLOY_RCON_HOST: host, DEPLOY_RCON_PORT: String(port), DEPLOY_RCON_COMMAND: command },
     encoding: "utf8",
   });
   if (res.status !== 0) {

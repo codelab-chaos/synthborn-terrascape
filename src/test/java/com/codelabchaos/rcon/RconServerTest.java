@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * dispatched, so they need no live Hytale {@code CommandManager}.
  */
 class RconServerTest {
-    private static final String TOKEN = "s3cr3t-token";
+    private static final String PASSWORD = "s3cr3t-password";
 
     private RconServer server;
 
@@ -31,22 +31,22 @@ class RconServerTest {
 
     @Test
     void disabledNeverOpensThePort() {
-        server = new RconServer(new RconConfig(false, "127.0.0.1", 0, TOKEN, false, false), "Test", RconLog.NONE);
+        server = new RconServer(new RconConfig(false, "127.0.0.1", 0, PASSWORD, false, false), "Test", RconLog.NONE);
         assertFalse(server.start(), "disabled RCON must not start");
         assertEquals(-1, server.boundPort());
     }
 
     @Test
-    void enabledWithoutTokenRefusesToStart() {
+    void enabledWithoutPasswordRefusesToStart() {
         server = new RconServer(new RconConfig(true, "127.0.0.1", 0, "", false, false), "Test", RconLog.NONE);
-        assertFalse(server.start(), "enabled RCON with a blank token must fail closed");
+        assertFalse(server.start(), "enabled RCON with a blank password must fail closed");
         assertEquals(-1, server.boundPort());
     }
 
     @Test
-    void dangerPublicAllowsOpenStartWithoutToken() {
+    void dangerPublicAllowsOpenStartWithoutCredential() {
         server = new RconServer(new RconConfig(true, "127.0.0.1", 0, "", false, true), "Test", RconLog.NONE);
-        assertTrue(server.start(), "dangerPublic must allow an open (tokenless) start");
+        assertTrue(server.start(), "dangerPublic must allow an open credentialless start");
         assertTrue(server.boundPort() > 0);
     }
 
@@ -54,7 +54,7 @@ class RconServerTest {
     void dangerPublicOpenEndpointSkipsAuth() throws Exception {
         server = new RconServer(new RconConfig(true, "127.0.0.1", 0, "", false, true), "Test", RconLog.NONE);
         assertTrue(server.start());
-        // No token sent: in open mode this passes auth and fails later on the empty command (400),
+        // No credential sent: in open mode this passes auth and fails later on the empty command (400),
         // rather than 401 — proving auth was bypassed.
         HttpResponse<String> response = HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(uri("/command"))
@@ -66,8 +66,8 @@ class RconServerTest {
     }
 
     @Test
-    void enabledWithTokenStartsAndServesHealth() throws Exception {
-        server = startServer(new RconConfig(true, "127.0.0.1", 0, TOKEN, false, false));
+    void enabledWithPasswordStartsAndServesHealth() throws Exception {
+        server = startServer(new RconConfig(true, "127.0.0.1", 0, PASSWORD, false, false));
         HttpResponse<String> response = get("/health");
         assertEquals(200, response.statusCode());
         assertTrue(response.body().contains("\"ok\":true"), response.body());
@@ -75,26 +75,59 @@ class RconServerTest {
     }
 
     @Test
-    void commandWithoutTokenIsUnauthorized() throws Exception {
-        server = startServer(new RconConfig(true, "127.0.0.1", 0, TOKEN, false, false));
+    void customAuthorizerStartsWithoutStaticPassword() throws Exception {
+        server = new RconServer(
+                new RconConfig(true, "127.0.0.1", 0, "", false, false),
+                "Test",
+                RconLog.NONE,
+                token -> PASSWORD.equals(token),
+                "custom auth");
+        assertTrue(server.start(), "custom auth should let RCON start without a static password");
+
+        HttpResponse<String> response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(uri("/command"))
+                        .header("Authorization", "Bearer " + PASSWORD)
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(405, response.statusCode());
+    }
+
+    @Test
+    void customAuthorizerRejectsUnknownCredential() throws Exception {
+        server = new RconServer(
+                new RconConfig(true, "127.0.0.1", 0, "", false, false),
+                "Test",
+                RconLog.NONE,
+                token -> PASSWORD.equals(token),
+                "custom auth");
+        assertTrue(server.start());
+
+        HttpResponse<String> response = post("/command", "{\"command\":\"status\"}", "wrong");
+        assertEquals(401, response.statusCode());
+    }
+
+    @Test
+    void commandWithoutCredentialIsUnauthorized() throws Exception {
+        server = startServer(new RconConfig(true, "127.0.0.1", 0, PASSWORD, false, false));
         HttpResponse<String> response = post("/command", "{\"command\":\"status\"}", null);
         assertEquals(401, response.statusCode());
     }
 
     @Test
-    void commandWithWrongTokenIsUnauthorized() throws Exception {
-        server = startServer(new RconConfig(true, "127.0.0.1", 0, TOKEN, false, false));
+    void commandWithWrongCredentialIsUnauthorized() throws Exception {
+        server = startServer(new RconConfig(true, "127.0.0.1", 0, PASSWORD, false, false));
         HttpResponse<String> response = post("/command", "{\"command\":\"status\"}", "wrong");
         assertEquals(401, response.statusCode());
     }
 
     @Test
     void authorizedButWrongMethodIsRejectedBeforeDispatch() throws Exception {
-        server = startServer(new RconConfig(true, "127.0.0.1", 0, TOKEN, false, false));
-        // GET passes the remote+token gate, then fails the POST-only check — proving auth ran first.
+        server = startServer(new RconConfig(true, "127.0.0.1", 0, PASSWORD, false, false));
+        // GET passes the remote+credential gate, then fails the POST-only check — proving auth ran first.
         HttpResponse<String> response = HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(uri("/command"))
-                        .header(RconServer.AUTH_HEADER, TOKEN)
+                        .header(RconServer.AUTH_HEADER, PASSWORD)
                         .GET()
                         .build(),
                 HttpResponse.BodyHandlers.ofString());
@@ -103,15 +136,15 @@ class RconServerTest {
 
     @Test
     void authorizedEmptyCommandIsBadRequest() throws Exception {
-        server = startServer(new RconConfig(true, "127.0.0.1", 0, TOKEN, false, false));
-        HttpResponse<String> response = post("/command", "{}", TOKEN);
+        server = startServer(new RconConfig(true, "127.0.0.1", 0, PASSWORD, false, false));
+        HttpResponse<String> response = post("/command", "{}", PASSWORD);
         assertEquals(400, response.statusCode());
         assertTrue(response.body().contains("missing_command"), response.body());
     }
 
     private RconServer startServer(RconConfig config) {
         RconServer s = new RconServer(config, "Test", RconLog.NONE);
-        assertTrue(s.start(), "RCON should start with a token");
+        assertTrue(s.start(), "RCON should start with a password");
         assertTrue(s.boundPort() > 0, "expected a bound ephemeral port");
         return s;
     }

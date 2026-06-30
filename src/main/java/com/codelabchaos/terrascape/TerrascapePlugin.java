@@ -110,14 +110,14 @@ public class TerrascapePlugin extends JavaPlugin {
         getLogger().at(Level.INFO).log("Terrascape started.");
     }
 
-    /** Starts the opt-in RCON endpoint. The shared core enforces the fail-closed security gate. */
+    /** Starts opt-in RCON, authorized only by the configured RCON password. */
     private void startRcon() {
         if (config == null) {
             return;
         }
         TerrascapeConfig.Rcon r = config.rcon();
         rconServer = new RconServer(
-                new RconConfig(r.enabled(), r.host(), r.port(), r.token(), r.allowRemote(), r.dangerPublic()),
+                new RconConfig(r.enabled(), r.host(), r.port(), r.password(), r.allowRemote(), false),
                 "Terrascape",
                 new RconLog() {
                     @Override

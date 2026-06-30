@@ -77,6 +77,7 @@ export * from './common/resource-stats.ts';
 export * from './common/terrain-requests.ts';
 export * from './common/terrain-stream.ts';
 export * from './common/view-preferences.ts';
+export * from './platform/map-rcon.ts';
 
 // Surface a clear prompt if the session is rejected (e.g. the access token's TTL lapsed) instead of
 // letting the map silently stop loading.

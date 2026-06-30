@@ -1267,3 +1267,74 @@ Progress:
 - [x] Memory cache, disk cache, and pending-future coalescing are validated.
 - [x] Mesh generation concurrency is bounded.
 - [ ] Basic docs explain setup, commands, and known limits.
+
+## MVP Release Review
+
+Release environment rule:
+
+- [ ] Routine Terrascape validation uses the dedicated worldview server:
+  `synth-worldview-mvp`.
+- [ ] Do not use the combined/CAS server (`synthborn-combined`) for regular Terrascape
+  validation or release iteration. Treat it as production-like pre-prod.
+- [ ] Release validation notes include the server target, date, build/version, and the
+  exact command or URL used.
+
+Release blockers:
+
+| Requirement | Status | Acceptance |
+| --- | --- | --- |
+| Project page on CurseForge | Primed | CurseForge project exists, has final name, summary, images, categories, supported Hytale/server version, license, source link, and install instructions; awaiting final build location and production deployment process. |
+| GitHub Actions build script written | Open | CI builds the release jar from a clean checkout and uploads/stores the artifact. |
+| GitHub Actions unit test script | Open | CI runs Java and web unit tests on every PR/main push, and failures block release. |
+| Production deployment and validation process automation | Open | A repeatable scripted process builds the release artifact, deploys only to the intended production target, runs post-deploy validation, captures evidence, and avoids routine use of `synthborn-combined`. |
+| Web-client instructions manual | In Progress | README or dedicated viewer guide explains opening the map, token-gated links, controls, player follow modes, settings, and common viewer troubleshooting. |
+| Admin install guide | In Progress | Operations docs explain server install/update, config file location, ports, bind address, access tokens, CORS/TLS, static debug token, RCON password behavior, and cache clearing. |
+| Admin instructions manual | In Progress | Operations docs explain daily admin workflows: minting links, permissions, deploy/update flow, validation commands, logs, metrics, performance tests, and troubleshooting. |
+| Mod install guide in README | In Progress | README has clear CurseForge and manual install paths for server owners, including where the jar goes and how to open the map. |
+| Install from CurseForge validation | Open | A fresh server install using only the CurseForge artifact starts successfully, serves the web map, and documents any first-run config steps. |
+| Runtime test review | Open | Release candidate passes unit tests, live browser test, smoke perf run, access-token checks, RCON password checks, and a manual browser sanity pass on `synth-worldview-mvp`. |
+| Documentation review | Open | README, operations manual, release notes, CurseForge page text, and any screenshots match the shipped behavior and current security model. |
+| Architecture review resolution | Open | Review `docs/terrascape-architecture-review.md`, resolve or explicitly defer its release-relevant findings, and record the disposition before MVP release. |
+
+Runtime review tasks:
+
+- [ ] Build the release candidate jar from a clean checkout.
+- [ ] Deploy only to `synth-worldview-mvp` for release validation.
+- [ ] Confirm `GET /api/worlds` returns at least one allowed world.
+- [ ] Run `npm run test:release` against the dedicated Terrascape server.
+- [ ] Run `npm run perf:smoke` and record the result.
+- [ ] Validate public map viewing with `access.mode=public`.
+- [ ] Validate restricted map viewing with a generated `/terrascape maplink`.
+- [ ] Validate admin-scoped token behavior with `/terrascape maptoken`.
+- [ ] Validate map API command proxy rejects public/no-token, map-only token,
+  `access.debugToken`, and `rcon.password`.
+- [ ] Validate map API command proxy accepts an admin-scoped user map token.
+- [ ] Validate standalone RCON rejects missing, map-token, debug-token, or wrong
+  credentials.
+- [ ] Validate RCON accepts the configured `rcon.password`.
+- [ ] Confirm no release validation deploy touched `synthborn-combined`.
+
+Documentation review tasks:
+
+- [ ] README install instructions match the CurseForge artifact and current jar name.
+- [ ] README viewer instructions match the current UI.
+- [ ] Operations manual matches current config defaults.
+- [ ] Operations manual explains map API command-proxy auth and RCON-only password auth.
+- [ ] Admin permissions and `/terrascape` commands are documented.
+- [ ] Review and resolve `docs/terrascape-architecture-review.md`.
+- [ ] Troubleshooting covers unreachable map, restricted access, stale caches, and deploy
+  health failures.
+- [ ] CurseForge page text and screenshots match the final release build.
+
+Release evidence template:
+
+```text
+Release candidate:
+Commit:
+Artifact:
+Server target:
+Validation date:
+Validated by:
+Results:
+Known issues:
+```

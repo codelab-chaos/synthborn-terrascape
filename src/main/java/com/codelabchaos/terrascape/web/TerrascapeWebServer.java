@@ -9,6 +9,7 @@ import com.codelabchaos.terrascape.config.ServerControls;
 import static com.codelabchaos.terrascape.web.Json.escapeJson;
 import static com.codelabchaos.terrascape.web.Json.findInt;
 import static com.codelabchaos.terrascape.web.Json.findString;
+import static com.codelabchaos.terrascape.web.Json.unescapeJsonString;
 import static com.codelabchaos.terrascape.web.HttpResponses.acceptsGzip;
 import static com.codelabchaos.terrascape.web.HttpResponses.contentType;
 import static com.codelabchaos.terrascape.web.HttpResponses.gzip;
@@ -45,6 +46,9 @@ import com.hypixel.hytale.component.spatial.SpatialResource;
 import com.hypixel.hytale.math.vector.Rotation3f;
 import com.hypixel.hytale.math.vector.Transform;
 import com.hypixel.hytale.protocol.packets.worldmap.MapImage;
+import com.hypixel.hytale.server.core.Message;
+import com.hypixel.hytale.server.core.command.system.CommandManager;
+import com.hypixel.hytale.server.core.command.system.CommandSender;
 import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.entity.EntityUtils;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
@@ -109,6 +113,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -136,6 +141,8 @@ public final class TerrascapeWebServer {
     private static final Duration MAP_REGION_TIMEOUT = Duration.ofSeconds(60);
     private static final int MAP_REGION_GENERATE_RADIUS = 20;
     private static final int MAX_CLIENT_LOG_BYTES = 16 * 1024;
+    private static final int MAX_MAP_RCON_BYTES = 8 * 1024;
+    private static final Duration MAP_RCON_COMMAND_TIMEOUT = Duration.ofSeconds(90);
     private static final String[] PERF_CLIENT_LOG_TYPES = {
             "\"type\":\"frame_hitch\"",
             "\"type\":\"grid_load\"",
@@ -155,6 +162,7 @@ public final class TerrascapeWebServer {
     private static final long PLAYER_AVATAR_CACHE_TTL_MS = Duration.ofHours(12).toMillis();
     private static final Pattern MOB_ICON_PATH_PATTERN = Pattern.compile("^/mob-icons/([A-Za-z0-9_.-]+\\.png)$");
     private static final Pattern PLAYER_AVATAR_PATH_PATTERN = Pattern.compile("^/api/player-avatar/([A-Za-z0-9-]{1,64})\\.png$");
+    private static final Pattern MAP_RCON_COMMAND_PATTERN = Pattern.compile("\"command\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
 
     private final TerrascapePlugin plugin;
     private final TerrascapeConfig config;
@@ -227,6 +235,7 @@ public final class TerrascapeWebServer {
         this.server.createContext("/api/entities/stream", onApi(this::handleEntityStream));
         this.server.createContext("/api/mapregion", onApi(this::handleMapRegion));
         this.server.createContext("/api/client-log", onApi(this::handleClientLog));
+        this.server.createContext("/api/rcon", onApi(this::handleMapRcon));
         this.server.createContext("/api/terrain", onApi(this::handleTerrain));
         this.server.createContext("/", onStatic(this::handleStatic));
         this.server.setExecutor(null);
@@ -283,11 +292,11 @@ public final class TerrascapeWebServer {
 
     /**
      * Outer access check shared by every endpoint. Passes when restricted mode is off, when the
-     * request carries a valid access token, or when a configured admin token is presented (so
+     * request carries a valid access token, or when a configured static debug token is presented (so
      * server-side monitoring keeps working in restricted mode).
      */
     private boolean gatePassed(@Nonnull HttpExchange exchange) {
-        return accessGate.authorize(exchange) || adminTokenMatches(exchange);
+        return accessGate.authorize(exchange) || debugTokenMatches(exchange);
     }
 
     private void writeAccessRequiredPage(@Nonnull HttpExchange exchange) throws IOException {
@@ -399,6 +408,72 @@ public final class TerrascapeWebServer {
             }
         }
         return false;
+    }
+
+    private void handleMapRcon(@Nonnull HttpExchange exchange) throws IOException {
+        if (!"/api/rcon/command".equals(exchange.getRequestURI().getPath())) {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"unknown_rcon_endpoint\"}");
+            return;
+        }
+        if (!mapRconUserTokenAuthorized(exchange)) {
+            writeJson(exchange, 403, "{\"ok\":false,\"error\":\"admin_user_token_required\"}");
+            return;
+        }
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+
+        byte[] body = exchange.getRequestBody().readNBytes(MAX_MAP_RCON_BYTES + 1);
+        if (body.length > MAX_MAP_RCON_BYTES) {
+            writeJson(exchange, 413, "{\"ok\":false,\"error\":\"command_body_too_large\"}");
+            return;
+        }
+        String command = parseMapRconCommand(new String(body, StandardCharsets.UTF_8));
+        if (command == null || command.isBlank()) {
+            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"missing_command\"}");
+            return;
+        }
+
+        WebCommandSender sender = new WebCommandSender("TerrascapeWeb");
+        try {
+            CompletableFuture<Void> future = CommandManager.get().handleCommand(sender, command);
+            future.get(MAP_RCON_COMMAND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            writeJson(exchange, 200, mapRconResponseJson(true, command, sender.messages(), null));
+        } catch (Exception e) {
+            plugin.getLogger().at(Level.WARNING).withCause(e).log("Map API RCON command failed: " + command);
+            writeJson(exchange, 500, mapRconResponseJson(false, command, sender.messages(), e.getMessage()));
+        }
+    }
+
+    static boolean mapRconUserTokenAuthorized(@Nonnull HttpExchange exchange) {
+        return AccessGate.hasScope(exchange, AccessTokens.SCOPE_MAP)
+                && AccessGate.hasScope(exchange, AccessTokens.SCOPE_ADMIN);
+    }
+
+    @Nullable
+    static String parseMapRconCommand(@Nonnull String body) {
+        Matcher matcher = MAP_RCON_COMMAND_PATTERN.matcher(body);
+        return matcher.find() ? unescapeJsonString(matcher.group(1)) : null;
+    }
+
+    static String mapRconResponseJson(boolean ok, @Nonnull String command, @Nonnull List<String> messages, @Nullable String error) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\"ok\":").append(ok);
+        json.append(",\"command\":\"").append(escapeJson(command)).append("\"");
+        json.append(",\"messages\":[");
+        for (int i = 0; i < messages.size(); i++) {
+            if (i > 0) {
+                json.append(',');
+            }
+            json.append('"').append(escapeJson(messages.get(i))).append('"');
+        }
+        json.append(']');
+        if (error != null && !error.isBlank()) {
+            json.append(",\"error\":\"").append(escapeJson(error)).append("\"");
+        }
+        json.append('}');
+        return json.toString();
     }
 
     private void handleNpcIndex(@Nonnull HttpExchange exchange) throws IOException {
@@ -1441,40 +1516,116 @@ public final class TerrascapeWebServer {
 
 
     private boolean isAdminRequest(@Nonnull HttpExchange exchange) {
-        String expected = config.security().adminToken();
-        if (expected.isBlank()) {
+        if (!config.access().hasDebugCredential()) {
             return true;
         }
-        return adminTokenMatches(exchange);
+        return debugTokenMatches(exchange);
     }
 
     /**
-     * Authorizes an admin-only endpoint. Satisfied by the shared admin token (the existing
-     * mechanism, which also treats a blank/unconfigured token as open) or by a session whose access
-     * token carries the {@link AccessTokens#SCOPE_ADMIN} scope — i.e. one minted by a player holding
+     * Authorizes an admin-only endpoint. Satisfied by the static debug token or by a session whose
+     * access token carries the
+     * {@link AccessTokens#SCOPE_ADMIN} scope — i.e. one minted by a player holding
      * {@code terrascape.admin}. This is how a web client's API permissions follow the player's
-     * in-game permissions without sharing a static token.
+     * in-game permissions without requiring a shared credential.
      */
     private boolean isAdminAuthorized(@Nonnull HttpExchange exchange) {
         return isAdminRequest(exchange) || AccessGate.hasScope(exchange, AccessTokens.SCOPE_ADMIN);
     }
 
     /**
-     * Strict admin-token check: true only when an admin token is configured <i>and</i> presented.
+     * Strict debug-token check: true only when a static debug token is configured <i>and</i> presented.
      * Unlike {@link #isAdminRequest} it does not treat a blank/unconfigured token as a match, so it
      * is safe to use as an access-gate bypass.
      */
-    private boolean adminTokenMatches(@Nonnull HttpExchange exchange) {
-        String expected = config.security().adminToken();
-        if (expected.isBlank()) {
-            return false;
-        }
-        String headerToken = exchange.getRequestHeaders().getFirst("X-Terrascape-Admin-Token");
-        if (expected.equals(headerToken)) {
+    private boolean debugTokenMatches(@Nonnull HttpExchange exchange) {
+        String headerToken = exchange.getRequestHeaders().getFirst("X-Terrascape-Debug-Token");
+        if (config.access().matchesDebugCredential(headerToken)) {
             return true;
         }
         String authorization = exchange.getRequestHeaders().getFirst("Authorization");
-        return authorization != null && authorization.equals("Bearer " + expected);
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            return config.access().matchesDebugCredential(authorization.substring("Bearer ".length()).trim());
+        }
+        return false;
+    }
+
+    private static final class WebCommandSender implements CommandSender {
+        private static final Pattern ANSI_PATTERN = Pattern.compile("\\[[;\\d]*m");
+
+        private final String name;
+        private final UUID uuid;
+        private final List<String> messages = new ArrayList<>();
+
+        private WebCommandSender(@Nonnull String name) {
+            this.name = name;
+            this.uuid = UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8));
+        }
+
+        @Override
+        public void sendMessage(@Nonnull Message message) {
+            messages.add(renderMessage(message));
+        }
+
+        @Override
+        public String getUsername() {
+            return name;
+        }
+
+        @Override
+        public UUID getUuid() {
+            return uuid;
+        }
+
+        @Override
+        public boolean hasPermission(String permission) {
+            return true;
+        }
+
+        @Override
+        public boolean hasPermission(String permission, boolean defaultValue) {
+            return true;
+        }
+
+        private List<String> messages() {
+            return List.copyOf(messages);
+        }
+
+        private static String renderMessage(@Nonnull Message message) {
+            String raw = message.getRawText();
+            if (raw != null && !raw.isBlank()) {
+                return raw;
+            }
+
+            List<Message> children = message.getChildren();
+            if (children != null && !children.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                for (Message child : children) {
+                    String childText = renderMessage(child);
+                    if (childText != null && !childText.isBlank()) {
+                        sb.append(childText);
+                    }
+                }
+                if (sb.length() > 0) {
+                    return sb.toString();
+                }
+            }
+
+            String ansi = message.getAnsiMessage();
+            if (ansi != null && !ansi.isBlank()) {
+                String stripped = ANSI_PATTERN.matcher(ansi).replaceAll("");
+                if (!stripped.isBlank()) {
+                    return stripped;
+                }
+            }
+
+            String id = message.getMessageId();
+            if (id != null && !id.isBlank()) {
+                return id;
+            }
+
+            return "";
+        }
     }
 
     public record Metrics(

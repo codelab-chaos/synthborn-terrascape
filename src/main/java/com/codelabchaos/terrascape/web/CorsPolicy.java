@@ -20,7 +20,7 @@ import javax.annotation.Nonnull;
  */
 public final class CorsPolicy {
     private static final String ALLOWED_METHODS = "GET, POST, OPTIONS";
-    private static final String DEFAULT_ALLOWED_HEADERS = "Authorization, Content-Type, X-Terrascape-Admin-Token";
+    private static final String DEFAULT_ALLOWED_HEADERS = "Authorization, Content-Type, X-Terrascape-Debug-Token";
     private static final String MAX_AGE_SECONDS = "600";
 
     private final TerrascapeConfig.Cors config;

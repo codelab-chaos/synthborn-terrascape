@@ -211,6 +211,8 @@ See [`tests/README.md`](tests/README.md) for the three test tiers, and the
 
 - [Operations Manual](docs/operations-manual.md) — the complete server, configuration,
   permissions, and access guide.
+- [Sprint Board](docs/terrascape-sprint-board.md#mvp-release-review) — release checklist,
+  validation environment rule, and release evidence template.
 
 Shared Synthborn/Hytale reference material lives in
 [`../synthborn-basecamp/docs/`](../synthborn-basecamp/docs/README.md); generated lookup

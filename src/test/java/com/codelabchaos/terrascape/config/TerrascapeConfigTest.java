@@ -24,10 +24,16 @@ class TerrascapeConfigTest {
         String text = Files.readString(config.configPath());
         assertTrue(text.contains("# HTTP"));
         assertTrue(text.contains("folders.terrainCache=terrain"));
+        assertTrue(text.contains("access.debugToken="));
+        assertTrue(text.contains("access.mapTokenTtlHours=24"));
+        assertTrue(text.contains("access.adminMapTokenTtlHours=4"));
         assertEquals("127.0.0.1", config.http().host());
         assertEquals(5960, config.http().port());
+        assertEquals(24, config.access().mapTokenTtl().toHours());
+        assertEquals(4, config.access().adminMapTokenTtl().toHours());
         assertFalse(config.features().mobDebugEndpoint());
-        assertFalse(config.security().hasAdminToken());
+        assertFalse(config.access().hasDebugToken());
+        assertFalse(config.rcon().hasPassword());
         assertTrue(text.contains("cors.enabled=false"));
         assertFalse(config.cors().enabled());
         assertTrue(config.cors().allowedOrigins().isEmpty());
@@ -72,7 +78,10 @@ class TerrascapeConfigTest {
         properties.setProperty("worlds.allowlist", "default, arena");
         properties.setProperty("folders.terrainCache", "cache/terrain");
         properties.setProperty("features.clientTelemetry", "false");
-        properties.setProperty("security.adminToken", "secret-token");
+        properties.setProperty("access.debugToken", "secret-token");
+        properties.setProperty("rcon.password", "rcon-secret");
+        properties.setProperty("access.mapTokenTtlHours", "12");
+        properties.setProperty("access.adminMapTokenTtlHours", "2");
         properties.setProperty("mesh.maxBatchChunks", "48");
         properties.setProperty("cache.memoryTerrainBytes", "256MiB");
 
@@ -87,8 +96,14 @@ class TerrascapeConfigTest {
         assertFalse(config.worlds().allows("private"));
         assertEquals(tempDir.resolve("cache/terrain").toAbsolutePath().normalize(), config.folders().terrainCacheDir());
         assertFalse(config.features().clientTelemetry());
-        assertTrue(config.security().hasAdminToken());
-        assertEquals("secret-token", config.security().adminToken());
+        assertTrue(config.access().hasDebugToken());
+        assertEquals("secret-token", config.access().debugToken());
+        assertTrue(config.access().matchesDebugToken("secret-token"));
+        assertFalse(config.access().matchesDebugToken("wrong"));
+        assertTrue(config.rcon().hasPassword());
+        assertEquals("rcon-secret", config.rcon().password());
+        assertEquals(12, config.access().mapTokenTtl().toHours());
+        assertEquals(2, config.access().adminMapTokenTtl().toHours());
         assertEquals(48, config.mesh().maxBatchChunks());
         assertEquals(256L * 1024L * 1024L, config.cache().memoryTerrainBytes());
     }

@@ -243,8 +243,8 @@ public class TerrascapeCommand extends AbstractWorldCommand {
             context.sendMessage(Message.raw("Access tokens unavailable.").color(Color.RED));
             return;
         }
-        Duration ttl = plugin.config().access().tokenTtl();
         Set<String> scopes = mapScopesFor(context);
+        Duration ttl = tokenTtlFor(scopes);
         AccessTokens.MintResult result = tokens.mint(sender.getUuid(), ttl, scopes);
         if (result.token() == null) {
             long minutes = Math.max(1, (result.cooldownMs() + 59_999) / 60_000);
@@ -265,7 +265,7 @@ public class TerrascapeCommand extends AbstractWorldCommand {
     /**
      * Snapshots the player's web capabilities into token scopes: every permitted viewer gets
      * {@code map}; {@code terrascape.admin} holders also get {@code admin} so their web session can
-     * reach admin-only APIs without a shared admin token.
+     * reach admin-only APIs without a static debug token.
      */
     @Nonnull
     private Set<String> mapScopesFor(@Nonnull CommandContext context) {
@@ -275,6 +275,14 @@ public class TerrascapeCommand extends AbstractWorldCommand {
             scopes.add(AccessTokens.SCOPE_ADMIN);
         }
         return scopes;
+    }
+
+    @Nonnull
+    private Duration tokenTtlFor(@Nonnull Set<String> scopes) {
+        if (scopes.contains(AccessTokens.SCOPE_ADMIN)) {
+            return plugin.config().access().adminMapTokenTtl();
+        }
+        return plugin.config().access().mapTokenTtl();
     }
 
     private String mapBaseUrl() {

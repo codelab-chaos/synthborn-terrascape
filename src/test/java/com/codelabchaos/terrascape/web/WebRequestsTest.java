@@ -1,12 +1,18 @@
 package com.codelabchaos.terrascape.web;
 
+import com.codelabchaos.terrascape.access.AccessGate;
+import com.codelabchaos.terrascape.access.AccessTokens;
+import com.codelabchaos.terrascape.testsupport.FakeHttpExchange;
 import com.codelabchaos.terrascape.terrain.TerrainSampler.VisualDetailMode;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebRequestsTest {
@@ -87,5 +93,48 @@ class WebRequestsTest {
 
         BatchMapTileResult failed = new BatchMapTileResult(4, 5, null, "boom");
         assertEquals("boom", failed.error());
+    }
+
+    @Test
+    void staticResourceMapDoesNotExposeServerConfigFiles() throws Exception {
+        Method method = TerrascapeWebServer.class.getDeclaredMethod("moduleResourcePath", String.class);
+        method.setAccessible(true);
+
+        assertEquals("/web/npc-details.json", method.invoke(null, "/npc-details.json"));
+        assertEquals(null, method.invoke(null, "/terrascape.properties"));
+        assertEquals(null, method.invoke(null, "/server-config.json"));
+        assertEquals(null, method.invoke(null, "/access-tokens.json"));
+    }
+
+    @Test
+    void mapRconCommandParserReadsEscapedCommand() {
+        assertEquals("terrascape say \"hi\"",
+                TerrascapeWebServer.parseMapRconCommand("{\"command\":\"terrascape say \\\"hi\\\"\"}"));
+        assertNull(TerrascapeWebServer.parseMapRconCommand("{}"));
+    }
+
+    @Test
+    void mapRconRequiresAdminScopedUserToken() {
+        FakeHttpExchange noToken = new FakeHttpExchange("POST", "/api/rcon/command");
+        assertFalse(TerrascapeWebServer.mapRconUserTokenAuthorized(noToken));
+
+        FakeHttpExchange mapOnly = new FakeHttpExchange("POST", "/api/rcon/command");
+        mapOnly.setAttribute(AccessGate.SCOPES_ATTRIBUTE, Set.of(AccessTokens.SCOPE_MAP));
+        assertFalse(TerrascapeWebServer.mapRconUserTokenAuthorized(mapOnly));
+
+        FakeHttpExchange adminOnly = new FakeHttpExchange("POST", "/api/rcon/command");
+        adminOnly.setAttribute(AccessGate.SCOPES_ATTRIBUTE, Set.of(AccessTokens.SCOPE_ADMIN));
+        assertFalse(TerrascapeWebServer.mapRconUserTokenAuthorized(adminOnly));
+
+        FakeHttpExchange adminUserToken = new FakeHttpExchange("POST", "/api/rcon/command");
+        adminUserToken.setAttribute(AccessGate.SCOPES_ATTRIBUTE,
+                Set.of(AccessTokens.SCOPE_MAP, AccessTokens.SCOPE_ADMIN));
+        assertTrue(TerrascapeWebServer.mapRconUserTokenAuthorized(adminUserToken));
+    }
+
+    @Test
+    void mapRconResponseEscapesCommandOutput() {
+        assertEquals("{\"ok\":false,\"command\":\"say \\\"hi\\\"\",\"messages\":[\"line1\",\"line\\\\2\"],\"error\":\"bad\\nnews\"}",
+                TerrascapeWebServer.mapRconResponseJson(false, "say \"hi\"", List.of("line1", "line\\2"), "bad\nnews"));
     }
 }

@@ -5,8 +5,10 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -18,7 +20,6 @@ public record TerrascapeConfig(
         @Nonnull Path configPath,
         @Nonnull Http http,
         @Nonnull Worlds worlds,
-        @Nonnull Security security,
         @Nonnull Folders folders,
         @Nonnull Mesh mesh,
         @Nonnull Cache cache,
@@ -56,7 +57,6 @@ public record TerrascapeConfig(
                 string(properties, "http.host", "TERRASCAPE_HOST", "127.0.0.1"),
                 integer(properties, "http.port", "TERRASCAPE_PORT", 5960, 1, 65535));
         Worlds worlds = new Worlds(stringSet(properties, "worlds.allowlist", null, Set.of()));
-        Security security = new Security(stringAllowBlank(properties, "security.adminToken", "TERRASCAPE_ADMIN_TOKEN", ""));
         Folders folders = new Folders(
                 path(base, string(properties, "folders.terrainCache", null, "terrain")),
                 path(base, string(properties, "folders.mapRegionCache", null, "map-region")),
@@ -102,7 +102,9 @@ public record TerrascapeConfig(
                 durationSeconds(properties, "entities.playerAvatarCacheTtlSeconds", null, 12 * 60 * 60, 0, 30 * 24 * 60 * 60));
         Access access = new Access(
                 string(properties, "access.mode", "TERRASCAPE_ACCESS_MODE", "public"),
-                Duration.ofHours(integer(properties, "access.tokenTtlHours", null, 24, 1, 8760)),
+                stringAllowBlank(properties, "access.debugToken", "TERRASCAPE_ACCESS_DEBUG_TOKEN", ""),
+                Duration.ofHours(integer(properties, "access.mapTokenTtlHours", null, 24, 1, 8760)),
+                Duration.ofHours(integer(properties, "access.adminMapTokenTtlHours", null, 4, 1, 8760)),
                 stringAllowBlank(properties, "access.publicBaseUrl", "TERRASCAPE_PUBLIC_URL", ""));
         Cors cors = new Cors(
                 bool(properties, "cors.enabled", "TERRASCAPE_CORS_ENABLED", false),
@@ -111,10 +113,9 @@ public record TerrascapeConfig(
                 bool(properties, "rcon.enabled", "TERRASCAPE_RCON_ENABLED", false),
                 string(properties, "rcon.host", "TERRASCAPE_RCON_HOST", "127.0.0.1"),
                 integer(properties, "rcon.port", "TERRASCAPE_RCON_PORT", 25578, 1, 65535),
-                stringAllowBlank(properties, "rcon.token", "TERRASCAPE_RCON_TOKEN", ""),
-                bool(properties, "rcon.allowRemote", "TERRASCAPE_RCON_ALLOW_REMOTE", false),
-                bool(properties, "rcon.dangerPublic", "TERRASCAPE_RCON_DANGER_PUBLIC", false));
-        return new TerrascapeConfig(configPath.toAbsolutePath().normalize(), http, worlds, security, folders, mesh, cache, features, mapView, entities, access, cors, rcon);
+                stringAllowBlank(properties, "rcon.password", "TERRASCAPE_RCON_PASSWORD", ""),
+                bool(properties, "rcon.allowRemote", "TERRASCAPE_RCON_ALLOW_REMOTE", false));
+        return new TerrascapeConfig(configPath.toAbsolutePath().normalize(), http, worlds, folders, mesh, cache, features, mapView, entities, access, cors, rcon);
     }
 
     public static void writeDefaultFile(@Nonnull Path configPath) throws IOException {
@@ -138,11 +139,6 @@ public record TerrascapeConfig(
                 # Blank means every loaded world is visible. Use comma-separated world names to restrict.
                 worlds.allowlist=
 
-                # Security
-                # Optional bearer token for admin/debug web endpoints.
-                # Send as Authorization: Bearer <token> or X-Terrascape-Admin-Token: <token>.
-                security.adminToken=
-
                 # Cross-Origin Resource Sharing (CORS)
                 # Off by default - the bundled viewer is same-origin and needs no CORS.
                 # Enable only to let browser apps on other domains call these APIs.
@@ -154,19 +150,16 @@ public record TerrascapeConfig(
 
                 # RCON (remote command endpoint) - OFF by default.
                 # Opt-in HTTP/JSON endpoint that runs server commands. Security is fail-closed:
-                # when enabled, rcon.token is REQUIRED or the endpoint refuses to start. Every
-                # request must send the token as the X-SynthRCON-Token header. Bound to localhost
-                # unless rcon.allowRemote=true (which still requires a token). Each Synthborn mod
-                # uses its own default port; Terrascape's is 25578.
+                # when enabled, rcon.password is REQUIRED or the endpoint refuses to start.
+                # Every command request must send the password as X-SynthRCON-Token or
+                # Authorization: Bearer. Map access tokens do not authorize RCON.
+                # Browser clients use /api/rcon/command with an admin-scoped map user token instead.
+                # Bound to localhost unless rcon.allowRemote=true.
                 rcon.enabled=false
                 rcon.host=127.0.0.1
                 rcon.port=25578
-                rcon.token=
+                rcon.password=
                 rcon.allowRemote=false
-                # DANGER: dev-only escape hatch. true runs RCON OPEN with NO authentication
-                # (the old behavior) when rcon.token is blank — anyone who can reach the port can
-                # run server commands. Only ever use on a trusted local machine. Leave false.
-                rcon.dangerPublic=false
 
                 # Folders
                 # Relative paths are resolved under this plugin's data folder.
@@ -200,8 +193,19 @@ public record TerrascapeConfig(
                 features.mobDebugEndpoint=false
                 features.entityStream=true
                 features.metricsEndpoint=true
+
+                # Access
+                # access.mode=public lets anyone view the map. restricted requires a generated
+                # per-user map token for the viewer and read-only map APIs.
+                # Optional static bearer token for ops/debug endpoints and monitoring.
+                # Prefer generated per-user map tokens for the browser. Browser command execution
+                # uses admin-scoped map user tokens, not this static token.
+                # Send as Authorization: Bearer <token> or X-Terrascape-Debug-Token: <token>.
+                # This is independent from rcon.password below.
                 access.mode=public
-                access.tokenTtlHours=24
+                access.debugToken=
+                access.mapTokenTtlHours=24
+                access.adminMapTokenTtlHours=4
                 access.publicBaseUrl=
 
                 # Map tiles
@@ -365,12 +369,6 @@ public record TerrascapeConfig(
         }
     }
 
-    public record Security(@Nonnull String adminToken) {
-        public boolean hasAdminToken() {
-            return !adminToken.isBlank();
-        }
-    }
-
     public record Folders(
             @Nonnull Path terrainCacheDir,
             @Nonnull Path mapRegionCacheDir,
@@ -424,9 +422,36 @@ public record TerrascapeConfig(
     ) {
     }
 
-    public record Access(@Nonnull String mode, @Nonnull Duration tokenTtl, @Nonnull String publicBaseUrl) {
+    public record Access(
+            @Nonnull String mode,
+            @Nonnull String debugToken,
+            @Nonnull Duration mapTokenTtl,
+            @Nonnull Duration adminMapTokenTtl,
+            @Nonnull String publicBaseUrl
+    ) {
         public boolean restricted() {
             return "restricted".equalsIgnoreCase(mode);
+        }
+
+        public boolean hasDebugToken() {
+            return !debugToken.isBlank();
+        }
+
+        public boolean hasDebugCredential() {
+            return hasDebugToken();
+        }
+
+        public boolean matchesDebugToken(@Nullable String credential) {
+            return matchesDebugCredential(credential);
+        }
+
+        public boolean matchesDebugCredential(@Nullable String credential) {
+            if (credential == null || credential.isBlank() || debugToken.isBlank()) {
+                return false;
+            }
+            return MessageDigest.isEqual(
+                    debugToken.getBytes(StandardCharsets.UTF_8),
+                    credential.getBytes(StandardCharsets.UTF_8));
         }
     }
 
@@ -442,7 +467,9 @@ public record TerrascapeConfig(
      * {@code com.codelabchaos.rcon} core; the security schema is enforced there.
      * Terrascape's reserved default port is {@code 25578}.
      */
-    public record Rcon(boolean enabled, @Nonnull String host, int port, @Nonnull String token, boolean allowRemote,
-                       boolean dangerPublic) {
+    public record Rcon(boolean enabled, @Nonnull String host, int port, @Nonnull String password, boolean allowRemote) {
+        public boolean hasPassword() {
+            return !password.isBlank();
+        }
     }
 }
