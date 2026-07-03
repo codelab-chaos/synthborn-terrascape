@@ -14,7 +14,7 @@ import {
   infoCardHeadEl,
   landMotionInput,
   mapTilesInput,
-  mapTimeInput,
+  syncTimeInput,
   mobBlocksInput,
   panelToggle,
   serverCardHeadEl,
@@ -116,11 +116,16 @@ test('water mode + rate selects apply and persist', () => {
   assert.ok(calls.applyWaterMode >= 1);
 });
 
-test('tree shade and map-time and map-tiles toggles fire their handlers', () => {
+test('tree shade, sync time, and map-tiles toggles fire their handlers', () => {
   change(treeShadeInput);
   assert.ok(calls.applyLighting >= 1);
-  change(mapTimeInput);
+  syncTimeInput.checked = true;
+  change(syncTimeInput);
+  assert.ok(calls.refreshWorldTime >= 1);
   assert.ok(calls.restartWorldTimePolling >= 1);
+  syncTimeInput.checked = false;
+  change(syncTimeInput);
+  assert.ok(calls.applyLighting >= 2);
   change(mapTilesInput);
   assert.ok(calls.updateMapTileLayer >= 1);
 });
@@ -195,6 +200,60 @@ test('keyup removes the key from pressedKeys', () => {
   const evt = new window.KeyboardEvent('keyup', { code: 'KeyA' });
   window.dispatchEvent(evt);
   assert.ok(!bindings.pressedKeys.has('KeyA'));
+});
+
+test('pointerdown can start fly look while following a player', () => {
+  const previousView = bindings.getViewPlayerUuid;
+  const previousFollow = bindings.getFollowPlayerUuid;
+  const previousShouldStart = bindings.shouldStartFlyLook;
+  const previousRequestPointerLock = bindings.renderer.domElement.requestPointerLock;
+  let requestCount = 0;
+  bindings.getViewPlayerUuid = () => null;
+  bindings.getFollowPlayerUuid = () => 'player-1';
+  bindings.shouldStartFlyLook = () => true;
+  bindings.renderer.domElement.requestPointerLock = () => { requestCount += 1; };
+  const evt = new window.MouseEvent('pointerdown', { button: 0, bubbles: true, cancelable: true });
+
+  try {
+    bindings.renderer.domElement.dispatchEvent(evt);
+    assert.equal(requestCount, 1);
+    assert.equal(evt.defaultPrevented, true);
+  } finally {
+    bindings.getViewPlayerUuid = previousView;
+    bindings.getFollowPlayerUuid = previousFollow;
+    bindings.shouldStartFlyLook = previousShouldStart;
+    bindings.renderer.domElement.requestPointerLock = previousRequestPointerLock;
+  }
+});
+
+test('wheel zoom is allowed in follow mode and blocked in eye mode', () => {
+  const previousView = bindings.getViewPlayerUuid;
+  const previousFollow = bindings.getFollowPlayerUuid;
+  const makeWheel = () => {
+    const evt = new window.Event('wheel', { bubbles: true, cancelable: true }) as any;
+    Object.defineProperty(evt, 'deltaY', { value: 100 });
+    return evt;
+  };
+
+  try {
+    bindings.getViewPlayerUuid = () => null;
+    bindings.getFollowPlayerUuid = () => 'player-1';
+    const beforeFollow = calls.zoomFlyView ?? 0;
+    const followEvt = makeWheel();
+    bindings.renderer.domElement.dispatchEvent(followEvt);
+    assert.ok((calls.zoomFlyView ?? 0) > beforeFollow);
+    assert.equal(followEvt.defaultPrevented, true);
+
+    bindings.getViewPlayerUuid = () => 'player-1';
+    const beforeEye = calls.zoomFlyView ?? 0;
+    const eyeEvt = makeWheel();
+    bindings.renderer.domElement.dispatchEvent(eyeEvt);
+    assert.equal(calls.zoomFlyView ?? 0, beforeEye);
+    assert.equal(eyeEvt.defaultPrevented, false);
+  } finally {
+    bindings.getViewPlayerUuid = previousView;
+    bindings.getFollowPlayerUuid = previousFollow;
+  }
 });
 
 test('setSettingsPanelOpen reflects state on hud + toggle aria', () => {

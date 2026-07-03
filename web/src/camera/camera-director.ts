@@ -18,6 +18,17 @@ import { updatePlayers, restartPlayerPolling } from '../entities/entity-feed.ts'
 import { saveViewState } from '../ui/view-persistence.ts';
 
 const PLAYER_EYE_ROTATION_LERP = 14;
+const FOLLOW_CAMERA_TARGET_HEIGHT = 2.1;
+const FOLLOW_CAMERA_DEFAULT_DISTANCE = 58;
+const FOLLOW_CAMERA_HEIGHT_RATIO = 0.42;
+const FOLLOW_CAMERA_MIN_HEIGHT = 10;
+const FOLLOW_CAMERA_MAX_HEIGHT = 34;
+const FOLLOW_CAMERA_LOCK_LERP = 8;
+const FOLLOW_CAMERA_IDLE_DELAY_MS = 900;
+const FOLLOW_CAMERA_IDLE_SNAP_LERP = 7.5;
+const FOLLOW_CAMERA_TETHER_START = 18;
+const FOLLOW_CAMERA_TETHER_MAX = 120;
+const FOLLOW_CAMERA_TETHER_LERP = 1.35;
 const MOB_CARD_MIN_HEIGHT = 3.4;
 const MOB_CARD_PLAYER_HEIGHT = 4.8;
 const MOB_CARD_TREE_TOP_HEIGHT = 24;
@@ -37,6 +48,12 @@ const tempPlayerForward = new THREE.Vector3();
 const tempPlayerCardQuaternion = new THREE.Quaternion();
 const tempPlayerParentQuaternion = new THREE.Quaternion();
 const tempFollowDelta = new THREE.Vector3();
+const tempFollowTarget = new THREE.Vector3();
+const tempFollowIdealCamera = new THREE.Vector3();
+const tempFollowOffset = new THREE.Vector3();
+const tempFollowCorrection = new THREE.Vector3();
+const lastFollowTarget = new THREE.Vector3();
+let hasLastFollowTarget = false;
 
 export function focusPlayer(uuid) {
   const marker = playerMarkers.get(uuid);
@@ -106,6 +123,10 @@ function resetCameraModes() {
   cameraModeStack.length = 0;
   runtime.viewPlayerUuid = null;
   runtime.followPlayerUuid = null;
+  runtime.followCameraDistance = FOLLOW_CAMERA_DEFAULT_DISTANCE;
+  runtime.followCameraDetached = false;
+  runtime.followCameraLastInputAt = 0;
+  hasLastFollowTarget = false;
   playerEyeState.uuid = null;
   setFollowControlsEnabled(false);
 }
@@ -117,6 +138,9 @@ function captureCameraModeState() {
     viewPlayerUuid: runtime.viewPlayerUuid,
     followPlayerUuid: runtime.followPlayerUuid,
     controlsEnabled: controls.enabled,
+    followCameraDistance: runtime.followCameraDistance,
+    followCameraDetached: runtime.followCameraDetached,
+    followCameraLastInputAt: runtime.followCameraLastInputAt,
   };
 }
 
@@ -129,6 +153,14 @@ function restoreCameraModeState(state) {
   controls.target.copy(state.target);
   runtime.viewPlayerUuid = state.viewPlayerUuid;
   runtime.followPlayerUuid = state.followPlayerUuid;
+  runtime.followCameraDistance = Number.isFinite(state.followCameraDistance)
+    ? state.followCameraDistance
+    : FOLLOW_CAMERA_DEFAULT_DISTANCE;
+  runtime.followCameraDetached = state.followCameraDetached === true;
+  runtime.followCameraLastInputAt = Number.isFinite(state.followCameraLastInputAt)
+    ? state.followCameraLastInputAt
+    : 0;
+  hasLastFollowTarget = false;
   if (runtime.viewPlayerUuid) {
     resetPlayerEyeState(runtime.viewPlayerUuid);
   } else {
@@ -146,15 +178,19 @@ function applyCameraMode(mode, uuid) {
   runtime.followPlayerUuid = mode === 'follow' ? uuid : null;
   setFollowControlsEnabled(mode === 'follow');
   if (mode === 'follow') {
+    runtime.followCameraDistance = FOLLOW_CAMERA_DEFAULT_DISTANCE;
+    runtime.followCameraDetached = false;
+    runtime.followCameraLastInputAt = 0;
+    hasLastFollowTarget = false;
     updateWalkFollowCamera(1);
   }
 }
 
 function setFollowControlsEnabled(enabled) {
-  controls.enabled = enabled;
-  controls.enableRotate = enabled;
-  controls.enableZoom = enabled;
-  controls.enablePan = enabled;
+  controls.enabled = false;
+  controls.enableRotate = false;
+  controls.enableZoom = false;
+  controls.enablePan = false;
   controls.mouseButtons = enabled ? FOLLOW_MOUSE_BUTTONS : FLY_MOUSE_BUTTONS;
 }
 
@@ -354,12 +390,84 @@ function updateWalkFollowCamera(deltaSeconds) {
     setPlayerFollow(null);
     return;
   }
-  tempPlayerTarget.copy(marker.position);
-  tempPlayerTarget.y += 2.1;
-  const alpha = 1 - Math.exp(-deltaSeconds * 4.8);
-  tempFollowDelta.copy(tempPlayerTarget).sub(controls.target).multiplyScalar(alpha);
-  controls.target.add(tempFollowDelta);
-  camera.position.add(tempFollowDelta);
+  followTarget(marker, tempFollowTarget);
+  followIdealCamera(marker, tempFollowTarget, tempFollowIdealCamera);
+
+  if (!hasLastFollowTarget) {
+    lastFollowTarget.copy(tempFollowTarget);
+    hasLastFollowTarget = true;
+  }
+  tempFollowDelta.copy(tempFollowTarget).sub(lastFollowTarget);
+  if (tempFollowDelta.lengthSq() > 0) {
+    camera.position.add(tempFollowDelta);
+    controls.target.add(tempFollowDelta);
+    lastFollowTarget.copy(tempFollowTarget);
+  }
+
+  if (!runtime.followCameraDetached) {
+    const alpha = lerpAlpha(deltaSeconds, FOLLOW_CAMERA_LOCK_LERP);
+    camera.position.lerp(tempFollowIdealCamera, alpha);
+    controls.target.lerp(tempFollowTarget, alpha);
+    camera.lookAt(controls.target);
+    syncFlyLookFromCamera();
+    return;
+  }
+
+  const idleMs = performance.now() - (runtime.followCameraLastInputAt || 0);
+  if (idleMs >= FOLLOW_CAMERA_IDLE_DELAY_MS) {
+    const alpha = lerpAlpha(deltaSeconds, FOLLOW_CAMERA_IDLE_SNAP_LERP);
+    camera.position.lerp(tempFollowIdealCamera, alpha);
+    controls.target.lerp(tempFollowTarget, alpha);
+    camera.lookAt(controls.target);
+    syncFlyLookFromCamera();
+    if (camera.position.distanceTo(tempFollowIdealCamera) < 0.35 && controls.target.distanceTo(tempFollowTarget) < 0.2) {
+      camera.position.copy(tempFollowIdealCamera);
+      controls.target.copy(tempFollowTarget);
+      camera.lookAt(controls.target);
+      syncFlyLookFromCamera();
+      runtime.followCameraDetached = false;
+    }
+    return;
+  }
+
+  tempFollowOffset.copy(camera.position).sub(tempFollowIdealCamera);
+  const offsetLength = tempFollowOffset.length();
+  if (offsetLength > FOLLOW_CAMERA_TETHER_START) {
+    const excess = clamp(
+      (offsetLength - FOLLOW_CAMERA_TETHER_START) / (FOLLOW_CAMERA_TETHER_MAX - FOLLOW_CAMERA_TETHER_START),
+      0,
+      1,
+    );
+    const alpha = lerpAlpha(deltaSeconds, FOLLOW_CAMERA_TETHER_LERP * (0.35 + excess * 1.65));
+    tempFollowCorrection.copy(tempFollowOffset).multiplyScalar(-alpha);
+    camera.position.add(tempFollowCorrection);
+    controls.target.add(tempFollowCorrection);
+  }
+}
+
+function followTarget(marker, target) {
+  return target.copy(marker.position).setY(marker.position.y + FOLLOW_CAMERA_TARGET_HEIGHT);
+}
+
+function followIdealCamera(marker, target, out) {
+  const yaw = Number.isFinite(marker.userData.targetYaw) ? marker.userData.targetYaw : marker.rotation.y;
+  tempPlayerForward.set(-Math.sin(yaw), 0, -Math.cos(yaw));
+  if (tempPlayerForward.lengthSq() < 0.0001) {
+    tempPlayerForward.set(0, 0, -1);
+  } else {
+    tempPlayerForward.normalize();
+  }
+  const distance = Number.isFinite(runtime.followCameraDistance)
+    ? runtime.followCameraDistance
+    : FOLLOW_CAMERA_DEFAULT_DISTANCE;
+  const height = clamp(distance * FOLLOW_CAMERA_HEIGHT_RATIO, FOLLOW_CAMERA_MIN_HEIGHT, FOLLOW_CAMERA_MAX_HEIGHT);
+  return out.copy(target)
+    .addScaledVector(tempPlayerForward, -distance)
+    .setY(target.y + height);
+}
+
+function lerpAlpha(deltaSeconds, speed) {
+  return 1 - Math.exp(-Math.max(0, deltaSeconds) * speed);
 }
 
 function lerpAngle(current, target, alpha) {

@@ -27,11 +27,13 @@ class TerrascapeConfigTest {
         assertTrue(text.contains("access.debugToken="));
         assertTrue(text.contains("access.mapTokenTtlHours=24"));
         assertTrue(text.contains("access.adminMapTokenTtlHours=4"));
+        assertTrue(text.contains("validation.smokeTokensEnabled=false"));
         assertEquals("127.0.0.1", config.http().host());
         assertEquals(5960, config.http().port());
         assertEquals(24, config.access().mapTokenTtl().toHours());
         assertEquals(4, config.access().adminMapTokenTtl().toHours());
         assertFalse(config.features().mobDebugEndpoint());
+        assertFalse(config.validation().smokeTokensEnabled());
         assertFalse(config.access().hasDebugToken());
         assertFalse(config.rcon().hasPassword());
         assertTrue(text.contains("cors.enabled=false"));
@@ -80,6 +82,7 @@ class TerrascapeConfigTest {
         properties.setProperty("features.clientTelemetry", "false");
         properties.setProperty("access.debugToken", "secret-token");
         properties.setProperty("rcon.password", "rcon-secret");
+        properties.setProperty("validation.smokeTokensEnabled", "true");
         properties.setProperty("access.mapTokenTtlHours", "12");
         properties.setProperty("access.adminMapTokenTtlHours", "2");
         properties.setProperty("mesh.maxBatchChunks", "48");
@@ -102,6 +105,7 @@ class TerrascapeConfigTest {
         assertFalse(config.access().matchesDebugToken("wrong"));
         assertTrue(config.rcon().hasPassword());
         assertEquals("rcon-secret", config.rcon().password());
+        assertTrue(config.validation().smokeTokensEnabled());
         assertEquals(12, config.access().mapTokenTtl().toHours());
         assertEquals(2, config.access().adminMapTokenTtl().toHours());
         assertEquals(48, config.mesh().maxBatchChunks());
@@ -129,5 +133,18 @@ class TerrascapeConfigTest {
         assertEquals(1024L, TerrascapeConfig.parseBytes("1KiB"));
         assertEquals(2L * 1024L * 1024L, TerrascapeConfig.parseBytes("2M"));
         assertEquals(3L * 1024L * 1024L * 1024L, TerrascapeConfig.parseBytes("3 gb"));
+    }
+
+    @Test
+    void ensureRuntimeDirectoriesCreatesCacheFolders() throws IOException {
+        TerrascapeConfig config = TerrascapeConfig.load(tempDir);
+
+        config.ensureRuntimeDirectories();
+
+        assertTrue(Files.isDirectory(config.folders().terrainCacheDir()));
+        assertTrue(Files.isDirectory(config.folders().mapRegionCacheDir()));
+        assertTrue(Files.isDirectory(config.folders().samplesDir()));
+        assertTrue(Files.isDirectory(config.folders().playerAvatarsDir()));
+        assertTrue(Files.isDirectory(config.folders().mobIconsDir()));
     }
 }

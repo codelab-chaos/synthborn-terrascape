@@ -4,18 +4,22 @@ import {
   camera,
   controls,
   pressedKeys,
+  playerMarkers,
   renderer,
   runtime,
 } from '../scene/scene-context.ts';
 
 const FLY_LOOK_DISTANCE = 64;
 const FLY_MOUSE_SENSITIVITY = 0.0022;
-const FLY_MOVE_SPEED = 72;
+const FLY_MOVE_SPEED = 48;
 const FLY_SPRINT_MULTIPLIER = 3;
 const FLY_ZOOM_STEP = 18;
 const FLY_ZOOM_MAX_TICKS = 6;
 const FLY_MIN_Y = 8;
 const FLY_MAX_Y = 1200;
+const FOLLOW_DOLLY_STEP = 8;
+const FOLLOW_MIN_DISTANCE = 12;
+const FOLLOW_MAX_DISTANCE = 180;
 
 const tempCameraForward = new THREE.Vector3();
 const tempCenteredPivot = new THREE.Vector3();
@@ -46,6 +50,15 @@ export function updateFlyTarget() {
 
 export function zoomFlyView(deltaY) {
   if (runtime.viewPlayerUuid || !Number.isFinite(deltaY) || deltaY === 0) return;
+  if (runtime.followPlayerUuid && !runtime.followCameraDetached) {
+    const ticks = Math.max(-FLY_ZOOM_MAX_TICKS, Math.min(FLY_ZOOM_MAX_TICKS, deltaY / 100));
+    runtime.followCameraDistance = Math.max(
+      FOLLOW_MIN_DISTANCE,
+      Math.min(FOLLOW_MAX_DISTANCE, runtime.followCameraDistance + ticks * FOLLOW_DOLLY_STEP),
+    );
+    runtime.followCameraLastInputAt = performance.now();
+    return;
+  }
   camera.getWorldDirection(tempCameraForward);
   if (tempCameraForward.lengthSq() < 0.0001) return;
 
@@ -56,6 +69,7 @@ export function zoomFlyView(deltaY) {
     tempFlyZoom.y = Math.max(FLY_MIN_Y, Math.min(FLY_MAX_Y, nextY)) - camera.position.y;
   }
   camera.position.add(tempFlyZoom);
+  noteFollowCameraInteraction();
   updateFlyTarget();
 }
 
@@ -71,6 +85,7 @@ export function applyFlyLookDelta(movementX, movementY) {
   runtime.flyYaw -= Number(movementX) * FLY_MOUSE_SENSITIVITY;
   runtime.flyPitch -= Number(movementY) * FLY_MOUSE_SENSITIVITY;
   applyFlyLook();
+  noteFollowCameraInteraction();
 }
 
 export function handleKeyboardNavigation(deltaSeconds) {
@@ -102,5 +117,12 @@ export function handleKeyboardNavigation(deltaSeconds) {
   const boost = pressedKeys.has('ShiftLeft') || pressedKeys.has('ShiftRight') ? FLY_SPRINT_MULTIPLIER : 1;
   tempFlyMove.multiplyScalar(FLY_MOVE_SPEED * boost * deltaSeconds);
   camera.position.add(tempFlyMove);
+  noteFollowCameraInteraction();
   updateFlyTarget();
+}
+
+function noteFollowCameraInteraction() {
+  if (!runtime.followPlayerUuid || !playerMarkers.has(runtime.followPlayerUuid)) return;
+  runtime.followCameraDetached = true;
+  runtime.followCameraLastInputAt = performance.now();
 }

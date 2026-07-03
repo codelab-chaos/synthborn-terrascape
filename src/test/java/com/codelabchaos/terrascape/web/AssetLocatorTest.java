@@ -7,22 +7,15 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Properties;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Covers construction and the local mob-icon cache hit.
- *
- * <p>Plugin-constructability verdict: the loose-file and {@code Assets.zip} resolution paths are
- * NOT unit-testable. They route through {@code assetSearchRoots()}, which dereferences
- * {@code plugin.terrascapeDir()} (and {@code plugin.getLogger()} on the zip-resolved branch). The
- * {@code TerrascapePlugin} that would supply those cannot be constructed or subclassed in a test:
- * its super constructor {@code PluginBase(PluginInit)} calls {@code HytaleServer.get().getEventBus()}
- * (verified via {@code javap -c} on Server-0.5.4.jar), which NPEs without a running engine server.
- * Standing up a real {@code HytaleServer} singleton is the engine-bound runtime path this suite is
- * told to skip. So only the plugin-free on-disk cache hit is exercised here; every cache-miss path
- * reaches {@code plugin} and is therefore a runtime concern.
+ * Covers construction, local cache hits, and plugin-free asset zip discovery.
  */
 class AssetLocatorTest {
     @TempDir
@@ -68,28 +61,22 @@ class AssetLocatorTest {
     }
 
     @Test
-    void cacheMissReachesPluginAndIsRuntimeBound() throws IOException {
-        // Documents the engine boundary: with no cached file, the very first miss step
-        // (resolveLooseGeneratedIcon -> assetSearchRoots) dereferences the null plugin. A real
-        // plugin cannot be constructed in a unit test (see class javadoc), so this remains a
-        // runtime concern; we assert the boundary rather than fake it.
+    void missingIconReturnsNullWithoutPlugin() throws IOException {
         TerrascapeConfig config = TerrascapeConfig.load(tempDir);
         AssetLocator locator = new AssetLocator(config, null);
-        assertThrows(NullPointerException.class, () -> locator.readOrCacheGeneratedMobIcon("absent.png"));
+        assertNull(locator.readOrCacheGeneratedMobIcon("absent.png"));
     }
 
     @Test
-    void directoryAtCachePathSwallowsIoErrorThenReachesPlugin() throws IOException {
+    void directoryAtCachePathSwallowsIoErrorThenReturnsNull() throws IOException {
         // Exercises the IOException-swallow branch in the cache read: when the cache path is a
-        // directory, Files.readAllBytes throws and is caught, after which the miss path again
-        // reaches the null plugin. Confirms the catch is taken (no IOException escapes) before the
-        // documented runtime boundary.
+        // directory, Files.readAllBytes throws and is caught before the miss path returns null.
         TerrascapeConfig config = TerrascapeConfig.load(tempDir);
         Path icons = config.folders().mobIconsDir();
         Files.createDirectories(icons.resolve("dir.png"));
 
         AssetLocator locator = new AssetLocator(config, null);
-        assertThrows(NullPointerException.class, () -> locator.readOrCacheGeneratedMobIcon("dir.png"));
+        assertNull(locator.readOrCacheGeneratedMobIcon("dir.png"));
     }
 
     @Test
@@ -104,5 +91,28 @@ class AssetLocatorTest {
 
         AssetLocator locator = new AssetLocator(config, null);
         assertArrayEquals(png, locator.readOrCacheGeneratedMobIcon("lazy.png"));
+    }
+
+    @Test
+    void apexStyleJarAssetsZipIsDiscoveredAndCached() throws IOException {
+        byte[] png = {13, 37, 42};
+        Path zip = tempDir.resolve("jar").resolve("Assets.zip");
+        Files.createDirectories(zip.getParent());
+        try (ZipOutputStream output = new ZipOutputStream(Files.newOutputStream(zip))) {
+            output.putNextEntry(new ZipEntry("Common/Icons/ModelsGenerated/wolf.png"));
+            output.write(png);
+            output.closeEntry();
+        }
+
+        Properties properties = new Properties();
+        properties.setProperty("folders.assetsRoot", tempDir.toString());
+        TerrascapeConfig config = TerrascapeConfig.fromProperties(
+                tempDir.resolve(TerrascapeConfig.FILE_NAME),
+                tempDir.resolve("data"),
+                properties);
+
+        AssetLocator locator = new AssetLocator(config, null);
+        assertArrayEquals(png, locator.readOrCacheGeneratedMobIcon("wolf.png"));
+        assertArrayEquals(png, Files.readAllBytes(config.folders().mobIconsDir().resolve("wolf.png")));
     }
 }

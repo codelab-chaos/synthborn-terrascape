@@ -209,7 +209,7 @@ body {
   width: 220px;
 }
 
-.map-time-toggle {
+.sync-time-toggle {
   position: absolute;
   left: calc(50% + 124px);
   top: 50%;
@@ -227,12 +227,12 @@ body {
   white-space: nowrap;
 }
 
-.map-time-toggle input {
+.sync-time-toggle input {
   width: 14px;
   height: 14px;
 }
 
-.map-time-toggle span {
+.sync-time-toggle span {
   color: inherit;
   font-size: inherit;
 }
@@ -1115,7 +1115,7 @@ button {
     display: none;
   }
 
-  .map-time-toggle {
+  .sync-time-toggle {
     display: none;
   }
 

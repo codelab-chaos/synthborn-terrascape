@@ -4,19 +4,19 @@ export function positiveIntegerMs(value: unknown, fallback: number) {
 }
 
 export function worldTimePollDelayMs({
-  mapTimeEnabled,
+  syncTimeEnabled,
   lastPlayerCount,
   activeMs,
   visibleMs,
   idleMs,
 }: {
-  mapTimeEnabled: boolean;
+  syncTimeEnabled: boolean;
   lastPlayerCount: number;
   activeMs: number;
   visibleMs: number;
   idleMs: number;
 }) {
-  if (mapTimeEnabled) {
+  if (syncTimeEnabled) {
     return activeMs;
   }
   return lastPlayerCount > 0 ? visibleMs : idleMs;

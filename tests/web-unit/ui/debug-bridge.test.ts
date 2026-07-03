@@ -11,7 +11,7 @@ import {
 } from '../../../web/src/scene/scene-context.ts';
 import {
   autoStreamInput,
-  mapTimeInput,
+  syncTimeInput,
 } from '../../../web/src/ui/dom.ts';
 
 function bridge(): any {
@@ -130,11 +130,11 @@ test('flyLook getter and setCameraPose drive camera state', () => {
   assert.equal(controls.target.x, 1);
 });
 
-test('setWorldTimeForTest stores the world time and enables map time', () => {
+test('setWorldTimeForTest stores the world time and enables sync time', () => {
   const dbg = bridge();
-  mapTimeInput.checked = false;
+  syncTimeInput.checked = false;
   dbg.setWorldTimeForTest({ dayProgress: 0.5, phase: 'noon' });
-  assert.equal(mapTimeInput.checked, true);
+  assert.equal(syncTimeInput.checked, true);
   assert.deepEqual(runtime.worldTime, { dayProgress: 0.5, phase: 'noon' });
 });
 

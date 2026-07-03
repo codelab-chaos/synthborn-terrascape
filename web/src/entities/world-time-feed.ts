@@ -3,11 +3,11 @@ import { apiFetch } from '../platform/api-client.ts';
 import { logClientEvent } from '../platform/client-log.ts';
 import { applyLighting } from '../scene/lighting-controls.ts';
 import { runtime, timeRibbon } from '../scene/scene-context.ts';
-import { mapTimeInput, worldSelect } from '../ui/dom.ts';
+import { syncTimeInput, worldSelect } from '../ui/dom.ts';
 
-const MAP_TIME_ACTIVE_POLL_MS = 5000;
-const MAP_TIME_VISIBLE_POLL_MS = 10000;
-const MAP_TIME_IDLE_POLL_MS = 30000;
+const SYNC_TIME_ACTIVE_POLL_MS = 5000;
+const SYNC_TIME_VISIBLE_POLL_MS = 10000;
+const SYNC_TIME_IDLE_POLL_MS = 30000;
 
 export async function refreshWorldTime() {
   if (!worldSelect.value) {
@@ -32,11 +32,11 @@ export async function refreshWorldTime() {
 
 function worldTimePollDelayMs() {
   return computeWorldTimePollDelayMs({
-    mapTimeEnabled: mapTimeInput.checked,
+    syncTimeEnabled: syncTimeInput.checked,
     lastPlayerCount: runtime.lastPlayerCount,
-    activeMs: MAP_TIME_ACTIVE_POLL_MS,
-    visibleMs: MAP_TIME_VISIBLE_POLL_MS,
-    idleMs: MAP_TIME_IDLE_POLL_MS,
+    activeMs: SYNC_TIME_ACTIVE_POLL_MS,
+    visibleMs: SYNC_TIME_VISIBLE_POLL_MS,
+    idleMs: SYNC_TIME_IDLE_POLL_MS,
   });
 }
 

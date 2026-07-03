@@ -15,6 +15,7 @@
     "testlive": "npm run build:web && playwright test tests/e2e/terrascape.spec.js",
     "testlive:headed": "playwright test --headed",
     "testlive:ui": "playwright test --ui",
+    "runtime:smoke": "node tools/run-terrascape-runtime-smoke.js",
     "perf": "node tools/run-terrascape-perf.js --both",
     "perf:dry": "node tools/run-terrascape-perf.js --dry",
     "perf:wet": "node tools/run-terrascape-perf.js --wet",

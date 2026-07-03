@@ -97,7 +97,7 @@ list pins it to a fixed radius. Still presented in the client UI, but bounded by
 
 ## Explicitly out of scope (render-only, stay user-controlled)
 
-`fog*`, `shade*`, `tree-shade`, `land-motion`, `map-time`, `sky-*`, `water-mode`,
+`fog*`, `shade*`, `tree-shade`, `land-motion`, `sync-time`, `sky-*`, `water-mode`,
 `mob-blocks`, `debug-bounds`. No server cost → no admin config. Fog and water live in the
 Experimental panel and keep it user-relevant.
 

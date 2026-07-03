@@ -59,6 +59,7 @@ public class TerrascapeCommand extends AbstractWorldCommand {
             case "status" -> { if (requireAdmin(context)) sendStatus(context); }
             case "sample" -> { if (requireAdmin(context)) handleSample(args, context, world); }
             case "clearcache" -> { if (requireAdmin(context)) handleClearCache(context, args.length >= 3 ? args[2].toLowerCase() : "all"); }
+            case "smoketoken" -> { if (requireAdmin(context)) handleSmokeToken(args, context); }
             case "maplink", "maptoken" -> handleMapLink(context, store, subcommand.equals("maptoken"));
             default -> sendUsage(context);
         }
@@ -223,6 +224,57 @@ public class TerrascapeCommand extends AbstractWorldCommand {
         return stats;
     }
 
+    private void handleSmokeToken(@Nonnull String[] args, @Nonnull CommandContext context) {
+        AccessTokens tokens = plugin.accessTokens();
+        if (tokens == null || plugin.config() == null) {
+            context.sendMessage(Message.raw("Access tokens unavailable.").color(Color.RED));
+            return;
+        }
+        if (!plugin.config().validation().smokeTokensEnabled()) {
+            context.sendMessage(Message.raw("Smoke token minting is disabled. Set validation.smokeTokensEnabled=true only on dedicated validation servers.").color(Color.YELLOW));
+            return;
+        }
+
+        String scopeName = args.length >= 3 ? args[2].trim().toLowerCase(java.util.Locale.ROOT) : "admin";
+        if (!scopeName.equals("map") && !scopeName.equals("admin")) {
+            context.sendMessage(Message.raw("Usage: /terrascape smoketoken [map|admin] [subject]").color(Color.YELLOW));
+            return;
+        }
+
+        String subject = args.length >= 4 ? args[3].trim() : "runtime-smoke-" + Instant.now().toEpochMilli();
+        if (subject.isBlank()) {
+            context.sendMessage(Message.raw("Smoke token subject must not be blank.").color(Color.RED));
+            return;
+        }
+
+        Set<String> scopes = new LinkedHashSet<>();
+        scopes.add(AccessTokens.SCOPE_MAP);
+        if (scopeName.equals("admin")) {
+            scopes.add(AccessTokens.SCOPE_ADMIN);
+        }
+
+        Duration ttl = tokenTtlFor(scopes);
+        UUID syntheticPlayer = AccessTokens.syntheticPlayerUuid(subject);
+        AccessTokens.MintResult result = tokens.mint(syntheticPlayer, ttl, scopes);
+        if (result.token() == null) {
+            long minutes = Math.max(1, (result.cooldownMs() + 59_999) / 60_000);
+            context.sendMessage(Message.raw("Smoke token rate-limited for subject '" + subject
+                    + "'; use a unique subject or wait ~" + minutes + "m.").color(Color.YELLOW));
+            return;
+        }
+
+        Instant expires = Instant.now().plus(ttl);
+        context.sendMessage(Message.raw("=== Terrascape smoke token ===").color(Color.CYAN));
+        context.sendMessage(Message.raw("  subject  : " + subject).color(Color.WHITE));
+        context.sendMessage(Message.raw("  uuid     : " + syntheticPlayer).color(Color.WHITE));
+        context.sendMessage(Message.raw("  scopes   : " + String.join(", ", scopes)).color(Color.WHITE));
+        context.sendMessage(Message.raw("  token    : " + result.token()).color(Color.GREEN));
+        context.sendMessage(Message.raw("  expires  : " + expires + " (~" + ttl.toHours() + "h)").color(Color.WHITE));
+        if (!plugin.config().access().restricted()) {
+            context.sendMessage(Message.raw("Note: access.mode is 'public', but scoped endpoints still require this key.").color(Color.YELLOW));
+        }
+    }
+
     private void handleMapLink(@Nonnull CommandContext context, @Nonnull Store<EntityStore> store, boolean tokenOnly) {
         if (!context.isPlayer()) {
             context.sendMessage(Message.raw("Run /terrascape maplink in-game as a player.").color(Color.YELLOW));
@@ -253,7 +305,13 @@ public class TerrascapeCommand extends AbstractWorldCommand {
         }
         Instant expires = Instant.now().plus(ttl);
         context.sendMessage(Message.raw("=== Terrascape access ===").color(Color.CYAN));
-        context.sendMessage(Message.raw(tokenOnly ? result.token() : mapBaseUrl() + "/?key=" + result.token()).color(Color.GREEN));
+        if (tokenOnly) {
+            context.sendMessage(Message.raw(result.token()).monospace(true).color(Color.GREEN));
+        } else {
+            String url = mapBaseUrl() + "/?key=" + result.token();
+            context.sendMessage(Message.raw("Open Terrascape map").link(url).color(Color.GREEN));
+            context.sendMessage(Message.raw(url).monospace(true).color(Color.WHITE));
+        }
         context.sendMessage(Message.raw("Valid until " + expires + " (~" + ttl.toHours()
                 + "h), scope: " + String.join(", ", scopes)
                 + ". Bookmark it now - it will not be shown again.").color(Color.WHITE));
@@ -295,7 +353,7 @@ public class TerrascapeCommand extends AbstractWorldCommand {
 
     private static void sendUsage(@Nonnull CommandContext context) {
         if (context.sender().hasPermission(PERM_ADMIN)) {
-            context.sendMessage(Message.raw("Usage: /terrascape status | sample <chunkX> <chunkZ> | clearcache [mesh|tiles|all] | maplink | maptoken").color(Color.YELLOW));
+            context.sendMessage(Message.raw("Usage: /terrascape status | sample <chunkX> <chunkZ> | clearcache [mesh|tiles|all] | maplink | maptoken | smoketoken [map|admin] [subject]").color(Color.YELLOW));
         } else {
             context.sendMessage(Message.raw("Usage: /terrascape maplink | maptoken").color(Color.YELLOW));
         }

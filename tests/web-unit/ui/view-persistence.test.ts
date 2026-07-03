@@ -88,7 +88,7 @@ test('applyInitialParams applies a stored view state snapshot', () => {
     mobs: true,
     mobBlocks: true,
     shade: true,
-    mapTime: false,
+    syncTime: false,
     mapTiles: true,
     cosmeticsMode: 'baked',
     visualDetailMode: 'structures',

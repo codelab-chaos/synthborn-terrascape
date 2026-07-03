@@ -363,7 +363,7 @@ function artifactsFor(target) {
 
 /** RCON command execution is fail-closed: use the configured RCON password. */
 function rconCredential() {
-  const credential = (process.env.SYNTH_RCON_PASSWORD || "").trim();
+  const credential = (process.env.SYNTH_RCON_PASSWORD || process.env.SYNTH_RCON_TOKEN || "").trim();
   if (!credential) {
     throw new Error("SYNTH_RCON_PASSWORD is required for RCON commands — set it to rcon.password from terrascape.properties.");
   }

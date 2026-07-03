@@ -6,7 +6,7 @@ import {
   restartWorldTimePolling,
 } from '../../../web/src/entities/world-time-feed.ts';
 import { runtime } from '../../../web/src/scene/scene-context.ts';
-import { worldSelect, mapTimeInput } from '../../../web/src/ui/dom.ts';
+import { worldSelect, syncTimeInput } from '../../../web/src/ui/dom.ts';
 
 // The failure paths call logClientEvent, which schedules a deferred telemetry flush
 // (navigator.sendBeacon / fetch to /api/client-log) that fires ~2s later and would
@@ -134,7 +134,7 @@ test('refreshWorldTime swallows fetch errors', async () => {
 });
 
 test('restartWorldTimePolling schedules a timer it can clear', () => {
-  mapTimeInput.checked = false;
+  syncTimeInput.checked = false;
   runtime.lastPlayerCount = 0;
   clearTimeout(runtime.timePollTimer);
   runtime.timePollTimer = null;
@@ -145,7 +145,7 @@ test('restartWorldTimePolling schedules a timer it can clear', () => {
 });
 
 test('restartWorldTimePolling uses default delay derived from policy', () => {
-  mapTimeInput.checked = true;
+  syncTimeInput.checked = true;
   runtime.lastPlayerCount = 3;
   clearTimeout(runtime.timePollTimer);
   runtime.timePollTimer = null;

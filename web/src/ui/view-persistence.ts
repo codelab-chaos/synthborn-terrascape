@@ -50,7 +50,7 @@ import {
   infoCardHeadEl,
   landMotionInput,
   mapTilesInput,
-  mapTimeInput,
+  syncTimeInput,
   mobBlocksInput,
   playerUpdateRateInput,
   mobUpdateRateInput,
@@ -121,7 +121,7 @@ export function applyInitialParams() {
   applyCosmeticModeParam();
   applySelectParam('visualDetail', visualDetailModeInput);
   applyBooleanParam('landMotion', landMotionInput);
-  applyBooleanParam('mapTime', mapTimeInput);
+  applyBooleanParam('syncTime', syncTimeInput);
   applyNumberParam('terrainLoadSlots', terrainLoadSlotsValueInput);
   terrainLoadSlotsInput.value = terrainLoadSlotsValueInput.value;
   applyNumberParam('mapTileRadius', mapTileRadiusValueInput);
@@ -161,7 +161,7 @@ function applyStoredInputs() {
   if (typeof runtime.storedViewState.mobs === 'boolean') showMobsInput.checked = runtime.storedViewState.mobs;
   if (typeof runtime.storedViewState.mobBlocks === 'boolean') syncMobBlocksInputs(runtime.storedViewState.mobBlocks);
   if (typeof runtime.storedViewState.shade === 'boolean') treeShadeInput.checked = runtime.storedViewState.shade;
-  if (typeof runtime.storedViewState.mapTime === 'boolean') mapTimeInput.checked = runtime.storedViewState.mapTime;
+  if (typeof runtime.storedViewState.syncTime === 'boolean') syncTimeInput.checked = runtime.storedViewState.syncTime;
   if (typeof runtime.storedViewState.mapTiles === 'boolean') mapTilesInput.checked = runtime.storedViewState.mapTiles;
   if (runtime.storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof runtime.storedViewState.cosmeticsMode === 'string') {
     applySelectValue(cosmeticBlocksModeInput, runtime.storedViewState.cosmeticsMode);
@@ -290,7 +290,7 @@ export function saveViewState() {
     settingsOpen: hudEl.classList.contains('open'),
     sections: collapsedSectionState(),
     shade: treeShadeInput.checked,
-    mapTime: mapTimeInput.checked,
+    syncTime: syncTimeInput.checked,
     mapTiles: mapTilesInput.checked,
     cosmeticsMode: cosmeticBlocksModeInput.value,
     visualDetailMode: visualDetailMode(),

@@ -28,7 +28,7 @@ final class AssetLocator {
     private final TerrascapePlugin plugin;
     private volatile Path assetsZipPath;
 
-    AssetLocator(@Nonnull TerrascapeConfig config, @Nonnull TerrascapePlugin plugin) {
+    AssetLocator(@Nonnull TerrascapeConfig config, @Nullable TerrascapePlugin plugin) {
         this.config = config;
         this.plugin = plugin;
     }
@@ -50,9 +50,9 @@ final class AssetLocator {
         try {
             Files.createDirectories(cachePath.getParent());
             Files.write(cachePath, bytes);
-            plugin.getLogger().at(Level.INFO).log("Cached mob icon from Hytale assets: " + fileName);
+            log(Level.INFO, "Cached mob icon from Hytale assets: " + fileName, null);
         } catch (IOException e) {
-            plugin.getLogger().at(Level.FINE).withCause(e).log("Unable to cache mob icon: " + fileName);
+            log(Level.FINE, "Unable to cache mob icon: " + fileName, e);
         }
         return bytes;
     }
@@ -123,7 +123,7 @@ final class AssetLocator {
                 for (Path candidate : assetsZipCandidates(path)) {
                     if (Files.isRegularFile(candidate)) {
                         assetsZipPath = candidate.toAbsolutePath().normalize();
-                        plugin.getLogger().at(Level.INFO).log("Resolved Hytale Assets.zip for lazy mob icons: " + assetsZipPath);
+                        log(Level.INFO, "Resolved Hytale Assets.zip for lazy mob icons: " + assetsZipPath, null);
                         return assetsZipPath;
                     }
                 }
@@ -135,6 +135,7 @@ final class AssetLocator {
     private static List<Path> assetsZipCandidates(@Nonnull Path root) {
         return List.of(
                 root.resolve("Assets.zip"),
+                root.resolve("jar").resolve("Assets.zip"),
                 root.resolve("latest").resolve("Assets.zip"),
                 root.resolve("release").resolve("latest").resolve("Assets.zip"),
                 root.resolve("Client").resolve("latest").resolve("Assets.zip"),
@@ -160,8 +161,21 @@ final class AssetLocator {
         addPathIfPresent(roots, System.getenv("WORKSPACE_FOLDER"));
         addPathIfPresent(roots, System.getProperty("user.dir"));
         roots.add(Paths.get("").toAbsolutePath().normalize());
-        roots.add(plugin.terrascapeDir().toAbsolutePath().normalize());
+        if (plugin != null) {
+            roots.add(plugin.terrascapeDir().toAbsolutePath().normalize());
+        }
         return List.copyOf(roots);
+    }
+
+    private void log(@Nonnull Level level, @Nonnull String message, @Nullable Throwable cause) {
+        if (plugin == null) {
+            return;
+        }
+        if (cause == null) {
+            plugin.getLogger().at(level).log(message);
+        } else {
+            plugin.getLogger().at(level).withCause(cause).log(message);
+        }
     }
 
     private static void addPathIfPresent(@Nonnull LinkedHashSet<Path> roots, @Nullable String value) {

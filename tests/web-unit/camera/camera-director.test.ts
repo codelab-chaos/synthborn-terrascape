@@ -134,6 +134,9 @@ function fullReset() {
   cameraModeStack.length = 0;
   runtime.viewPlayerUuid = null;
   runtime.followPlayerUuid = null;
+  runtime.followCameraDistance = 58;
+  runtime.followCameraDetached = false;
+  runtime.followCameraLastInputAt = 0;
   runtime.hasMobBillboardQuaternion = false;
   playerEyeState.uuid = null;
   playerEyeState.yawRad = 0;
@@ -142,6 +145,10 @@ function fullReset() {
   camera.quaternion.identity();
   camera.updateMatrixWorld(true);
   controls.target.set(0, 0, 0);
+  controls.enabled = false;
+  controls.enableRotate = false;
+  controls.enableZoom = false;
+  controls.enablePan = false;
 }
 
 test('playerCameraYawRad converts degrees to radians', () => {
@@ -213,13 +220,15 @@ test('setPlayerEyeView ignores unknown players', () => {
   assert.equal(runtime.viewPlayerUuid, null);
 });
 
-test('setPlayerFollow enables follow controls and follow mode', () => {
+test('setPlayerFollow enters follow mode with the fly controller active', () => {
   fullReset();
   const marker = makePlayerMarker('f1', 0, 60, 0);
   playerMarkers.set('f1', marker);
   setPlayerFollow('f1');
   assert.equal(runtime.followPlayerUuid, 'f1');
-  assert.equal(controls.enabled, true);
+  assert.equal(runtime.followCameraDistance, 58);
+  assert.equal(runtime.followCameraDetached, false);
+  assert.equal(controls.enabled, false);
   assert.equal(cameraModeStack.length, 1);
 });
 
@@ -334,6 +343,43 @@ test('updatePlayerCameraMode drives the follow camera when in follow mode', () =
   marker.updateMatrixWorld(true);
   updatePlayerCameraMode(0.2);
   assert.ok(!controls.target.equals(before));
+});
+
+test('updatePlayerCameraMode tethers a manually detached follow camera', () => {
+  fullReset();
+  const marker = makePlayerMarker('folTether', 0, 60, 0);
+  playerMarkers.set('folTether', marker);
+  setPlayerFollow('folTether');
+  runtime.followCameraDetached = true;
+  runtime.followCameraLastInputAt = performance.now();
+  camera.position.set(260, 120, 260);
+  controls.target.set(260, 120, 196);
+  const beforePosition = camera.position.clone();
+  const beforeDistance = camera.position.distanceTo(marker.position);
+
+  updatePlayerCameraMode(0.2);
+
+  assert.equal(runtime.followCameraDetached, true);
+  assert.ok(!camera.position.equals(beforePosition));
+  assert.ok(camera.position.distanceTo(marker.position) < beforeDistance);
+});
+
+test('updatePlayerCameraMode snaps an idle detached follow camera back to lock', () => {
+  fullReset();
+  const marker = makePlayerMarker('folIdle', 0, 60, 0);
+  playerMarkers.set('folIdle', marker);
+  setPlayerFollow('folIdle');
+  runtime.followCameraDetached = true;
+  runtime.followCameraLastInputAt = performance.now() - 2_000;
+  camera.position.set(40, 100, 90);
+  controls.target.set(0, 72, 0);
+
+  for (let i = 0; i < 80; i += 1) {
+    updatePlayerCameraMode(0.1);
+  }
+
+  assert.equal(runtime.followCameraDetached, false);
+  assert.ok(Math.abs(controls.target.y - (marker.position.y + 2.1)) < 0.25);
 });
 
 test('updatePlayerCameraMode does nothing when no player mode is active', () => {

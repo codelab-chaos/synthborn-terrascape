@@ -31,6 +31,9 @@ export class AppRuntimeState {
   timePollTimer = null;
   viewPlayerUuid = null;
   followPlayerUuid = null;
+  followCameraDistance = 58;
+  followCameraDetached = false;
+  followCameraLastInputAt = 0;
   isRefreshingPlayers = false;
   lastPlayerCount = 0;
   lastPlayerPollFailed = false;
