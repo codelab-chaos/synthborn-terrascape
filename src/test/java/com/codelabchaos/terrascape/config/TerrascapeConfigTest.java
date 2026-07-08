@@ -27,6 +27,8 @@ class TerrascapeConfigTest {
         assertTrue(text.contains("access.debugToken="));
         assertTrue(text.contains("access.mapTokenTtlHours=24"));
         assertTrue(text.contains("access.adminMapTokenTtlHours=4"));
+        assertTrue(text.contains("access.publicBaseUrl="));
+        assertTrue(text.contains("streams to expose the numeric server IP"));
         assertTrue(text.contains("validation.smokeTokensEnabled=false"));
         assertEquals("127.0.0.1", config.http().host());
         assertEquals(5960, config.http().port());
@@ -85,6 +87,7 @@ class TerrascapeConfigTest {
         properties.setProperty("validation.smokeTokensEnabled", "true");
         properties.setProperty("access.mapTokenTtlHours", "12");
         properties.setProperty("access.adminMapTokenTtlHours", "2");
+        properties.setProperty("access.publicBaseUrl", "http://apex-test:7656/");
         properties.setProperty("mesh.maxBatchChunks", "48");
         properties.setProperty("cache.memoryTerrainBytes", "256MiB");
 
@@ -108,8 +111,25 @@ class TerrascapeConfigTest {
         assertTrue(config.validation().smokeTokensEnabled());
         assertEquals(12, config.access().mapTokenTtl().toHours());
         assertEquals(2, config.access().adminMapTokenTtl().toHours());
+        assertEquals("http://apex-test:7656/", config.access().publicBaseUrl());
         assertEquals(48, config.mesh().maxBatchChunks());
         assertEquals(256L * 1024L * 1024L, config.cache().memoryTerrainBytes());
+    }
+
+    @Test
+    void publicBaseUrlSupportsReadableSystemOverride() {
+        Properties properties = new Properties();
+        properties.setProperty("access.publicBaseUrl", "http://internal-host:7656");
+        System.setProperty("terrascape.access.publicBaseUrl", "http://apex-test:7656");
+        try {
+            TerrascapeConfig config = TerrascapeConfig.fromProperties(
+                    tempDir.resolve(TerrascapeConfig.FILE_NAME),
+                    tempDir,
+                    properties);
+            assertEquals("http://apex-test:7656", config.access().publicBaseUrl());
+        } finally {
+            System.clearProperty("terrascape.access.publicBaseUrl");
+        }
     }
 
     @Test

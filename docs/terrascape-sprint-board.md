@@ -14,6 +14,8 @@ References:
 - Design reference: `docs/terrascape-design.md`
 - Operations manual: `docs/operations-manual.md`
 - Architecture/performance review: `docs/terrascape-architecture-review.md`
+- CurseForge moderation policy:
+  `https://support.curseforge.com/support/solutions/articles/9000197279-moderation-policies`
 
 ## Status Legend
 
@@ -150,6 +152,7 @@ Acceptance:
   Hytale/server version, license, source link, screenshots, and install instructions.
 - Listing copy clearly says Terrascape is a dedicated-server mod and players only need a
   browser link.
+- CurseForge moderation checklist below is complete before submission.
 - The hidden-page artifact is the validated release candidate from Priority 1.
 - A fresh server install using the CurseForge interface/download starts successfully.
 - First run creates `terrascape.properties` and `server-config.json`.
@@ -162,6 +165,31 @@ Validation:
 - Test on a clean save or clean validation environment.
 - Record exact CurseForge file/version, server environment, and install steps.
 - Confirm the hidden page copy and screenshots match the installed behavior.
+
+CurseForge moderation checklist:
+
+- Name is `Synthborn: Terrascape`; it does not include the game name, loader, version,
+  file version, or other technical metadata.
+- Summary is one English sentence and is not copied verbatim from the description.
+- Description starts with functional information: dedicated-server web map, live 3D
+  terrain, players, mobs, time/lighting, access links, admin controls, and alpha limits.
+- Project page includes install/use/support information directly on CurseForge, not only
+  by linking to external docs.
+- No external download links are included in the project description or release notes.
+- Any source, issue tracker, Discord, docs, or other functional external links are kept
+  clearly secondary to the CurseForge-hosted description.
+- No donation, affiliate, personal-site, hosting-provider, portfolio, or cross-hosting
+  promotional content appears above the functional project description; omit it unless it
+  is release-critical.
+- Avatar is a non-webp, non-solid, non-copyrighted 400x400 image; use
+  `images/curseforge-avatar.png`.
+- Gallery images are screenshots from the actual shipped viewer/server behavior. Any
+  AI-generated, edited, or enhanced showcase image that could misrepresent the mod is
+  avoided or clearly disclaimed.
+- License is MIT, source link points to this project, and any third-party assets bundled
+  in the jar have redistributable licenses/attribution recorded.
+- File upload is the release-candidate jar produced by the validated build, with no
+  unrelated preview images, docs, logs, credentials, or local validation files bundled.
 
 ### Priority 4 - Review And Submit First Build For Acceptance
 

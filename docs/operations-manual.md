@@ -209,10 +209,12 @@ surface and Apex-shaped example profile.
    and allows credentials. Leave disabled if the browser loads the viewer from the
    same host:port that serves the API.
 
-5. **(Recommended) front it with TLS.** Terrascape serves plain HTTP. For a public
-   site, put it behind a reverse proxy (nginx/Caddy) terminating HTTPS, and set
+5. **(Recommended) front it with TLS or a DNS alias.** Terrascape serves plain HTTP. For
+   a public site, put it behind a reverse proxy (nginx/Caddy) terminating HTTPS, and set
    `access.publicBaseUrl=https://map.example.com` so in-game `/terrascape maplink`
-   output points at the public URL.
+   output points at the public URL. For hosted validation or streaming, this can also be
+   a plain HTTP DNS alias such as `access.publicBaseUrl=http://apex-test:7656` so shared
+   links do not reveal the numeric server IP.
 
 6. **Restart** to apply: `npm run deploy` (or `node tools/deploy.js restart`).
 
@@ -416,7 +418,7 @@ The common boot options also have environment-variable overrides:
 | `http.host` | Bind address (keep `127.0.0.1` unless a proxy/firewall is ready) | `TERRASCAPE_HOST` |
 | `http.port` | Web server port | `TERRASCAPE_PORT` |
 | `access.mode` | `public` or `restricted` view gating | `TERRASCAPE_ACCESS_MODE` |
-| `access.publicBaseUrl` | URL used in `/terrascape maplink` output | `TERRASCAPE_PUBLIC_URL` |
+| `access.publicBaseUrl` | URL used in `/terrascape maplink` output; set to a public DNS/custom domain to avoid exposing the numeric server IP in chat or streams | `TERRASCAPE_PUBLIC_BASE_URL` (`TERRASCAPE_PUBLIC_URL` also accepted) |
 | `access.debugToken` | Static token for ops/debug web endpoints | `TERRASCAPE_ACCESS_DEBUG_TOKEN` |
 | `rcon.password` | RCON command password | `TERRASCAPE_RCON_PASSWORD` |
 | `validation.smokeTokensEnabled` | Enable synthetic smoke-token minting for dedicated validation only | `TERRASCAPE_VALIDATION_SMOKE_TOKENS_ENABLED` |

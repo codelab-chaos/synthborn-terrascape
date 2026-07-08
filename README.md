@@ -71,7 +71,7 @@ In the **Players** list (right side), each player has quick actions:
 
 Click the gear icon (top-right) to open the panel. Controls are grouped into
 collapsible **World**, **Render**, and **Experimental** sections. A few live in the
-titlebar: **Mobs** and **Mob Blocks** toggles, the **mob update rate**, and **Map time**
+titlebar: **Mobs** and **Mob Blocks** toggles, the **mob update rate**, and **Sync Time**
 (use world time for lighting).
 
 **World**
@@ -108,14 +108,54 @@ titlebar: **Mobs** and **Mob Blocks** toggles, the **mob update rate**, and **Ma
 > Terrascape is a **dedicated-server mod**, not a client mod. Installing it makes the
 > web map available; players only need a browser and a link.
 
-### Via CurseForge (recommended)
+### Quickstart: local server from CurseForge
 
 <!-- TODO: replace with the real CurseForge project URL/slug once published. -->
 
-1. Open the Terrascape page on CurseForge *(link coming once the listing is live)*.
-2. Download the latest `Terrascape-<version>.jar`.
-3. Copy it into your server save's `mods/` folder.
-4. Restart the server, then open `http://<server-host>:5960`.
+Use this path when you downloaded Terrascape from CurseForge and want the minimum local
+server setup.
+
+1. Download the latest `Terrascape-<version>.jar` from the CurseForge page.
+2. Stop your Hytale dedicated server.
+3. Copy the jar into your server save's `mods/` folder:
+
+   ```text
+   <save>/mods/Terrascape-<version>.jar
+   ```
+
+4. Start the server once. Terrascape creates its config folder and defaults under:
+
+   ```text
+   <save>/mods/com.codelabchaos_Terrascape/
+   ```
+
+5. Open the local map in a browser on the same machine:
+
+   ```text
+   http://127.0.0.1:5960
+   ```
+
+By default, the map is local-only (`http.host=127.0.0.1`), public to anyone on that
+machine (`access.mode=public`), and standalone RCON is off (`rcon.enabled=false`).
+You do not need the RCON port for normal map viewing.
+
+To let another computer open the map, edit
+`<save>/mods/com.codelabchaos_Terrascape/terrascape.properties`, then restart:
+
+```properties
+http.host=0.0.0.0
+http.port=5960
+```
+
+Then open `http://<server-host>:5960` from the other computer and make sure your firewall
+allows the web port. To avoid exposing a numeric IP in generated map links, also set:
+
+```properties
+access.publicBaseUrl=http://map.example.com:5960
+```
+
+For token-gated links, set `access.mode=restricted`, restart, and have players with
+`terrascape.map.use` run `/terrascape maplink` in-game.
 
 ### Manual install
 
@@ -126,9 +166,8 @@ titlebar: **Mobs** and **Mob Blocks** toggles, the **mob update rate**, and **Ma
 4. (Optional) edit `terrascape.properties` — most commonly `http.host` and `http.port`.
 5. Open `http://<server-host>:5960` in a browser.
 
-By default the viewer binds to `127.0.0.1` (local only). **To make the map reachable by
-others, and for access tokens, CORS, and the full configuration reference, see the
-[Operations Manual](docs/operations-manual.md).**
+For CORS, TLS/reverse proxies, permissions, access tokens, RCON, cache clearing, and the
+full configuration reference, see the [Operations Manual](docs/operations-manual.md).
 
 ---
 

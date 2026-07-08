@@ -18,6 +18,9 @@ cp tools/hosted-services/hosted-server.env.example tools/hosted-services/hosted-
 Fill in the `HOSTING_*` values for the hosted instance. The local profile is gitignored.
 The checked-in example uses Apex-shaped defaults, including `HOSTING_FTP_ROOT=default`,
 because Apex FTP accounts can start one directory above the running server root.
+Set `HOSTING_TERRASCAPE_PUBLIC_BASE_URL` when generated `/terrascape maplink` URLs
+should use a DNS name or streaming-safe alias instead of the numeric host IP. The helper
+still uses `HOSTING_PUBLIC_HOST` for RCON/API validation unless you change that value too.
 
 ## Commands
 

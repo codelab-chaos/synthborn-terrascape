@@ -108,7 +108,8 @@ public record TerrascapeConfig(
                 stringAllowBlank(properties, "access.debugToken", "TERRASCAPE_ACCESS_DEBUG_TOKEN", ""),
                 Duration.ofHours(integer(properties, "access.mapTokenTtlHours", null, 24, 1, 8760)),
                 Duration.ofHours(integer(properties, "access.adminMapTokenTtlHours", null, 4, 1, 8760)),
-                stringAllowBlank(properties, "access.publicBaseUrl", "TERRASCAPE_PUBLIC_URL", ""));
+                stringAllowBlankAnyEnv(properties, "access.publicBaseUrl", "",
+                        "TERRASCAPE_PUBLIC_BASE_URL", "TERRASCAPE_PUBLIC_URL"));
         Cors cors = new Cors(
                 bool(properties, "cors.enabled", "TERRASCAPE_CORS_ENABLED", false),
                 stringSet(properties, "cors.allowedOrigins", "TERRASCAPE_CORS_ORIGINS", Set.of()));
@@ -209,6 +210,10 @@ public record TerrascapeConfig(
                 access.debugToken=
                 access.mapTokenTtlHours=24
                 access.adminMapTokenTtlHours=4
+                # Optional public URL used in generated /terrascape maplink output.
+                # Set this to a DNS/custom domain when you do not want copied links,
+                # chat history, or streams to expose the numeric server IP.
+                # Example: access.publicBaseUrl=http://apex-test:7656
                 access.publicBaseUrl=
 
                 # Map tiles
@@ -246,6 +251,24 @@ public record TerrascapeConfig(
     private static String stringAllowBlank(@Nonnull Properties properties, @Nonnull String key, @Nullable String env, @Nonnull String fallback) {
         String value = override(key, env);
         if (value != null) return value;
+        value = properties.getProperty(key);
+        return value == null ? fallback : value.trim();
+    }
+
+    private static String stringAllowBlankAnyEnv(
+            @Nonnull Properties properties,
+            @Nonnull String key,
+            @Nonnull String fallback,
+            @Nonnull String... envNames
+    ) {
+        String value = override(key, null);
+        if (value != null) return value;
+        for (String envName : envNames) {
+            value = System.getenv(envName);
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
         value = properties.getProperty(key);
         return value == null ? fallback : value.trim();
     }

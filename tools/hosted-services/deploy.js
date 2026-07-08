@@ -106,7 +106,7 @@ function uploadConfig() {
     "http.host=0.0.0.0",
     `http.port=${number("TERRASCAPE_WEB_PORT", 7656)}`,
     `access.mode=${value("TERRASCAPE_ACCESS_MODE", "restricted")}`,
-    `access.publicBaseUrl=http://${required("PUBLIC_HOST")}:${number("TERRASCAPE_WEB_PORT", 7656)}`,
+    `access.publicBaseUrl=${publicBaseUrl()}`,
     "rcon.enabled=true",
     "rcon.host=0.0.0.0",
     `rcon.port=${number("TERRASCAPE_RCON_PORT", 6225)}`,
@@ -215,6 +215,7 @@ function printProfile() {
   console.log(`service: ${hostingService.id} (${hostingService.label})`);
   console.log(`game:    ${required("GAME_HOST")}:${number("GAME_PORT", 25565)}`);
   console.log(`web:     http://${required("PUBLIC_HOST")}:${number("TERRASCAPE_WEB_PORT", 7656)}`);
+  console.log(`maplink: ${publicBaseUrl()}`);
   console.log(`rcon:    http://${required("PUBLIC_HOST")}:${number("TERRASCAPE_RCON_PORT", 6225)}`);
   console.log(`ftp:     ${required("FTP_USER")}@${required("FTP_HOST")}:${number("FTP_PORT", hostingService.defaultFtpPort)}`);
   console.log(`root:    ${ftpRoot() || "/"}`);
@@ -282,6 +283,12 @@ async function rconRequest(pathname, options) {
 
 function rconBaseUrl() {
   return `http://${required("PUBLIC_HOST")}:${number("TERRASCAPE_RCON_PORT", 6225)}`;
+}
+
+function publicBaseUrl() {
+  const explicit = value("TERRASCAPE_PUBLIC_BASE_URL", "");
+  if (explicit) return explicit.replace(/\/+$/, "");
+  return `http://${required("PUBLIC_HOST")}:${number("TERRASCAPE_WEB_PORT", 7656)}`;
 }
 
 function uploadFile(localPath, remotePath, options = {}) {

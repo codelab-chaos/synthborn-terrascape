@@ -25,8 +25,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -38,6 +41,8 @@ public class TerrascapeCommand extends AbstractWorldCommand {
     public static final String PERM_ADMIN = "terrascape.admin";
     /** Permission to open the web map (mint an access link). Admins grant this to regular users. */
     public static final String PERM_MAP_USE = "terrascape.map.use";
+    private static final DateTimeFormatter USER_DATE_TIME_FORMAT =
+            DateTimeFormatter.ofPattern("MMM d, yyyy 'at' h:mm a z", Locale.US);
 
     private final TerrascapePlugin plugin;
 
@@ -269,7 +274,8 @@ public class TerrascapeCommand extends AbstractWorldCommand {
         context.sendMessage(Message.raw("  uuid     : " + syntheticPlayer).color(Color.WHITE));
         context.sendMessage(Message.raw("  scopes   : " + String.join(", ", scopes)).color(Color.WHITE));
         context.sendMessage(Message.raw("  token    : " + result.token()).color(Color.GREEN));
-        context.sendMessage(Message.raw("  expires  : " + expires + " (~" + ttl.toHours() + "h)").color(Color.WHITE));
+        context.sendMessage(Message.raw("  expires  : " + formatExpiresAt(expires)
+                + " (~" + formatDuration(ttl) + ")").color(Color.WHITE));
         if (!plugin.config().access().restricted()) {
             context.sendMessage(Message.raw("Note: access.mode is 'public', but scoped endpoints still require this key.").color(Color.YELLOW));
         }
@@ -310,10 +316,9 @@ public class TerrascapeCommand extends AbstractWorldCommand {
         } else {
             String url = mapBaseUrl() + "/?key=" + result.token();
             context.sendMessage(Message.raw("Open Terrascape map").link(url).color(Color.GREEN));
-            context.sendMessage(Message.raw(url).monospace(true).color(Color.WHITE));
         }
-        context.sendMessage(Message.raw("Valid until " + expires + " (~" + ttl.toHours()
-                + "h), scope: " + String.join(", ", scopes)
+        context.sendMessage(Message.raw("Valid until " + formatExpiresAt(expires)
+                + " (~" + formatDuration(ttl) + "), scope: " + String.join(", ", scopes)
                 + ". Bookmark it now - it will not be shown again.").color(Color.WHITE));
         if (!plugin.config().access().restricted()) {
             context.sendMessage(Message.raw("Note: access.mode is 'public', so a key is not required yet.").color(Color.YELLOW));
@@ -372,12 +377,21 @@ public class TerrascapeCommand extends AbstractWorldCommand {
         long minutes = seconds / 60;
         long hours = minutes / 60;
         if (hours > 0) {
-            return hours + "h " + (minutes % 60) + "m";
+            long remainingMinutes = minutes % 60;
+            return remainingMinutes == 0 ? hours + "h" : hours + "h " + remainingMinutes + "m";
         }
         if (minutes > 0) {
             return minutes + "m " + (seconds % 60) + "s";
         }
         return seconds + "s";
+    }
+
+    static String formatExpiresAt(@Nonnull Instant expiresAt) {
+        return formatExpiresAt(expiresAt, ZoneId.systemDefault());
+    }
+
+    static String formatExpiresAt(@Nonnull Instant expiresAt, @Nonnull ZoneId zoneId) {
+        return USER_DATE_TIME_FORMAT.withZone(zoneId).format(expiresAt);
     }
 
     private static String formatBytes(long bytes) {
