@@ -1,4 +1,4 @@
-name: Release candidate
+name: Build and publish release
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: release-candidate-${{ github.ref }}
@@ -119,4 +119,33 @@ jobs:
             echo "- Artifact: \`${{ steps.candidate.outputs.artifact-name }}\`"
             echo "- Artifact SHA-256: \`${{ steps.upload.outputs.artifact-digest }}\`"
             echo "- Candidate jar checksum: \`$(cut -d ' ' -f 1 release-candidate/SHA256SUMS)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          prerelease_args=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            prerelease_args+=(--prerelease)
+          fi
+
+          gh release create "$GITHUB_REF_NAME" \
+            release-candidate/Terrascape-*.jar \
+            release-candidate/SHA256SUMS \
+            release-candidate/release-evidence.env \
+            --verify-tag \
+            --generate-notes \
+            --title "Synthborn: Terrascape ${GITHUB_REF_NAME}" \
+            "${prerelease_args[@]}"
+
+          {
+            echo
+            echo "## GitHub Release"
+            echo
+            echo "- Release: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
           } >> "$GITHUB_STEP_SUMMARY"

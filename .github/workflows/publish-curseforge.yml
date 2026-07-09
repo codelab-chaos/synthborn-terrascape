@@ -1,14 +1,10 @@
-name: Publish candidate to CurseForge
+name: Publish GitHub Release to CurseForge
 
 on:
   workflow_dispatch:
     inputs:
-      candidate_run_id:
-        description: Actions run ID from the successful Release candidate workflow
-        required: true
-        type: string
-      candidate_tag:
-        description: Candidate tag, for example v0.1.0
+      release_tag:
+        description: Published GitHub Release tag, for example v0.1.0
         required: true
         type: string
       release_type:
@@ -24,10 +20,6 @@ on:
         description: Comma-separated CurseForge game version names (optional)
         required: false
         type: string
-      changelog:
-        description: Release notes for this file (Markdown)
-        required: true
-        type: string
       manual_release:
         description: Hold the approved file for manual release on CurseForge
         required: true
@@ -35,7 +27,6 @@ on:
         type: boolean
 
 permissions:
-  actions: read
   contents: read
 
 concurrency:
@@ -44,7 +35,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Upload existing candidate
+    name: Upload published release
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: curseforge
@@ -60,45 +51,55 @@ jobs:
         env:
           PROJECT_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
           API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
-          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
-          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$CANDIDATE_RUN_ID" =~ ^[0-9]+$ ]]
-          [[ "$CANDIDATE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
           test -n "$PROJECT_ID"
           test -n "$API_TOKEN"
 
-      - name: Download the Actions-built candidate
-        uses: actions/download-artifact@v5
-        with:
-          name: terrascape-release-candidate-${{ inputs.candidate_tag }}
-          path: candidate
-          run-id: ${{ inputs.candidate_run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Verify candidate identity and checksum
+      - name: Download the published GitHub Release
         env:
-          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
-          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fxq "tag=${CANDIDATE_TAG}" candidate/release-evidence.env
-          grep -Fxq "workflow_run_id=${CANDIDATE_RUN_ID}" candidate/release-evidence.env
+          if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" != "false" ]]; then
+            echo "GitHub Release $RELEASE_TAG is still a draft" >&2
+            exit 1
+          fi
+
+          mkdir -p candidate
+          gh release download "$RELEASE_TAG" \
+            --dir candidate \
+            --pattern 'Terrascape-*.jar' \
+            --pattern SHA256SUMS \
+            --pattern release-evidence.env
+          gh release view "$RELEASE_TAG" --json body --jq .body \
+            > "$RUNNER_TEMP/github-release-notes.md"
+
+      - name: Verify candidate identity and checksum
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fxq "tag=${RELEASE_TAG}" candidate/release-evidence.env
           (
             cd candidate
             sha256sum --check SHA256SUMS
           )
 
-          version="${CANDIDATE_TAG#v}"
+          version="${RELEASE_TAG#v}"
           test -f "candidate/Terrascape-${version}.jar"
 
       - name: Build CurseForge upload metadata
         env:
-          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
-          CHANGELOG: ${{ inputs.changelog }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_NOTES_FILE: ${{ runner.temp }}/github-release-notes.md
           GAME_VERSION_NAMES: ${{ inputs.game_version_names }}
           RELEASE_TYPE: ${{ inputs.release_type }}
           MANUAL_RELEASE: ${{ inputs.manual_release }}
@@ -111,9 +112,9 @@ jobs:
             .map((name) => name.trim())
             .filter(Boolean);
           const metadata = {
-            changelog: process.env.CHANGELOG,
+            changelog: require('node:fs').readFileSync(process.env.RELEASE_NOTES_FILE, 'utf8'),
             changelogType: 'markdown',
-            displayName: `Synthborn: Terrascape ${process.env.CANDIDATE_TAG}`,
+            displayName: `Synthborn: Terrascape ${process.env.RELEASE_TAG}`,
             releaseType: process.env.RELEASE_TYPE,
             isMarkedForManualRelease: process.env.MANUAL_RELEASE === 'true',
           };
@@ -127,11 +128,11 @@ jobs:
           API_BASE_URL: ${{ vars.CURSEFORGE_API_BASE_URL || 'https://www.curseforge.com' }}
           API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
           PROJECT_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
-          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         shell: bash
         run: |
           set -euo pipefail
-          version="${CANDIDATE_TAG#v}"
+          version="${RELEASE_TAG#v}"
           response_file="$RUNNER_TEMP/curseforge-response.json"
           curl \
             --fail-with-body \
@@ -151,16 +152,14 @@ jobs:
 
       - name: Record CurseForge submission
         env:
-          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
-          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
           FILE_ID: ${{ steps.upload.outputs.file-id }}
         shell: bash
         run: |
           {
             echo "## CurseForge upload"
             echo
-            echo "- Candidate tag: \`${CANDIDATE_TAG}\`"
-            echo "- Candidate workflow run: \`${CANDIDATE_RUN_ID}\`"
+            echo "- GitHub Release tag: \`${RELEASE_TAG}\`"
             echo "- CurseForge file ID: \`${FILE_ID}\`"
             echo "- Release type: \`${{ inputs.release_type }}\`"
             echo "- Held for manual release: \`${{ inputs.manual_release }}\`"

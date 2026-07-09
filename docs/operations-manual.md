@@ -174,11 +174,12 @@ has started the server. See
 [tools/hosted-services/README.md](../tools/hosted-services/README.md) for the command
 surface and Apex-shaped example profile.
 
-### GitHub release candidates and CurseForge upload
+### GitHub Releases and CurseForge upload
 
 Release jars come from GitHub Actions, never from a developer workstation. The automation
-is deliberately split into candidate creation and publishing so the exact jar tested on
-the hosted validation server is the jar later sent to CurseForge.
+publishes the tested jar as a GitHub Release, then keeps CurseForge publishing behind a
+separate protected workflow so the exact jar tested on the hosted validation server is
+the jar later sent to CurseForge.
 
 #### One-time GitHub and CurseForge setup
 
@@ -195,39 +196,38 @@ the hosted validation server is the jar later sent to CurseForge.
 Keep the API token only in GitHub's environment secrets. Do not put it in repository
 variables, workflow inputs, release evidence, or local committed configuration.
 
-#### Build and validate a candidate
+#### Build and validate a release
 
 1. Make the version identical in `build.gradle.kts`, `package.json`, and
    `src/main/resources/manifest.json`.
 2. Merge the intended release commit, then push the matching version tag, such as
    `v0.1.0`.
-3. Wait for the **Release candidate** workflow to pass. It runs web unit tests, runs Java
-   tests as part of a clean Gradle build, checks required jar resources, and publishes an
-   Actions artifact named `terrascape-release-candidate-<tag>` with `SHA256SUMS` and
-   `release-evidence.env`.
-4. Record the workflow run ID and download that artifact for Apex-hosted and hidden-page
-   install validation. Verify `SHA256SUMS`, then deploy the extracted jar with
+3. Wait for the **Build and publish release** workflow to pass. It runs web unit tests,
+   runs Java tests as part of a clean Gradle build, checks required jar resources, and
+   publishes a GitHub Release containing `Terrascape-<version>.jar`, `SHA256SUMS`, and
+   `release-evidence.env`. Version suffixes such as `-beta.1` produce prereleases.
+4. Download the GitHub Release assets for Apex-hosted and hidden-page install validation.
+   Verify `SHA256SUMS`, then deploy the extracted jar with
    `node tools/hosted-services/deploy.js deploy --jar /path/to/Terrascape-<version>.jar`.
    The helper logs the selected jar's checksum before upload. Do not substitute a local
-   rebuild if validation finds an issue; fix the source and create a new version/tag and
-   candidate run.
+   rebuild if validation finds an issue; fix the source and create a new version and tag.
 
 #### Upload the validated candidate
 
-1. Open **Actions → Publish candidate to CurseForge → Run workflow**.
-2. Enter the successful candidate workflow run ID and its exact tag.
-3. Select `alpha`, `beta`, or `release`, enter the CurseForge game-version names and
-   Markdown changelog, and normally leave **manual release** enabled for the alpha review
-   cycle.
+1. Open **Actions → Publish GitHub Release to CurseForge → Run workflow**.
+2. Enter the published GitHub Release tag.
+3. Select `alpha`, `beta`, or `release`, enter the CurseForge game-version names, and
+   normally leave **manual release** enabled for the alpha review cycle. The workflow
+   reuses the GitHub Release notes as the CurseForge changelog.
 4. Review and approve the `curseforge` environment deployment. The job downloads the
-   artifact from the specified run, verifies its identity and checksum, then calls
+   assets from the specified release, verifies their identity and checksum, then calls
    CurseForge's project upload API. It records the returned CurseForge file ID in the job
    summary.
 
-An upload is intentionally not automatic on tag push: hosted validation and a human
-environment approval must happen between candidate creation and external publication.
-Do not rerun a successful upload job, because the CurseForge upload API creates a new file
-for each request.
+A CurseForge upload is intentionally not automatic on tag push: hosted validation and a
+human environment approval must happen after GitHub Release creation and before
+CurseForge publication. Do not rerun a successful upload job, because the CurseForge
+upload API creates a new file for each request.
 
 ---
 
