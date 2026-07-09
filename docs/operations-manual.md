@@ -174,6 +174,61 @@ has started the server. See
 [tools/hosted-services/README.md](../tools/hosted-services/README.md) for the command
 surface and Apex-shaped example profile.
 
+### GitHub release candidates and CurseForge upload
+
+Release jars come from GitHub Actions, never from a developer workstation. The automation
+is deliberately split into candidate creation and publishing so the exact jar tested on
+the hosted validation server is the jar later sent to CurseForge.
+
+#### One-time GitHub and CurseForge setup
+
+1. Create the CurseForge project/listing and obtain its numeric project ID.
+2. Generate a CurseForge author API token from the account that can upload files to that
+   project.
+3. In the GitHub repository, create an environment named `curseforge` and require reviewer
+   approval before jobs can use it.
+4. Add `CURSEFORGE_API_TOKEN` as an environment secret and
+   `CURSEFORGE_PROJECT_ID` as an environment variable. If CurseForge assigns the Hytale
+   project a different site API origin, add `CURSEFORGE_API_BASE_URL`; otherwise the
+   workflow uses `https://www.curseforge.com`.
+
+Keep the API token only in GitHub's environment secrets. Do not put it in repository
+variables, workflow inputs, release evidence, or local committed configuration.
+
+#### Build and validate a candidate
+
+1. Make the version identical in `build.gradle.kts`, `package.json`, and
+   `src/main/resources/manifest.json`.
+2. Merge the intended release commit, then push the matching version tag, such as
+   `v0.1.0`.
+3. Wait for the **Release candidate** workflow to pass. It runs web unit tests, runs Java
+   tests as part of a clean Gradle build, checks required jar resources, and publishes an
+   Actions artifact named `terrascape-release-candidate-<tag>` with `SHA256SUMS` and
+   `release-evidence.env`.
+4. Record the workflow run ID and download that artifact for Apex-hosted and hidden-page
+   install validation. Verify `SHA256SUMS`, then deploy the extracted jar with
+   `node tools/hosted-services/deploy.js deploy --jar /path/to/Terrascape-<version>.jar`.
+   The helper logs the selected jar's checksum before upload. Do not substitute a local
+   rebuild if validation finds an issue; fix the source and create a new version/tag and
+   candidate run.
+
+#### Upload the validated candidate
+
+1. Open **Actions → Publish candidate to CurseForge → Run workflow**.
+2. Enter the successful candidate workflow run ID and its exact tag.
+3. Select `alpha`, `beta`, or `release`, enter the CurseForge game-version names and
+   Markdown changelog, and normally leave **manual release** enabled for the alpha review
+   cycle.
+4. Review and approve the `curseforge` environment deployment. The job downloads the
+   artifact from the specified run, verifies its identity and checksum, then calls
+   CurseForge's project upload API. It records the returned CurseForge file ID in the job
+   summary.
+
+An upload is intentionally not automatic on tag push: hosted validation and a human
+environment approval must happen between candidate creation and external publication.
+Do not rerun a successful upload job, because the CurseForge upload API creates a new file
+for each request.
+
 ---
 
 ## Making the map site public

@@ -2,6 +2,7 @@
 "use strict";
 
 const fs = require("node:fs");
+const crypto = require("node:crypto");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
@@ -94,8 +95,10 @@ function deploy() {
 
 function uploadJar({ build }) {
   requireFtpConfig();
-  if (build) run("Terrascape build", "./gradlew", ["build"]);
-  const jar = newestJar();
+  const explicitJar = argValue("--jar");
+  if (build && !explicitJar) run("Terrascape build", "./gradlew", ["build"]);
+  const jar = explicitJar ? releaseCandidateJar(explicitJar) : newestJar();
+  console.log(`candidate sha256 ${sha256(jar)}  ${jar}`);
   uploadFile(jar, "mods/" + path.basename(jar));
 }
 
@@ -388,6 +391,21 @@ function newestJar() {
   return matches[0].full;
 }
 
+function releaseCandidateJar(input) {
+  const jar = path.resolve(projectRoot, input);
+  if (!fs.existsSync(jar) || !fs.statSync(jar).isFile()) {
+    throw new Error(`Release candidate jar does not exist: ${jar}`);
+  }
+  if (!/^Terrascape-.+\.jar$/.test(path.basename(jar)) || jar.endsWith("-plain.jar")) {
+    throw new Error(`Release candidate must be a Terrascape-<version>.jar: ${jar}`);
+  }
+  return jar;
+}
+
+function sha256(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
 function run(label, commandName, commandArgs) {
   console.log(`\n== ${label}`);
   console.log(`$ ${[commandName, ...commandArgs].join(" ")}`);
@@ -466,12 +484,20 @@ function argNumber(names, fallback) {
   return fallback;
 }
 
+function argValue(name) {
+  const index = args.indexOf(name);
+  if (index < 0) return null;
+  const result = args[index + 1];
+  if (!result || result.startsWith("--")) throw new Error(`${name} requires a value.`);
+  return result;
+}
+
 function usage() {
   console.log(`Usage:
   node tools/hosted-services/deploy.js print-profile
   node tools/hosted-services/deploy.js build-test-deploy
-  node tools/hosted-services/deploy.js deploy [--skip-build]
-  node tools/hosted-services/deploy.js upload-jar [--skip-build]
+  node tools/hosted-services/deploy.js deploy [--skip-build | --jar PATH]
+  node tools/hosted-services/deploy.js upload-jar [--skip-build | --jar PATH]
   node tools/hosted-services/deploy.js upload-config
   node tools/hosted-services/deploy.js status
   node tools/hosted-services/deploy.js rcon-stop
@@ -487,6 +513,7 @@ Required local file:
 Notes:
   - HOSTING_SERVICE is a typed provider selector. Supported values: ${Object.keys(HOSTING_SERVICES).join(", ")}.
   - build-test-deploy runs the Gradle build/tests locally, then uploads to the hosted server.
+  - --jar uploads an explicit Actions-built release candidate without rebuilding it.
   - FTP upload cannot start a hosted server. Stop/start from the hosting panel.
   - validate uses RCON and the web API after the panel has started the server.
 `);

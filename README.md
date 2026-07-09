@@ -220,6 +220,28 @@ Compiles the Java plugin and runs `npm run build:web` (webpack) via the `buildWe
 bundling the viewer into `web/dist/terrascape.js` before packaging it into the jar. The
 bundle is a generated artifact (gitignored); rebuild it with `npm run build:web`.
 
+### CI and release candidates
+
+GitHub Actions runs the Java and web unit suites and builds the jar from a clean checkout
+for every pull request and push to `main`.
+
+Release candidates are built only from version tags by
+`.github/workflows/release-candidate.yml`. The tag without its leading `v` must match the
+versions in `build.gradle.kts`, `package.json`, and `src/main/resources/manifest.json`.
+For example, after merging the intended release commit, push `v0.1.0`. Actions tests the
+tagged source, builds and inspects `Terrascape-0.1.0.jar`, records its checksum and source
+commit, and retains it as `terrascape-release-candidate-v0.1.0`. That Actions artifact—not
+a jar from a developer machine—is the release candidate used for hosted validation and
+CurseForge publishing.
+
+CurseForge publishing is a separate, manually dispatched workflow. It downloads a named
+candidate from its original Actions run, verifies the recorded run ID and jar checksum,
+and uploads that same jar without rebuilding it. Repository maintainers should configure
+the `curseforge` GitHub environment with required reviewers, the
+`CURSEFORGE_API_TOKEN` environment secret, and the numeric `CURSEFORGE_PROJECT_ID`
+environment variable. See the Operations Manual for the complete setup and publishing
+procedure.
+
 ### Test
 
 ```sh

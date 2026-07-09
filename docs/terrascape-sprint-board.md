@@ -93,7 +93,7 @@ Supporting tasks:
 
 ### Priority 2 - Finish User/Admin Docs And Build Automation
 
-Status: Open
+Status: In Progress
 
 Release blocker: Yes
 
@@ -264,7 +264,9 @@ This section summarizes the behavior the release board is based on.
 - Live mob observation depends on current Hytale entity query coverage and should be
   treated as alpha.
 - Client terrain batch loading is not currently wired despite the server batch endpoint.
-- Production deployment automation and GitHub Actions are not yet in place.
+- GitHub Actions candidate build and CurseForge upload workflows are implemented locally;
+  the first GitHub run, protected environment configuration, and real API upload remain to
+  be validated.
 - CurseForge listing/artifact validation is not complete.
 
 ## Post-Alpha Backlog
