@@ -142,7 +142,7 @@ const SCAFFOLD = [
   ['#water-mode', 'input'], ['#fog-enabled', 'input'], ['#fog-near', 'input'],
   ['#fog-near-value', 'input'], ['#fog-far', 'input'], ['#fog-far-value', 'input'],
   ['#fog-strength', 'input'], ['#fog-strength-value', 'input'], ['#fog-horizon', 'input'],
-  ['#fog-horizon-value', 'input'], ['#map-time', 'input'], ['#time-cycle-label', 'div'],
+  ['#fog-horizon-value', 'input'], ['#sync-time', 'input'], ['#time-cycle-label', 'div'],
   ['#sky-scene', 'div'], ['#sky-sun', 'div'], ['#sky-moon', 'div'], ['#sky-stars', 'div'],
   ['.hud', 'div'], ['#panel-toggle', 'div'], ['#status', 'div'], ['#metric-loaded', 'div'],
   ['#metric-meshes', 'div'], ['#metric-resources', 'div'], ['#metric-gpu', 'div'],

@@ -23,7 +23,7 @@ import {
   fogHorizonValueInput,
   fogNearValueInput,
   fogStrengthValueInput,
-  mapTimeInput,
+  syncTimeInput,
   shadeDarknessValueInput,
   shadeSizeValueInput,
   treeShadeInput,
@@ -38,7 +38,7 @@ export function currentLightingOptions() {
     treeShadeInput,
     shadeSizeInput: shadeSizeValueInput,
     shadeDarknessInput: shadeDarknessValueInput,
-    time: mapTimeInput.checked ? runtime.worldTime : NOON_LIGHTING_TIME,
+    time: syncTimeInput.checked && runtime.worldTime ? runtime.worldTime : NOON_LIGHTING_TIME,
     fogRange: fogControlRange(),
   });
 }

@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -74,6 +75,14 @@ class AccessTokensTest {
         AccessTokens tokens = AccessTokens.load(tempDir);
         assertNotNull(tokens.mint(UUID.randomUUID(), TTL, Set.of(AccessTokens.SCOPE_MAP)).token());
         assertNotNull(tokens.mint(UUID.randomUUID(), TTL, Set.of(AccessTokens.SCOPE_MAP)).token());
+    }
+
+    @Test
+    void syntheticPlayerUuidIsDeterministicAndScopedToSmokeSubjects() {
+        UUID alpha = AccessTokens.syntheticPlayerUuid("alpha");
+        assertEquals(alpha, AccessTokens.syntheticPlayerUuid(" alpha "));
+        assertTrue(!alpha.equals(AccessTokens.syntheticPlayerUuid("beta")));
+        assertTrue(!alpha.equals(UUID.nameUUIDFromBytes("alpha".getBytes(StandardCharsets.UTF_8))));
     }
 
     @Test

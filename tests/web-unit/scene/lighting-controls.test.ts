@@ -14,12 +14,13 @@ import {
   scene,
   postProcessing,
   loadedChunks,
+  runtime,
 } from '../../../web/src/scene/scene-context.ts';
 import {
   treeShadeInput,
   shadeSizeValueInput,
   shadeDarknessValueInput,
-  mapTimeInput,
+  syncTimeInput,
   fogNearValueInput,
   fogFarValueInput,
   fogEnabledInput,
@@ -47,11 +48,11 @@ test('fogControlRange reads near/far from the fog inputs', () => {
   assert.equal(range.far, 900);
 });
 
-test('currentLightingOptions reflects tree-shade + noon when map time off', () => {
+test('currentLightingOptions reflects tree-shade + noon when sync time off', () => {
   (treeShadeInput as any).checked = true;
   (shadeSizeValueInput as any).value = '2';
   (shadeDarknessValueInput as any).value = '0.5';
-  (mapTimeInput as any).checked = false; // → NOON_LIGHTING_TIME
+  (syncTimeInput as any).checked = false; // → NOON_LIGHTING_TIME
   seedFogInputs();
   const opts = currentLightingOptions();
   assert.equal(opts.sun, true);
@@ -62,12 +63,13 @@ test('currentLightingOptions reflects tree-shade + noon when map time off', () =
   assert.deepEqual(opts.fogRange, { near: 120, far: 900 });
 });
 
-test('currentLightingOptions uses runtime world time when map time on', () => {
-  (mapTimeInput as any).checked = true;
+test('currentLightingOptions uses runtime world time when sync time on', () => {
+  (syncTimeInput as any).checked = true;
+  runtime.worldTime = { dayProgress: 0.25, phase: 'sunrise' };
   const opts = currentLightingOptions();
-  // runtime.worldTime is whatever the runtime holds; just assert it is defined and not noon constant.
-  assert.ok('time' in opts);
-  (mapTimeInput as any).checked = false;
+  assert.deepEqual(opts.time, runtime.worldTime);
+  (syncTimeInput as any).checked = false;
+  runtime.worldTime = null;
 });
 
 test('fogControlOptions assembles fog settings from controls', () => {
@@ -110,7 +112,7 @@ test('applyLighting runs the full pipeline over loaded chunks', () => {
   loadedChunks.set('0:0', { object, shade: null });
 
   (treeShadeInput as any).checked = false;
-  (mapTimeInput as any).checked = false;
+  (syncTimeInput as any).checked = false;
   (fogEnabledInput as any).checked = true;
   seedFogInputs();
 

@@ -26,6 +26,7 @@ public record TerrascapeConfig(
         @Nonnull Features features,
         @Nonnull MapView mapView,
         @Nonnull Entities entities,
+        @Nonnull Validation validation,
         @Nonnull Access access,
         @Nonnull Cors cors,
         @Nonnull Rcon rcon
@@ -100,12 +101,15 @@ public record TerrascapeConfig(
                 integer(properties, "entities.playerAvatarSize", null, 64, 16, 512),
                 bytes(properties, "entities.maxPlayerAvatarBytes", null, 512L * 1024L, 0, 10L * 1024L * 1024L),
                 durationSeconds(properties, "entities.playerAvatarCacheTtlSeconds", null, 12 * 60 * 60, 0, 30 * 24 * 60 * 60));
+        Validation validation = new Validation(
+                bool(properties, "validation.smokeTokensEnabled", "TERRASCAPE_VALIDATION_SMOKE_TOKENS_ENABLED", false));
         Access access = new Access(
                 string(properties, "access.mode", "TERRASCAPE_ACCESS_MODE", "public"),
                 stringAllowBlank(properties, "access.debugToken", "TERRASCAPE_ACCESS_DEBUG_TOKEN", ""),
                 Duration.ofHours(integer(properties, "access.mapTokenTtlHours", null, 24, 1, 8760)),
                 Duration.ofHours(integer(properties, "access.adminMapTokenTtlHours", null, 4, 1, 8760)),
-                stringAllowBlank(properties, "access.publicBaseUrl", "TERRASCAPE_PUBLIC_URL", ""));
+                stringAllowBlankAnyEnv(properties, "access.publicBaseUrl", "",
+                        "TERRASCAPE_PUBLIC_BASE_URL", "TERRASCAPE_PUBLIC_URL"));
         Cors cors = new Cors(
                 bool(properties, "cors.enabled", "TERRASCAPE_CORS_ENABLED", false),
                 stringSet(properties, "cors.allowedOrigins", "TERRASCAPE_CORS_ORIGINS", Set.of()));
@@ -115,7 +119,7 @@ public record TerrascapeConfig(
                 integer(properties, "rcon.port", "TERRASCAPE_RCON_PORT", 25578, 1, 65535),
                 stringAllowBlank(properties, "rcon.password", "TERRASCAPE_RCON_PASSWORD", ""),
                 bool(properties, "rcon.allowRemote", "TERRASCAPE_RCON_ALLOW_REMOTE", false));
-        return new TerrascapeConfig(configPath.toAbsolutePath().normalize(), http, worlds, folders, mesh, cache, features, mapView, entities, access, cors, rcon);
+        return new TerrascapeConfig(configPath.toAbsolutePath().normalize(), http, worlds, folders, mesh, cache, features, mapView, entities, validation, access, cors, rcon);
     }
 
     public static void writeDefaultFile(@Nonnull Path configPath) throws IOException {
@@ -206,6 +210,10 @@ public record TerrascapeConfig(
                 access.debugToken=
                 access.mapTokenTtlHours=24
                 access.adminMapTokenTtlHours=4
+                # Optional public URL used in generated /terrascape maplink output.
+                # Set this to a DNS/custom domain when you do not want copied links,
+                # chat history, or streams to expose the numeric server IP.
+                # Example: access.publicBaseUrl=http://apex-test:7656
                 access.publicBaseUrl=
 
                 # Map tiles
@@ -220,7 +228,20 @@ public record TerrascapeConfig(
                 entities.playerAvatarSize=64
                 entities.maxPlayerAvatarBytes=512KiB
                 entities.playerAvatarCacheTtlSeconds=43200
+
+                # Validation
+                # Off by default. Enable only on dedicated validation servers to allow
+                # /terrascape smoketoken to mint synthetic scoped map tokens over console/RCON.
+                validation.smokeTokensEnabled=false
                 """;
+    }
+
+    public void ensureRuntimeDirectories() throws IOException {
+        Files.createDirectories(folders.terrainCacheDir());
+        Files.createDirectories(folders.mapRegionCacheDir());
+        Files.createDirectories(folders.samplesDir());
+        Files.createDirectories(folders.playerAvatarsDir());
+        Files.createDirectories(folders.mobIconsDir());
     }
 
     private static String string(@Nonnull Properties properties, @Nonnull String key, @Nullable String env, @Nullable String fallback) {
@@ -230,6 +251,24 @@ public record TerrascapeConfig(
     private static String stringAllowBlank(@Nonnull Properties properties, @Nonnull String key, @Nullable String env, @Nonnull String fallback) {
         String value = override(key, env);
         if (value != null) return value;
+        value = properties.getProperty(key);
+        return value == null ? fallback : value.trim();
+    }
+
+    private static String stringAllowBlankAnyEnv(
+            @Nonnull Properties properties,
+            @Nonnull String key,
+            @Nonnull String fallback,
+            @Nonnull String... envNames
+    ) {
+        String value = override(key, null);
+        if (value != null) return value;
+        for (String envName : envNames) {
+            value = System.getenv(envName);
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
         value = properties.getProperty(key);
         return value == null ? fallback : value.trim();
     }
@@ -420,6 +459,9 @@ public record TerrascapeConfig(
             long maxPlayerAvatarBytes,
             @Nonnull Duration playerAvatarCacheTtl
     ) {
+    }
+
+    public record Validation(boolean smokeTokensEnabled) {
     }
 
     public record Access(

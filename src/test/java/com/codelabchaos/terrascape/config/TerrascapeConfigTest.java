@@ -27,11 +27,15 @@ class TerrascapeConfigTest {
         assertTrue(text.contains("access.debugToken="));
         assertTrue(text.contains("access.mapTokenTtlHours=24"));
         assertTrue(text.contains("access.adminMapTokenTtlHours=4"));
+        assertTrue(text.contains("access.publicBaseUrl="));
+        assertTrue(text.contains("streams to expose the numeric server IP"));
+        assertTrue(text.contains("validation.smokeTokensEnabled=false"));
         assertEquals("127.0.0.1", config.http().host());
         assertEquals(5960, config.http().port());
         assertEquals(24, config.access().mapTokenTtl().toHours());
         assertEquals(4, config.access().adminMapTokenTtl().toHours());
         assertFalse(config.features().mobDebugEndpoint());
+        assertFalse(config.validation().smokeTokensEnabled());
         assertFalse(config.access().hasDebugToken());
         assertFalse(config.rcon().hasPassword());
         assertTrue(text.contains("cors.enabled=false"));
@@ -80,8 +84,10 @@ class TerrascapeConfigTest {
         properties.setProperty("features.clientTelemetry", "false");
         properties.setProperty("access.debugToken", "secret-token");
         properties.setProperty("rcon.password", "rcon-secret");
+        properties.setProperty("validation.smokeTokensEnabled", "true");
         properties.setProperty("access.mapTokenTtlHours", "12");
         properties.setProperty("access.adminMapTokenTtlHours", "2");
+        properties.setProperty("access.publicBaseUrl", "http://apex-test:7656/");
         properties.setProperty("mesh.maxBatchChunks", "48");
         properties.setProperty("cache.memoryTerrainBytes", "256MiB");
 
@@ -102,10 +108,28 @@ class TerrascapeConfigTest {
         assertFalse(config.access().matchesDebugToken("wrong"));
         assertTrue(config.rcon().hasPassword());
         assertEquals("rcon-secret", config.rcon().password());
+        assertTrue(config.validation().smokeTokensEnabled());
         assertEquals(12, config.access().mapTokenTtl().toHours());
         assertEquals(2, config.access().adminMapTokenTtl().toHours());
+        assertEquals("http://apex-test:7656/", config.access().publicBaseUrl());
         assertEquals(48, config.mesh().maxBatchChunks());
         assertEquals(256L * 1024L * 1024L, config.cache().memoryTerrainBytes());
+    }
+
+    @Test
+    void publicBaseUrlSupportsReadableSystemOverride() {
+        Properties properties = new Properties();
+        properties.setProperty("access.publicBaseUrl", "http://internal-host:7656");
+        System.setProperty("terrascape.access.publicBaseUrl", "http://apex-test:7656");
+        try {
+            TerrascapeConfig config = TerrascapeConfig.fromProperties(
+                    tempDir.resolve(TerrascapeConfig.FILE_NAME),
+                    tempDir,
+                    properties);
+            assertEquals("http://apex-test:7656", config.access().publicBaseUrl());
+        } finally {
+            System.clearProperty("terrascape.access.publicBaseUrl");
+        }
     }
 
     @Test
@@ -129,5 +153,18 @@ class TerrascapeConfigTest {
         assertEquals(1024L, TerrascapeConfig.parseBytes("1KiB"));
         assertEquals(2L * 1024L * 1024L, TerrascapeConfig.parseBytes("2M"));
         assertEquals(3L * 1024L * 1024L * 1024L, TerrascapeConfig.parseBytes("3 gb"));
+    }
+
+    @Test
+    void ensureRuntimeDirectoriesCreatesCacheFolders() throws IOException {
+        TerrascapeConfig config = TerrascapeConfig.load(tempDir);
+
+        config.ensureRuntimeDirectories();
+
+        assertTrue(Files.isDirectory(config.folders().terrainCacheDir()));
+        assertTrue(Files.isDirectory(config.folders().mapRegionCacheDir()));
+        assertTrue(Files.isDirectory(config.folders().samplesDir()));
+        assertTrue(Files.isDirectory(config.folders().playerAvatarsDir()));
+        assertTrue(Files.isDirectory(config.folders().mobIconsDir()));
     }
 }

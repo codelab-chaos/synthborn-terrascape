@@ -23,7 +23,7 @@ function resolveFeatureSet(scenario, defaults) {
     mobs: featureBool(features.mobs, featureBool(featureDefaults.mobs, false)),
     sun: featureBool(features.sun, featureBool(featureDefaults.sun, true)),
     shade: featureBool(features.shade, featureBool(featureDefaults.shade, true)),
-    mapTime: featureBool(features.mapTime, featureBool(featureDefaults.mapTime, false)),
+    syncTime: featureBool(features.syncTime, featureBool(featureDefaults.syncTime, false)),
     bounds: featureBool(features.bounds, featureBool(featureDefaults.bounds, false)),
     water: features.water ?? featureDefaults.water ?? 'solid',
     shader: features.shader ?? featureDefaults.shader ?? 'none',

@@ -1,7 +1,6 @@
 import { bindAppEvents } from './ui/app-events.ts';
 import { worldSelect } from './ui/dom.ts';
 import {
-  initialParams,
   npcCatalog,
   pressedKeys,
   renderer,
@@ -60,6 +59,7 @@ import {
   toggleServerDetails,
 } from './ui/view-persistence.ts';
 import { exposeDebugState } from './ui/debug-bridge.ts';
+import { mountAccessLinkButton, promoteAccessKeyFromUrl } from './ui/access-link.ts';
 import { mountBuildBadge } from './ui/build-badge.ts';
 import { loadWorlds } from './ui/world-selector.ts';
 import { startServerDetailsFeed } from './ui/server-details.ts';
@@ -83,13 +83,7 @@ export * from './platform/map-rcon.ts';
 // letting the map silently stop loading.
 bindAccessOverlay();
 onUnauthorized(showAccessRequired);
-// The one-time access key has done its job — the server set a session cookie from it — so keep it
-// out of the address bar, browser history, and any outbound referrer.
-if (initialParams.has('key')) {
-  const url = new URL(window.location.href);
-  url.searchParams.delete('key');
-  window.history.replaceState(null, '', url);
-}
+promoteAccessKeyFromUrl();
 
 setRenderDetailsOpen(!runtime.storedViewState || runtime.storedViewState.renderDetails !== false);
 setServerDetailsOpen(runtime.storedViewState?.serverDetails === true);
@@ -132,6 +126,7 @@ setRadiusControlValue(radiusValue());
 setTileLoadConcurrency(tileLoadConcurrency());
 exposeDebugState();
 mountBuildBadge();
+mountAccessLinkButton();
 resizeViewport();
 timeRibbon.update(runtime.worldTime);
 startServerDetailsFeed();

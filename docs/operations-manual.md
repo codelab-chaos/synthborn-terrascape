@@ -153,6 +153,82 @@ Useful flags: `--target <name>`, `--local` (skip SSH), `--max-ram N` / `--min-ra
 co-deploys other Synthborn addons — the project's integration save, which will be
 documented in the forthcoming Synthborn integration docs.
 
+### Hosted services example
+
+Hosted-provider validation helpers live under `tools/hosted-services/`. They are isolated
+from the normal npm deploy scripts because they are developer/operator examples for
+restricted hosting environments, not core release automation.
+
+Create a local, gitignored profile:
+
+```bash
+cp tools/hosted-services/hosted-server.env.example tools/hosted-services/hosted-server.env
+```
+
+Fill in the provider endpoint, FTP password, assigned Terrascape ports, and
+`HOSTING_TERRASCAPE_RCON_PASSWORD`. For the current alpha loop, use
+`node tools/hosted-services/deploy.js build-test-deploy`, restart from the provider
+panel, then run `node tools/hosted-services/deploy.js validate`. The helper uses FTP for
+upload/log retrieval and the assigned Terrascape RCON port only after the hosting panel
+has started the server. See
+[tools/hosted-services/README.md](../tools/hosted-services/README.md) for the command
+surface and Apex-shaped example profile.
+
+### GitHub release candidates and CurseForge upload
+
+Release jars come from GitHub Actions, never from a developer workstation. The automation
+is deliberately split into candidate creation and publishing so the exact jar tested on
+the hosted validation server is the jar later sent to CurseForge.
+
+#### One-time GitHub and CurseForge setup
+
+1. Create the CurseForge project/listing and obtain its numeric project ID.
+2. Generate a CurseForge author API token from the account that can upload files to that
+   project.
+3. In the GitHub repository, create an environment named `curseforge` and require reviewer
+   approval before jobs can use it.
+4. Add `CURSEFORGE_API_TOKEN` as an environment secret and
+   `CURSEFORGE_PROJECT_ID` as an environment variable. If CurseForge assigns the Hytale
+   project a different site API origin, add `CURSEFORGE_API_BASE_URL`; otherwise the
+   workflow uses `https://www.curseforge.com`.
+
+Keep the API token only in GitHub's environment secrets. Do not put it in repository
+variables, workflow inputs, release evidence, or local committed configuration.
+
+#### Build and validate a candidate
+
+1. Make the version identical in `build.gradle.kts`, `package.json`, and
+   `src/main/resources/manifest.json`.
+2. Merge the intended release commit, then push the matching version tag, such as
+   `v0.1.0`.
+3. Wait for the **Release candidate** workflow to pass. It runs web unit tests, runs Java
+   tests as part of a clean Gradle build, checks required jar resources, and publishes an
+   Actions artifact named `terrascape-release-candidate-<tag>` with `SHA256SUMS` and
+   `release-evidence.env`.
+4. Record the workflow run ID and download that artifact for Apex-hosted and hidden-page
+   install validation. Verify `SHA256SUMS`, then deploy the extracted jar with
+   `node tools/hosted-services/deploy.js deploy --jar /path/to/Terrascape-<version>.jar`.
+   The helper logs the selected jar's checksum before upload. Do not substitute a local
+   rebuild if validation finds an issue; fix the source and create a new version/tag and
+   candidate run.
+
+#### Upload the validated candidate
+
+1. Open **Actions → Publish candidate to CurseForge → Run workflow**.
+2. Enter the successful candidate workflow run ID and its exact tag.
+3. Select `alpha`, `beta`, or `release`, enter the CurseForge game-version names and
+   Markdown changelog, and normally leave **manual release** enabled for the alpha review
+   cycle.
+4. Review and approve the `curseforge` environment deployment. The job downloads the
+   artifact from the specified run, verifies its identity and checksum, then calls
+   CurseForge's project upload API. It records the returned CurseForge file ID in the job
+   summary.
+
+An upload is intentionally not automatic on tag push: hosted validation and a human
+environment approval must happen between candidate creation and external publication.
+Do not rerun a successful upload job, because the CurseForge upload API creates a new file
+for each request.
+
 ---
 
 ## Making the map site public
@@ -188,10 +264,12 @@ documented in the forthcoming Synthborn integration docs.
    and allows credentials. Leave disabled if the browser loads the viewer from the
    same host:port that serves the API.
 
-5. **(Recommended) front it with TLS.** Terrascape serves plain HTTP. For a public
-   site, put it behind a reverse proxy (nginx/Caddy) terminating HTTPS, and set
+5. **(Recommended) front it with TLS or a DNS alias.** Terrascape serves plain HTTP. For
+   a public site, put it behind a reverse proxy (nginx/Caddy) terminating HTTPS, and set
    `access.publicBaseUrl=https://map.example.com` so in-game `/terrascape maplink`
-   output points at the public URL.
+   output points at the public URL. For hosted validation or streaming, this can also be
+   a plain HTTP DNS alias such as `access.publicBaseUrl=http://apex-test:7656` so shared
+   links do not reveal the numeric server IP.
 
 6. **Restart** to apply: `npm run deploy` (or `node tools/deploy.js restart`).
 
@@ -257,6 +335,7 @@ permission nodes (both appear in `/perm` listings and tab-completion). The built
 | `/terrascape status` | `terrascape.admin` | Print server/HTTP status |
 | `/terrascape sample <chunkX> <chunkZ>` | `terrascape.admin` | Write a terrain sample to the `samples/` folder |
 | `/terrascape clearcache [all\|mesh\|tiles]` | `terrascape.admin` | Clear server caches (default `all`) |
+| `/terrascape smoketoken [map\|admin] [subject]` | `terrascape.admin` | Mint a scoped test token for runtime smoke validation |
 
 > **Do not grant `terrascape.admin` to regular players** — it can inspect server
 > state, write sample terrain files, and delete cache files under the data directory.
@@ -287,6 +366,12 @@ by config (`features.mobDebugEndpoint` defaults to `false`); when enabled, a cal
 authorized by **either** an `admin`-scoped token **or** the configured
 `access.debugToken`.
 
+For dedicated-server validation, `/terrascape smoketoken [map|admin] [subject]` mints the
+same token shape from console/RCON using a deterministic synthetic UUID derived from the
+subject label. It is disabled unless `validation.smokeTokensEnabled=true` is set on the
+server. It does not bypass token hashing or scope checks; use a unique subject per smoke
+run to avoid normal per-player mint backoff.
+
 ### Map API command proxy
 
 The bundled Terrascape browser client must run server commands only through the map API:
@@ -299,6 +384,21 @@ The bundled Terrascape browser client must run server commands only through the 
 
 This route is for browser/map workflows. Standalone RCON below is a separate operator/tooling
 surface with its own password and port.
+
+Runtime release smoke:
+
+```bash
+# Server-side terrascape.properties on the dedicated validation server:
+# validation.smokeTokensEnabled=true
+
+TERRASCAPE_RCON_PASSWORD=<password> npm run runtime:smoke -- \
+  --url http://127.0.0.1:5960 \
+  --rcon-url http://127.0.0.1:25578
+```
+
+The smoke run checks `/api/worlds`, standalone RCON health/status, console minting for
+map-only and admin-scoped smoke tokens, and the browser command proxy rejection/acceptance
+paths. Add `--mutating` to include `terrascape clearcache tiles`.
 
 ---
 
@@ -373,9 +473,10 @@ The common boot options also have environment-variable overrides:
 | `http.host` | Bind address (keep `127.0.0.1` unless a proxy/firewall is ready) | `TERRASCAPE_HOST` |
 | `http.port` | Web server port | `TERRASCAPE_PORT` |
 | `access.mode` | `public` or `restricted` view gating | `TERRASCAPE_ACCESS_MODE` |
-| `access.publicBaseUrl` | URL used in `/terrascape maplink` output | `TERRASCAPE_PUBLIC_URL` |
+| `access.publicBaseUrl` | URL used in `/terrascape maplink` output; set to a public DNS/custom domain to avoid exposing the numeric server IP in chat or streams | `TERRASCAPE_PUBLIC_BASE_URL` (`TERRASCAPE_PUBLIC_URL` also accepted) |
 | `access.debugToken` | Static token for ops/debug web endpoints | `TERRASCAPE_ACCESS_DEBUG_TOKEN` |
 | `rcon.password` | RCON command password | `TERRASCAPE_RCON_PASSWORD` |
+| `validation.smokeTokensEnabled` | Enable synthetic smoke-token minting for dedicated validation only | `TERRASCAPE_VALIDATION_SMOKE_TOKENS_ENABLED` |
 | `cors.enabled` | Allow cross-origin browser apps to call the APIs | `TERRASCAPE_CORS_ENABLED` |
 | `cors.allowedOrigins` | Comma-separated exact origins when CORS is on | `TERRASCAPE_CORS_ORIGINS` |
 | `features.experimentalDetails` | Enhanced terrain detail requests | `TERRASCAPE_EXPERIMENTAL_DETAILS` |
@@ -390,6 +491,7 @@ Key groups (see the generated file's comments for the full list and defaults):
 | `access.*` | View gating, debug auth, and generated map-token TTLs | `access.mode` (`public`), `access.debugToken`, `access.mapTokenTtlHours` (`24`), `access.adminMapTokenTtlHours` (`4`), `access.publicBaseUrl` |
 | `cors.*` | Cross-origin | `cors.enabled` (`false`), `cors.allowedOrigins` |
 | `rcon.*` | Command endpoint (opt-in) | `rcon.enabled` (`false`), `rcon.port` (`25578`), `rcon.password` — see [RCON](#rcon-optional-command-endpoint) |
+| `validation.*` | Dedicated release-validation switches | `validation.smokeTokensEnabled` (`false`) |
 | `worlds.*` | Visibility | `worlds.allowlist` |
 | `features.*` | Endpoint toggles | `entityStream`, `playerAvatars`, `clientTelemetry`, `metricsEndpoint`, `mobDebugEndpoint` (`false`), `experimentalDetails` |
 | `map.*` | Map tiles | `map.tileSize` (`32`), `map.generateRadius` (`20`), `map.maxRegionRadius` (`108`) |
@@ -456,9 +558,10 @@ Notes:
 | e2e headed / UI mode | `npm run testlive:headed` / `npm run testlive:ui` |
 | Full release gate | `npm run test:release` (both unit tiers + `testlive`) |
 
-`testlive` builds the bundle then runs Playwright against the served viewer — it
-needs a reachable Terrascape server (URL resolved from `remote-host.env` /
-`TERRASCAPE_URL`).
+`testlive` builds the bundle then runs Playwright against the served viewer. By default it
+targets local development at `http://127.0.0.1:5960`; set `TERRASCAPE_URL` for an explicit
+target, or copy `remote-host.env.example` to `remote-host.env` to point at a remote dev
+server.
 
 ---
 

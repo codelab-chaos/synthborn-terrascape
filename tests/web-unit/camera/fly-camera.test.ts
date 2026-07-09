@@ -17,16 +17,30 @@ import {
   controls,
   runtime,
   pressedKeys,
+  playerMarkers,
 } from '../../../web/src/scene/scene-context.ts';
 
 function resetRig() {
   runtime.viewPlayerUuid = null;
+  runtime.followPlayerUuid = null;
+  runtime.followCameraDistance = 58;
+  runtime.followCameraDetached = false;
+  runtime.followCameraLastInputAt = 0;
   runtime.flyYaw = 0;
   runtime.flyPitch = 0;
   pressedKeys.clear();
+  playerMarkers.clear();
   camera.position.set(0, 100, 0);
   camera.quaternion.identity();
   camera.updateMatrixWorld(true);
+}
+
+function addFollowMarker(uuid = 'follow') {
+  const marker = new THREE.Object3D();
+  marker.position.set(0, 60, 0);
+  playerMarkers.set(uuid, marker);
+  runtime.followPlayerUuid = uuid;
+  return marker;
 }
 
 test('syncFlyLookFromCamera derives yaw/pitch from the camera direction', () => {
@@ -83,6 +97,31 @@ test('zoomFlyView ignores invalid deltas and player-eye mode', () => {
   runtime.viewPlayerUuid = null;
 });
 
+test('zoomFlyView dollies locked follow mode instead of moving the camera', () => {
+  resetRig();
+  addFollowMarker();
+  runtime.followCameraDetached = false;
+  const before = camera.position.clone();
+  zoomFlyView(-100);
+  assert.equal(runtime.followCameraDistance, 50);
+  assert.ok(camera.position.equals(before));
+
+  zoomFlyView(100);
+  assert.equal(runtime.followCameraDistance, 58);
+});
+
+test('zoomFlyView uses normal fly zoom once follow mode is detached', () => {
+  resetRig();
+  addFollowMarker();
+  runtime.followCameraDetached = true;
+  camera.lookAt(50, 100, 0);
+  camera.updateMatrixWorld(true);
+  const before = camera.position.clone();
+  zoomFlyView(-100);
+  assert.ok(!camera.position.equals(before));
+  assert.equal(runtime.followCameraDetached, true);
+});
+
 test('zoomFlyView clamps vertical movement to the configured altitude band', () => {
   resetRig();
   camera.position.set(0, 10, 0);
@@ -119,6 +158,17 @@ test('handleKeyboardNavigation moves the camera when movement keys are pressed',
   pressedKeys.add('KeyW');
   handleKeyboardNavigation(0.1);
   assert.ok(!camera.position.equals(before));
+});
+
+test('handleKeyboardNavigation detaches follow mode for manual movement', () => {
+  resetRig();
+  addFollowMarker();
+  camera.lookAt(0, 100, -10);
+  camera.updateMatrixWorld(true);
+  pressedKeys.add('KeyW');
+  handleKeyboardNavigation(0.1);
+  assert.equal(runtime.followCameraDetached, true);
+  assert.ok(runtime.followCameraLastInputAt > 0);
 });
 
 test('handleKeyboardNavigation respects sprint and vertical keys', () => {

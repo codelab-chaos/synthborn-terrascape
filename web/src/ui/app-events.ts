@@ -25,7 +25,7 @@ import {
   infoCardHeadEl,
   landMotionInput,
   mapTilesInput,
-  mapTimeInput,
+  syncTimeInput,
   mobBlocksInput,
   mobBlocksPanelInput,
   panelToggle,
@@ -117,13 +117,13 @@ export function bindAppEvents(bindings: AppEventBindings) {
   });
   bindings.renderer.domElement.addEventListener('pointerdown', (event) => {
     blurFocusedHudControl();
-    if (!bindings.getViewPlayerUuid() && !bindings.getFollowPlayerUuid() && bindings.shouldStartFlyLook(event)) {
+    if (!bindings.getViewPlayerUuid() && bindings.shouldStartFlyLook(event)) {
       event.preventDefault();
       bindings.renderer.domElement.requestPointerLock?.();
     }
   }, { capture: true });
   bindings.renderer.domElement.addEventListener('wheel', (event) => {
-    if (bindings.getViewPlayerUuid() || bindings.getFollowPlayerUuid()) return;
+    if (bindings.getViewPlayerUuid()) return;
     event.preventDefault();
     bindings.zoomFlyView(event.deltaY);
   }, { passive: false });
@@ -185,8 +185,12 @@ function bindHudInputs(bindings: AppEventBindings) {
       bindings.saveViewState();
     });
   }
-  mapTimeInput.addEventListener('change', () => {
-    bindings.applyLighting();
+  syncTimeInput.addEventListener('change', () => {
+    if (syncTimeInput.checked) {
+      void bindings.refreshWorldTime();
+    } else {
+      bindings.applyLighting();
+    }
     bindings.restartWorldTimePolling();
     bindings.saveViewState();
   });

@@ -15,21 +15,21 @@ test('computes entity feed polling policy', () => {
   assert.equal(positiveIntegerMs('0', 1000), 1000);
   assert.equal(positiveIntegerMs('nope', 1000), 1000);
   assert.equal(worldTimePollDelayMs({
-    mapTimeEnabled: true,
+    syncTimeEnabled: true,
     lastPlayerCount: 0,
     activeMs: 5,
     visibleMs: 10,
     idleMs: 30,
   }), 5);
   assert.equal(worldTimePollDelayMs({
-    mapTimeEnabled: false,
+    syncTimeEnabled: false,
     lastPlayerCount: 2,
     activeMs: 5,
     visibleMs: 10,
     idleMs: 30,
   }), 10);
   assert.equal(worldTimePollDelayMs({
-    mapTimeEnabled: false,
+    syncTimeEnabled: false,
     lastPlayerCount: 0,
     activeMs: 5,
     visibleMs: 10,

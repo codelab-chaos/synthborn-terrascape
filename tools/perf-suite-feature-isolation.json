@@ -24,7 +24,7 @@
       "mobs": false,
       "sun": false,
       "shade": false,
-      "mapTime": false,
+      "syncTime": false,
       "bounds": false,
       "water": "hidden",
       "shader": "none",

@@ -65,6 +65,7 @@ public final class AccessTokens {
 
     private static final Gson GSON = new Gson();
     private static final SecureRandom RNG = new SecureRandom();
+    private static final String SYNTHETIC_PLAYER_PREFIX = "terrascape-smoke:";
 
     /** One stored token: when it expires and what it may do. */
     private record Entry(long expiresAt, @Nonnull Set<String> scopes) {
@@ -109,6 +110,17 @@ public final class AccessTokens {
         AccessTokens store = new AccessTokens(file, secret, new LinkedHashMap<>());
         store.save();
         return store;
+    }
+
+    /**
+     * Deterministic synthetic player identity for console/RCON smoke validation. This exercises the
+     * same minting path and per-player rate limiting as a real player without storing or requiring a
+     * real player UUID.
+     */
+    @Nonnull
+    public static UUID syntheticPlayerUuid(@Nonnull String label) {
+        String normalized = label.trim().isEmpty() ? "default" : label.trim();
+        return UUID.nameUUIDFromBytes((SYNTHETIC_PLAYER_PREFIX + normalized).getBytes(StandardCharsets.UTF_8));
     }
 
     /** Reads an entry's scopes, defaulting to {@link #SCOPE_MAP} for tokens written before scopes existed. */

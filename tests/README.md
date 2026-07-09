@@ -23,7 +23,7 @@ npm run test:unit:coverage    # with line/branch/function coverage
 # Both unit tiers with coverage in one shot
 npm run coverage              # or: npm run test:unit (alias)
 
-# E2E / runtime (needs a running Terrascape server; see playwright.config.js)
+# E2E / runtime (needs a running Terrascape server; defaults to http://127.0.0.1:5960)
 npm run testlive              # full suite
 npm run testlive:headed       # headed browser
 npm run testlive:ui           # Playwright UI mode

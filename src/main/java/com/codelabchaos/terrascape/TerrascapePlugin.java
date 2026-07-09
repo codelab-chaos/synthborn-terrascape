@@ -99,6 +99,7 @@ public class TerrascapePlugin extends JavaPlugin {
 
         try {
             config = TerrascapeConfig.load(getDataDirectory());
+            config.ensureRuntimeDirectories();
             accessTokens = AccessTokens.load(getDataDirectory());
             getLogger().at(Level.INFO).log("Terrascape config loaded from " + config.configPath());
             webServer = new TerrascapeWebServer(this, config, npcRoleIndex);

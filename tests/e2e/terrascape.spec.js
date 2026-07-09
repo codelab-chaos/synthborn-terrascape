@@ -155,7 +155,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
     () => window.__terrascapeDebug.experimentalDetailsEnabled(),
   );
   await expect(page.locator('#show-players')).toBeChecked();
-  await expect(page.locator('#map-time')).not.toBeChecked();
+  await expect(page.locator('#sync-time')).not.toBeChecked();
   await expect(page.locator('#fog-enabled')).not.toBeChecked();
   await expect(page.locator('#fog-near')).toHaveValue('150');
   await expect(page.locator('#fog-far')).toHaveValue('620');
@@ -769,7 +769,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   expect(timePayload.hour).toBeLessThanOrEqual(23);
   expect(typeof timePayload.phase).toBe('string');
   expect(typeof timePayload.sunDirection?.x).toBe('number');
-  await page.locator('#map-time').evaluate((input) => {
+  await page.locator('#sync-time').evaluate((input) => {
     input.checked = true;
     input.dispatchEvent(new Event('change', { bubbles: true }));
   });
@@ -1011,7 +1011,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
       bounds: true,
       players: false,
       shade: true,
-      mapTime: true,
+      syncTime: true,
       mapTiles: true,
       shadeSize: 1.45,
       shadeDarkness: 0.75,
@@ -1033,7 +1033,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#auto-stream')).not.toBeChecked();
   await expect(page.locator('#debug-bounds')).toBeChecked();
   await expect(page.locator('#show-players')).not.toBeChecked();
-  await expect(page.locator('#map-time')).toBeChecked();
+  await expect(page.locator('#sync-time')).toBeChecked();
   await expect(page.locator('#tree-shade')).toBeChecked();
   await expect(page.locator('#lod-horizon')).toHaveCount(0);
   await expect(page.locator('#map-tiles')).toBeChecked();

@@ -10,10 +10,18 @@ visual-examples/
 *.log
 *.tmp
 remote-host.env
+hosted-server.env
+hosted-logs/
+tools/hosted-services/hosted-server.env
+tools/hosted-services/logs/
 mods/SynthWorldview/src/main/resources/web/mob-icons/
+
 
 # macOS
 .DS_Store
 
 # Generated webpack bundle (built by `npm run build:web` / gradle buildWeb)
 src/main/resources/web/dist/
+
+# Codex config
+.codex/config.toml

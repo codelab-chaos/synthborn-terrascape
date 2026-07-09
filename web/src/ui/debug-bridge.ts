@@ -68,7 +68,7 @@ import {
   fogStrengthValueInput,
   landMotionInput,
   mapTilesInput,
-  mapTimeInput,
+  syncTimeInput,
   showMobsInput,
   showPlayersInput,
   treeShadeInput,
@@ -189,7 +189,7 @@ export function exposeDebugState() {
       terrainSpawnFrame: terrainPromotionsPerFrame(),
       terrainSpawnMs: terrainPromotionBudgetMs(),
       shade: treeShadeInput.checked,
-      mapTime: mapTimeInput.checked,
+      syncTime: syncTimeInput.checked,
       water: waterModeValue(),
       fog: {
         enabled: fogEnabledInput.checked,
@@ -227,7 +227,7 @@ export function exposeDebugState() {
     }),
     setWorldTimeForTest: (time) => {
       runtime.worldTime = time;
-      mapTimeInput.checked = true;
+      syncTimeInput.checked = true;
       applyLighting();
       timeRibbon.update(runtime.worldTime);
     },

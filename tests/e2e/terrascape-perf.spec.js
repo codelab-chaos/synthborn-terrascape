@@ -295,7 +295,7 @@ function buildPerfUrl({ world, centerX, centerZ, radius, features }) {
     mobs: String(features.mobs === true),
     mapTiles: String(features.mapTiles !== false),
     shade: String(features.shade !== false),
-    mapTime: String(features.mapTime === true),
+    syncTime: String(features.syncTime === true),
     bounds: String(features.bounds === true),
     perfTelemetry: 'true',
     water: features.water ?? 'solid',
