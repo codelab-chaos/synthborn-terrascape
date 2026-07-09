@@ -2,8 +2,6 @@ const { defineConfig, devices } = require('@playwright/test');
 const path = require('node:path');
 const { resolveTerrascapeUrl } = require(path.join(
   __dirname,
-  '..',
-  'synthborn-basecamp',
   'tools',
   'library',
   'remote-host',

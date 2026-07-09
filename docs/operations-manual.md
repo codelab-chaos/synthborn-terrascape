@@ -503,9 +503,10 @@ Notes:
 | e2e headed / UI mode | `npm run testlive:headed` / `npm run testlive:ui` |
 | Full release gate | `npm run test:release` (both unit tiers + `testlive`) |
 
-`testlive` builds the bundle then runs Playwright against the served viewer — it
-needs a reachable Terrascape server (URL resolved from `remote-host.env` /
-`TERRASCAPE_URL`).
+`testlive` builds the bundle then runs Playwright against the served viewer. By default it
+targets local development at `http://127.0.0.1:5960`; set `TERRASCAPE_URL` for an explicit
+target, or copy `remote-host.env.example` to `remote-host.env` to point at a remote dev
+server.
 
 ---
 

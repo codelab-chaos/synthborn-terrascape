@@ -14,6 +14,7 @@ const {
   printRunComparison,
   printFeatureIsolation,
 } = require('./library/perf-suite');
+const { resolveTerrascapeUrl } = require('./library/remote-host');
 
 const projectRoot = path.resolve(__dirname, '..');
 const isWindows = process.platform === 'win32';
@@ -264,39 +265,6 @@ function applyFlyOverrides(scenarios, opts) {
 
 function clearServerCache() {
   run('node', ['tools/deploy.js', 'rcon', '--', 'terrascape', 'clearcache'], projectRoot);
-}
-
-function resolveTerrascapeUrl(port = 5960) {
-  loadRemoteEnv();
-  if (process.env.WORLDVIEW_URL) return process.env.WORLDVIEW_URL;
-  if (process.env.TERRASCAPE_URL) return process.env.TERRASCAPE_URL;
-  const host = process.env.SYNTH_RCON_HOST || process.env.HYTALE_REMOTE_HOST;
-  if (host) return `http://${host.replace(/^https?:\/\//, '').split(':')[0]}:${port}`;
-  return `http://127.0.0.1:${port}`;
-}
-
-function loadRemoteEnv() {
-  const envPath = path.join(projectRoot, 'remote-host.env');
-  if (!fs.existsSync(envPath)) return;
-  for (const rawLine of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
-    const parsed = parseEnvLine(rawLine);
-    if (parsed && process.env[parsed.key] === undefined) {
-      process.env[parsed.key] = parsed.value;
-    }
-  }
-}
-
-function parseEnvLine(rawLine) {
-  const line = rawLine.trim();
-  if (!line || line.startsWith('#')) return null;
-  const eq = line.indexOf('=');
-  if (eq <= 0) return null;
-  const key = line.slice(0, eq).trim();
-  let value = line.slice(eq + 1).trim();
-  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-    value = value.slice(1, -1);
-  }
-  return { key, value };
 }
 
 function run(command, commandArgs, cwd, env = process.env) {
