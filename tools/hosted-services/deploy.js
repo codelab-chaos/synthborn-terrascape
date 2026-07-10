@@ -140,11 +140,13 @@ function smoke() {
     `http://${host}:${webPort}`,
     "--rcon-url",
     `http://${host}:${rconPort}`,
-    "--rcon-token",
-    rconPassword,
     "--subject",
     smokeSubject,
-  ]);
+  ], {
+    env: {
+      TERRASCAPE_RCON_PASSWORD: rconPassword,
+    },
+  });
 }
 
 async function validate() {
@@ -406,14 +408,14 @@ function sha256(file) {
   return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
-function run(label, commandName, commandArgs) {
+function run(label, commandName, commandArgs, options = {}) {
   console.log(`\n== ${label}`);
   console.log(`$ ${[commandName, ...commandArgs].join(" ")}`);
   const res = spawnSync(commandName, commandArgs, {
     cwd: projectRoot,
     stdio: "inherit",
     shell: false,
-    env: process.env,
+    env: { ...process.env, ...(options.env || {}) },
   });
   if (res.status !== 0) throw new Error(`${label} failed with exit code ${res.status}`);
 }
