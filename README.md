@@ -223,7 +223,9 @@ bundle is a generated artifact (gitignored); rebuild it with `npm run build:web`
 ### CI and releases
 
 GitHub Actions runs the Java and web unit suites and builds the jar from a clean checkout
-for every pull request and push to `main`.
+for every pull request and push to `main`. You can also run **Build Terrascape** manually;
+manual runs retain `terrascape-build-<commit-sha>` for 30 days. This is an ordinary build
+artifact and is never uploaded to CurseForge automatically.
 
 Releases are built only from version tags by
 `.github/workflows/release-candidate.yml`. The tag without its leading `v` must match the

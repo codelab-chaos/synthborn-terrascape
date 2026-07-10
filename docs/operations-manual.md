@@ -181,6 +181,11 @@ publishes the tested jar as a GitHub Release, then keeps CurseForge publishing b
 separate protected workflow so the exact jar tested on the hosted validation server is
 the jar later sent to CurseForge.
 
+For an ordinary downloadable build, open **Actions → Build Terrascape → Run workflow**.
+A manual build retains `terrascape-build-<commit-sha>` for 30 days and never contacts
+CurseForge. Version tags and the release workflows are only needed when intentionally
+preparing a release.
+
 #### One-time GitHub and CurseForge setup
 
 1. Create the CurseForge project/listing and obtain its numeric project ID.

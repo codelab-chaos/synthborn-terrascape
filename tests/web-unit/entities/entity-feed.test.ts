@@ -357,8 +357,8 @@ test('updateEntityVisibility toggles marker visibility from inputs', () => {
   runtime.lastPlayerCount = 1;
   updatePlayers([player('a')]);
   updateMobs([mob('m1')]);
-  showPlayersInput.checked = false;
-  showMobsInput.checked = false;
+  (showPlayersInput as HTMLInputElement).checked = false;
+  (showMobsInput as HTMLInputElement).checked = false;
   updateEntityVisibility();
   assert.equal(playerMarkers.get('a').visible, false);
   assert.equal(mobMarkers.get('m1').visible, false);
