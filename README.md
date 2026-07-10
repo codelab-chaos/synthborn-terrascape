@@ -230,18 +230,18 @@ artifact and is never uploaded to CurseForge automatically.
 Releases are built only from version tags by
 `.github/workflows/release-candidate.yml`. The tag without its leading `v` must match the
 versions in `build.gradle.kts`, `package.json`, and `src/main/resources/manifest.json`.
-For example, after merging the intended release commit, push `v0.1.0`. Actions tests the
-tagged source, builds and inspects `Terrascape-0.1.0.jar`, records its checksum and source
-commit, and publishes a GitHub Release containing the jar, `SHA256SUMS`, and build
-evidence. Tags with a suffix, such as `v0.2.0-beta.1`, become GitHub prereleases. The
-workflow also retains an Actions artifact as a short-term convenience, but the GitHub
-Release assets are the canonical files used for hosted validation and CurseForge
-publishing.
+The same version must also have a dated section in `CHANGELOG.md`. For example, after
+merging the intended release commit, push `v0.2.0-beta.1`. Actions extracts that version's
+curated changelog entry, tests the tagged source, builds and inspects the jar, and
+publishes a GitHub Release containing the jar, `SHA256SUMS`, and build evidence. Tags with
+a suffix become GitHub prereleases. The workflow also retains an Actions artifact as a
+short-term convenience, but the GitHub Release assets are the canonical files used for
+hosted validation and CurseForge publishing.
 
 CurseForge publishing is a separate, manually dispatched workflow. It downloads a named
-GitHub Release, verifies its recorded tag and jar checksum, reuses its generated release
-notes, and uploads that same jar without rebuilding it. Repository maintainers should
-configure the `curseforge` GitHub environment with required reviewers, the
+GitHub Release, verifies its recorded tag and jar checksum, reuses its curated notes from
+`CHANGELOG.md`, and uploads that same jar without rebuilding it. Repository maintainers
+should configure the `curseforge` GitHub environment with required reviewers, the
 `CURSEFORGE_API_TOKEN` environment secret, and the numeric `CURSEFORGE_PROJECT_ID`
 environment variable. See the Operations Manual for the complete setup and publishing
 procedure.

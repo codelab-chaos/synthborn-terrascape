@@ -203,15 +203,19 @@ variables, workflow inputs, release evidence, or local committed configuration.
 
 #### Build and validate a release
 
-1. Make the version identical in `build.gradle.kts`, `package.json`, and
+1. Move the user-facing entries under `CHANGELOG.md`'s `[Unreleased]` heading into a
+   categorized, dated section for the release, such as
+   `## [0.2.0-beta.1] - 2026-07-10`, then add a fresh `[Unreleased]` section.
+2. Make that version identical in `build.gradle.kts`, `package.json`, and
    `src/main/resources/manifest.json`.
-2. Merge the intended release commit, then push the matching version tag, such as
-   `v0.1.0`.
-3. Wait for the **Build and publish release** workflow to pass. It runs web unit tests,
+3. Merge the intended release commit, then push the matching version tag, such as
+   `v0.2.0-beta.1`.
+4. Wait for the **Build and publish release** workflow to pass. It requires and extracts
+   the matching `CHANGELOG.md` section, runs web unit tests,
    runs Java tests as part of a clean Gradle build, checks required jar resources, and
    publishes a GitHub Release containing `Terrascape-<version>.jar`, `SHA256SUMS`, and
    `release-evidence.env`. Version suffixes such as `-beta.1` produce prereleases.
-4. Download the GitHub Release assets for Apex-hosted and hidden-page install validation.
+5. Download the GitHub Release assets for Apex-hosted and hidden-page install validation.
    Verify `SHA256SUMS`, then deploy the extracted jar with
    `node tools/hosted-services/deploy.js deploy --jar /path/to/Terrascape-<version>.jar`.
    The helper logs the selected jar's checksum before upload. Do not substitute a local
