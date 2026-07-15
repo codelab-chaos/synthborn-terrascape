@@ -14,7 +14,14 @@ const MOB_HEADSHOT_IMAGE_TINT = 0xffffff;
 const PLAYER_CARD_COLOR = new THREE.Color(0x5ef1b5);
 const fallbackMobHeadshotGeometry = createMobHeadshotGeometry({ width: 1, height: 1 });
 const mobHeadshotTextureLoader = new THREE.TextureLoader();
-const mobHeadshotMaterials = new Map();
+type MobHeadshotResource = {
+  aspect: number;
+  geometry: THREE.BufferGeometry;
+  materials: THREE.Material[];
+  meshes: Set<THREE.Mesh>;
+};
+
+const mobHeadshotMaterials = new Map<string, MobHeadshotResource>();
 
 export function createPlayerMarker(player) {
   const group = new THREE.Group();
@@ -250,7 +257,7 @@ function mobHeadshotResource(mob) {
     aspect: 1,
     geometry: fallbackMobHeadshotGeometry,
     materials,
-    meshes: new Set(),
+    meshes: new Set<THREE.Mesh>(),
   };
   mobHeadshotMaterials.set(key, entry);
 
@@ -470,7 +477,7 @@ function updateMarkerCardHeight(marker, cardHeight) {
   card.position.y = height;
 }
 
-export function disposeObject(root) {
+export function disposeObject(root: THREE.Object3D) {
   root.traverse((object) => {
     if (object.userData?.terrascapeMobHeadshot && object.userData.materialKey) {
       mobHeadshotMaterials.get(object.userData.materialKey)?.meshes.delete(object);
@@ -481,7 +488,8 @@ export function disposeObject(root) {
       for (const material of materials) {
         if (material?.userData?.terrascapeShared === true) continue;
         for (const value of Object.values(material)) {
-          if (value?.isTexture && value.userData?.terrascapeShared !== true) value.dispose();
+          const texture = value as THREE.Texture;
+          if (texture?.isTexture && texture.userData?.terrascapeShared !== true) texture.dispose();
         }
         material.dispose();
       }

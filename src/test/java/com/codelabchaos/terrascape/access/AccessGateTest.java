@@ -8,8 +8,11 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -82,7 +85,8 @@ class AccessGateTest {
     @Test
     void stashesTokenScopesOnTheExchange() {
         AccessTokens tokens = AccessTokens.load(tempDir);
-        String token = tokens.mint(UUID.randomUUID(), TTL,
+        UUID player = UUID.randomUUID();
+        String token = tokens.mint(player, "Aster", TTL,
                 Set.of(AccessTokens.SCOPE_MAP, AccessTokens.SCOPE_ADMIN)).token();
         AccessGate gate = new AccessGate(tokens, () -> true);
 
@@ -90,6 +94,7 @@ class AccessGateTest {
         assertTrue(gate.authorize(exchange));
         assertTrue(AccessGate.hasScope(exchange, AccessTokens.SCOPE_ADMIN));
         assertTrue(AccessGate.hasScope(exchange, AccessTokens.SCOPE_MAP));
+        assertEquals(player, AccessGate.tokenInfo(exchange).subjectUuid());
     }
 
     @Test
@@ -113,6 +118,79 @@ class AccessGateTest {
         FakeHttpExchange exchange = exchange("/api/mob-debug/world", AccessGate.COOKIE_NAME + "=" + token, null);
         assertTrue(gate.authorize(exchange));
         assertTrue(AccessGate.hasScope(exchange, AccessTokens.SCOPE_ADMIN));
+    }
+
+    @Test
+    void requestWrapperPreventsValidIdentityLeakingIntoLaterAnonymousOrInvalidRequests() {
+        AccessTokens tokens = AccessTokens.load(tempDir);
+        UUID player = UUID.randomUUID();
+        String token = tokens.mint(player, "Aster", TTL, Set.of(AccessTokens.SCOPE_MAP)).token();
+        AccessGate gate = new AccessGate(tokens, () -> false);
+        FakeHttpExchange sharedDelegate = exchange("/api/console/session", null, null);
+
+        RequestScopedExchange valid = new RequestScopedExchange(sharedDelegate);
+        valid.getRequestHeaders().set("Authorization", "Bearer " + token);
+        assertTrue(gate.authorize(valid));
+        assertEquals(player, AccessGate.tokenInfo(valid).subjectUuid());
+
+        valid.getRequestHeaders().remove("Authorization");
+        RequestScopedExchange anonymous = new RequestScopedExchange(sharedDelegate);
+        assertTrue(gate.authorize(anonymous));
+        assertNull(AccessGate.tokenInfo(anonymous));
+        assertFalse(AccessGate.hasScope(anonymous, AccessTokens.SCOPE_MAP));
+
+        anonymous.getRequestHeaders().set("Authorization", "Bearer not-a-real-token");
+        RequestScopedExchange invalid = new RequestScopedExchange(sharedDelegate);
+        assertTrue(gate.authorize(invalid));
+        assertNull(AccessGate.tokenInfo(invalid));
+        assertFalse(AccessGate.hasScope(invalid, AccessTokens.SCOPE_MAP));
+    }
+
+    @Test
+    void concurrentRequestWrappersKeepDifferentIdentitiesIsolated() throws Exception {
+        AccessTokens tokens = AccessTokens.load(tempDir);
+        UUID alpha = UUID.randomUUID();
+        UUID beta = UUID.randomUUID();
+        String alphaToken = tokens.mint(alpha, "Alpha", TTL, Set.of(AccessTokens.SCOPE_MAP)).token();
+        String betaToken = tokens.mint(beta, "Beta", TTL, Set.of(AccessTokens.SCOPE_MAP)).token();
+        AccessGate gate = new AccessGate(tokens, () -> false);
+        CountDownLatch authorized = new CountDownLatch(2);
+        CountDownLatch inspect = new CountDownLatch(1);
+        UUID[] observed = new UUID[2];
+
+        Thread first = identityThread(gate, alphaToken, observed, 0, authorized, inspect);
+        Thread second = identityThread(gate, betaToken, observed, 1, authorized, inspect);
+        first.start();
+        second.start();
+        assertTrue(authorized.await(2, TimeUnit.SECONDS));
+        inspect.countDown();
+        first.join(2_000);
+        second.join(2_000);
+
+        assertEquals(alpha, observed[0]);
+        assertEquals(beta, observed[1]);
+    }
+
+    private static Thread identityThread(
+            AccessGate gate,
+            String token,
+            UUID[] observed,
+            int index,
+            CountDownLatch authorized,
+            CountDownLatch inspect
+    ) {
+        return new Thread(() -> {
+            FakeHttpExchange delegate = exchange("/api/console/session", null, "Bearer " + token);
+            RequestScopedExchange request = new RequestScopedExchange(delegate);
+            gate.authorize(request);
+            authorized.countDown();
+            try {
+                inspect.await(2, TimeUnit.SECONDS);
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+            }
+            observed[index] = AccessGate.tokenInfo(request).subjectUuid();
+        });
     }
 
     private static FakeHttpExchange exchange(String uri, String cookieHeader, String authHeader) {

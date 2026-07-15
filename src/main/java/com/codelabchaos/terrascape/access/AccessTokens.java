@@ -19,6 +19,7 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -27,16 +28,22 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Web-access tokens for the "restricted" viewer mode.
  *
- * <p>Tokens are anonymous bearer credentials minted in-game. The store keeps <b>only a one-way
+ * <p>Tokens are bearer credentials minted in-game. The store keeps <b>only a one-way
  * HMAC hash</b> of each token plus its expiry and {@linkplain #SCOPE_MAP scopes} — never the token
  * itself — so usable tokens can't be listed or recovered from the file (one-way hashing, not
  * encryption). The raw token is shown to the player once, in the link. Validation re-hashes the
  * presented token and compares.
  *
+ * <p>New player tokens also retain the minting player's UUID and last-known name so authenticated
+ * web features can act as that player. Older and synthetic tokens remain valid for map access but
+ * have no player identity and therefore cannot use identity-bound features such as the web console.
+ *
  * <p>Scopes are a low-entropy capability snapshot taken from the minting player's permissions (for
  * example {@code map} for any permitted viewer, {@code admin} for a {@code terrascape.admin}
  * holder). They let the web layer authorize per-endpoint without a live permission lookup and
- * without storing player identity. Permission changes take effect on the next mint, bounded by TTL.
+ * Permission changes take effect on the next mint, bounded by TTL. Slash commands additionally
+ * resolve current permissions from Hytale's UUID permission provider rather than trusting the
+ * scope snapshot; this lookup does not require the player to be online.
  *
  * <p>Minting is rate-limited per player with an ever-increasing backoff (in-memory only, so the
  * on-disk store reveals nothing about who minted). Expired hashes are purged lazily on each touch.
@@ -48,12 +55,34 @@ public final class AccessTokens {
     /** Capability to call admin-only web APIs. Minted only for {@code terrascape.admin} holders. */
     public static final String SCOPE_ADMIN = "admin";
 
-    /** Result of a mint attempt: a token, or a non-zero cooldown if rate-limited. */
-    public record MintResult(String token, long cooldownMs) {
+    /** Result of a mint attempt: raw token + safe management ID, or a cooldown if rate-limited. */
+    public record MintResult(String token, String tokenId, long cooldownMs) {
+    }
+
+    /** Non-secret metadata that administrators may safely list when managing active links. */
+    public record TokenSummary(
+            @Nonnull String id,
+            long expiresAt,
+            @Nonnull Set<String> scopes,
+            @Nullable UUID subjectUuid,
+            @Nullable String subjectName
+    ) {
+    }
+
+    public enum RevokeStatus {
+        REVOKED,
+        NOT_FOUND,
+        AMBIGUOUS,
+        INVALID_ID
     }
 
     /** A validated token's remaining life and granted capabilities. */
-    public record TokenInfo(long expiresAt, @Nonnull Set<String> scopes) {
+    public record TokenInfo(
+            long expiresAt,
+            @Nonnull Set<String> scopes,
+            @Nullable UUID subjectUuid,
+            @Nullable String subjectName
+    ) {
     }
 
     public static final String FILE_NAME = "access-tokens.json";
@@ -62,13 +91,20 @@ public final class AccessTokens {
     private static final long[] BACKOFF_MS = {0L, 60_000L, 300_000L, 1_800_000L, 7_200_000L};
     private static final long RATE_RESET_MS = 24L * 60 * 60 * 1000; // idle this long → backoff resets
     private static final int MAX_TOKENS = 10_000; // hard cap so abuse can't grow the file unbounded
+    private static final int TOKEN_ID_LENGTH = 16;
+    private static final int MIN_REVOKE_ID_LENGTH = 8;
 
     private static final Gson GSON = new Gson();
     private static final SecureRandom RNG = new SecureRandom();
     private static final String SYNTHETIC_PLAYER_PREFIX = "terrascape-smoke:";
 
     /** One stored token: when it expires and what it may do. */
-    private record Entry(long expiresAt, @Nonnull Set<String> scopes) {
+    private record Entry(
+            long expiresAt,
+            @Nonnull Set<String> scopes,
+            @Nullable UUID subjectUuid,
+            @Nullable String subjectName
+    ) {
     }
 
     private final Path file;
@@ -94,8 +130,11 @@ public final class AccessTokens {
                 if (arr != null) {
                     for (JsonElement element : arr) {
                         JsonObject entry = element.getAsJsonObject();
-                        tokens.put(entry.get("hash").getAsString(),
-                                new Entry(entry.get("expiresAt").getAsLong(), readScopes(entry)));
+                        tokens.put(entry.get("hash").getAsString(), new Entry(
+                                entry.get("expiresAt").getAsLong(),
+                                readScopes(entry),
+                                readUuid(entry, "subjectUuid"),
+                                readString(entry, "subjectName")));
                     }
                 }
                 AccessTokens store = new AccessTokens(file, secret, tokens);
@@ -137,26 +176,62 @@ public final class AccessTokens {
         return Set.copyOf(result);
     }
 
+    @Nullable
+    private static UUID readUuid(@Nonnull JsonObject entry, @Nonnull String name) {
+        String value = readString(entry, name);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private static String readString(@Nonnull JsonObject entry, @Nonnull String name) {
+        JsonElement value = entry.get(name);
+        return value == null || value.isJsonNull() || value.getAsString().isBlank()
+                ? null : value.getAsString();
+    }
+
     /** Mints a token for the player, or returns a cooldown if they minted too recently. */
     @Nonnull
     public synchronized MintResult mint(@Nonnull UUID player, @Nonnull Duration ttl, @Nonnull Set<String> scopes) {
+        return mint(player, null, ttl, scopes);
+    }
+
+    /** Mints an identity-bound token for a real player. */
+    @Nonnull
+    public synchronized MintResult mint(
+            @Nonnull UUID player,
+            @Nullable String playerName,
+            @Nonnull Duration ttl,
+            @Nonnull Set<String> scopes
+    ) {
         long now = System.currentTimeMillis();
         long[] state = rateState.get(player);
         int count = (state != null && now - state[0] < RATE_RESET_MS) ? (int) state[1] : 0;
         long required = BACKOFF_MS[Math.min(count, BACKOFF_MS.length - 1)];
         if (state != null && now - state[0] < required) {
-            return new MintResult(null, required - (now - state[0]));
+            return new MintResult(null, null, required - (now - state[0]));
         }
 
         purgeExpired();
         String token = randomToken();
-        tokens.put(hash(token), new Entry(now + ttl.toMillis(), Set.copyOf(scopes)));
+        String tokenHash = hash(token);
+        String normalizedName = playerName == null || playerName.isBlank() ? null : playerName.trim();
+        tokens.put(tokenHash, new Entry(
+                now + ttl.toMillis(), Set.copyOf(scopes),
+                normalizedName == null ? null : player,
+                normalizedName));
         if (tokens.size() > MAX_TOKENS) {
             tokens.remove(tokens.keySet().iterator().next()); // evict oldest insertion
         }
         rateState.put(player, new long[]{now, count + 1});
         save();
-        return new MintResult(token, 0);
+        return new MintResult(token, tokenId(tokenHash), 0);
     }
 
     /** Returns the token's expiry and scopes if valid and unexpired, otherwise {@code null}. */
@@ -170,13 +245,56 @@ public final class AccessTokens {
         if (entry == null || entry.expiresAt() <= System.currentTimeMillis()) {
             return null;
         }
-        return new TokenInfo(entry.expiresAt(), entry.scopes());
+        return new TokenInfo(entry.expiresAt(), entry.scopes(), entry.subjectUuid(), entry.subjectName());
     }
 
     /** Returns the token's expiry (epoch ms) if valid and unexpired, otherwise 0. */
     public long validate(String token) {
         TokenInfo info = resolve(token);
         return info == null ? 0 : info.expiresAt();
+    }
+
+    /** Returns active token metadata without exposing recoverable bearer credentials. */
+    @Nonnull
+    public synchronized List<TokenSummary> activeTokens() {
+        purgeExpired();
+        return tokens.entrySet().stream()
+                .map(entry -> new TokenSummary(
+                        tokenId(entry.getKey()),
+                        entry.getValue().expiresAt(),
+                        entry.getValue().scopes(),
+                        entry.getValue().subjectUuid(),
+                        entry.getValue().subjectName()))
+                .sorted(java.util.Comparator.comparingLong(TokenSummary::expiresAt)
+                        .thenComparing(TokenSummary::id))
+                .toList();
+    }
+
+    /** Revokes one active token by its listed ID (or an unambiguous longer hash prefix). */
+    @Nonnull
+    public synchronized RevokeStatus revokeById(@Nullable String requestedId) {
+        if (requestedId == null) {
+            return RevokeStatus.INVALID_ID;
+        }
+        String id = requestedId.trim().toLowerCase(java.util.Locale.ROOT);
+        if (id.length() < MIN_REVOKE_ID_LENGTH || id.length() > 64
+                || !id.chars().allMatch(AccessTokens::isLowerHex)) {
+            return RevokeStatus.INVALID_ID;
+        }
+        purgeExpired();
+        List<String> matches = tokens.keySet().stream()
+                .filter(hash -> hash.startsWith(id))
+                .limit(2)
+                .toList();
+        if (matches.isEmpty()) {
+            return RevokeStatus.NOT_FOUND;
+        }
+        if (matches.size() > 1) {
+            return RevokeStatus.AMBIGUOUS;
+        }
+        tokens.remove(matches.getFirst());
+        save();
+        return RevokeStatus.REVOKED;
     }
 
     private void purgeExpired() {
@@ -188,6 +306,14 @@ public final class AccessTokens {
         byte[] bytes = new byte[24];
         RNG.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private static String tokenId(@Nonnull String tokenHash) {
+        return tokenHash.substring(0, Math.min(TOKEN_ID_LENGTH, tokenHash.length()));
+    }
+
+    private static boolean isLowerHex(int character) {
+        return character >= '0' && character <= '9' || character >= 'a' && character <= 'f';
     }
 
     private String hash(@Nonnull String token) {
@@ -211,6 +337,12 @@ public final class AccessTokens {
             JsonArray scopes = new JsonArray();
             entry.scopes().forEach(scopes::add);
             json.add("scopes", scopes);
+            if (entry.subjectUuid() != null) {
+                json.addProperty("subjectUuid", entry.subjectUuid().toString());
+            }
+            if (entry.subjectName() != null) {
+                json.addProperty("subjectName", entry.subjectName());
+            }
             arr.add(json);
         });
         root.add("tokens", arr);

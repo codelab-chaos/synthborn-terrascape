@@ -1,7 +1,7 @@
 {
   "Group": "com.codelabchaos",
   "Name": "Terrascape",
-  "Version": "0.1.0",
+  "Version": "0.1.1-beta.1",
   "Description": "Synthborn: Terrascape — 3D browser terrain viewer for Hytale servers",
   "Authors": [
     {

@@ -116,8 +116,8 @@ function drawMobBadge(sprite, mob, image = null) {
   const label = shortMobLabel(mob.label || mob.type || 'Mob');
   const initials = mobInitials(label);
   const count = Number(mob.count ?? mob.stack ?? 1);
-  const damage = statText(mob.attackDamage ?? mob.damage ?? mob.attack, '');
-  const hp = statText(mob.hp ?? mob.health ?? mob.maxHealth ?? mob.maxHp, '');
+  const damage = statText(mob.attackDamage ?? mob.damage ?? mob.attack);
+  const hp = statText(mob.hp ?? mob.health ?? mob.maxHealth ?? mob.maxHp);
   const hideStats = mob.hideStats === true;
   const showDamage = !hideStats && damage !== '';
   const showHp = !hideStats && hp !== '';

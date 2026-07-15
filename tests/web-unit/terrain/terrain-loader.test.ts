@@ -12,6 +12,8 @@ import {
   pruneOrphanChunkWrappers,
   reloadTerrainForVisualOptions,
   scheduleControlGridLoad,
+  sortTerrainKeysByRevealSequence,
+  terrainRevealDelayMs,
   updateDebugBounds,
 } from '../../../web/src/terrain/terrain-loader.ts';
 import {
@@ -92,7 +94,7 @@ process.on('exit', () => {
   installFetch(realFetch);
 });
 
-function withFetch(stub: typeof fetch, fn: () => Promise<void>) {
+function withFetch<T>(stub: typeof fetch, fn: () => Promise<T>): Promise<T> {
   installFetch(stub);
   return Promise.resolve()
     .then(fn)
@@ -142,6 +144,36 @@ function resetState() {
   debugBoundsInput.checked = false;
   waterModeInput.value = 'off';
 }
+
+test('terrain reveal staggering is deterministic and bounded', () => {
+  assert.equal(terrainRevealDelayMs(-2, 5), terrainRevealDelayMs(-2, 5));
+  const delays = [
+    terrainRevealDelayMs(0, 0),
+    terrainRevealDelayMs(1, 0),
+    terrainRevealDelayMs(0, 1),
+    terrainRevealDelayMs(7, -3),
+  ];
+  assert.ok(delays.every((delay) => delay >= 0 && delay <= 420));
+  assert.ok(new Set(delays).size > 1);
+});
+
+test('terrain reveal sequence keeps near chunks first and uses noise within a ring', () => {
+  const keys = [
+    { id: 'far', chunkX: 2, chunkZ: 0 },
+    { id: 'north', chunkX: 0, chunkZ: -1 },
+    { id: 'center', chunkX: 0, chunkZ: 0 },
+    { id: 'east', chunkX: 1, chunkZ: 0 },
+  ];
+  const ordered = sortTerrainKeysByRevealSequence(keys, 0, 0);
+  assert.equal(ordered[0].id, 'center');
+  assert.equal(ordered.at(-1)?.id, 'far');
+  assert.deepEqual(
+    ordered.slice(1, 3).map((key) => key.id),
+    [keys[1], keys[3]]
+      .sort((left, right) => terrainRevealDelayMs(left.chunkX, left.chunkZ) - terrainRevealDelayMs(right.chunkX, right.chunkZ))
+      .map((key) => key.id),
+  );
+});
 
 // --- orphan wrapper bookkeeping ---------------------------------------------
 

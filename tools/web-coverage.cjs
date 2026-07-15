@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 // Whole-codebase TS unit coverage in the Jest/istanbul table format.
 //
-// 1. Best-effort compile of ALL web sources (not just the tested ones) so c8 can report
-//    every file. DOM/three-coupled files emit JS but fail type-checking — that is expected
-//    and harmless here; we only need the emitted JS, and c8's --all lists never-loaded files
-//    as 0% so the headline number reflects the real codebase, not a hand-picked slice.
+// 1. Type-check production sources, then compile all unit-test sources. A type error is a
+//    hard failure: coverage must never make a broken browser build look healthy.
 // 2. Run the node:test unit suite under c8 with the text (Jest-style) reporter.
 const { spawnSync } = require('node:child_process');
+const { rmSync } = require('node:fs');
 
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const src = 'build/web-cov/web/src';
 
-spawnSync(npx, ['tsc', '-p', 'tests/tsconfig.web-cov.json'], { stdio: 'inherit' });
+const typecheck = spawnSync(npx, ['tsc', '-p', 'tsconfig.json', '--noEmit'], { stdio: 'inherit' });
+if (typecheck.status !== 0) process.exit(typecheck.status ?? 1);
+
+rmSync('build/web-cov', { recursive: true, force: true });
+const compile = spawnSync(npx, ['tsc', '-p', 'tests/tsconfig.web-cov.json'], { stdio: 'inherit' });
+if (compile.status !== 0) process.exit(compile.status ?? 1);
 
 const result = spawnSync(npx, [
   'c8',

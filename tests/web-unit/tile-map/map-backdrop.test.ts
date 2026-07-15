@@ -15,6 +15,7 @@ import {
   sampleMapBackdropColor,
   setMapTileChunkCovered,
   setTileLoadConcurrency,
+  tileRevealDelayMs,
   tickMapTileMotion,
   updateMapBackdrop,
 } from '../../../web/src/tile-map/map-backdrop.ts';
@@ -77,11 +78,26 @@ test('setTileLoadConcurrency clamps to at least 1', () => {
   setTileLoadConcurrency(4);
 });
 
+test('tile reveal staggering is deterministic, bounded, and spatially varied', () => {
+  assert.equal(tileRevealDelayMs(3, -7), tileRevealDelayMs(3, -7));
+  const delays = [
+    tileRevealDelayMs(0, 0),
+    tileRevealDelayMs(1, 0),
+    tileRevealDelayMs(0, 1),
+    tileRevealDelayMs(-4, 9),
+  ];
+  assert.ok(delays.every((delay) => delay >= 0 && delay <= 360));
+  assert.ok(new Set(delays).size > 1);
+});
+
 test('mapBackdropStats and mapTileSceneStats report empty state', () => {
   resetState();
   const stats = mapBackdropStats();
   assert.equal(stats.totalTiles, 0);
   assert.equal(stats.visibleTiles, 0);
+  assert.equal(stats.pending, 0);
+  assert.equal(stats.inFlight, 0);
+  assert.equal(stats.promotionPending, 0);
   const sceneStats = mapTileSceneStats();
   assert.equal(sceneStats.meshCount, 0);
   assert.equal(sceneStats.visibleCount, 0);
@@ -216,13 +232,11 @@ test('loadMapTilesForKeys queue worker path handles fetch failures', async () =>
     globalThis.fetch = tileFailingFetch();
     console.warn = () => {};
 
-    const worker = await loadMapTilesForKeys(
+    await loadMapTilesForKeys(
       'default',
       [{ chunkX: 5, chunkZ: 5 }],
       { immediate: false },
     );
-    // Worker promise (or undefined) — await it to drain the queue if present.
-    if (worker) await worker;
     assert.equal(mapBackdropStats().totalTiles, 0);
   } finally {
     flushClientLogs();

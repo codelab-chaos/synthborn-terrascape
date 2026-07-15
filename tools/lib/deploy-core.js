@@ -463,9 +463,18 @@ function deployRemote(ctx) {
   const modsDir = `${remoteSaveDir(ctx.target)}/mods`;
   sshRun(`mkdir -p ${remoteShellQuote(modsDir)}`);
   for (const artifact of artifactsFor(ctx.target)) {
+    removeOwnedJarsRemote(modsDir, artifact.jarBaseName);
     scpToRemote(findJar(artifact.projectDir, artifact.jarBaseName), `${modsDir}/`);
     deployExtraFilesRemote(artifact, modsDir);
   }
+}
+
+function removeOwnedJarsRemote(modsDir, jarBaseName) {
+  const baseName = sanitizeName(jarBaseName);
+  sshRun(
+    `find ${remoteShellQuote(modsDir)} -maxdepth 1 -type f `
+    + `\\( -name '${baseName}-*.jar' -o -name '${baseName}.jar' \\) -delete`,
+  );
 }
 
 function deployExtraFilesRemote(artifact, modsDir) {
@@ -485,10 +494,20 @@ function deployLocal(ctx) {
   const modsDir = path.join(localSaveDir(ctx.target), "mods");
   fs.mkdirSync(modsDir, { recursive: true });
   for (const artifact of artifactsFor(ctx.target)) {
+    removeOwnedJarsLocal(modsDir, artifact.jarBaseName);
     const jar = findJar(artifact.projectDir, artifact.jarBaseName);
     fs.copyFileSync(jar, path.join(modsDir, path.basename(jar)));
     console.log(`copied ${jar} -> ${modsDir}`);
     deployExtraFilesLocal(artifact, modsDir);
+  }
+}
+
+function removeOwnedJarsLocal(modsDir, jarBaseName) {
+  const baseName = sanitizeName(jarBaseName);
+  for (const entry of fs.readdirSync(modsDir)) {
+    if (entry === `${baseName}.jar` || (entry.startsWith(`${baseName}-`) && entry.endsWith(".jar"))) {
+      fs.rmSync(path.join(modsDir, entry), { force: true });
+    }
   }
 }
 

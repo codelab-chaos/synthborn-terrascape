@@ -596,18 +596,22 @@ async function clearBrowserMeshCache(page) {
   await page.goto('/?world=default&chunkX=0&chunkZ=0&radius=0&auto=false&mapTiles=false');
   await page.evaluate(async () => {
     await new Promise((resolve) => {
-      const request = indexedDB.open('synthborn-terrascape-cache', 1);
+      // Omit the version so this remains valid when the application cache schema
+      // advances. Opening an older explicit version raises VersionError and silently
+      // leaves a supposedly cold performance run warm.
+      const request = indexedDB.open('synthborn-terrascape-cache');
       request.onerror = () => resolve();
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains('terrainMeshes')) {
-          db.createObjectStore('terrainMeshes', { keyPath: 'key' });
-        }
-      };
       request.onsuccess = () => {
         const db = request.result;
-        const transaction = db.transaction('terrainMeshes', 'readwrite');
-        transaction.objectStore('terrainMeshes').clear();
+        const stores = ['terrainMeshes', 'mapTileTextures']
+          .filter((name) => db.objectStoreNames.contains(name));
+        if (stores.length === 0) {
+          db.close();
+          resolve();
+          return;
+        }
+        const transaction = db.transaction(stores, 'readwrite');
+        for (const store of stores) transaction.objectStore(store).clear();
         transaction.oncomplete = () => {
           db.close();
           resolve();

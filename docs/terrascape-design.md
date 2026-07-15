@@ -275,6 +275,38 @@ Chunk lifecycle:
 6. Place object at `chunkX * 32, 0, chunkZ * 32`.
 7. Dispose chunks outside the retain radius.
 
+### Client Loading Policy
+
+Cached terrain and network terrain have different bottlenecks and should not share one
+concurrency control. The current implementation applies the policy directly in the
+terrain loader:
+
+- Queue all requested IndexedDB reads immediately in one transaction.
+- Parse cached GLBs sequentially in deterministic near-first, noise-ordered sequence.
+- Insert parsed scenes in frame-budgeted batches so local cache hits cannot flood the
+  renderer or block interaction.
+- Keep network requests separately bounded by the configured terrain load slots.
+- Never use a wall-clock reveal delay for data that is already ready; staggering controls
+  order, not artificial waiting.
+
+Follow-up engineering note: extract these practices into a small reusable client loading
+scheduler once the terrain and tile paths are stable. It should model eager acquisition,
+ordered preparation, frame-budgeted promotion, cancellation/generation checks, and
+telemetry as separate stages so each asset loader does not reinvent the policy.
+
+Map tiles follow the same separation with tile-specific limits: cache reads and bounded
+network acquisition may run ahead, decoded tiles enter a render-frame promotion queue,
+and each frame promotes at most eight tiles while respecting a 3 ms scene-mutation
+budget. Coordinate noise controls reveal order/phase without serializing cache access.
+
+The current broad backdrop still represents each chunk as a separately textured mesh.
+That is acceptable for bounded alpha radii on hardware-accelerated browsers, but the
+default 16-chunk radius means 1,089 possible draw calls and overwhelms Chromium's
+SwiftShader software renderer. This is an explicit alpha architecture limit, not a reason
+to reintroduce cache delays. A region atlas or instanced/array-texture backdrop remains the
+post-alpha scale fix; automated component checks use a bounded radius, while the broad
+horizon remains visible in dedicated performance evidence.
+
 ## Caching And Freshness
 
 Use the EasyWebMap pattern:
@@ -302,13 +334,12 @@ The early validation loop should answer these questions:
 6. Can we unload chunks in the browser without leaking GPU memory?
 7. Can player markers line up with terrain coordinates?
 
-The validation commands can start as operator commands:
+The validation commands were originally proposed as operator commands. Only the supported
+public commands remain registered; sample and pregeneration hooks are internal diagnostics:
 
 ```text
 /terrascape status
-/terrascape sample <chunkX> <chunkZ>
 /terrascape clearcache
-/terrascape pregenerate <radius> <lod>
 ```
 
 ## MVP Cut

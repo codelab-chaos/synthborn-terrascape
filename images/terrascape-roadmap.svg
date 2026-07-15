@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1385" viewBox="0 0 1800 1385" role="img" aria-labelledby="title description">
+  <title id="title">Synthborn: Terrascape Roadmap</title>
+  <desc id="description">Release-grouped direction for the first public beta and its feedback cycle</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#071321"/>
+      <stop offset="0.52" stop-color="#0c1c2d"/>
+      <stop offset="1" stop-color="#11152b"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0" cy="0" r="1">
+      <stop offset="0" stop-color="#28dfbc" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#28dfbc" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0" cy="0" r="1">
+      <stop offset="0" stop-color="#8d79ff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#8d79ff" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#8ab6c9" stroke-opacity="0.055" stroke-width="1"/>
+    </pattern>
+    <filter id="shadow" x="-20%" y="-30%" width="140%" height="170%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000714" flood-opacity="0.38"/>
+    </filter>
+  </defs>
+  <rect width="1800" height="1385" fill="url(#background)"/>
+  <rect width="1800" height="1385" fill="url(#grid)"/>
+  <ellipse cx="80" cy="60" rx="700" ry="560" fill="url(#glowA)"/>
+  <ellipse cx="1740" cy="1285" rx="760" ry="620" fill="url(#glowB)"/>
+  <g font-family="Inter, Segoe UI, Arial, sans-serif">
+    <text x="90" y="82" fill="#51e6c1" font-size="24" font-weight="800" letter-spacing="5">SYNTHBORN / TERRASCAPE</text>
+    <text x="90" y="143" fill="#f4fbff" font-size="54" font-weight="800">Terrascape Roadmap</text>
+    <text x="90" y="190" fill="#a9bdca" font-size="24">Release-grouped direction for the first public beta and its feedback cycle</text>
+    <g transform="translate(1465,62)">
+      <rect width="245" height="56" rx="28" fill="#102b35" stroke="#51e6c1" stroke-opacity="0.55"/>
+      <circle cx="29" cy="28" r="7" fill="#51e6c1"/>
+      <text x="50" y="36" fill="#d8fff5" font-size="18" font-weight="700">UPDATED 2026-07-14</text>
+    </g>
+    <g>
+    <rect x="90" y="250" width="1620" height="604" rx="34" fill="#0b1a29" fill-opacity="0.88" stroke="#51e6c1" stroke-opacity="0.32" filter="url(#shadow)"/>
+    <rect x="90" y="250" width="10" height="604" rx="5" fill="#51e6c1"/>
+    <circle cx="121" cy="299" r="15" fill="#071321" stroke="#51e6c1" stroke-width="6"/>
+    <text x="156" y="292" fill="#51e6c1" font-size="19" font-weight="800" letter-spacing="3">CURRENT MILESTONE</text>
+    <text x="156" y="341" fill="#f6fbff" font-size="37" font-weight="800">v0.1.0 BETA <tspan fill="#8196a6" font-weight="500">— Initial Beta Release</tspan></text>
+    <text x="156" y="375" fill="#9fb3c1" font-size="20">Ship the first complete Terrascape experience, including the secure browser console interface.</text>
+    <g>
+    <rect x="90" y="402" width="388.5" height="190" rx="22" fill="#102334" stroke="#92b8c8" stroke-opacity="0.16"/>
+    <rect x="110" y="421" width="56" height="56" rx="16" fill="#51e6c1" fill-opacity="0.14" stroke="#51e6c1" stroke-opacity="0.48"/>
+    <text x="138" y="456" fill="#51e6c1" font-size="19" font-weight="900" text-anchor="middle" letter-spacing="0.5">3D</text>
+    <rect x="340.5" y="425" width="118" height="28" rx="14" fill="#12332f"/>
+    <text x="399.5" y="444" fill="#51e6c1" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="1.2">SHIPPED</text>
+    <text x="110" y="507" fill="#f3f9fc" font-size="23" font-weight="800">Live 3D World</text>
+    <text x="110" y="539" fill="#98adba" font-size="16">Stream terrain meshes from the running</text>
+<text x="110" y="559" fill="#98adba" font-size="16">Hytale world into the browser.</text>
+  </g>
+<g>
+    <rect x="500.5" y="402" width="388.5" height="190" rx="22" fill="#102334" stroke="#92b8c8" stroke-opacity="0.16"/>
+    <rect x="520.5" y="421" width="56" height="56" rx="16" fill="#51e6c1" fill-opacity="0.14" stroke="#51e6c1" stroke-opacity="0.48"/>
+    <text x="548.5" y="456" fill="#51e6c1" font-size="15" font-weight="900" text-anchor="middle" letter-spacing="0.5">NPC</text>
+    <rect x="751" y="425" width="118" height="28" rx="14" fill="#12332f"/>
+    <text x="810" y="444" fill="#51e6c1" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="1.2">SHIPPED</text>
+    <text x="520.5" y="507" fill="#f3f9fc" font-size="23" font-weight="800">Mobs &amp; Players</text>
+    <text x="520.5" y="539" fill="#98adba" font-size="16">Show live player markers, player</text>
+<text x="520.5" y="559" fill="#98adba" font-size="16">navigation, and detailed mob cards.</text>
+  </g>
+<g>
+    <rect x="911" y="402" width="388.5" height="190" rx="22" fill="#102334" stroke="#92b8c8" stroke-opacity="0.16"/>
+    <rect x="931" y="421" width="56" height="56" rx="16" fill="#51e6c1" fill-opacity="0.14" stroke="#51e6c1" stroke-opacity="0.48"/>
+    <text x="959" y="456" fill="#51e6c1" font-size="15" font-weight="900" text-anchor="middle" letter-spacing="0.5">CAM</text>
+    <rect x="1161.5" y="425" width="118" height="28" rx="14" fill="#12332f"/>
+    <text x="1220.5" y="444" fill="#51e6c1" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="1.2">SHIPPED</text>
+    <text x="931" y="507" fill="#f3f9fc" font-size="23" font-weight="800">Player Views</text>
+    <text x="931" y="539" fill="#98adba" font-size="16">Focus, follow, and first-person camera</text>
+<text x="931" y="559" fill="#98adba" font-size="16">modes for online players.</text>
+  </g>
+<g>
+    <rect x="1321.5" y="402" width="388.5" height="190" rx="22" fill="#102334" stroke="#92b8c8" stroke-opacity="0.16"/>
+    <rect x="1341.5" y="421" width="56" height="56" rx="16" fill="#51e6c1" fill-opacity="0.14" stroke="#51e6c1" stroke-opacity="0.48"/>
+    <text x="1369.5" y="456" fill="#51e6c1" font-size="15" font-weight="900" text-anchor="middle" letter-spacing="0.5">SUN</text>
+    <rect x="1572" y="425" width="118" height="28" rx="14" fill="#12332f"/>
+    <text x="1631" y="444" fill="#51e6c1" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="1.2">SHIPPED</text>
+    <text x="1341.5" y="507" fill="#f3f9fc" font-size="23" font-weight="800">Day / Night Cycle</text>
+    <text x="1341.5" y="539" fill="#98adba" font-size="16">Display world time and synchronize the</text>
+<text x="1341.5" y="559" fill="#98adba" font-size="16">viewer&apos;s lighting when enabled.</text>
+  </g>
+<g>
+    <rect x="90" y="614" width="388.5" height="190" rx="22" fill="#102334" stroke="#92b8c8" stroke-opacity="0.16"/>
+    <rect x="110" y="633" width="56" height="56" rx="16" fill="#51e6c1" fill-opacity="0.14" stroke="#51e6c1" stroke-opacity="0.48"/>
+    <text x="138" y="668" fill="#51e6c1" font-size="15" font-weight="900" text-anchor="middle" letter-spacing="0.5">MAP</text>
+    <rect x="340.5" y="637" width="118" height="28" rx="14" fill="#12332f"/>
+    <text x="399.5" y="656" fill="#51e6c1" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="1.2">SHIPPED</text>
+    <text x="110" y="719" fill="#f3f9fc" font-size="23" font-weight="800">Map-Tile Backdrop</text>
+    <text x="110" y="751" fill="#98adba" font-size="16">Fill the distance beyond loaded 3D</text>
+<text x="110" y="771" fill="#98adba" font-size="16">terrain with top-down world tiles.</text>
+  </g>
+<g>
+    <rect x="500.5" y="614" width="388.5" height="190" rx="22" fill="#102334" stroke="#92b8c8" stroke-opacity="0.16"/>
+    <rect x="520.5" y="633" width="56" height="56" rx="16" fill="#51e6c1" fill-opacity="0.14" stroke="#51e6c1" stroke-opacity="0.48"/>
+    <text x="548.5" y="668" fill="#51e6c1" font-size="13" font-weight="900" text-anchor="middle" letter-spacing="0.5">TUNE</text>
+    <rect x="751" y="637" width="118" height="28" rx="14" fill="#12332f"/>
+    <text x="810" y="656" fill="#51e6c1" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="1.2">SHIPPED</text>
+    <text x="520.5" y="719" fill="#f3f9fc" font-size="23" font-weight="800">Tunable Rendering</text>
+    <text x="520.5" y="751" fill="#98adba" font-size="16">Control mesh distance, water, fog,</text>
+<text x="520.5" y="771" fill="#98adba" font-size="16">detail, shading, and load budgets.</text>
+  </g>
+<g>
+    <rect x="911" y="614" width="388.5" height="190" rx="22" fill="#102334" stroke="#92b8c8" stroke-opacity="0.16"/>
+    <rect x="931" y="633" width="56" height="56" rx="16" fill="#51e6c1" fill-opacity="0.14" stroke="#51e6c1" stroke-opacity="0.48"/>
+    <text x="959" y="668" fill="#51e6c1" font-size="13" font-weight="900" text-anchor="middle" letter-spacing="0.5">LINK</text>
+    <rect x="1161.5" y="637" width="118" height="28" rx="14" fill="#12332f"/>
+    <text x="1220.5" y="656" fill="#51e6c1" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="1.2">SHIPPED</text>
+    <text x="931" y="719" fill="#f3f9fc" font-size="23" font-weight="800">Shareable Access</text>
+    <text x="931" y="751" fill="#98adba" font-size="16">Support open maps and secure per-player</text>
+<text x="931" y="771" fill="#98adba" font-size="16">token-gated links.</text>
+  </g>
+<g>
+    <rect x="1321.5" y="614" width="388.5" height="190" rx="22" fill="#102334" stroke="#92b8c8" stroke-opacity="0.16"/>
+    <rect x="1341.5" y="633" width="56" height="56" rx="16" fill="#51e6c1" fill-opacity="0.14" stroke="#51e6c1" stroke-opacity="0.48"/>
+    <text x="1369.5" y="668" fill="#51e6c1" font-size="19" font-weight="900" text-anchor="middle" letter-spacing="0.5">&gt;_</text>
+    <rect x="1572" y="637" width="118" height="28" rx="14" fill="#12332f"/>
+    <text x="1631" y="656" fill="#51e6c1" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="1.2">SHIPPED</text>
+    <text x="1341.5" y="719" fill="#f3f9fc" font-size="23" font-weight="800">Browser Console Interface</text>
+    <text x="1341.5" y="751" fill="#98adba" font-size="16">Provide identity-bound web chat and</text>
+<text x="1341.5" y="771" fill="#98adba" font-size="16">permission-checked commands with private</text>
+<text x="1341.5" y="791" fill="#98adba" font-size="16">output history.</text>
+  </g>
+    <line x1="121" y1="854" x2="121" y2="888" stroke="#51e6c1" stroke-opacity="0.55" stroke-width="4" stroke-dasharray="5 9"/>
+  </g>
+<g>
+    <rect x="90" y="888" width="1620" height="392" rx="34" fill="#0b1a29" fill-opacity="0.88" stroke="#9b8cff" stroke-opacity="0.32" filter="url(#shadow)"/>
+    <rect x="90" y="888" width="10" height="392" rx="5" fill="#9b8cff"/>
+    <circle cx="121" cy="937" r="15" fill="#071321" stroke="#9b8cff" stroke-width="6"/>
+    <text x="156" y="930" fill="#9b8cff" font-size="19" font-weight="800" letter-spacing="3">WHAT COMES NEXT</text>
+    <text x="156" y="979" fill="#f6fbff" font-size="37" font-weight="800">v0.1.x BETA <tspan fill="#8196a6" font-weight="500">— Community-Driven Updates</tspan></text>
+    <text x="156" y="1013" fill="#9fb3c1" font-size="20">Future improvements will follow the needs players and server owners raise during the beta.</text>
+    <g>
+    <rect x="90" y="1040" width="388.5" height="190" rx="22" fill="#102334" stroke="#92b8c8" stroke-opacity="0.16"/>
+    <rect x="110" y="1059" width="56" height="56" rx="16" fill="#9b8cff" fill-opacity="0.14" stroke="#9b8cff" stroke-opacity="0.48"/>
+    <text x="138" y="1094" fill="#9b8cff" font-size="15" font-weight="900" text-anchor="middle" letter-spacing="0.5">YOU</text>
+    <rect x="340.5" y="1063" width="118" height="28" rx="14" fill="#292343"/>
+    <text x="399.5" y="1082" fill="#bdadff" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="1.2">BY REQUEST</text>
+    <text x="110" y="1145" fill="#f3f9fc" font-size="23" font-weight="800">Requested Improvements</text>
+    <text x="110" y="1177" fill="#98adba" font-size="16">Prioritize meaningful map, camera,</text>
+<text x="110" y="1197" fill="#98adba" font-size="16">console, and usability improvements</text>
+<text x="110" y="1217" fill="#98adba" font-size="16">requested by the community.</text>
+  </g>
+
+  </g>
+    <g transform="translate(90,1318)">
+    <text x="0" y="0" fill="#718998" font-size="15" font-weight="700" letter-spacing="2">STATUS</text>
+    <g transform="translate(92,-13)"><circle cx="8" cy="8" r="7" fill="#51e6c1"/><text x="25" y="14" fill="#aabdc8" font-size="15" font-weight="700">SHIPPED</text></g>
+<g transform="translate(297,-13)"><circle cx="8" cy="8" r="7" fill="#ffcf67"/><text x="25" y="14" fill="#aabdc8" font-size="15" font-weight="700">TO BUILD</text></g>
+<g transform="translate(502,-13)"><circle cx="8" cy="8" r="7" fill="#bdadff"/><text x="25" y="14" fill="#aabdc8" font-size="15" font-weight="700">DEMAND-DRIVEN</text></g>
+    <text x="1620" y="0" fill="#718998" font-size="15" text-anchor="end">Plans may change with community feedback</text>
+  </g>
+  </g>
+</svg>

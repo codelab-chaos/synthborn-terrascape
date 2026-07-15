@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createChunkDebug } from './chunk-debug.ts';
+import type { ChunkLandEntry } from '../library/chunk-land-motion.ts';
 import { applyLightingToObject, createTreeShadeObject } from '../scene/lighting.ts';
 import { logClientEvent, logClientTiming } from '../platform/client-log.ts';
 import {
@@ -9,14 +10,18 @@ import {
   loadMapTilesForKeys,
   sampleMapBackdropColor,
 } from '../tile-map/map-backdrop.ts';
-import { chunkKeysForWorld, sortChunkKeysByPlayerDistance } from '../common/chunk-planning.ts';
+import { chunkDistanceSq, chunkKeysForWorld, sortChunkKeysByPlayerDistance } from '../common/chunk-planning.ts';
 import { createTerrainStreamStats, terrainStreamSnapshot } from '../common/terrain-stream.ts';
+import { spatialStaggerDelayMs } from '../common/spatial-stagger.ts';
 import { disposeObjectTree } from '../common/resource-stats.ts';
 import {
   fetchArrayBufferWithRetry,
   loadTerrainChunkData,
   parseGltfBytes,
+  parseCachedTerrainChunkData,
   readCosmeticOverlayBytes,
+  readTerrainChunkCacheBatch,
+  terrainCacheKey,
   terrainUrl,
   writeCosmeticOverlayCache,
   writeTerrainChunkCache,
@@ -69,9 +74,30 @@ import {
 
 const AUTO_STREAM_DEBOUNCE_MS = 250;
 const TERRAIN_STREAM_PROGRESS_LOG_MS = 1000;
+const TERRAIN_REVEAL_STAGGER_MS = 420;
+
+export function terrainRevealDelayMs(chunkX: number, chunkZ: number) {
+  return spatialStaggerDelayMs(chunkX, chunkZ, TERRAIN_REVEAL_STAGGER_MS);
+}
+
+export function sortTerrainKeysByRevealSequence<T extends { chunkX: number; chunkZ: number }>(
+  keys: T[],
+  centerX: number,
+  centerZ: number,
+) {
+  return [...keys].sort((left, right) => {
+    const distance = chunkDistanceSq(left.chunkX, left.chunkZ, centerX, centerZ)
+      - chunkDistanceSq(right.chunkX, right.chunkZ, centerX, centerZ);
+    if (distance !== 0) return distance;
+    const stagger = terrainRevealDelayMs(left.chunkX, left.chunkZ)
+      - terrainRevealDelayMs(right.chunkX, right.chunkZ);
+    if (stagger !== 0) return stagger;
+    return left.chunkZ - right.chunkZ || left.chunkX - right.chunkX;
+  });
+}
 
 function yieldToMain() {
-  return new Promise((resolve) => {
+  return new Promise<void>((resolve) => {
     if (typeof requestAnimationFrame === 'function') {
       requestAnimationFrame(() => resolve());
     } else {
@@ -142,7 +168,14 @@ export async function handleClearMeshCache() {
   }
 }
 
-export async function loadGrid(options = {}) {
+type LoadGridOptions = {
+  centerX?: number;
+  centerZ?: number;
+  focus?: boolean;
+  streamLoad?: boolean;
+};
+
+export async function loadGrid(options: LoadGridOptions = {}) {
   runtime.gridLoadCount++;
   const gridStarted = performance.now();
   const world = worldSelect.value;
@@ -159,8 +192,8 @@ export async function loadGrid(options = {}) {
   const centerKey = centerId(world, centerX, centerZ);
   runtime.requestedCenterId = centerKey;
   runtime.scheduledCenterId = null;
-  chunkXInput.value = centerX;
-  chunkZInput.value = centerZ;
+  chunkXInput.value = String(centerX);
+  chunkZInput.value = String(centerZ);
 
   if (options.focus === true && !runtime.hasFocusedInitialGrid) {
     focusGrid(centerX, centerZ, radius);
@@ -211,10 +244,14 @@ export async function loadGrid(options = {}) {
   }
   try {
     let networkChunks = 0;
-    const promotionQueue = [];
-    let nextMissing = 0;
-    const inFlight = new Set();
+    const promotionQueue: any[] = [];
     const loadConcurrency = terrainLoadConcurrency();
+    const revealSequence = sortTerrainKeysByRevealSequence(
+      missing,
+      streamAnchor.chunkX,
+      streamAnchor.chunkZ,
+    );
+    const revealOrder = new Map(revealSequence.map((key, index) => [key.id, index]));
     const streamStats = createTerrainStreamStats(
       world,
       centerX,
@@ -226,99 +263,140 @@ export async function loadGrid(options = {}) {
       gridStarted,
     );
 
-    const enqueueNext = () => {
-      if (nextMissing >= missing.length || generation !== runtime.loadGeneration) return;
-      const key = missing[nextMissing++];
-      streamStats.requested++;
-      const task = loadTerrainChunkData(world, key, generation)
-        .then((result) => {
-          if (result.cacheReadMs) cacheReadMs += result.cacheReadMs;
-          if (result.cacheParseMs) cacheParseMs += result.cacheParseMs;
-          if (result.cacheHit) {
-            cacheHits++;
-            streamStats.cacheHits++;
-          }
-          if (result.cacheMiss) {
-            cacheMisses++;
-            streamStats.cacheMisses++;
-          }
-          if (result.network) {
-            networkChunks++;
-            streamStats.networkChunks++;
-          }
-          result.readyAt = performance.now();
-          streamStats.dataReady++;
-          promotionQueue.push(result);
-          streamStats.maxQueue = Math.max(streamStats.maxQueue, promotionQueue.length);
-          maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size);
-        })
-        .catch((error) => {
-          streamStats.dataReady++;
-          promotionQueue.push({
-            ok: false,
-            key,
-            error,
-            readyAt: performance.now(),
-            cacheReadMs: 0,
-            cacheParseMs: 0,
-            cacheHit: false,
-            cacheMiss: true,
-            network: false,
-          });
-          streamStats.maxQueue = Math.max(streamStats.maxQueue, promotionQueue.length);
-          maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size);
-        })
-        .finally(() => {
-          inFlight.delete(task);
-        });
-      inFlight.add(task);
+    const pushReadyResult = (result, key, inFlightCount) => {
+      result.readyAt = performance.now();
+      result.revealOrder = revealOrder.get(key.id) ?? Number.MAX_SAFE_INTEGER;
+      streamStats.dataReady++;
+      promotionQueue.push(result);
+      promotionQueue.sort((left, right) => left.revealOrder - right.revealOrder);
+      streamStats.maxQueue = Math.max(streamStats.maxQueue, promotionQueue.length);
+      maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlightCount);
     };
 
-    while (inFlight.size < loadConcurrency && nextMissing < missing.length) {
-      enqueueNext();
-    }
-
-    while ((inFlight.size > 0 || promotionQueue.length > 0) && generation === runtime.loadGeneration) {
-      while (inFlight.size < loadConcurrency && nextMissing < missing.length) {
-        enqueueNext();
-      }
-
+    const applyPromotions = (inFlightCount) => {
       const promoted = promoteTerrainResults(promotionQueue, generation, streamStats);
       completed += promoted.completed;
       failed += promoted.failed;
       if (promoted.completed > 0 || promoted.failed > 0) {
         setStatus(`Loaded ${completed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
         maybeUpdateMetrics(true);
-        maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size, promoted.yielded);
-        if (promoted.yielded) {
-          await yieldToMain();
-          continue;
-        }
+        maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlightCount);
+      }
+      return promoted;
+    };
+
+    // Queue every IndexedDB read immediately in one transaction. Parsing and scene
+    // insertion remain sequential and frame-budgeted because those touch the main
+    // thread; cache I/O itself has no network-style concurrency gate.
+    const networkMissing: any[] = [];
+    streamStats.requested += missing.length;
+    const cachedBatch = await readTerrainChunkCacheBatch(world, missing, generation);
+    cacheReadMs += cachedBatch.cacheReadMs;
+    if (cachedBatch.stale || generation !== runtime.loadGeneration) return;
+
+    let cacheFrameStarted = performance.now();
+    let cacheFramePromotions = 0;
+    for (const key of revealSequence) {
+      if (generation !== runtime.loadGeneration) return;
+      const cached = cachedBatch.records.get(terrainCacheKey(world, key.chunkX, key.chunkZ));
+      if (!cached?.bytes) {
+        cacheMisses++;
+        streamStats.cacheMisses++;
+        networkMissing.push(key);
+        continue;
       }
 
-      if (promotionQueue.length === 0 && inFlight.size > 0) {
-        await Promise.race([...inFlight]);
+      const result = await parseCachedTerrainChunkData(world, key, cached.bytes, generation);
+      cacheParseMs += result.cacheParseMs ?? 0;
+      if (result.stale) return;
+      if (!result.cacheHit) {
+        cacheMisses++;
+        streamStats.cacheMisses++;
+        networkMissing.push(key);
+        continue;
+      }
+
+      cacheHits++;
+      streamStats.cacheHits++;
+      pushReadyResult(result, key, 0);
+      const promoted = applyPromotions(0);
+      cacheFramePromotions += promoted.completed + promoted.failed;
+
+      if (
+        cacheFramePromotions >= terrainPromotionsPerFrame()
+        || performance.now() - cacheFrameStarted >= terrainPromotionBudgetMs()
+      ) {
+        await yieldToMain();
+        cacheFrameStarted = performance.now();
+        cacheFramePromotions = 0;
+      }
+    }
+
+    let nextNetwork = 0;
+    const networkInFlight = new Set<Promise<void>>();
+    const enqueueNextNetwork = () => {
+      if (nextNetwork >= networkMissing.length || generation !== runtime.loadGeneration) return;
+      const key = networkMissing[nextNetwork++];
+      let task: Promise<void>;
+      task = loadTerrainChunkData(world, key, generation, 'network-only')
+        .then((result) => {
+          if (result.cacheParseMs) cacheParseMs += result.cacheParseMs;
+          if (result.network) {
+            networkChunks++;
+            streamStats.networkChunks++;
+          }
+          pushReadyResult(result, key, networkInFlight.size);
+        })
+        .catch((error) => {
+          pushReadyResult({
+            ok: false,
+            key,
+            error,
+            cacheReadMs: 0,
+            cacheParseMs: 0,
+            cacheHit: false,
+            cacheMiss: true,
+            network: false,
+          }, key, networkInFlight.size);
+        })
+        .finally(() => {
+          networkInFlight.delete(task);
+        });
+      networkInFlight.add(task);
+    };
+
+    while (networkInFlight.size < loadConcurrency && nextNetwork < networkMissing.length) {
+      enqueueNextNetwork();
+    }
+
+    while ((networkInFlight.size > 0 || promotionQueue.length > 0) && generation === runtime.loadGeneration) {
+      while (networkInFlight.size < loadConcurrency && nextNetwork < networkMissing.length) {
+        enqueueNextNetwork();
+      }
+
+      const promoted = applyPromotions(networkInFlight.size);
+      if (promotionQueue.length === 0 && networkInFlight.size > 0) {
+        await Promise.race([...networkInFlight]);
       } else if (promotionQueue.length > 0) {
         await yieldToMain();
       }
     }
 
     if (generation !== runtime.loadGeneration) return;
-    maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, inFlight.size, true, true);
+    maybeLogTerrainStreamProgress(streamStats, promotionQueue.length, networkInFlight.size, true, true);
 
-  if (generation !== runtime.loadGeneration) return;
-  retainOnly(world, retainKeys);
-  runtime.activeCenterId = centerKey;
-  runtime.requestedCenterId = null;
-  syncMapTileLayer(mapRetainKeys);
-  if (mapTilesInput.checked) {
-    await loadMapTilesForKeys(world, needed, { immediate: true });
-  }
-  updateMetrics();
-  setStatus(failed === 0
-    ? `Loaded ${needed.length} chunks around ${centerX}, ${centerZ}`
-    : `Loaded ${needed.length - failed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
-  const gridLoadTiming = {
+    retainOnly(world, retainKeys);
+    runtime.activeCenterId = centerKey;
+    runtime.requestedCenterId = null;
+    syncMapTileLayer(mapRetainKeys);
+    if (mapTilesInput.checked) {
+      await loadMapTilesForKeys(world, needed, { immediate: true });
+    }
+    updateMetrics();
+    setStatus(failed === 0
+      ? `Loaded ${needed.length} chunks around ${centerX}, ${centerZ}`
+      : `Loaded ${needed.length - failed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
+    const gridLoadTiming = {
     world,
     centerX,
     centerZ,
@@ -344,9 +422,9 @@ export async function loadGrid(options = {}) {
     streamAnchorZ: streamAnchor.chunkZ,
     ms: Math.round(performance.now() - gridStarted),
   };
-  runtime.lastGridLoadTiming = gridLoadTiming;
-  runtime.lastTerrainStreamTiming = gridLoadTiming;
-  logClientTiming('grid_load', gridStarted, gridLoadTiming);
+    runtime.lastGridLoadTiming = gridLoadTiming;
+    runtime.lastTerrainStreamTiming = gridLoadTiming;
+    logClientTiming('grid_load', gridStarted, gridLoadTiming);
   } finally {
     if (generation === runtime.loadGeneration) {
       frameJank.setActiveLoadKind('none');
@@ -531,7 +609,7 @@ function addChunkObject(world, chunkX, chunkZ, object) {
   wrapper.add(object);
   scene.add(wrapper);
 
-  const entry = {
+  const entry: ChunkLandEntry & Record<string, any> = {
     world,
     chunkX,
     chunkZ,

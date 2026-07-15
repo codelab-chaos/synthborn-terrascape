@@ -106,8 +106,8 @@ export function applySelectValue(input, value) {
 
 export function setRadiusControlValue(value) {
   const normalized = normalizePairedValue(radiusRangeInput, Math.round(Number(value)));
-  radiusRangeInput.value = normalized;
-  radiusInput.value = normalized;
+  radiusRangeInput.value = String(normalized);
+  radiusInput.value = String(normalized);
   updateRadiusReadout();
   return normalized;
 }

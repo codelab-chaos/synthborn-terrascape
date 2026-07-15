@@ -395,7 +395,7 @@ async function sampleMobFeedOnPlayerConnect(players) {
       throw new Error(`Mob sample request failed: ${response.status}`);
     }
     const data = await response.json();
-    const mobs = Array.isArray(data.mobs) ? data.mobs : [];
+    const mobs: Record<string, unknown>[] = Array.isArray(data.mobs) ? data.mobs : [];
     logClientEvent('mob_connect_sample', {
       world,
       players: players.length,

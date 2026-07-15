@@ -17,7 +17,11 @@ module.exports = defineConfig({
   },
   use: {
     baseURL,
-    channel: 'chrome',
+    // Release validation targets system Chrome. Set PLAYWRIGHT_CHANNEL=chromium to use
+    // Playwright's pinned browser on machines where Chrome is not installed.
+    channel: process.env.PLAYWRIGHT_CHANNEL === 'chromium'
+      ? undefined
+      : (process.env.PLAYWRIGHT_CHANNEL || 'chrome'),
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

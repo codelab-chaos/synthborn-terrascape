@@ -115,7 +115,7 @@ function uploadConfig() {
     `rcon.port=${number("TERRASCAPE_RCON_PORT", 6225)}`,
     `rcon.password=${rconPassword}`,
     "rcon.allowRemote=true",
-    `validation.smokeTokensEnabled=${boolString("TERRASCAPE_SMOKE_TOKENS_ENABLED", true)}`,
+    "validation.smokeTokensEnabled=false",
     "",
   ].join("\n");
 
@@ -133,18 +133,16 @@ function smoke() {
   const host = required("PUBLIC_HOST");
   const webPort = number("TERRASCAPE_WEB_PORT", 7656);
   const rconPort = number("TERRASCAPE_RCON_PORT", 6225);
-  const smokeSubject = `hosted-${hostingService.id}-smoke-${Date.now()}`;
   run("Hosted runtime smoke", "node", [
     "tools/run-terrascape-runtime-smoke.js",
     "--url",
     `http://${host}:${webPort}`,
     "--rcon-url",
     `http://${host}:${rconPort}`,
-    "--subject",
-    smokeSubject,
   ], {
     env: {
       TERRASCAPE_RCON_PASSWORD: rconPassword,
+      TERRASCAPE_MAP_TOKEN: value("TERRASCAPE_MAP_TOKEN", ""),
     },
   });
 }
@@ -224,7 +222,7 @@ function printProfile() {
   console.log(`rcon:    http://${required("PUBLIC_HOST")}:${number("TERRASCAPE_RCON_PORT", 6225)}`);
   console.log(`ftp:     ${required("FTP_USER")}@${required("FTP_HOST")}:${number("FTP_PORT", hostingService.defaultFtpPort)}`);
   console.log(`root:    ${ftpRoot() || "/"}`);
-  console.log(`mode:    access=${value("TERRASCAPE_ACCESS_MODE", "restricted")}, smokeTokens=${boolString("TERRASCAPE_SMOKE_TOKENS_ENABLED", true)}`);
+  console.log(`mode:    access=${value("TERRASCAPE_ACCESS_MODE", "restricted")}, mapToken=${value("TERRASCAPE_MAP_TOKEN", "") ? "set" : "not set"}`);
   console.log(`start:   ${hostingService.lifecycle}`);
 }
 

@@ -6,6 +6,7 @@ const PERF_TELEMETRY_TYPES = new Set([
   'frame_hitch',
   'grid_load',
   'terrain_single_load',
+  'terrain_stream_progress',
   'map_tile_single_load',
   'map_tiles_stream',
 ]);

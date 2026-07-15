@@ -9,6 +9,7 @@ import * as meshCache from '../../../web/src/platform/mesh-cache.ts';
 // scope, so the fake must be installed (and stable) for the whole suite.
 
 type StoreData = Map<string, Map<string, any>>;
+let transactionCalls = 0;
 
 function makeRequest<T>(resultFactory: () => T) {
   const req: any = { onsuccess: null, onerror: null, result: undefined, error: null };
@@ -44,8 +45,11 @@ function makeDatabase(name: string, data: StoreData) {
     },
     createObjectStore: (s: string) => { if (!data.has(s)) data.set(s, new Map()); return makeObjectStore(data.get(s)!); },
     transaction: (storeName: string) => {
+      transactionCalls += 1;
       const tx: any = { oncomplete: null, onerror: null, onabort: null, error: null };
-      queueMicrotask(() => tx.oncomplete?.({ target: tx }));
+      // Real IndexedDB completes after its queued requests. Use a second microtask so
+      // put/get request callbacks run before transaction completion in this fake.
+      queueMicrotask(() => queueMicrotask(() => tx.oncomplete?.({ target: tx })));
       return {
         ...tx,
         objectStore: (s: string) => {
@@ -118,12 +122,24 @@ test('writeTerrainCache rejects empty payloads and stores valid ones', async () 
   assert.equal(ok, true);
 });
 
+test('writeTerrainCache coalesces same-turn writes into one transaction', async () => {
+  const before = transactionCalls;
+  const written = await Promise.all([
+    meshCache.writeTerrainCache('terrain-batch-write-a', new Uint8Array([1])),
+    meshCache.writeTerrainCache('terrain-batch-write-b', new Uint8Array([2])),
+    meshCache.writeTerrainCache('terrain-batch-write-c', new Uint8Array([3])),
+  ]);
+  assert.deepEqual(written, [true, true, true]);
+  assert.equal(transactionCalls - before, 1);
+  assert.ok(await meshCache.readTerrainCache('terrain-batch-write-c'));
+});
+
 test('readTerrainCache returns a fresh record and null for missing keys', async () => {
   const bytes = new Uint8Array([9, 8, 7]);
   await meshCache.writeTerrainCache('terrain-read', bytes, { meta: 1 });
   const record = await meshCache.readTerrainCache('terrain-read');
   assert.ok(record);
-  assert.deepEqual([...record.bytes], [9, 8, 7]);
+  assert.deepEqual([...new Uint8Array(record.bytes)], [9, 8, 7]);
   assert.equal(await meshCache.readTerrainCache('no-such-key'), null);
 });
 
@@ -137,6 +153,16 @@ test('readTerrainCache treats stale records as a miss', async () => {
   assert.equal(await meshCache.readTerrainCache('stale'), null);
 });
 
+test('readTerrainCaches eagerly returns fresh records from one batch', async () => {
+  await meshCache.writeTerrainCache('batch-a', new Uint8Array([1]));
+  await meshCache.writeTerrainCache('batch-b', new Uint8Array([2]));
+  const records = await meshCache.readTerrainCaches(['batch-a', 'missing', 'batch-b']);
+  assert.equal(records.size, 2);
+  assert.deepEqual([...new Uint8Array(records.get('batch-a')!.bytes)], [1]);
+  assert.deepEqual([...new Uint8Array(records.get('batch-b')!.bytes)], [2]);
+  assert.equal(records.has('missing'), false);
+});
+
 test('writeMapTileCache enqueues and drains writes to the store', async () => {
   assert.equal(await meshCache.writeMapTileCache('mt0', new Uint8Array(0)), false);
   const queued = await meshCache.writeMapTileCache('map-key', new Uint8Array([4, 5, 6]), { z: 1 });
@@ -146,7 +172,7 @@ test('writeMapTileCache enqueues and drains writes to the store', async () => {
   await new Promise((r) => setTimeout(r, 5));
   const record = await meshCache.readMapTileCache('map-key');
   assert.ok(record);
-  assert.deepEqual([...record.bytes], [4, 5, 6]);
+  assert.deepEqual([...new Uint8Array(record.bytes)], [4, 5, 6]);
 });
 
 test('readMapTileCache returns null for unknown keys', async () => {

@@ -1,12 +1,12 @@
 {
   "name": "synthborn-terrascape",
-  "version": "0.1.0",
+  "version": "0.1.1-beta.1",
   "main": "index.js",
   "scripts": {
     "build:web": "webpack --config webpack.config.cjs",
     "test": "npm run test:java && npm run test:web",
     "test:java": "sh gradlew test",
-    "test:web": "tsc -p tests/tsconfig.web-unit.json; node --import ./tests/web-unit-setup.mjs --test \"build/web-unit/tests/web-unit/**/*.test.js\"",
+    "test:web": "tsc -p tsconfig.json --noEmit && node -e \"require('node:fs').rmSync('build/web-unit',{recursive:true,force:true})\" && tsc -p tests/tsconfig.web-unit.json && node --import ./tests/web-unit-setup.mjs --test \"build/web-unit/tests/web-unit/**/*.test.js\"",
     "test:unit": "npm run coverage",
     "test:unit:coverage": "node tools/web-coverage.cjs",
     "coverage:java": "sh gradlew test jacocoTestReport && node tools/jacoco-jest-report.cjs",
@@ -32,7 +32,9 @@
     "probe": "node tools/probe-blocks.js",
     "parse-client-log": "node tools/parse-client-log.js",
     "perf:baseline": "node tools/run-terrascape-baseline.js",
-    "perf:report": "node tools/serve-metrics.js"
+    "perf:report": "node tools/serve-metrics.js",
+    "roadmap:setup": "playwright install chromium",
+    "roadmap": "node tools/generate-roadmap.cjs"
   },
   "keywords": [],
   "author": "Chad Neff",

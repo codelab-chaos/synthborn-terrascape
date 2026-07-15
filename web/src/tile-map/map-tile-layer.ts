@@ -37,7 +37,9 @@ export function mapBackdropCenter() {
   );
 }
 
-export function syncMapTileLayer(retainKeys = null) {
+type MapTileKey = { id: string; chunkX: number; chunkZ: number };
+
+export function syncMapTileLayer(retainKeys: MapTileKey[] | null = null) {
   grid.visible = !mapTilesInput.checked;
   configureMapBackdrop(scene, renderer, {
     enabled: mapTilesInput.checked,
@@ -55,7 +57,7 @@ export function syncMapTileLayer(retainKeys = null) {
     Number.parseInt(chunkZInput.value, 10),
     mapTileRadius(),
   );
-  const retainIds = new Set(keys.map((key) => key.id));
+  const retainIds = new Set<string>(keys.map((key) => key.id));
   pruneMapTiles(world, retainIds);
   const center = mapBackdropCenter();
   const mapRadius = mapTileRadius();
@@ -64,7 +66,7 @@ export function syncMapTileLayer(retainKeys = null) {
   updateMetrics();
 }
 
-export function updateMapTileLayer(options = {}) {
+export function updateMapTileLayer(options: { force?: boolean } = {}) {
   const center = mapBackdropCenter();
   const mapRadius = mapTileRadius();
   const world = worldSelect.value;

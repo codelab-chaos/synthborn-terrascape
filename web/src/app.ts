@@ -65,6 +65,7 @@ import { loadWorlds } from './ui/world-selector.ts';
 import { startServerDetailsFeed } from './ui/server-details.ts';
 import { resizeViewport } from './scene/viewport.ts';
 import { startFrameLoop } from './scene/frame-loop.ts';
+import { mountWebConsole } from './ui/web-console.ts';
 
 // Preserved public barrel (webpack module-library exports).
 export { createMobMarker, createPlayerMarker, disposeObject, updateMobMarkerHeight } from './entities/players.ts';
@@ -77,7 +78,6 @@ export * from './common/resource-stats.ts';
 export * from './common/terrain-requests.ts';
 export * from './common/terrain-stream.ts';
 export * from './common/view-preferences.ts';
-export * from './platform/map-rcon.ts';
 
 // Surface a clear prompt if the session is rejected (e.g. the access token's TTL lapsed) instead of
 // letting the map silently stop loading.
@@ -127,6 +127,7 @@ setTileLoadConcurrency(tileLoadConcurrency());
 exposeDebugState();
 mountBuildBadge();
 mountAccessLinkButton();
+void mountWebConsole();
 resizeViewport();
 timeRibbon.update(runtime.worldTime);
 startServerDetailsFeed();

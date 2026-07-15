@@ -25,6 +25,14 @@ for explored chunks" over "Terrascape renders the world."
 
 ## Needed Capabilities
 
+### [ ] Operator Can Export A Static Read-Only Snapshot
+
+An administrator can export a bounded set of existing terrain meshes and map tiles as a
+self-contained static website. The snapshot works without Hytale or a Terrascape server,
+clearly identifies itself as captured rather than live, never exports private live data,
+and does not generate unexplored chunks in its default cache-only mode. The complete
+contract is defined in `docs/static-snapshot-spec.md`.
+
 ### [ ] Operator Can Restrict Which Worlds Are Visible
 
 The config can allow all worlds or whitelist specific worlds. Hidden worlds do not appear
@@ -143,6 +151,23 @@ slots from static data while live position data continues to come from the entit
 
 ## Implemented Capabilities
 
+### [x] Identified Players Can Use The Web Chat Console
+
+A personal `/terrascape maplink` binds the browser session to the minting player's UUID.
+The resizable map overlay opens with `T`, shows permitted chat history, and identifies the
+visitor from the UUID/name bound into the validated link. Online chat uses Hytale's normal
+chat event pipeline; offline chat carries a visible `[Web]` marker and bypasses event-based
+moderation because no live player object exists. Slash commands use an
+offline-capable sender whose permissions are resolved from Hytale by UUID. Anonymous,
+synthetic, expired, and legacy unbound credentials cannot call the console APIs. Operators
+can disable it with `features.webConsole=false`.
+
+### [x] Operator Can Revoke One Map Link
+
+Every minted link displays a non-secret Link ID. `/terrascape tokens` lists active IDs and
+safe metadata, and `/terrascape revoketoken <linkId>` removes only the matching token while
+leaving other users' links intact. Revocation is persisted without storing raw bearer keys.
+
 ### [x] Operator Can Start A Local Terrascape Web Server
 
 Validated on `synth-worldview-mvp`: Terrascape starts a local HTTP server at
@@ -223,7 +248,7 @@ fixed.
 ### [x] Terrascape Caches Generated Terrain In Memory
 
 Recent GLB terrain chunks are served from a bounded access-order memory cache. The cache
-is capped at `128` entries or `128 MiB`, and `/terrascape status` reports entries,
+is capped at `128` entries or `128 MB`, and `/terrascape status` reports entries,
 bytes, and memory-hit count. Validated on `synth-worldview-mvp`: after clearcache, the
 first request to chunk `-7,3` returned `X-Terrascape-Cache: generated`, and the second
 returned `X-Terrascape-Cache: memory`.
@@ -347,10 +372,10 @@ GLBs totaling `67,233,924` bytes.
 Validated with `/terrascape status` through SynthRCON on the `synth-worldview-mvp` save.
 It reports plugin load state, uptime, enabled worlds, and terrain sample availability.
 
-### [x] Operator Can Generate A Sample Chunk For Validation
+### [x] Internal Validation Can Generate A Sample Chunk
 
-Validated with `/terrascape sample 0 0` in world `default` on `2026-05-30`. The command
-reported snapshot, mesh, GLB byte size, and output path.
+The early diagnostic sampler was validated in world `default` on `2026-05-30`. Its command
+is intentionally no longer registered in the public `/terrascape` command tree.
 
 ### [x] Operator Can Clear Generated Mesh Caches
 

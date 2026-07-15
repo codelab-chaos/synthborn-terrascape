@@ -12,6 +12,7 @@ References:
 
 - Capability inventory: `docs/terrascape-capabilities.md`
 - Design reference: `docs/terrascape-design.md`
+- Static snapshot specification: `docs/static-snapshot-spec.md`
 - Operations manual: `docs/operations-manual.md`
 - Architecture/performance review: `docs/terrascape-architecture-review.md`
 - CurseForge moderation policy:
@@ -38,6 +39,8 @@ Release criteria are:
 
 - Feature behavior is finalized through hands-on testing against the Apex-hosted
   dedicated validation server.
+- The identity-aware web chat console is complete, permission-safe, and available only
+  to visitors who opened a valid personal map link.
 - User and admin docs explain exactly how to install, operate, secure, and troubleshoot
   the alpha.
 - GitHub build automation produces the release artifact, and CurseForge deployment is
@@ -49,7 +52,7 @@ Release criteria are:
 
 ### Priority 1 - Finalize Features On Dedicated Servers
 
-Status: In Progress
+Status: Implemented; Mac dedicated-server RC validated, Apex-hosted validation pending
 
 Release blocker: Yes
 
@@ -59,7 +62,7 @@ Acceptance:
   are likely to use.
 - Feature behavior is considered stable enough for alpha: terrain loading, map tiles,
   players, mobs, time/lighting, settings, access mode, tokens, RCON, cache clearing, and
-  first-run config generation.
+  first-run config generation, with the web chat console tracked separately in Priority 2.
 - Validation notes identify server type, date, commit, artifact/build, Hytale version,
   host/network shape, and exact commands/URLs used.
 - Release validation does not deploy to or mutate `synthborn-combined`.
@@ -73,14 +76,16 @@ Validation:
 - Restart the Apex server from the provider panel.
 - Run `node tools/hosted-services/deploy.js validate` against the hosted server.
 - Confirm `GET /api/worlds` returns at least one allowed world.
-- Enable `validation.smokeTokensEnabled=true` only on the dedicated validation server,
-  then run hosted validation against standalone RCON and the Terrascape web API.
+- Supply a current real personal map token to the hosted runtime smoke test, then validate
+  standalone RCON and the identity-bound Terrascape console API without synthetic users.
 - Run `npm run perf:smoke` and record the result.
 - Validate public viewing with `access.mode=public`.
 - Validate restricted viewing with a generated `/terrascape maplink`.
 - Validate admin token behavior with `/terrascape maptoken`.
-- Validate map command proxy and standalone RCON rejection/acceptance paths, including
-  console-generated smoke tokens from `/terrascape smoketoken [map|admin] [subject]`.
+- Validate listing and individual revocation with `/terrascape tokens` and
+  `/terrascape revoketoken <linkId>`.
+- Validate the identity-bound web console and standalone RCON rejection/acceptance paths.
+  Synthetic smoke tokens must remain unable to use the player console.
 - Record results in the release evidence template.
 
 Supporting tasks:
@@ -91,7 +96,124 @@ Supporting tasks:
 - Confirm the jar contains `index.html`, `styles.css`, `dist/terrascape.js`,
   `npc-details.json`, `server-config.json`, and packaged static assets.
 
-### Priority 2 - Finish User/Admin Docs And Build Automation
+### Priority 2 - Ship The Identity-Aware Web Chat Console
+
+Status: In Review; offline permission matrix validated, live-online chat validation pending
+
+Release blocker: Yes
+
+Goal:
+
+Add a modern map-overlay chat console for identified server users. A personal
+`/terrascape maplink` should establish the user's identity and permissions so ordinary
+players can send chat, while moderators and administrators can use only the commands
+their Hytale permissions allow.
+
+User interface and interaction acceptance:
+
+- The console is a top-level, semi-transparent overlay above the 3D map rather than a
+  settings-panel control.
+- The overlay has a modern, readable layout with a scrollable history, prompt/input,
+  connection and error states, and clear minimize/close controls.
+- The console is resizable within sensible minimum and maximum dimensions and adapts to
+  narrow browser windows without covering the entire map.
+- Pressing `T` while normal map controls are active opens the console and focuses the
+  input cursor. It must not retrigger while typing in an input or another editable UI
+  element.
+- Hiding and reopening the console preserves history for the active browser session.
+- History distinguishes player chat, server/system messages, submitted commands,
+  command output, and errors. Persistence across page reloads must be decided and
+  documented before implementation is accepted.
+- When the console is unavailable, it is not rendered and the `T` shortcut does nothing.
+
+Access and configuration acceptance:
+
+- The console is shown only when the browser session contains a valid, unexpired token
+  created for a real server user through `/terrascape maplink`.
+- In `access.mode=public`, anonymous visitors may view the map but do not see or call the
+  console. Opening a valid personal map link enables the console for that session.
+- In `access.mode=restricted`, an ordinary valid map link grants map access and the
+  user-level chat capability; additional command capabilities still depend on the
+  identified user's permissions.
+- A clearly named server-side setting, proposed as `features.webConsole`, can disable the
+  console completely. Disabling it removes the advertised client capability and makes
+  every console API fail closed; hiding only the UI is not sufficient.
+- Expired, revoked, malformed, anonymous, or unresolvable identities cannot send chat or
+  commands.
+
+Identity and command-processing acceptance:
+
+- Keep the existing `/terrascape maplink` experience, random token generation, URL/cookie
+  handling, expiration, and one-way token hashing. This story does not introduce a
+  separate console credential or token system.
+- Extend the server-side token record so the stored token hash is associated with the
+  minting player's stable UUID and enough display metadata to resolve the current server
+  identity. Raw tokens remain one-way hashed at rest.
+- The server exposes only the minimum session metadata the browser needs to render the
+  console and available capabilities; the browser cannot assert or replace its identity.
+- Ordinary text is delivered to in-game chat as the identified user, with an explicit
+  web-origin marker if needed to prevent impersonation or moderation ambiguity.
+- Online chat passes through `PlayerChatEvent`; offline `[Web]` chat is delivered directly
+  and therefore bypasses event-based moderation plugins. This limitation is documented.
+- The console API resolves the authenticated user from the presented map token and sends
+  chat or slash-command input to Hytale as that user. The request body never supplies the
+  authoritative username, UUID, or role.
+- Slash commands are evaluated as that identified user through the Hytale permission
+  system. Player, moderator, and administrator behavior follows their real permissions,
+  not a client-provided role.
+- If current permissions or identity cannot be resolved safely, command execution fails
+  closed with a useful response.
+- Console requests and results are logged with user UUID/name and action type, but never
+  with raw access tokens or private message contents beyond the server's normal chat-log
+  policy.
+- The current generic `TerrascapeWeb` command sender, whose `hasPermission` methods always
+  return `true`, is removed from the user-facing console path. No map token may become a
+  full-authority command credential merely because it reached the endpoint.
+- The existing `/api/rcon/command` transport is either replaced with a clearly named
+  user-console API or narrowed so its authentication, identity, chat, and command
+  semantics match this contract. Standalone password-based RCON remains separate.
+
+Validation:
+
+- Verify the console is absent for an anonymous public-map session and present after
+  opening a valid personal map link.
+- Verify `features.webConsole=false` disables both the overlay and all console endpoints.
+- Verify `T` opens and focuses the prompt, does not fire while typing, and does not steal
+  focus from other editable controls.
+- Verify resizing, scrolling, hide/reopen history, narrow-screen layout, loading, error,
+  disconnect, and expired-session states.
+- Verify an ordinary player can send chat but cannot run unauthorized commands.
+- Verify the same valid personal link can send marked web chat and authorized commands
+  while its linked player is offline.
+- Verify moderator and administrator commands are accepted or rejected using the
+  identified user's actual Hytale permissions.
+- Verify the in-game sender and audit log identify the map-link owner and cannot be
+  spoofed by request payloads, cookies, headers, or browser state.
+- Verify revoked/expired links, deleted users, malformed requests, oversized input,
+  command timeouts, and reconnect behavior all fail safely.
+- Add Java authorization/identity tests, web unit tests for console state and keyboard
+  behavior, and a live browser test covering chat plus the permission matrix.
+- Update the README, Operations Manual, and known limitations only after validated console
+  behavior matches their claims. CurseForge listing copy is maintained separately.
+
+Current implementation gap:
+
+- Identity-bound tokens, Terrascape-owned `/api/console/*` endpoints, bounded chat
+  history, the resizable overlay, `T`/`Esc` interactions, rate limits, and offline-capable
+  identity/permission-bound chat and command dispatch are implemented with focused Java
+  and browser unit coverage. Request-local auth isolation and individual token revocation
+  have regression tests. The former browser `/api/rcon/command` full-permission sender has
+  been removed.
+- The 2026-07-14 Mac dedicated-server run validated one real identity-bound token while
+  the player was offline: ordinary access could chat but not run Terrascape/admin commands,
+  the kick permission admitted `/kick` argument validation without granting unrelated
+  commands, and restoring the Admin group restored `/terrascape status`. The same token
+  retained its scope throughout, proving command authorization consulted current Hytale
+  permissions. Command output is captured in the linked browser session's history.
+- A connected game client was not available during that run, so the online
+  `PlayerChatEvent` path remains covered by Java tests rather than claimed as a live check.
+
+### Priority 3 - Finish User/Admin Docs And Build Automation
 
 Status: In Progress
 
@@ -118,8 +240,8 @@ Acceptance:
 Validation:
 
 - Review README and operations manual against the release candidate.
-- A fresh operator can follow the docs to install, start, open the map, and run
-  `/terrascape status` and `/terrascape sample <chunkX> <chunkZ>`.
+- A fresh operator can follow the docs to install, start, open the map, run
+  `/terrascape status`, create/list/revoke a link, and clear the cache.
 - A GitHub workflow run shows successful build, Java tests, web tests, and artifact
   creation.
 - CurseForge upload automation either succeeds in a dry run/staging path or is marked
@@ -139,7 +261,7 @@ Known-limit documentation must include:
   `access.mode=restricted` when appropriate, and TLS/reverse proxy guidance from the
   operations manual.
 
-### Priority 3 - Validate Install From Hidden CurseForge Page
+### Priority 4 - Validate Install From Hidden CurseForge Page
 
 Status: Open
 
@@ -157,7 +279,8 @@ Acceptance:
 - A fresh server install using the CurseForge interface/download starts successfully.
 - First run creates `terrascape.properties` and `server-config.json`.
 - The viewer opens at the configured host/port.
-- `/terrascape sample` and `/terrascape clearcache` work from the installed artifact.
+- `/terrascape status`, link management, and `/terrascape clearcache` work from the
+  installed artifact.
 
 Validation:
 
@@ -191,7 +314,7 @@ CurseForge moderation checklist:
 - File upload is the release-candidate jar produced by the validated build, with no
   unrelated preview images, docs, logs, credentials, or local validation files bundled.
 
-### Priority 4 - Review And Submit First Build For Acceptance
+### Priority 5 - Review And Submit First Build For Acceptance
 
 Status: Open
 
@@ -216,14 +339,15 @@ Validation:
 - Submit the hidden-page build for acceptance.
 - Record acceptance result and any reviewer feedback.
 
-Architecture review disposition draft:
+Architecture review disposition:
 
-- Handled for alpha: bounded concurrent terrain loading, frame-budgeted terrain
-  promotion, shorter terrain rise, bounded map tile loading, shorter tile rise,
-  map-tile write queue, and visible tuning controls.
+- Handled for alpha: eager batched browser-cache reads/writes, bounded concurrent terrain
+  and tile acquisition, frame-budgeted terrain/tile promotion, spatial reveal ordering,
+  shorter rise motion, and server-governed tuning bounds.
 - Still valid but post-alpha: service extraction from `TerrascapeWebServer`, custom
   binary terrain format, primitive mesh buffers, greedy meshing, worker decode, and
-  deeper map tile architecture changes.
+  a region-atlas/instanced map backdrop. The current per-tile mesh path is responsive at
+  bounded radii but the 1,089-tile default horizon is not a valid SwiftShader perf target.
 - Needs explicit release decision: active client path no longer uses the server terrain
   batch endpoint.
 
@@ -241,8 +365,9 @@ This section summarizes the behavior the release board is based on.
   access mode, CORS, entities, and RCON.
 - `server-config.json` for server-governed client controls such as mobs, players, map
   tiles, auto-stream, stream radius, load concurrency, and update rates.
-- `/terrascape status`, `sample`, `clearcache`, `maplink`, and `maptoken`.
-- Public/restricted map access with generated per-user map tokens and admin scopes.
+- `/terrascape status`, `clearcache`, `maplink`, `maptoken`, `tokens`, and `revoketoken`.
+- Public/restricted map access with generated per-user map tokens, admin scopes, safe Link
+  IDs, active-link listing, and individual persisted revocation.
 - Standalone RCON is opt-in, password-gated, and independent from map tokens.
 - Heightfield terrain from real chunk data, GLB encoding, single terrain endpoint,
   memory/disk terrain cache, pending request coalescing, and generation semaphore.
@@ -309,6 +434,17 @@ are promoted back into the release board above.
 - Add optional spawn-marker overlay separate from live mobs.
 - Expand creature icon mapping/atlas coverage.
 - Continue improving `npc-details.json` metadata quality.
+
+### Static Snapshot Hosting
+
+- Implement the cache-only exporter and static viewer mode defined in
+  `docs/static-snapshot-spec.md`.
+- Export only a bounded, administrator-selected world area and one compatible terrain
+  profile; never generate unexplored chunks in the default export path.
+- Validate the read-only package locally and from a GitHub Pages project subpath.
+- Keep live entities, metrics, access credentials, chat, commands, and private server
+  configuration out of the snapshot.
+- Consider bounded cache prewarming only after the explored/on-disk chunk guard exists.
 
 ### Operations And Release Process
 

@@ -6,8 +6,8 @@ in isolation.
 
 | Tier | What it covers | Location | Files | Runner |
 | --- | --- | --- | --- | --- |
-| **Java unit** | Server-side logic (config, access gate, tokens, CORS) | `src/test/java/…` (mirrors `src/main/java`) | `*Test.java` | JUnit 5 via Gradle |
-| **Web unit** | Pure browser logic with no DOM/three.js (the `common/` modules) | `tests/web-unit/…` (mirrors `web/src`) | `*.test.ts` | `node:test` |
+| **Java unit** | Server logic, including config, request auth, tokens, commands, and console dispatch | `src/test/java/…` (mirrors `src/main/java`) | `*Test.java` | JUnit 5 via Gradle |
+| **Web unit** | Browser logic, DOM behavior through happy-dom, and Three.js modules where practical | `tests/web-unit/…` (mirrors `web/src`) | `*.test.ts` | `node:test` |
 | **E2E** | The running viewer in a real browser | `tests/e2e/` | `*.spec.js` | Playwright |
 
 ## Running
@@ -49,12 +49,12 @@ npm run test:release
 
 ## Coverage notes
 
-- Web-unit coverage is scoped to `web/src/common/*.js` — the pure,
-  framework-free modules. DOM/three.js-coupled modules are intentionally exercised by the
-  E2E tier instead of unit tests.
-- Java coverage is reported by JaCoCo (`./gradlew test` emits XML/CSV/HTML). The large
-  `terrain/*` and `TerrascapeWebServer` subsystems are currently uncovered and are the
-  highest-value targets for new tests.
+- Web coverage reports the complete `web/src` tree. DOM behavior uses happy-dom and many
+  Three.js modules have focused unit tests; live rendering and server integration remain
+  in the E2E tier. Production and test TypeScript checks are hard gates before tests run.
+- Java coverage is reported by JaCoCo (`./gradlew test` emits XML/CSV/HTML). Request-auth
+  isolation, token lifecycle/revocation, and the console's chat/command policy have focused
+  regression coverage; live SDK/HTTP integration remains a runtime concern.
 
 ## What to test where
 

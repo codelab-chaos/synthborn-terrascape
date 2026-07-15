@@ -30,6 +30,8 @@ viewer over HTTP; players just open a link.
 - **Tunable rendering** — mesh distance, shading, water mode, fog, cosmetic detail, and
   loading budgets — all adjustable live from the settings panel.
 - **Shareable links** — open access, or token-gated links you hand out per player.
+- **Identity-aware web console** — personal links can open a browser chat/command panel;
+  commands run with the linked player's current Hytale permissions.
 
 ---
 
@@ -38,11 +40,23 @@ viewer over HTTP; players just open a link.
 ### Opening the map
 
 - Open the map URL your server admin gives you (e.g. `http://your-server:5960`).
-- If the map is **token-gated**, your link includes a one-time key
+- If the map is **token-gated**, your link includes a secret bearer key
   (`…?key=abc123`). Opening it sets a session cookie and tidies the key out of the
   address bar. If your session later expires, a **"map access expired"** overlay
   appears — ask an admin (or run `/terrascape maplink` in-game if you have access) for
   a fresh link.
+
+### Web chat console
+
+A personal link created with `/terrascape maplink` also identifies you to the optional
+web console. Press `T` while the map has focus to open it, type ordinary text to chat, or
+start with `/` to run a command. Press `Esc` to close it. The panel keeps a bounded
+in-memory history for the current server session.
+
+The link does not grant operator rights: slash commands use the linked player's current
+Hytale permissions and fail when that player lacks permission. Anonymous map visitors do
+not receive the console, even on a public map. Treat the full link as a password until it
+expires or an administrator revokes its Link ID.
 
 ### Getting around (flight camera)
 
@@ -79,7 +93,7 @@ titlebar: **Mobs** and **Mob Blocks** toggles, the **mob update rate**, and **Sy
 - **Voxel Mesh Distance** — radius of 3D terrain loaded around you (0–12).
 - **Players / Auto / Bounds / Mob Blocks** — show player markers, auto-stream terrain
   around the camera, show chunk-load boundaries, show mob headshot blocks on the ground.
-- **Clear mesh cache** — drop the browser's stored terrain/tiles (IndexedDB).
+- **Clear Browser Cache** — drop terrain meshes and map tiles from this browser's IndexedDB only; server data and other clients are unaffected.
 
 **Render**
 - **Map Tiles** — show the flat 2D map backdrop, with distance and concurrent-load
@@ -92,8 +106,8 @@ titlebar: **Mobs** and **Mob Blocks** toggles, the **mob update rate**, and **Sy
 
 **Experimental**
 - **Fog** — enable distance fog with near/far/strength/haze sliders.
-- **Loading budgets** — chunk download concurrency, meshes added per frame, and a
-  per-frame mesh time budget for smoother loading on slower machines.
+- **Mesh promotion pacing** is intentionally not exposed here. Administrators set meshes
+  per frame and the per-frame time budget in `server-config.json`.
 
 ### Reading the map
 
@@ -175,15 +189,11 @@ full configuration reference, see the [Operations Manual](docs/operations-manual
 
 The [Operations Manual](docs/operations-manual.md) is the complete server runbook:
 
-- Build, deploy, and server lifecycle (`tools/deploy.js`, targets, RCON)
-- Making the map public (bind address, ports, CORS, TLS)
-- Access control & map tokens
-- The configuration reference and the running-server file layout
-- Performance suites and troubleshooting
-
-The manual also covers the `/terrascape` command surface, permissions and token
-scopes, the full configuration reference (keys, env overrides), and the
-running-server file layout.
+- Installing, updating, or removing the CurseForge mod
+- Local, LAN, hosted-server, domain, and HTTPS access
+- Public or restricted maps, permissions, and generated links
+- Configuration, viewer controls, runtime files, and cache maintenance
+- Security guidance and troubleshooting
 
 ---
 
@@ -243,28 +253,27 @@ GitHub Release, verifies its recorded tag and jar checksum, reuses its curated n
 `CHANGELOG.md`, and uploads that same jar without rebuilding it. Repository maintainers
 should configure the `curseforge` GitHub environment with required reviewers, the
 `CURSEFORGE_API_TOKEN` environment secret, and the numeric `CURSEFORGE_PROJECT_ID`
-environment variable. See the Operations Manual for the complete setup and publishing
-procedure.
+environment variable.
 
 ### Test
 
 ```sh
 npm test                     # both unit tiers (Java + web)
 npm run test:java            # Java unit tests (Gradle)
-npm run test:web             # web unit tests (compile + run common/ modules)
+npm run test:web             # production typecheck + browser unit tests
 npm run test:unit            # both tiers with coverage (alias for `npm run coverage`)
 npm run testlive             # build the bundle, then Playwright against the viewer
 npm run test:release         # both unit tiers + the live Playwright suite
 ```
 
-See [`tests/README.md`](tests/README.md) for the three test tiers, and the
-[Operations Manual](docs/operations-manual.md#performance) for the perf suites.
+See [`tests/README.md`](tests/README.md) for the three test tiers. Performance tooling
+starts with `npm run perf`.
 
 ### Tools
 
 | Tool | Purpose | Usage |
 |------|---------|-------|
-| `tools/deploy.js` | Build/deploy/restart/verify the server (see ops manual). | `npm run deploy` |
+| `tools/deploy.js` | Developer build/deploy/restart/verify harness. | `npm run deploy` |
 | `tools/probe-blocks.js` | Query the worldview probe around a coordinate. | `node tools/probe-blocks.js --world default --at -1370 131 -1213` |
 | `tools/parse-client-log.js` | Summarize client telemetry from a log file. | `node tools/parse-client-log.js <log-path>` |
 | `tools/sample-mob-feed.js` | Capture sample entity-feed payloads for fixtures. | `node tools/sample-mob-feed.js` |
@@ -283,3 +292,13 @@ Shared Synthborn/Hytale reference material lives in
 [`../synthborn-basecamp/docs/`](../synthborn-basecamp/docs/README.md); generated lookup
 data (SDK signatures, labels, recipes/loot, prefab indexes) starts at
 [`../synthborn-basecamp/docs/refs/`](../synthborn-basecamp/docs/refs/README.md).
+
+---
+
+## Roadmap
+
+<a href="docs/roadmap.md"><img src="images/terrascape-roadmap.png" alt="Synthborn: Terrascape release roadmap" height="800" /></a>
+
+The roadmap is grouped by release and generated from `docs/roadmap.json`. Update the data
+and run `npm run roadmap` to regenerate the Markdown, SVG, and PNG versions. On a new
+development machine, run `npm run roadmap:setup` once to install the PNG renderer.

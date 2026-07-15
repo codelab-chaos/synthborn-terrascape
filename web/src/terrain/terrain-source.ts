@@ -1,6 +1,6 @@
 import { logClientEvent, logClientTiming } from '../platform/client-log.ts';
 import { apiFetch } from '../platform/api-client.ts';
-import { readTerrainCache, writeTerrainCache } from '../platform/mesh-cache.ts';
+import { readTerrainCache, readTerrainCaches, writeTerrainCache } from '../platform/mesh-cache.ts';
 import {
   terrainCacheKeyFor,
   terrainCosmeticOverlayCacheKeyFor,
@@ -14,39 +14,122 @@ import {
   visualDetailMode,
 } from '../ui/control-readers.ts';
 
-export async function loadTerrainChunkData(world, key, generation) {
+export type TerrainLoadMode = 'cache-only' | 'network-only' | 'full';
+
+export async function readTerrainChunkCacheBatch(world, keys, generation) {
+  const started = performance.now();
+  const cacheKeys = keys.map((key) => terrainCacheKey(world, key.chunkX, key.chunkZ));
+  const records = await readTerrainCaches(cacheKeys);
+  const cacheReadMs = performance.now() - started;
+  if (generation !== runtime.loadGeneration) {
+    return { stale: true, cacheReadMs, records: new Map() };
+  }
+  return { stale: false, cacheReadMs, records };
+}
+
+export async function parseCachedTerrainChunkData(world, key, bytes, generation) {
+  if (generation !== runtime.loadGeneration) {
+    return { ok: false, key, stale: true, cacheParseMs: 0, cacheHit: false, cacheMiss: false, network: false };
+  }
+
+  const parseStarted = performance.now();
+  try {
+    const gltf = await parseGltfBytes(bytes);
+    if (generation !== runtime.loadGeneration) {
+      return { ok: false, key, stale: true, cacheParseMs: performance.now() - parseStarted, cacheHit: false, cacheMiss: false, network: false };
+    }
+    return {
+      ok: true,
+      world,
+      key,
+      gltf,
+      source: 'cache',
+      cacheReadMs: 0,
+      cacheParseMs: performance.now() - parseStarted,
+      cacheHit: true,
+      cacheMiss: false,
+      network: false,
+    };
+  } catch (error) {
+    console.warn(`Cached terrain parse failed for ${key.chunkX},${key.chunkZ}`, error);
+    logClientEvent('terrain_cache_parse_failed', {
+      chunkX: key.chunkX,
+      chunkZ: key.chunkZ,
+      error: error?.message ?? error,
+    });
+    return {
+      ok: false,
+      key,
+      error,
+      cacheParseFailed: true,
+      cacheReadMs: 0,
+      cacheParseMs: performance.now() - parseStarted,
+      cacheHit: false,
+      cacheMiss: true,
+      network: false,
+    };
+  }
+}
+
+export async function loadTerrainChunkData(
+  world,
+  key,
+  generation,
+  mode: TerrainLoadMode = 'full',
+) {
   const cacheKey = terrainCacheKey(world, key.chunkX, key.chunkZ);
-  const readStarted = performance.now();
-  const cached = await readTerrainCache(cacheKey);
-  const cacheReadMs = performance.now() - readStarted;
+  let cacheReadMs = 0;
 
   if (generation !== runtime.loadGeneration) {
     return { ok: false, key, stale: true, cacheReadMs, cacheParseMs: 0, cacheHit: false, cacheMiss: false, network: false };
   }
 
-  if (cached?.bytes) {
-    try {
-      const parseStarted = performance.now();
-      const gltf = await parseGltfBytes(cached.bytes);
+  if (mode !== 'network-only') {
+    const readStarted = performance.now();
+    const cached = await readTerrainCache(cacheKey);
+    cacheReadMs = performance.now() - readStarted;
+
+    if (generation !== runtime.loadGeneration) {
+      return { ok: false, key, stale: true, cacheReadMs, cacheParseMs: 0, cacheHit: false, cacheMiss: false, network: false };
+    }
+
+    if (cached?.bytes) {
+      try {
+        const parseStarted = performance.now();
+        const gltf = await parseGltfBytes(cached.bytes);
+        return {
+          ok: true,
+          world,
+          key,
+          gltf,
+          source: 'cache',
+          cacheReadMs,
+          cacheParseMs: performance.now() - parseStarted,
+          cacheHit: true,
+          cacheMiss: false,
+          network: false,
+        };
+      } catch (error) {
+        console.warn(`Cached terrain parse failed for ${key.chunkX},${key.chunkZ}`, error);
+        logClientEvent('terrain_cache_parse_failed', {
+          chunkX: key.chunkX,
+          chunkZ: key.chunkZ,
+          error: error?.message ?? error,
+        });
+      }
+    }
+
+    if (mode === 'cache-only') {
       return {
-        ok: true,
-        world,
+        ok: false,
         key,
-        gltf,
-        source: 'cache',
+        cacheOnlyMiss: true,
         cacheReadMs,
-        cacheParseMs: performance.now() - parseStarted,
-        cacheHit: true,
-        cacheMiss: false,
+        cacheParseMs: 0,
+        cacheHit: false,
+        cacheMiss: true,
         network: false,
       };
-    } catch (error) {
-      console.warn(`Cached terrain parse failed for ${key.chunkX},${key.chunkZ}`, error);
-      logClientEvent('terrain_cache_parse_failed', {
-        chunkX: key.chunkX,
-        chunkZ: key.chunkZ,
-        error: error?.message ?? error,
-      });
     }
   }
 

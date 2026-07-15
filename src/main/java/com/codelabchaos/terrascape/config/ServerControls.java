@@ -33,6 +33,8 @@ import java.util.function.Consumer;
  *
  * <p>Two governed kinds: <b>toggles</b> ({@code <name>Enabled} booleans) and <b>ranges</b>
  * ({@code <name>Options} allowlist + {@code <name>Default}, optional {@code <name>Enabled}).
+ * Mesh promotion pacing is always locked to its normalized server default because exposing it
+ * to browsers can create unsafe render workloads.
  */
 public final class ServerControls {
 
@@ -47,7 +49,7 @@ public final class ServerControls {
     /** Dropdown controls published as {@code {enabled, options, default}}. */
     private static final List<String> SELECTS = List.of("mobUpdateRate", "playerUpdateRate");
 
-    /** Slider controls published as {@code {enabled, min, max, default}} — admins dial any value in range. */
+    /** Slider controls published as {@code {enabled, min, max, default}}. */
     private static final List<String> SLIDERS = List.of(
             "chunksLoadedAtOnce", "spawnPerFrame", "spawnBudgetMs", "streamRadius",
             "mapTileRadius", "tilesLoadedAtOnce");
@@ -130,12 +132,49 @@ public final class ServerControls {
     }
 
     private JsonObject sliderJson(@Nonnull String name) {
+        if (name.equals("spawnPerFrame") || name.equals("spawnBudgetMs")) {
+            return lockedPromotionSliderJson(name);
+        }
         JsonObject out = new JsonObject();
         out.addProperty("enabled", boolAt(name + "Enabled", true));
         out.add("min", pick(name + "Min"));
         out.add("max", pick(name + "Max"));
         out.add("default", pick(name + "Default"));
         return out;
+    }
+
+    private JsonObject lockedPromotionSliderJson(@Nonnull String name) {
+        int hardA = defaults.get(name + "Min").getAsInt();
+        int hardB = defaults.get(name + "Max").getAsInt();
+        int hardMin = Math.min(hardA, hardB);
+        int hardMax = Math.max(hardA, hardB);
+        int configuredA = clampToInt(finiteNumberAt(name + "Min", hardMin), hardMin, hardMax);
+        int configuredB = clampToInt(finiteNumberAt(name + "Max", hardMax), hardMin, hardMax);
+        int min = Math.min(configuredA, configuredB);
+        int max = Math.max(configuredA, configuredB);
+        int value = clampToInt(finiteNumberAt(name + "Default",
+                defaults.get(name + "Default").getAsDouble()), min, max);
+
+        JsonObject out = new JsonObject();
+        // These two experimental pacing values are server-owned. The bundled range is the hard
+        // safety envelope; configured bounds may narrow it but cannot expand it.
+        out.addProperty("enabled", false);
+        out.addProperty("min", min);
+        out.addProperty("max", max);
+        out.addProperty("default", value);
+        return out;
+    }
+
+    private double finiteNumberAt(@Nonnull String key, double fallback) {
+        JsonElement value = pick(key);
+        if (!isNumber(value)) return fallback;
+        double number = value.getAsDouble();
+        return Double.isFinite(number) ? number : fallback;
+    }
+
+    private static int clampToInt(double value, int min, int max) {
+        long rounded = Math.round(value);
+        return (int) Math.min(max, Math.max(min, rounded));
     }
 
     /** Returns the configured value for a key, falling back to the default when absent or wrong-typed. */
