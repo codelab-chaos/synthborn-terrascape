@@ -1,611 +1,487 @@
 # Terrascape Operations Manual
 
-A task-oriented runbook for building, deploying, exposing, and operating the
-Terrascape web map server. It is aimed at **server owners and admins** — this is the
-complete server + configuration guide.
+This manual is for Hytale server owners and administrators who install and run
+Terrascape. It covers installation, network access, permissions, configuration,
+maintenance, and troubleshooting.
 
-Each section answers "**how do I do X**" rather than documenting internals. For how
-players actually *use* the web viewer (controls, panels, follow modes), see
-[Using the map viewer](../README.md#using-the-map-viewer) in the README.
-
-> Conventions: shell commands run from the repo root unless noted. "The server"
-> means the Hytale dedicated server running the Terrascape mod, which serves the
-> viewer over HTTP.
-
----
+Players who only need help using the map should see
+[Using the map viewer](../README.md#using-the-map-viewer).
 
 ## Quick reference
 
-| Thing | Value |
+| Item | Default or location |
 | --- | --- |
-| Web viewer port | `5960` (`http.port` default) |
-| Default bind | `127.0.0.1` (localhost only — set `0.0.0.0` to expose) |
-| Plugin jar | `build/libs/Terrascape-<version>.jar` |
-| Install location | `<save>/mods/` |
-| Plugin data dir | `<save>/mods/terrascape/` |
+| Install location | `<save>/mods/Terrascape-<version>.jar` |
+| Local map URL | `http://127.0.0.1:5960` |
+| Web port | `5960` |
+| Network access | Local machine only |
+| Map access | Public; no map token required |
+| Configuration | `<save>/mods/com.codelabchaos_Terrascape/terrascape.properties` |
+| Runtime data | `<save>/mods/com.codelabchaos_Terrascape/` |
 
-| Task | Command |
+Terrascape is a server-side mod. Players do not install a client mod; they open the map
+in a web browser.
+
+## Install Terrascape
+
+### Install from CurseForge
+
+1. Stop the Hytale dedicated server.
+2. Install Terrascape from CurseForge into the server's active save. If your server host
+   requires a manual upload, place `Terrascape-<version>.jar` in `<save>/mods/`.
+3. Start the server.
+4. Check the server log for `Terrascape started`.
+5. On the server computer, open `http://127.0.0.1:5960`.
+
+Terrascape creates its configuration and data directory on the first start. No companion
+mods are required.
+
+### Authenticate a remote or headless Hytale server
+
+Use Hytale's device flow by default whenever the dedicated server runs remotely, without
+an interactive desktop browser, or through a hosting-provider console:
+
+```text
+/auth login device
+```
+
+Open the verification URL printed in the server console and enter its short code. Confirm
+completion with `/auth status`; `Token Source` should report `OAuth Device`, and both the
+session and identity tokens should be present. If players reach the game port but receive
+`serverAuthUnavailable` or an immediate connection closure, check this status first.
+
+Do not use `/auth login browser` for remote/headless operation. Its temporary callback
+URL points to the server's private network address, expires quickly, and may be blocked by
+the firewall or unreachable from the administrator's browser. Device authentication does
+not require that inbound callback.
+
+The server still needs outbound HTTPS and working DNS to start device authentication. A
+manually configured host must have a DNS resolver; using the local router is normally the
+least surprising choice. Hytale authentication is separate from Terrascape map tokens.
+
+### Update Terrascape
+
+1. Stop the server.
+2. Update Terrascape through CurseForge, or replace the old Terrascape jar in
+   `<save>/mods/` with the new one.
+3. Make sure only one Terrascape jar remains in the folder.
+4. Start the server and confirm `Terrascape started` in the log.
+
+Updates keep the existing configuration, access tokens, and caches in
+`com.codelabchaos_Terrascape/`.
+
+### Remove Terrascape
+
+Stop the server and remove the Terrascape jar. To remove all Terrascape settings, tokens,
+and generated caches as well, delete `<save>/mods/com.codelabchaos_Terrascape/` after
+backing up anything you want to keep.
+
+## Connect to the map
+
+### From the server computer
+
+The default configuration listens only on the local machine:
+
+```properties
+http.host=127.0.0.1
+http.port=5960
+```
+
+Open `http://127.0.0.1:5960` or `http://localhost:5960` in a browser.
+
+### From another computer or a hosted server
+
+After the first start, edit `terrascape.properties`:
+
+```properties
+http.host=0.0.0.0
+http.port=5960
+```
+
+Then:
+
+1. Restart the Hytale server.
+2. Allow the selected TCP port through the server firewall and any hosting control panel.
+3. If the server is behind a home router, forward that TCP port to the server computer.
+4. Open `http://<server-address>:5960`.
+
+`http.host` is the address Terrascape listens on. `0.0.0.0` means every IPv4 network
+interface; it is not an address visitors can use in a browser. `http.port` is the web-map
+port and may be changed to a port assigned by your hosting provider.
+
+A hosted provider must assign and expose an additional TCP port for Terrascape. The
+Hytale game port does not carry web-map traffic.
+
+Making Terrascape reachable and making it public are separate choices. Network and
+firewall settings control who can connect; `access.mode` controls whether those visitors
+need a map token. Restricted access is recommended whenever the map is reachable from
+the internet.
+
+### Use a domain name or HTTPS
+
+Terrascape serves HTTP directly. For a public HTTPS site, point your domain at the server
+and use your hosting provider or a reverse proxy to forward requests to Terrascape. Then
+set the visitor-facing URL in `terrascape.properties`:
+
+```properties
+access.publicBaseUrl=https://map.example.com
+```
+
+Include the port when visitors must type it:
+
+```properties
+access.publicBaseUrl=http://map.example.com:5960
+```
+
+This setting only controls links generated by `/terrascape maplink`. It does not configure
+DNS, TLS, the listening address, or the firewall.
+
+When the reverse proxy runs on the same computer, Terrascape can remain bound to
+`127.0.0.1`. When it runs elsewhere, bind Terrascape to a reachable private interface and
+use firewall rules to accept traffic only from the proxy.
+
+### CORS
+
+The bundled map and API share the same address, so normal installations do not need CORS.
+A domain name or reverse proxy also does not require CORS when both still share one origin.
+
+Enable CORS only when a separate website on another origin calls the Terrascape API:
+
+```properties
+cors.enabled=true
+cors.allowedOrigins=https://example.com,https://admin.example.com
+```
+
+List exact origins, including the scheme and nonstandard port. Avoid `*` when credentials
+are involved.
+
+## Control map access
+
+| Mode | Behavior |
 | --- | --- |
-| Build the jar (+ web bundle) | `./gradlew build` |
-| Build web bundle only | `npm run build:web` |
-| Install the jar into a local save | `./gradlew deploy` |
-| Run unit tests (Java + web) | `npm test` |
-| Run live e2e suite | `npm run testlive` |
-| Run perf suite | `npm run perf` |
+| `access.mode=public` | Default. Anyone who can reach the web port can view the map. |
+| `access.mode=restricted` | Visitors must open a valid, generated map link. |
 
-> The `npm run deploy*` commands are the Synthborn project's own scripted deploy
-> harness (SSH + RCON, and a multi-mod `combined` target) — see
-> [Deploy & server lifecycle](#deploy--server-lifecycle). For a standalone Terrascape
-> install, the jar drop above is all you need.
+To require map links, edit `terrascape.properties` and restart:
 
----
-
-## Build & package
-
-**To build the deployable plugin jar:**
-
-```sh
-./gradlew build
+```properties
+access.mode=restricted
+access.mapTokenTtlHours=24
+access.adminMapTokenTtlHours=4
 ```
 
-This chains `buildWeb` (webpack → `src/main/resources/web/dist/terrascape.js`) →
-`processResources` → `fatJar`, producing `build/libs/Terrascape-<version>.jar`
-with all web assets (`index.html`, `styles.css`, `npc-details.json`, textures,
-and the JS bundle) packaged inside.
+Grant players permission to create their own links:
 
-**To rebuild only the browser bundle** (after editing TypeScript under `web/src/`):
-
-```sh
-npm run build:web
+```text
+/perm user <player> add terrascape.map.use
+/perm group <group> add terrascape.map.use
 ```
 
-The bundle (`web/dist/terrascape.js`) is a generated artifact — it is gitignored
-and produced fresh on every build. Do not edit or commit it.
+The player can then run `/terrascape maplink` in-game. The generated URL contains a
+bearer token that Terrascape shows only when it is created. Opening the link stores the
+token in a browser cookie until it expires. Administrators can use `/terrascape maptoken`
+when an integration needs the raw credential instead of a clickable link.
 
----
+Ordinary links use `access.mapTokenTtlHours`. Links created by an administrator use
+`access.adminMapTokenTtlHours` and include the administrator's web capabilities. Tokens
+cannot be recovered from `access-tokens.json`; only hashes and expiration times are
+stored.
 
-## Deploy & server lifecycle
+Treat map links like passwords while they remain valid. `/terrascape tokens` lists up to
+50 safe Link IDs and their owners without exposing bearer credentials. Revoke one link with
+`/terrascape revoketoken <linkId>`. To invalidate every existing link, stop the server,
+remove `access-tokens.json`, and start the server again; Terrascape creates a fresh store.
 
-### Installing Terrascape (standalone)
+### Limit visible worlds
 
-Terrascape runs on its own — it needs no companion mods. To install or update it:
+All loaded worlds are visible by default. To limit the map, list exact world names:
 
-1. Get the jar — build it (`./gradlew build` → `build/libs/Terrascape-<version>.jar`)
-   or download a release.
-2. Copy the jar into your save's `mods/` folder. Locally, `./gradlew deploy` does this
-   for you (override the destination with `-PmodsDir="/path/to/save/mods"`).
-3. Restart the Hytale server through your normal server controls.
-4. Clear server-side caches when needed with `/terrascape clearcache` in-game.
-
-That's the whole lifecycle for a standalone install.
-
-### Synthborn deploy harness (developers)
-
-This is for **Synthborn developers**, not mod installers — Terrascape installs and runs
-standalone (above), and every installer-facing section of this manual assumes that.
-
-The repo ships a scripted deploy harness (`tools/deploy.js`) used to push to the
-Synthborn project's own servers for automated deployments. It deploys over SSH and drives
-restart/start/stop/health through **Terrascape's own embedded RCON** (the `default`
-target no longer ships a separate RCON mod). It can also co-deploy other Synthborn addons
-via the `combined` target. **None of it is required to run Terrascape standalone.** The
-broader cross-addon setup will be covered in the forthcoming Synthborn integration docs.
-
-> **Command execution needs the RCON password.** `stop`/`restart`/`rcon` send commands
-> through embedded RCON, which accepts only `rcon.password` from `terrascape.properties`.
-> Put the same value in local `SYNTH_RCON_PASSWORD`. `start`, `status`, `build`,
-> `deploy`, and `wipe` do not need that password. (The `combined` target still uses the
-> separate Synthborn RCON mod, which is internal/unpublished.)
-
-**First-time setup** — copy the example env file and fill it in:
-
-```sh
-cp remote-host.env.example remote-host.env   # repo root, gitignored
+```properties
+worlds.allowlist=world1,world2
 ```
 
-| Key | Purpose |
-| --- | --- |
-| `HYTALE_REMOTE_SSH` *or* (`HYTALE_REMOTE_HOST` + `HYTALE_REMOTE_USER`) | SSH target (an alias from `~/.ssh/config`, or user@host) |
-| `HYTALE_REMOTE_SAVES` | Path to the Hytale `Saves` directory on the server |
-| `HYTALE_REMOTE_INSTALL` | Path to the Hytale install on the server |
-| `SYNTH_RCON_PASSWORD` | Same value as server-side `rcon.password`; required for RCON commands |
+Restart the server after changing the allowlist.
 
-Optional: `SYNTH_RCON_HOST` (override RCON/health host), `HYTALE_LOCAL_SAVES` /
-`HYTALE_LOCAL_INSTALL` (for `--local` deploys; on WSL point `HYTALE_LOCAL_SAVES` at the
-Windows `…/Hytale/UserData/Saves` mount).
+## Commands and permissions
 
-**First install on a fresh server is manual** — there's no RCON to automate the very
-first transition (the harness stops a server *through* RCON, which the old/absent build
-doesn't have). Bring up a clean Terrascape install like this:
-
-```sh
-node tools/deploy.js wipe                 # dry run — lists what would be removed
-node tools/deploy.js wipe --yes           # remove old Synthborn jars + data dirs (keeps Hytale builtins)
-node tools/deploy.js deploy               # copy the new Terrascape jar (no RCON/token needed)
-node tools/deploy.js start                # starts with Terrascape RCON enabled
-```
-
-After first start, edit the generated server-side `terrascape.properties` and set
-`rcon.password=<long random password>`, then restart the server. Put that same password in
-local `remote-host.env` as `SYNTH_RCON_PASSWORD` before running command-driving operations
-such as `restart`, `stop`, or `rcon`. `status` checks RCON health and does not need a
-password.
-`wipe` only touches this repo's own jars and their `<Group>_<Name>` data dirs (current +
-legacy names from `deploy-config.js`); `--keep-data` preserves the data dirs, and `--yes`
-is required to actually delete. Add `--local` to operate on the local save instead of SSH.
-
-**Commands:**
-
-| Task | Command |
-| --- | --- |
-| Build + deploy + restart + verify | `npm run deploy` |
-| Health check only | `npm run deploy:status` |
-| Tail logs (120 lines) | `npm run deploy:logs` |
-| Search logs | `node tools/deploy.js grep "<pattern>" -n 200` |
-| Stop / start without redeploy | `node tools/deploy.js stop` / `start` |
-| Show newest deployed jar | `node tools/deploy.js newest` |
-| Send an RCON command | `node tools/deploy.js rcon -- terrascape clearcache` |
-| Wipe this repo's mods (clean install) | `node tools/deploy.js wipe [--yes] [--keep-data]` |
-| List configured targets | `node tools/deploy.js targets` |
-
-Useful flags: `--target <name>`, `--local` (skip SSH), `--max-ram N` / `--min-ram N`
-(override JVM heap GB), `-n N` (log line count). The `combined` target additionally
-co-deploys other Synthborn addons — the project's integration save, which will be
-documented in the forthcoming Synthborn integration docs.
-
-### Hosted services example
-
-Hosted-provider validation helpers live under `tools/hosted-services/`. They are isolated
-from the normal npm deploy scripts because they are developer/operator examples for
-restricted hosting environments, not core release automation.
-
-Create a local, gitignored profile:
-
-```bash
-cp tools/hosted-services/hosted-server.env.example tools/hosted-services/hosted-server.env
-```
-
-Fill in the provider endpoint, FTP password, assigned Terrascape ports, and
-`HOSTING_TERRASCAPE_RCON_PASSWORD`. For the current alpha loop, use
-`node tools/hosted-services/deploy.js build-test-deploy`, restart from the provider
-panel, then run `node tools/hosted-services/deploy.js validate`. The helper uses FTP for
-upload/log retrieval and the assigned Terrascape RCON port only after the hosting panel
-has started the server. See
-[tools/hosted-services/README.md](../tools/hosted-services/README.md) for the command
-surface and Apex-shaped example profile.
-
-### GitHub Releases and CurseForge upload
-
-Release jars come from GitHub Actions, never from a developer workstation. The automation
-publishes the tested jar as a GitHub Release, then keeps CurseForge publishing behind a
-separate protected workflow so the exact jar tested on the hosted validation server is
-the jar later sent to CurseForge.
-
-For an ordinary downloadable build, open **Actions → Build Terrascape → Run workflow**.
-A manual build retains `terrascape-build-<commit-sha>` for 30 days and never contacts
-CurseForge. Version tags and the release workflows are only needed when intentionally
-preparing a release.
-
-#### One-time GitHub and CurseForge setup
-
-1. Create the CurseForge project/listing and obtain its numeric project ID.
-2. Generate a CurseForge author API token from the account that can upload files to that
-   project.
-3. In the GitHub repository, create an environment named `curseforge` and require reviewer
-   approval before jobs can use it.
-4. Add `CURSEFORGE_API_TOKEN` as an environment secret and
-   `CURSEFORGE_PROJECT_ID` as an environment variable. If CurseForge assigns the Hytale
-   project a different site API origin, add `CURSEFORGE_API_BASE_URL`; otherwise the
-   workflow uses `https://www.curseforge.com`.
-
-Keep the API token only in GitHub's environment secrets. Do not put it in repository
-variables, workflow inputs, release evidence, or local committed configuration.
-
-#### Build and validate a release
-
-1. Move the user-facing entries under `CHANGELOG.md`'s `[Unreleased]` heading into a
-   categorized, dated section for the release, such as
-   `## [0.2.0-beta.1] - 2026-07-10`, then add a fresh `[Unreleased]` section.
-2. Make that version identical in `build.gradle.kts`, `package.json`, and
-   `src/main/resources/manifest.json`.
-3. Merge the intended release commit, then push the matching version tag, such as
-   `v0.2.0-beta.1`.
-4. Wait for the **Build and publish release** workflow to pass. It requires and extracts
-   the matching `CHANGELOG.md` section, runs web unit tests,
-   runs Java tests as part of a clean Gradle build, checks required jar resources, and
-   publishes a GitHub Release containing `Terrascape-<version>.jar`, `SHA256SUMS`, and
-   `release-evidence.env`. Version suffixes such as `-beta.1` produce prereleases.
-5. Download the GitHub Release assets for Apex-hosted and hidden-page install validation.
-   Verify `SHA256SUMS`, then deploy the extracted jar with
-   `node tools/hosted-services/deploy.js deploy --jar /path/to/Terrascape-<version>.jar`.
-   The helper logs the selected jar's checksum before upload. Do not substitute a local
-   rebuild if validation finds an issue; fix the source and create a new version and tag.
-
-#### Upload the validated candidate
-
-1. Open **Actions → Publish GitHub Release to CurseForge → Run workflow**.
-2. Enter the published GitHub Release tag.
-3. Select `alpha`, `beta`, or `release`, enter the CurseForge game-version names, and
-   normally leave **manual release** enabled for the alpha review cycle. The workflow
-   reuses the GitHub Release notes as the CurseForge changelog.
-4. Review and approve the `curseforge` environment deployment. The job downloads the
-   assets from the specified release, verifies their identity and checksum, then calls
-   CurseForge's project upload API. It records the returned CurseForge file ID in the job
-   summary.
-
-A CurseForge upload is intentionally not automatic on tag push: hosted validation and a
-human environment approval must happen after GitHub Release creation and before
-CurseForge publication. Do not rerun a successful upload job, because the CurseForge
-upload API creates a new file for each request.
-
----
-
-## Making the map site public
-
-**To make the map viewer reachable from outside the server host:**
-
-1. **Bind to all interfaces.** By default Terrascape binds `127.0.0.1` (localhost
-   only). In `terrascape.properties` set:
-
-   ```properties
-   http.host=0.0.0.0
-   http.port=5960
-   ```
-
-   (Or via env: `TERRASCAPE_HOST=0.0.0.0`, `TERRASCAPE_PORT=5960`.)
-
-2. **Open the firewall / port-forward** the web viewer port (`5960`, or whatever you
-   set `http.port` to) on the host and any upstream network. The game's own UDP port
-   should **not** be exposed for the map to work.
-
-3. **Decide who can view it** (see [Access control](#access-control--tokens)):
-   - Public read access → leave `access.mode=public` (default).
-   - Token-gated → set `access.mode=restricted` and hand out map links.
-
-4. **(If serving the viewer from another web origin)** enable CORS:
-
-   ```properties
-   cors.enabled=true
-   cors.allowedOrigins=https://map.example.com
-   ```
-
-   When enabled, Terrascape echoes the matching request `Origin` back (never `*`)
-   and allows credentials. Leave disabled if the browser loads the viewer from the
-   same host:port that serves the API.
-
-5. **(Recommended) front it with TLS or a DNS alias.** Terrascape serves plain HTTP. For
-   a public site, put it behind a reverse proxy (nginx/Caddy) terminating HTTPS, and set
-   `access.publicBaseUrl=https://map.example.com` so in-game `/terrascape maplink`
-   output points at the public URL. For hosted validation or streaming, this can also be
-   a plain HTTP DNS alias such as `access.publicBaseUrl=http://apex-test:7656` so shared
-   links do not reveal the numeric server IP.
-
-6. **Restart** to apply: `npm run deploy` (or `node tools/deploy.js restart`).
-
----
-
-## Access control & tokens
-
-Terrascape has separate gates for map viewing, map-side command execution, static web
-ops access, and standalone RCON. The naming rule is:
-
-- `access.*Token*` = generated per-user map tokens, the static debug token, and map-token TTLs.
-- `rcon.password` = static password for the standalone RCON service.
-
-**To require a token for the map** (`access.mode=restricted`):
-
-- Set in `terrascape.properties`: `access.mode=restricted`
-  (or env `TERRASCAPE_ACCESS_MODE=restricted`).
-- In `public` mode (default) anyone with network access can view the map.
-
-**To mint a viewer link** (in-game, restricted mode):
-
-- Run `/terrascape maplink` (or `/terrascape maptoken`). Requires the
-  `terrascape.map.use` permission; admins additionally get an `admin`-scoped token.
-- Viewer tokens last `access.mapTokenTtlHours` hours (default `24`). Tokens minted by admins
-  with the `admin` scope last `access.adminMapTokenTtlHours` hours (default `4`). Minting is
-  rate-limited per player (back-off 0s → 60s → 5m → 30m → 2h).
-- The link carries the token as `?key=<token>`, which the browser promotes to a
-  `terrascape_key` cookie. Tokens may also be sent as `Authorization: Bearer <token>`.
-- Only a one-way HMAC-SHA256 hash of each token is stored (in `access-tokens.json`);
-  the raw token can never be recovered from disk.
-
-**To enable ops/monitoring endpoints without a user token** (static debug token):
-
-- Set `access.debugToken=<secret>` (or env `TERRASCAPE_ACCESS_DEBUG_TOKEN`).
-- Present it as `X-Terrascape-Debug-Token: <secret>` or `Authorization: Bearer
-  <secret>`. This unlocks admin-scoped endpoints (`/api/metrics`,
-  `/api/mob-debug/{world}`) even in restricted mode.
-
-**What an unauthorized request gets** (restricted mode, no token): static pages
-return a `401` "access required" page; API endpoints return
-`401 {"ok":false,"error":"access_required"}`.
-
-**To limit which worlds are visible:** set `worlds.allowlist=world1,world2`
-(empty = all worlds visible).
-
----
-
-## In-game commands & permissions
-
-The `/terrascape` command is the in-game control surface. It uses two Hytale
-permission nodes (both appear in `/perm` listings and tab-completion). The built-in
-`hytale:Admin` group holds the `*` wildcard, so operators satisfy both automatically.
+Terrascape uses two permission nodes. Hytale administrators with the `*` wildcard satisfy
+both automatically. A custom admin group should receive both nodes because the base
+`/terrascape` command requires `terrascape.map.use`.
 
 | Permission | Grants |
 | --- | --- |
-| `terrascape.map.use` | Mint a personal map link (`maplink` / `maptoken`) |
-| `terrascape.admin` | All subcommands, plus an `admin`-scoped web session |
+| `terrascape.map.use` | Use `/terrascape` and create a personal map link |
+| `terrascape.admin` | Use administrative subcommands, including raw token generation, and receive admin-scoped map links |
 
-| Subcommand | Permission | Purpose |
-| --- | --- | --- |
-| `/terrascape maplink` | `terrascape.map.use` | Mint a shareable map link (token in the URL) |
-| `/terrascape maptoken` | `terrascape.map.use` | Mint just the raw token |
-| `/terrascape status` | `terrascape.admin` | Print server/HTTP status |
-| `/terrascape sample <chunkX> <chunkZ>` | `terrascape.admin` | Write a terrain sample to the `samples/` folder |
-| `/terrascape clearcache [all\|mesh\|tiles]` | `terrascape.admin` | Clear server caches (default `all`) |
-| `/terrascape smoketoken [map\|admin] [subject]` | `terrascape.admin` | Mint a scoped test token for runtime smoke validation |
+| Command | Purpose |
+| --- | --- |
+| `/terrascape maplink` | Create a clickable personal map link |
+| `/terrascape maptoken` | Admin only: create a raw credential for an integration |
+| `/terrascape tokens` | Admin only: list up to 50 active Link IDs, owners, scopes, and expiry |
+| `/terrascape revoketoken <linkId>` | Admin only: revoke one active link by its displayed ID |
+| `/terrascape status` | Show plugin status, web address, worlds, generation, and cache statistics |
+| `/terrascape clearcache [mesh\|tiles\|all]` | Clear terrain/mesh caches, the in-memory tile cache, or both; default is `all` |
 
-> **Do not grant `terrascape.admin` to regular players** — it can inspect server
-> state, write sample terrain files, and delete cache files under the data directory.
+`maplink` requires `terrascape.map.use`. Every other command in the table also requires
+`terrascape.admin`. Do not grant `terrascape.admin` to regular players.
 
-**To let a player use the web map**, grant the map node with the native permission
-commands (no Terrascape-specific allowlist); they then run `/terrascape maplink`:
+Remove map permission with:
 
 ```text
-/perm user <player> add terrascape.map.use     # one player
-/perm group <group> add terrascape.map.use     # everyone in a group
-/perm user <player> remove terrascape.map.use  # revoke
+/perm user <player> remove terrascape.map.use
 ```
 
-### Token scopes
+Removing a permission does not automatically invalidate links already created by that
+player. Run `/terrascape tokens`, identify that player's Link ID, and revoke it explicitly;
+otherwise the link remains valid until expiry.
 
-Each minted token carries **scopes** — a capability snapshot of the minting player's
-permissions at `maplink` time. Scope changes take effect on the next mint (bounded by
-the token TTL).
+## Configuration
 
-| Scope | Granted to | Unlocks |
-| --- | --- | --- |
-| `map` | any `terrascape.map.use` holder | the viewer and read-only map APIs |
-| `admin` | `terrascape.admin` holders | admin-only web APIs and the map API command proxy |
+Terrascape creates both configuration files on first start:
 
-Because scopes ride in the token, an admin who opens the map with their own link
-reaches admin APIs without any shared secret. Privileged debug APIs must still be enabled
-by config (`features.mobDebugEndpoint` defaults to `false`); when enabled, a caller is
-authorized by **either** an `admin`-scoped token **or** the configured
-`access.debugToken`.
-
-For dedicated-server validation, `/terrascape smoketoken [map|admin] [subject]` mints the
-same token shape from console/RCON using a deterministic synthetic UUID derived from the
-subject label. It is disabled unless `validation.smokeTokensEnabled=true` is set on the
-server. It does not bypass token hashing or scope checks; use a unique subject per smoke
-run to avoid normal per-player mint backoff.
-
-### Map API command proxy
-
-The bundled Terrascape browser client must run server commands only through the map API:
-
-- `POST /api/rcon/command` with `{"command":"<cmd>"}`.
-- Requires a valid per-user map token carrying both `map` and `admin` scopes.
-- This endpoint is still locked when `access.mode=public`; public visibility alone is not
-  a command credential.
-- `access.debugToken` and `rcon.password` do not authorize this endpoint.
-
-This route is for browser/map workflows. Standalone RCON below is a separate operator/tooling
-surface with its own password and port.
-
-Runtime release smoke:
-
-```bash
-# Server-side terrascape.properties on the dedicated validation server:
-# validation.smokeTokensEnabled=true
-
-TERRASCAPE_RCON_PASSWORD=<password> npm run runtime:smoke -- \
-  --url http://127.0.0.1:5960 \
-  --rcon-url http://127.0.0.1:25578
+```text
+<save>/mods/com.codelabchaos_Terrascape/terrascape.properties
+<save>/mods/com.codelabchaos_Terrascape/server-config.json
 ```
 
-The smoke run checks `/api/worlds`, standalone RCON health/status, console minting for
-map-only and admin-scoped smoke tokens, and the browser command proxy rejection/acceptance
-paths. Add `--mutating` to include `terrascape clearcache tiles`.
+Stop the server before editing them, then start it again. The startup log includes the
+resolved `terrascape.properties` path if you are unsure which save is active.
 
----
-
-## RCON (optional command endpoint)
-
-RCON is an opt-in HTTP/JSON endpoint that runs server commands remotely. **It is hard
-off by default** (`rcon.enabled=false`) — installing Terrascape does not open it. It is
-disabled-and-fail-closed, so it never runs commands without the configured RCON password.
-
-**To enable it**, set both the enable flag and a password in `terrascape.properties`:
-
-```properties
-rcon.enabled=true
-rcon.password=<long random password>
-```
-
-The password lives only in the server-side config file; the web interface does not serve
-`terrascape.properties`, `server-config.json`, or `access-tokens.json`.
-
-- **RCON password required** — map tokens, admin-scoped map tokens, `access.debugToken`,
-  map API command-proxy credentials, missing passwords, and wrong passwords do not authorize
-  standalone RCON commands.
-- **Every command request needs the password**, sent as `X-SynthRCON-Token: <password>` or
-  `Authorization: Bearer <password>`.
-- **Localhost-only** by default (`rcon.host=127.0.0.1`); non-loopback callers are rejected
-  unless `rcon.allowRemote=true`, which still requires the RCON password.
+Most server owners only need these settings:
 
 | Key | Default | Purpose |
 | --- | --- | --- |
-| `rcon.enabled` | `false` | Master switch — off until explicitly enabled |
-| `rcon.host` | `127.0.0.1` | Bind address (localhost unless exposing) |
-| `rcon.port` | `25578` | Terrascape's reserved RCON port (each mod uses its own) |
-| `rcon.password` | _(blank)_ | Shared RCON password; required when enabled |
-| `rcon.allowRemote` | `false` | Permit non-loopback callers (password still required) |
+| `http.host` | `127.0.0.1` | Network address on which the map listens |
+| `http.port` | `5960` | TCP port used by the map |
+| `worlds.allowlist` | blank | Comma-separated visible worlds; blank allows all |
+| `access.mode` | `public` | `public` or `restricted` map viewing |
+| `access.publicBaseUrl` | blank | Visitor-facing URL used by `/terrascape maplink` |
+| `access.mapTokenTtlHours` | `24` | Lifetime of an ordinary map link |
+| `access.adminMapTokenTtlHours` | `4` | Lifetime of an admin-scoped map link |
 
-Each key also has a `TERRASCAPE_RCON_*` env override for bind settings, e.g.
-`TERRASCAPE_RCON_ENABLED`. For the developer deploy harness, set local
-`SYNTH_RCON_PASSWORD` to the same value as server-side `rcon.password`.
+### Advanced network and access settings
 
-**Wire contract** (stable across mods, so one mod can call another's port):
-
-- `GET /health` → `{"ok":true,"service":"Terrascape"}`
-- `POST /command` with `{"command":"<cmd>"}` and header `X-SynthRCON-Token: <password>` →
-  `{"ok":true,"command":"…","messages":[…]}`
-
-> RCON runs commands with full server authority — treat `rcon.password` like a root
-> password. Keep the endpoint on localhost or behind a trusted network, and never expose
-> the port publicly. (A future admin-token-gated web console will offer a safer
-> in-browser path.)
-
----
-
-## Configuration reference
-
-`terrascape.properties` is created in the plugin data directory on first run, with
-documented defaults. **Restart the server after editing it.** Resolution order
-(highest wins): `terrascape.*` / unprefixed system properties → `TERRASCAPE_*` env
-vars → the properties file → built-in defaults. Relative folder paths resolve under
-the data directory.
-
-**To override a key without editing the file**, pass a system property — prefix the
-key with `terrascape.`:
-
-```sh
--Dterrascape.http.port=8080
-```
-
-The common boot options also have environment-variable overrides:
-
-| Key | Purpose | Env override |
+| Key | Default | Purpose |
 | --- | --- | --- |
-| `http.host` | Bind address (keep `127.0.0.1` unless a proxy/firewall is ready) | `TERRASCAPE_HOST` |
-| `http.port` | Web server port | `TERRASCAPE_PORT` |
-| `access.mode` | `public` or `restricted` view gating | `TERRASCAPE_ACCESS_MODE` |
-| `access.publicBaseUrl` | URL used in `/terrascape maplink` output; set to a public DNS/custom domain to avoid exposing the numeric server IP in chat or streams | `TERRASCAPE_PUBLIC_BASE_URL` (`TERRASCAPE_PUBLIC_URL` also accepted) |
-| `access.debugToken` | Static token for ops/debug web endpoints | `TERRASCAPE_ACCESS_DEBUG_TOKEN` |
-| `rcon.password` | RCON command password | `TERRASCAPE_RCON_PASSWORD` |
-| `validation.smokeTokensEnabled` | Enable synthetic smoke-token minting for dedicated validation only | `TERRASCAPE_VALIDATION_SMOKE_TOKENS_ENABLED` |
-| `cors.enabled` | Allow cross-origin browser apps to call the APIs | `TERRASCAPE_CORS_ENABLED` |
-| `cors.allowedOrigins` | Comma-separated exact origins when CORS is on | `TERRASCAPE_CORS_ORIGINS` |
-| `features.experimentalDetails` | Enhanced terrain detail requests | `TERRASCAPE_EXPERIMENTAL_DETAILS` |
-| `folders.assetsRoot` | Extracted Hytale asset root for lazy mob icons | `TERRASCAPE_ASSETS_ROOT` |
-| `folders.assetsZip` | `Assets.zip` path for lazy mob icons | `HYTALE_ASSETS_ZIP` |
+| `cors.enabled` | `false` | Allow API calls from another browser origin |
+| `cors.allowedOrigins` | blank | Comma-separated exact origins allowed by CORS |
+| `access.debugToken` | blank | Static monitoring/debug credential; treat it as a secret |
 
-Key groups (see the generated file's comments for the full list and defaults):
+`access.debugToken` is not a map-user token or an RCON password. When configured and
+presented, it can pass restricted map/API gating and authorize enabled debug endpoints.
+Most installations should leave it blank.
 
-| Group | Purpose | Notable keys |
+### Features
+
+| Key | Default | Purpose |
 | --- | --- | --- |
-| `http.*` | Network binding | `http.host` (`127.0.0.1`), `http.port` (`5960`) |
-| `access.*` | View gating, debug auth, and generated map-token TTLs | `access.mode` (`public`), `access.debugToken`, `access.mapTokenTtlHours` (`24`), `access.adminMapTokenTtlHours` (`4`), `access.publicBaseUrl` |
-| `cors.*` | Cross-origin | `cors.enabled` (`false`), `cors.allowedOrigins` |
-| `rcon.*` | Command endpoint (opt-in) | `rcon.enabled` (`false`), `rcon.port` (`25578`), `rcon.password` — see [RCON](#rcon-optional-command-endpoint) |
-| `validation.*` | Dedicated release-validation switches | `validation.smokeTokensEnabled` (`false`) |
-| `worlds.*` | Visibility | `worlds.allowlist` |
-| `features.*` | Endpoint toggles | `entityStream`, `playerAvatars`, `clientTelemetry`, `metricsEndpoint`, `mobDebugEndpoint` (`false`), `experimentalDetails` |
-| `map.*` | Map tiles | `map.tileSize` (`32`), `map.generateRadius` (`20`), `map.maxRegionRadius` (`108`) |
-| `mesh.*` | Terrain meshing | `mesh.terrainFormatVersion` (`v26`), `mesh.maxConcurrentGenerations` (`1`), timeouts |
-| `cache.*` | In-memory caches | terrain / map-region / map-tile entry & byte limits |
-| `entities.*` | Live feed | `maxMobSnapshots` (`256`), `mobRadarRadius` (`500`), `streamIntervalMillis` (`1000`) |
+| `features.experimentalDetails` | `true` | Allow enhanced terrain-detail requests |
+| `features.clientTelemetry` | `true` | Accept diagnostic messages from the browser viewer |
+| `features.playerAvatars` | `true` | Serve player avatar images |
+| `features.lazyMobIcons` | `true` | Load mob icons from Hytale assets when needed |
+| `features.mobDebugEndpoint` | `false` | Enable the admin-authorized mob diagnostic endpoint |
+| `features.entityStream` | `true` | Enable the live entity event stream |
+| `features.metricsEndpoint` | `true` | Enable the server metrics API |
+| `features.webConsole` | `true` | Enable identity-bound web chat and commands |
 
-Client-facing display toggles live in a separate `server-config.json` (data dir):
-`showMobsEnabled`, `showPlayersEnabled`, `mapTilesEnabled`, `autoStreamEnabled`
-(all default `true`). These are published in `/api/worlds` and gate live results.
+Leave debug and experimental settings at their defaults unless troubleshooting requires
+a change.
 
----
+### Web chat console
 
-## Running-server file layout
+The web console appears only after a visitor opens a current personal link created with
+`/terrascape maplink`. Anonymous visitors never receive console access, even when
+`access.mode=public`. Press `T` over the map to open and focus it; press `Esc` or use the
+close button to hide it. The panel can be resized from its lower-right corner.
 
-After installing the Terrascape jar and starting the server once, the save folder
-looks like this. The jar lives in `<save>/mods/`; Terrascape's runtime files live in
-its plugin data directory, which the Hytale server names `<Group>_<Name>` from the
-manifest — for Terrascape that is `com.codelabchaos_Terrascape`.
+Plain text enters server chat as the player who created the link. When that player is
+offline, the message carries a visible `[Web]` marker. Input beginning with `/` uses an
+offline-capable command identity backed by the link owner's stable UUID, so Hytale's
+current permissions still decide whether the command is allowed. The request cannot
+supply a different UUID, name, or role, and the linked player does not need to be online.
 
-```
-<Hytale Saves>/
-└── <your-save>/
-    ├── logs/                                # server logs
-    ├── mods/
-    │   ├── Terrascape-<version>.jar          # the Terrascape plugin
-    │   └── com.codelabchaos_Terrascape/      # ── Terrascape plugin data directory ──
-    │       ├── terrascape.properties         # config (created on first run)
-    │       ├── server-config.json            # client display toggles
-    │       ├── access-tokens.json            # hashed map tokens + HMAC secret
-    │       ├── terrain/                      # cached terrain mesh GLBs
-    │       ├── map-region/                   # cached map-region PNGs
-    │       ├── map-tile/                     # cached map-tile PNGs
-    │       ├── samples/                      # /terrascape sample output
-    │       ├── player-avatars/               # cached player skin PNGs
-    │       └── mob-icons/                    # cached/lazy-loaded mob icons
-    └── …                                     # Hytale's own save data (world, region files)
-```
+Online web chat goes through Hytale's `PlayerChatEvent` pipeline. An offline player has no
+live `PlayerRef`, so offline web chat is delivered directly with the `[Web]` marker and
+does not pass through chat-event moderation plugins. Terrascape rate-limits submissions,
+caps input at 512 characters, retains at most 250 history entries, and writes the linked
+identity/action type to the server log. Operators who require every message to pass a
+moderation plugin should disable `features.webConsole` or limit links to trusted users.
 
-Notes:
-- This assumes Terrascape is the only mod installed. Other mods (including Hytale's own
-  builtins like `Hytale_HytaleGenerator`) sit alongside under `mods/` and don't affect it.
-- The folder names under the data dir are configurable via the `folders.*` keys —
-  the tree shows the defaults (`terrain`, `map-region`, `samples`,
-  `player-avatars`, `mob-icons`).
-- `access-tokens.json` holds only HMAC hashes + a secret key; it is safe against
-  token recovery but should still not be world-readable.
-- The cache directories are safe to delete when the server is stopped (or cleared
-  live with `/terrascape clearcache` in-game); they rebuild on demand.
-- The data directory name is derived from the manifest `Group`/`Name`; confirm the
-  resolved path from the startup log line `Terrascape config loaded from …`.
+Set `features.webConsole=false` and restart the server to disable the overlay and its
+submit/history APIs. Existing map links still open the map. Console history is kept in
+memory, is bounded, and is cleared when Terrascape restarts. Submitted commands and
+command output appear in the browser history.
 
----
+### Terrain, map, and entity limits
 
-## Validate & test
+These settings control server work and memory use. Change one setting at a time and watch
+`/terrascape status` and the Hytale server log after restarting.
 
-| Task | Command |
+Byte limits accept whole numbers as raw bytes or with `K`, `KB`, `M`, `MB`, `G`, or `GB`
+suffixes. Suffixes are case-insensitive and use multiples of 1024, so `128MB` and
+`134217728` are equivalent. Decimal values such as `1.5GB` are not accepted; an invalid
+value falls back to its default.
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `mesh.terrainTimeoutSeconds` | `15` | Timeout for one terrain request |
+| `mesh.batchTerrainTimeoutSeconds` | `45` | Timeout for a batch terrain request |
+| `mesh.maxBatchChunks` | `16` | Maximum chunks accepted in one batch |
+| `mesh.maxConcurrentGenerations` | `1` | Terrain meshes generated concurrently |
+| `cache.memoryTerrainEntries` | `128` | Maximum terrain entries held in memory |
+| `cache.memoryTerrainBytes` | `128MB` | Maximum terrain-cache memory |
+| `cache.memoryMapRegionEntries` | `16` | Maximum map-region entries held in memory |
+| `cache.memoryMapRegionBytes` | `64MB` | Maximum map-region-cache memory |
+| `cache.memoryMapTileEntries` | `20000` | Maximum map-tile entries held in memory |
+| `map.tileSize` | `32` | Map-tile size |
+| `map.maxRegionRadius` | `108` | Maximum map-region request radius |
+| `map.generateRadius` | `20` | Radius generated for map data |
+| `entities.maxMobSnapshots` | `256` | Maximum mobs retained in one snapshot |
+| `entities.mobRadarRadius` | `500` | Radius scanned for mobs |
+| `entities.streamIntervalMillis` | `1000` | Live entity update interval |
+| `entities.playerAvatarSize` | `64` | Generated player-avatar size in pixels |
+| `entities.maxPlayerAvatarBytes` | `512KB` | Maximum downloaded avatar size |
+| `entities.playerAvatarCacheTtlSeconds` | `43200` | Player-avatar cache lifetime |
+
+`mesh.terrainFormatVersion` identifies the on-disk terrain format. Leave it at the value
+written by your installed Terrascape version.
+
+### Storage folders and assets
+
+Relative cache and output folder paths are resolved inside the Terrascape data directory.
+Use absolute paths for the optional Hytale asset locations.
+
+| Key | Default |
 | --- | --- |
-| Both unit tiers (Java + web) | `npm test` |
-| Java unit tests only | `npm run test:java` |
-| Web unit tests only | `npm run test:web` |
-| Unit tests with coverage (both) | `npm run test:unit` (alias for `npm run coverage`) |
-| Live browser e2e suite | `npm run testlive` |
-| e2e headed / UI mode | `npm run testlive:headed` / `npm run testlive:ui` |
-| Full release gate | `npm run test:release` (both unit tiers + `testlive`) |
+| `folders.terrainCache` | `terrain` |
+| `folders.mapRegionCache` | `map-region` |
+| `folders.samples` | `samples` |
+| `folders.playerAvatars` | `player-avatars` |
+| `folders.mobIcons` | `mob-icons` |
+| `folders.assetsRoot` | blank |
+| `folders.assetsZip` | blank |
 
-`testlive` builds the bundle then runs Playwright against the served viewer. By default it
-targets local development at `http://127.0.0.1:5960`; set `TERRASCAPE_URL` for an explicit
-target, or copy `remote-host.env.example` to `remote-host.env` to point at a remote dev
-server.
+`folders.assetsRoot` and `folders.assetsZip` optionally point Terrascape at Hytale assets
+used for lazy-loaded mob icons. Leave them blank when Terrascape resolves assets normally
+in your server environment.
 
----
+### Viewer controls
 
-## Performance
+`server-config.json` lets an administrator control which options the browser viewer may
+use and the defaults or ranges offered to visitors. The two experimental mesh-promotion
+values are exceptions: they are fixed by the server and are not editable in the browser.
 
-| Task | Command |
+| Control | Shipped default |
 | --- | --- |
-| Default suite (wet then dry) | `npm run perf` |
-| Warm-cache pass only | `npm run perf:dry` |
-| Cleared-cache pass only | `npm run perf:wet` |
-| Fast smoke gate | `npm run perf:smoke` |
-| Full scenario matrix (×2) | `npm run perf:extensive` |
-| Radius sweep | `npm run perf:radius` |
-| Mob-view suite | `npm run perf:mob` |
-| Capture a baseline | `npm run perf:baseline` |
-| Serve metrics report | `npm run perf:report` |
-| Deploy then measure | `npm run perf:postdeploy` |
+| Show mobs | Enabled |
+| Show players | Enabled |
+| Map tiles | Enabled |
+| Automatic terrain streaming | Enabled |
+| Mob update rate | `0.2` from `0.1, 0.2, 0.5, 1` |
+| Player update rate | `1` from `0.5, 1, 2, 4` |
+| Chunks loaded at once | `4`, range `1–12` |
+| Meshes spawned per frame | Fixed at `2` |
+| Mesh spawn budget | Fixed at `4 ms` |
+| Stream radius | `8`, range `0–12` |
+| Map-tile radius | `16`, range `4–64` |
+| Tiles loaded at once | `4`, range `1–16` |
 
-Any extra flags pass through to the tool, e.g.
-`npm run perf:extensive -- --wet` or
-`npm run perf:postdeploy -- --extensive --clear-server-cache`. Run
-`node tools/run-terrascape-perf.js --help` for the full flag list (`--runs`,
-`--enforce`, `--threshold`, `--headed`, …).
+For `spawnPerFrame*` and `spawnBudgetMs*`, the bundled ranges are hard safety envelopes.
+Configured bounds are normalized if inverted or out of range, and the fixed default is
+clamped into the result. Start with `2` meshes/frame and `4 ms`; use `1` and `2 ms` on
+slower clients, and raise them cautiously only after checking frame-time telemetry.
+Missing or invalid individual values fall back to shipped defaults; malformed JSON
+prevents Terrascape from loading the file.
 
----
+## Runtime files and maintenance
+
+After the first start, the relevant save structure is:
+
+```text
+<save>/
+├── logs/
+└── mods/
+    ├── Terrascape-<version>.jar
+    └── com.codelabchaos_Terrascape/
+        ├── terrascape.properties
+        ├── server-config.json
+        ├── access-tokens.json
+        ├── terrain/
+        ├── map-region/
+        ├── map-tile/
+        ├── samples/
+        ├── player-avatars/
+        └── mob-icons/
+```
+
+Back up `terrascape.properties`, `server-config.json`, and `access-tokens.json` with the
+rest of the save. Protect the backup because it contains configuration and token-signing
+material.
+
+Generated caches can be rebuilt. To clear terrain/mesh caches and the in-memory tile
+cache while the server is running, use:
+
+```text
+/terrascape clearcache all
+```
+
+For a complete disk-cache reset, stop the server before deleting `terrain/`,
+`map-region/`, or the legacy `map-tile/` directory by hand. Do not delete configuration
+or token files when you only intend to refresh terrain.
+
+## Optional remote command service
+
+Terrascape includes a standalone remote command service for administrators integrating a
+trusted server-management system. It is not required for the map, map links, or the web
+console, and it is disabled by default.
+
+To enable it:
+
+```properties
+rcon.enabled=true
+rcon.host=127.0.0.1
+rcon.port=25578
+rcon.password=<long-random-password>
+rcon.allowRemote=false
+```
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `rcon.enabled` | `false` | Enables the service |
+| `rcon.host` | `127.0.0.1` | Listening address |
+| `rcon.port` | `25578` | Remote-command TCP port |
+| `rcon.password` | blank | Required password when enabled |
+| `rcon.allowRemote` | `false` | Allows non-loopback clients |
+
+The service refuses to start without a password. Map tokens and `access.debugToken` do
+not authorize it. Keep it on localhost or a trusted private network, never expose its port
+directly to the internet, and treat its password like a server root password.
+
+## Security checklist
+
+- Use `access.mode=restricted` when the map is reachable from the internet.
+- Put public installations behind HTTPS.
+- Set `access.publicBaseUrl` so generated links use the intended domain.
+- Grant `terrascape.admin` only to trusted administrators.
+- Protect `access-tokens.json`, configuration files, and backups.
+- Keep CORS disabled unless a separate browser origin needs API access.
+- Keep standalone RCON disabled unless it is required.
+- Do not expose the RCON port publicly.
 
 ## Troubleshooting
 
-| Symptom | Check |
+| Symptom | What to check |
 | --- | --- |
-| Terrascape didn't start | server log should show `Terrascape started`; confirm the jar is in `<save>/mods/` |
-| Map not reachable externally | `http.host=0.0.0.0`? firewall/port-forward open for the web viewer port? |
-| Browser blocks API calls | cross-origin — set `cors.enabled=true` + `cors.allowedOrigins` |
-| "access required" / 401 | `access.mode=restricted` — mint a link with `/terrascape maplink`, or set `access.mode=public` |
-| Stale terrain / map tiles | `/terrascape clearcache` in-game, or stop the server and delete the cache folders |
-| Where did config go? | startup log: `Terrascape config loaded from <path>` |
-| Deploy harness can't connect | (developers) `remote-host.env` keys set? SSH alias reachable? `npm run deploy:status` |
-```
+| Terrascape does not start | Confirm one Terrascape jar is in the active save's `mods/` folder and check the server log for the first Terrascape error. |
+| Game connection closes after client identity validation | Run `/auth status`. For a remote server, use `/auth login device` and complete the console's verification URL/code. |
+| Cannot find the configuration | Run `/terrascape status` or find `Terrascape config loaded from …` in the startup log. |
+| Map does not open on the server computer | Confirm the server is running and open `http://127.0.0.1:<http.port>`. |
+| Map does not open from another computer | Set `http.host=0.0.0.0`, restart, and check the firewall, router, hosting panel, and configured TCP port. |
+| Generated link contains `0.0.0.0`, localhost, or the wrong IP | Set `access.publicBaseUrl` to the address visitors should use, then restart. |
+| Browser shows “access required” or HTTP 401 | The map is restricted; open a current `/terrascape maplink` URL or switch to public mode. |
+| A map link expired | Generate a new link in-game. |
+| `/terrascape` is denied | Grant `terrascape.map.use`; administrative subcommands also require `terrascape.admin`. |
+| Terrain or tiles appear stale | Run `/terrascape clearcache all`, then reload. If stale data remains, stop the server and remove the relevant disk-cache directories. |
+| Browser calls are blocked by CORS | If the viewer and API truly use different origins, enable CORS and list the exact viewer origin. |
+| Server load is too high | Reduce viewer radii or loading concurrency in `server-config.json`; reduce mesh concurrency or entity frequency only after observing server behavior. |
+| Configuration changes do not apply | Confirm you edited the active save's file and restarted the Hytale server. |

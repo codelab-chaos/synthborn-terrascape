@@ -32,6 +32,8 @@ public final class AccessGate {
      * read it via {@link HttpExchange#getAttribute(String)} to authorize beyond plain map access.
      */
     public static final String SCOPES_ATTRIBUTE = "terrascape.scopes";
+    /** Per-request validated token metadata, including its optional player identity. */
+    public static final String TOKEN_INFO_ATTRIBUTE = "terrascape.tokenInfo";
 
     private final AccessTokens tokens;
     private final BooleanSupplier restricted;
@@ -58,6 +60,7 @@ public final class AccessGate {
         AccessTokens.TokenInfo info = token == null ? null : tokens.resolve(token);
         if (info != null) {
             exchange.setAttribute(SCOPES_ATTRIBUTE, info.scopes());
+            exchange.setAttribute(TOKEN_INFO_ATTRIBUTE, info);
             String fromQuery = queryParam(exchange.getRequestURI().getRawQuery(), "key");
             if (token.equals(fromQuery)) {
                 setSessionCookie(exchange, token, info.expiresAt());
@@ -70,6 +73,13 @@ public final class AccessGate {
     public static boolean hasScope(@Nonnull HttpExchange exchange, @Nonnull String scope) {
         Object attribute = exchange.getAttribute(SCOPES_ATTRIBUTE);
         return attribute instanceof Set<?> set && set.contains(scope);
+    }
+
+    /** Returns validated token metadata, or {@code null} for anonymous/debug-token requests. */
+    @Nullable
+    public static AccessTokens.TokenInfo tokenInfo(@Nonnull HttpExchange exchange) {
+        Object attribute = exchange.getAttribute(TOKEN_INFO_ATTRIBUTE);
+        return attribute instanceof AccessTokens.TokenInfo info ? info : null;
     }
 
     @Nullable

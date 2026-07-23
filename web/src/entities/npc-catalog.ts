@@ -1,4 +1,15 @@
 import { apiFetch } from '../platform/api-client.ts';
+
+type NpcCatalogEntry = {
+  id: string;
+  label?: string;
+  appearance?: string;
+  aliases?: string[];
+  categoryPath?: string;
+  maxHealth?: number;
+  attackDamage?: number;
+  icon?: string;
+};
 function normalizeNpcKey(value) {
   return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
@@ -39,7 +50,7 @@ export function createNpcCatalog({ logClientEvent }) {
       const data = await response.json();
       detailsById.clear();
       aliases.clear();
-      for (const entry of Object.values(data.entries ?? {})) {
+      for (const entry of Object.values(data.entries ?? {}) as NpcCatalogEntry[]) {
         if (!entry?.id) continue;
         detailsById.set(entry.id, entry);
         for (const alias of entry.aliases ?? []) {

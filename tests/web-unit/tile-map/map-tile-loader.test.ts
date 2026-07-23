@@ -40,7 +40,7 @@ test('loadMapTilePng requests the correct url and returns bytes plus cache sourc
 test('loadMapTilePng falls back to "other" when cache header missing', async () => {
   const original = globalThis.fetch;
   try {
-    globalThis.fetch = (async () => makeResponse({ cacheHeader: null })) as typeof fetch;
+    globalThis.fetch = (async () => makeResponse({ cacheHeader: null })) as unknown as typeof fetch;
     const result = await loadMapTilePng('default', 0, 0);
     assert.equal(result.source, 'other');
   } finally {
@@ -51,7 +51,7 @@ test('loadMapTilePng falls back to "other" when cache header missing', async () 
 test('loadMapTilePng throws on non-ok response', async () => {
   const original = globalThis.fetch;
   try {
-    globalThis.fetch = (async () => makeResponse({ ok: false, status: 503 })) as typeof fetch;
+    globalThis.fetch = (async () => makeResponse({ ok: false, status: 503 })) as unknown as typeof fetch;
     await assert.rejects(
       () => loadMapTilePng('default', 1, 1),
       /Map tile request failed: 503/,

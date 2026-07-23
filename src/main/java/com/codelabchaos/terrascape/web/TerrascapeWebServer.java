@@ -4,6 +4,7 @@ import com.codelabchaos.terrascape.TerrascapePlugin;
 import com.codelabchaos.terrascape.PlayerLookTracker;
 import com.codelabchaos.terrascape.access.AccessGate;
 import com.codelabchaos.terrascape.access.AccessTokens;
+import com.codelabchaos.terrascape.access.RequestScopedExchange;
 import com.codelabchaos.terrascape.config.ServerControls;
 
 import static com.codelabchaos.terrascape.web.Json.escapeJson;
@@ -46,9 +47,6 @@ import com.hypixel.hytale.component.spatial.SpatialResource;
 import com.hypixel.hytale.math.vector.Rotation3f;
 import com.hypixel.hytale.math.vector.Transform;
 import com.hypixel.hytale.protocol.packets.worldmap.MapImage;
-import com.hypixel.hytale.server.core.Message;
-import com.hypixel.hytale.server.core.command.system.CommandManager;
-import com.hypixel.hytale.server.core.command.system.CommandSender;
 import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.entity.EntityUtils;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
@@ -141,8 +139,8 @@ public final class TerrascapeWebServer {
     private static final Duration MAP_REGION_TIMEOUT = Duration.ofSeconds(60);
     private static final int MAP_REGION_GENERATE_RADIUS = 20;
     private static final int MAX_CLIENT_LOG_BYTES = 16 * 1024;
-    private static final int MAX_MAP_RCON_BYTES = 8 * 1024;
-    private static final Duration MAP_RCON_COMMAND_TIMEOUT = Duration.ofSeconds(90);
+    private static final int MAX_CONSOLE_BODY_BYTES = 4 * 1024;
+    private static final Duration CONSOLE_SUBMIT_TIMEOUT = Duration.ofSeconds(90);
     private static final String[] PERF_CLIENT_LOG_TYPES = {
             "\"type\":\"frame_hitch\"",
             "\"type\":\"grid_load\"",
@@ -162,7 +160,7 @@ public final class TerrascapeWebServer {
     private static final long PLAYER_AVATAR_CACHE_TTL_MS = Duration.ofHours(12).toMillis();
     private static final Pattern MOB_ICON_PATH_PATTERN = Pattern.compile("^/mob-icons/([A-Za-z0-9_.-]+\\.png)$");
     private static final Pattern PLAYER_AVATAR_PATH_PATTERN = Pattern.compile("^/api/player-avatar/([A-Za-z0-9-]{1,64})\\.png$");
-    private static final Pattern MAP_RCON_COMMAND_PATTERN = Pattern.compile("\"command\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
+    private static final Pattern CONSOLE_INPUT_PATTERN = Pattern.compile("\"input\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
 
     private final TerrascapePlugin plugin;
     private final TerrascapeConfig config;
@@ -194,6 +192,7 @@ public final class TerrascapeWebServer {
     private final AvatarService avatarService;
     private final AssetLocator assetLocator;
     private final MobScanner mobScanner;
+    private final WebConsoleService webConsole;
     private final AtomicInteger activeGenerations = new AtomicInteger();
     private final AtomicLong singleRequests = new AtomicLong();
     private final AtomicLong batchRequests = new AtomicLong();
@@ -216,6 +215,7 @@ public final class TerrascapeWebServer {
         this.avatarService = new AvatarService(config, plugin);
         this.assetLocator = new AssetLocator(config, plugin);
         this.mobScanner = new MobScanner(config, plugin, npcRoleIndex);
+        this.webConsole = plugin.webConsoleService();
         this.serverControls = ServerControls.load(config.configPath().getParent(),
                 message -> plugin.getLogger().at(Level.WARNING).log(message));
         this.host = config.http().host();
@@ -235,7 +235,7 @@ public final class TerrascapeWebServer {
         this.server.createContext("/api/entities/stream", onApi(this::handleEntityStream));
         this.server.createContext("/api/mapregion", onApi(this::handleMapRegion));
         this.server.createContext("/api/client-log", onApi(this::handleClientLog));
-        this.server.createContext("/api/rcon", onApi(this::handleMapRcon));
+        this.server.createContext("/api/console", onApi(this::handleWebConsole));
         this.server.createContext("/api/terrain", onApi(this::handleTerrain));
         this.server.createContext("/", onStatic(this::handleStatic));
         this.server.setExecutor(null);
@@ -254,38 +254,40 @@ public final class TerrascapeWebServer {
 
     private HttpHandler onStatic(@Nonnull HttpHandler handler) {
         return exchange -> staticHttpExecutor.execute(() -> {
+            HttpExchange request = new RequestScopedExchange(exchange);
             try {
-                if (!gatePassed(exchange)) {
-                    writeAccessRequiredPage(exchange);
+                if (!gatePassed(request)) {
+                    writeAccessRequiredPage(request);
                     return;
                 }
-                handler.handle(exchange);
+                handler.handle(request);
             } catch (IOException error) {
                 plugin.getLogger().at(Level.WARNING).withCause(error).log(
-                        "Static request failed: " + exchange.getRequestURI().getPath());
+                        "Static request failed: " + request.getRequestURI().getPath());
             }
         });
     }
 
     private HttpHandler onApi(@Nonnull HttpHandler handler) {
         return exchange -> apiHttpExecutor.execute(() -> {
+            HttpExchange request = new RequestScopedExchange(exchange);
             try {
                 // Answer CORS preflight centrally and without auth — preflight carries no credentials
                 // and must succeed for the real request to be sent.
-                if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
-                    cors.applyPreflight(exchange);
-                    exchange.sendResponseHeaders(204, -1);
+                if ("OPTIONS".equalsIgnoreCase(request.getRequestMethod())) {
+                    cors.applyPreflight(request);
+                    request.sendResponseHeaders(204, -1);
                     return;
                 }
-                cors.apply(exchange);
-                if (!gatePassed(exchange)) {
-                    writeJson(exchange, 401, "{\"ok\":false,\"error\":\"access_required\"}");
+                cors.apply(request);
+                if (!gatePassed(request)) {
+                    writeJson(request, 401, "{\"ok\":false,\"error\":\"access_required\"}");
                     return;
                 }
-                handler.handle(exchange);
+                handler.handle(request);
             } catch (IOException error) {
                 plugin.getLogger().at(Level.WARNING).withCause(error).log(
-                        "API request failed: " + exchange.getRequestURI().getPath());
+                        "API request failed: " + request.getRequestURI().getPath());
             }
         });
     }
@@ -410,70 +412,136 @@ public final class TerrascapeWebServer {
         return false;
     }
 
-    private void handleMapRcon(@Nonnull HttpExchange exchange) throws IOException {
-        if (!"/api/rcon/command".equals(exchange.getRequestURI().getPath())) {
-            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"unknown_rcon_endpoint\"}");
+    /** Terrascape-owned, identity-gated web console API. */
+    private void handleWebConsole(@Nonnull HttpExchange exchange) throws IOException {
+        if (!config.features().webConsole()) {
+            if ("/api/console/session".equals(exchange.getRequestURI().getPath())) {
+                writeJson(exchange, 200, "{\"ok\":true,\"enabled\":false}");
+            } else {
+                writeJson(exchange, 404, "{\"ok\":false,\"error\":\"web_console_disabled\"}");
+            }
             return;
         }
-        if (!mapRconUserTokenAuthorized(exchange)) {
-            writeJson(exchange, 403, "{\"ok\":false,\"error\":\"admin_user_token_required\"}");
+        AccessTokens.TokenInfo token = consoleToken(exchange);
+        if (token == null) {
+            writeJson(exchange, 403, "{\"ok\":false,\"error\":\"identity_bound_map_token_required\"}");
             return;
         }
+
+        String path = exchange.getRequestURI().getPath();
+        if ("/api/console/session".equals(path)) {
+            handleConsoleSession(exchange, token);
+        } else if ("/api/console/history".equals(path)) {
+            handleConsoleHistory(exchange, token);
+        } else if ("/api/console/submit".equals(path)) {
+            handleConsoleSubmit(exchange, token);
+        } else {
+            writeJson(exchange, 404, "{\"ok\":false,\"error\":\"unknown_console_endpoint\"}");
+        }
+    }
+
+    private void handleConsoleSession(
+            @Nonnull HttpExchange exchange,
+            @Nonnull AccessTokens.TokenInfo token
+    ) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+        PlayerRef player = webConsole.onlinePlayer(token.subjectUuid());
+        String username = player == null ? token.subjectName() : player.getUsername();
+        writeJson(exchange, 200, "{\"ok\":true,\"enabled\":true"
+                + ",\"authenticated\":true"
+                + ",\"online\":" + (player != null && player.isValid())
+                + ",\"player\":{\"uuid\":\"" + token.subjectUuid() + "\""
+                + ",\"username\":\"" + escapeJson(username == null ? "Player" : username) + "\"}}");
+    }
+
+    private void handleConsoleHistory(
+            @Nonnull HttpExchange exchange,
+            @Nonnull AccessTokens.TokenInfo token
+    ) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
+            return;
+        }
+        long after = parseNonNegativeLong(queryParam(exchange.getRequestURI().getRawQuery(), "after"));
+        String entries = webConsole.history(token.subjectUuid(), after).stream()
+                .map(WebConsoleService.HistoryEntry::toJson)
+                .collect(Collectors.joining(","));
+        writeJson(exchange, 200, "{\"ok\":true,\"entries\":[" + entries + "]}");
+    }
+
+    private void handleConsoleSubmit(
+            @Nonnull HttpExchange exchange,
+            @Nonnull AccessTokens.TokenInfo token
+    ) throws IOException {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             writeJson(exchange, 405, "{\"ok\":false,\"error\":\"method_not_allowed\"}");
             return;
         }
-
-        byte[] body = exchange.getRequestBody().readNBytes(MAX_MAP_RCON_BYTES + 1);
-        if (body.length > MAX_MAP_RCON_BYTES) {
-            writeJson(exchange, 413, "{\"ok\":false,\"error\":\"command_body_too_large\"}");
+        byte[] body = exchange.getRequestBody().readNBytes(MAX_CONSOLE_BODY_BYTES + 1);
+        if (body.length > MAX_CONSOLE_BODY_BYTES) {
+            writeJson(exchange, 413, "{\"ok\":false,\"error\":\"console_body_too_large\"}");
             return;
         }
-        String command = parseMapRconCommand(new String(body, StandardCharsets.UTF_8));
-        if (command == null || command.isBlank()) {
-            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"missing_command\"}");
+        String input = parseConsoleInput(new String(body, StandardCharsets.UTF_8));
+        if (input == null) {
+            writeJson(exchange, 400, "{\"ok\":false,\"error\":\"missing_input\"}");
             return;
         }
-
-        WebCommandSender sender = new WebCommandSender("TerrascapeWeb");
         try {
-            CompletableFuture<Void> future = CommandManager.get().handleCommand(sender, command);
-            future.get(MAP_RCON_COMMAND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            writeJson(exchange, 200, mapRconResponseJson(true, command, sender.messages(), null));
-        } catch (Exception e) {
-            plugin.getLogger().at(Level.WARNING).withCause(e).log("Map API RCON command failed: " + command);
-            writeJson(exchange, 500, mapRconResponseJson(false, command, sender.messages(), e.getMessage()));
+            WebConsoleService.SubmitResult result = webConsole.submit(
+                            token.subjectUuid(), token.subjectName(), input)
+                    .get(CONSOLE_SUBMIT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            int status = consoleHttpStatus(result.status());
+            String detail = result.detail() == null ? "" : ",\"message\":\"" + escapeJson(result.detail()) + "\"";
+            writeJson(exchange, status, "{\"ok\":" + (result.status() == WebConsoleService.SubmitStatus.ACCEPTED)
+                    + ",\"status\":\"" + result.status().name().toLowerCase() + "\"" + detail + "}");
+        } catch (Exception error) {
+            plugin.getLogger().at(Level.WARNING).withCause(error)
+                    .log("Web console submission timed out for " + token.subjectUuid());
+            writeJson(exchange, 504, "{\"ok\":false,\"error\":\"console_submit_timeout\"}");
         }
     }
 
-    static boolean mapRconUserTokenAuthorized(@Nonnull HttpExchange exchange) {
-        return AccessGate.hasScope(exchange, AccessTokens.SCOPE_MAP)
-                && AccessGate.hasScope(exchange, AccessTokens.SCOPE_ADMIN);
+    static int consoleHttpStatus(@Nonnull WebConsoleService.SubmitStatus status) {
+        return switch (status) {
+                case ACCEPTED -> 200;
+                case INVALID -> 400;
+                case RATE_LIMITED -> 429;
+                case OFFLINE -> 409;
+                case CANCELLED -> 403;
+                case FAILED -> 500;
+            };
     }
 
     @Nullable
-    static String parseMapRconCommand(@Nonnull String body) {
-        Matcher matcher = MAP_RCON_COMMAND_PATTERN.matcher(body);
+    static AccessTokens.TokenInfo consoleToken(@Nonnull HttpExchange exchange) {
+        AccessTokens.TokenInfo token = AccessGate.tokenInfo(exchange);
+        return token != null
+                && token.scopes().contains(AccessTokens.SCOPE_MAP)
+                && token.subjectUuid() != null
+                && token.subjectName() != null
+                && !token.subjectName().isBlank()
+                ? token : null;
+    }
+
+    @Nullable
+    static String parseConsoleInput(@Nonnull String body) {
+        Matcher matcher = CONSOLE_INPUT_PATTERN.matcher(body);
         return matcher.find() ? unescapeJsonString(matcher.group(1)) : null;
     }
 
-    static String mapRconResponseJson(boolean ok, @Nonnull String command, @Nonnull List<String> messages, @Nullable String error) {
-        StringBuilder json = new StringBuilder();
-        json.append("{\"ok\":").append(ok);
-        json.append(",\"command\":\"").append(escapeJson(command)).append("\"");
-        json.append(",\"messages\":[");
-        for (int i = 0; i < messages.size(); i++) {
-            if (i > 0) {
-                json.append(',');
-            }
-            json.append('"').append(escapeJson(messages.get(i))).append('"');
+    private static long parseNonNegativeLong(@Nullable String value) {
+        if (value == null || value.isBlank()) {
+            return 0L;
         }
-        json.append(']');
-        if (error != null && !error.isBlank()) {
-            json.append(",\"error\":\"").append(escapeJson(error)).append("\"");
+        try {
+            return Math.max(0L, Long.parseLong(value));
+        } catch (NumberFormatException ignored) {
+            return 0L;
         }
-        json.append('}');
-        return json.toString();
     }
 
     private void handleNpcIndex(@Nonnull HttpExchange exchange) throws IOException {
@@ -1550,83 +1618,6 @@ public final class TerrascapeWebServer {
         return false;
     }
 
-    private static final class WebCommandSender implements CommandSender {
-        private static final Pattern ANSI_PATTERN = Pattern.compile("\\[[;\\d]*m");
-
-        private final String name;
-        private final UUID uuid;
-        private final List<String> messages = new ArrayList<>();
-
-        private WebCommandSender(@Nonnull String name) {
-            this.name = name;
-            this.uuid = UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8));
-        }
-
-        @Override
-        public void sendMessage(@Nonnull Message message) {
-            messages.add(renderMessage(message));
-        }
-
-        @Override
-        public String getUsername() {
-            return name;
-        }
-
-        @Override
-        public UUID getUuid() {
-            return uuid;
-        }
-
-        @Override
-        public boolean hasPermission(String permission) {
-            return true;
-        }
-
-        @Override
-        public boolean hasPermission(String permission, boolean defaultValue) {
-            return true;
-        }
-
-        private List<String> messages() {
-            return List.copyOf(messages);
-        }
-
-        private static String renderMessage(@Nonnull Message message) {
-            String raw = message.getRawText();
-            if (raw != null && !raw.isBlank()) {
-                return raw;
-            }
-
-            List<Message> children = message.getChildren();
-            if (children != null && !children.isEmpty()) {
-                StringBuilder sb = new StringBuilder();
-                for (Message child : children) {
-                    String childText = renderMessage(child);
-                    if (childText != null && !childText.isBlank()) {
-                        sb.append(childText);
-                    }
-                }
-                if (sb.length() > 0) {
-                    return sb.toString();
-                }
-            }
-
-            String ansi = message.getAnsiMessage();
-            if (ansi != null && !ansi.isBlank()) {
-                String stripped = ANSI_PATTERN.matcher(ansi).replaceAll("");
-                if (!stripped.isBlank()) {
-                    return stripped;
-                }
-            }
-
-            String id = message.getMessageId();
-            if (id != null && !id.isBlank()) {
-                return id;
-            }
-
-            return "";
-        }
-    }
 
     public record Metrics(
             long singleRequests,

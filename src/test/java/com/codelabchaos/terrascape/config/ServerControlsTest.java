@@ -113,9 +113,38 @@ class ServerControlsTest {
         assertEquals(0.2, mobRate.get("default").getAsDouble());
         // slider → {enabled, min, max, default}
         JsonObject chunks = out.getAsJsonObject("chunksLoadedAtOnce");
+        assertTrue(chunks.get("enabled").getAsBoolean());
         assertEquals(1, chunks.get("min").getAsInt());
         assertEquals(12, chunks.get("max").getAsInt());
         assertEquals(4, chunks.get("default").getAsInt());
+    }
+
+    @Test
+    void experimentalPromotionValuesAreLockedAndNormalizedInsideHardBounds() throws IOException {
+        load();
+        String edited = Files.readString(file())
+                .replace("\"spawnPerFrameMin\": 1", "\"spawnPerFrameMin\": 999")
+                .replace("\"spawnPerFrameMax\": 12", "\"spawnPerFrameMax\": -999")
+                .replace("\"spawnPerFrameDefault\": 2", "\"spawnPerFrameDefault\": 999")
+                .replace("\"spawnBudgetMsMin\": 1", "\"spawnBudgetMsMin\": 999")
+                .replace("\"spawnBudgetMsMax\": 24", "\"spawnBudgetMsMax\": -999")
+                .replace("\"spawnBudgetMsDefault\": 4", "\"spawnBudgetMsDefault\": -999");
+        Files.writeString(file(), edited);
+
+        JsonObject out = JsonParser.parseString(load().toClientJson()).getAsJsonObject();
+        JsonObject perFrame = out.getAsJsonObject("spawnPerFrame");
+        assertEquals(1, perFrame.get("min").getAsInt());
+        assertEquals(12, perFrame.get("max").getAsInt());
+        assertEquals(12, perFrame.get("default").getAsInt());
+        assertFalse(perFrame.get("enabled").getAsBoolean());
+
+        JsonObject budget = out.getAsJsonObject("spawnBudgetMs");
+        assertEquals(1, budget.get("min").getAsInt());
+        assertEquals(24, budget.get("max").getAsInt());
+        assertEquals(1, budget.get("default").getAsInt());
+        assertFalse(budget.get("enabled").getAsBoolean());
+
+        assertTrue(out.getAsJsonObject("chunksLoadedAtOnce").get("enabled").getAsBoolean());
     }
 
     @Test

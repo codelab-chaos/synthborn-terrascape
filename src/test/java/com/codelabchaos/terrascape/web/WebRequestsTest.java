@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -107,34 +108,37 @@ class WebRequestsTest {
     }
 
     @Test
-    void mapRconCommandParserReadsEscapedCommand() {
-        assertEquals("terrascape say \"hi\"",
-                TerrascapeWebServer.parseMapRconCommand("{\"command\":\"terrascape say \\\"hi\\\"\"}"));
-        assertNull(TerrascapeWebServer.parseMapRconCommand("{}"));
+    void consoleRequiresAnIdentityBoundMapToken() {
+        FakeHttpExchange anonymous = new FakeHttpExchange("GET", "/api/console/session");
+        assertNull(TerrascapeWebServer.consoleToken(anonymous));
+
+        FakeHttpExchange unbound = new FakeHttpExchange("GET", "/api/console/session");
+        unbound.setAttribute(AccessGate.TOKEN_INFO_ATTRIBUTE,
+                new AccessTokens.TokenInfo(System.currentTimeMillis() + 60_000,
+                        Set.of(AccessTokens.SCOPE_MAP), null, null));
+        assertNull(TerrascapeWebServer.consoleToken(unbound));
+
+        UUID player = UUID.randomUUID();
+        FakeHttpExchange bound = new FakeHttpExchange("GET", "/api/console/session");
+        bound.setAttribute(AccessGate.TOKEN_INFO_ATTRIBUTE,
+                new AccessTokens.TokenInfo(System.currentTimeMillis() + 60_000,
+                        Set.of(AccessTokens.SCOPE_MAP), player, "Aster"));
+        assertEquals(player, TerrascapeWebServer.consoleToken(bound).subjectUuid());
     }
 
     @Test
-    void mapRconRequiresAdminScopedUserToken() {
-        FakeHttpExchange noToken = new FakeHttpExchange("POST", "/api/rcon/command");
-        assertFalse(TerrascapeWebServer.mapRconUserTokenAuthorized(noToken));
-
-        FakeHttpExchange mapOnly = new FakeHttpExchange("POST", "/api/rcon/command");
-        mapOnly.setAttribute(AccessGate.SCOPES_ATTRIBUTE, Set.of(AccessTokens.SCOPE_MAP));
-        assertFalse(TerrascapeWebServer.mapRconUserTokenAuthorized(mapOnly));
-
-        FakeHttpExchange adminOnly = new FakeHttpExchange("POST", "/api/rcon/command");
-        adminOnly.setAttribute(AccessGate.SCOPES_ATTRIBUTE, Set.of(AccessTokens.SCOPE_ADMIN));
-        assertFalse(TerrascapeWebServer.mapRconUserTokenAuthorized(adminOnly));
-
-        FakeHttpExchange adminUserToken = new FakeHttpExchange("POST", "/api/rcon/command");
-        adminUserToken.setAttribute(AccessGate.SCOPES_ATTRIBUTE,
-                Set.of(AccessTokens.SCOPE_MAP, AccessTokens.SCOPE_ADMIN));
-        assertTrue(TerrascapeWebServer.mapRconUserTokenAuthorized(adminUserToken));
+    void consoleInputParserReadsEscapedInput() {
+        assertEquals("say \"hello\"", TerrascapeWebServer.parseConsoleInput("{\"input\":\"say \\\"hello\\\"\"}"));
+        assertNull(TerrascapeWebServer.parseConsoleInput("{}"));
     }
 
     @Test
-    void mapRconResponseEscapesCommandOutput() {
-        assertEquals("{\"ok\":false,\"command\":\"say \\\"hi\\\"\",\"messages\":[\"line1\",\"line\\\\2\"],\"error\":\"bad\\nnews\"}",
-                TerrascapeWebServer.mapRconResponseJson(false, "say \"hi\"", List.of("line1", "line\\2"), "bad\nnews"));
+    void consoleSubmitStatusesFailClosedWithExplicitHttpCodes() {
+        assertEquals(200, TerrascapeWebServer.consoleHttpStatus(WebConsoleService.SubmitStatus.ACCEPTED));
+        assertEquals(400, TerrascapeWebServer.consoleHttpStatus(WebConsoleService.SubmitStatus.INVALID));
+        assertEquals(403, TerrascapeWebServer.consoleHttpStatus(WebConsoleService.SubmitStatus.CANCELLED));
+        assertEquals(409, TerrascapeWebServer.consoleHttpStatus(WebConsoleService.SubmitStatus.OFFLINE));
+        assertEquals(429, TerrascapeWebServer.consoleHttpStatus(WebConsoleService.SubmitStatus.RATE_LIMITED));
+        assertEquals(500, TerrascapeWebServer.consoleHttpStatus(WebConsoleService.SubmitStatus.FAILED));
     }
 }

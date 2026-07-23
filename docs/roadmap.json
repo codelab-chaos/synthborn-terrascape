@@ -1,0 +1,79 @@
+{
+  "title": "Synthborn: Terrascape Roadmap",
+  "subtitle": "Release-grouped direction for the first public beta and its feedback cycle",
+  "updated": "2026-07-14",
+  "releases": [
+    {
+      "version": "v0.1.0 BETA",
+      "name": "Initial Beta Release",
+      "phase": "CURRENT MILESTONE",
+      "summary": "Ship the first complete Terrascape experience, including the secure browser console interface.",
+      "accent": "#51e6c1",
+      "items": [
+        {
+          "glyph": "3D",
+          "title": "Live 3D World",
+          "description": "Stream terrain meshes from the running Hytale world into the browser.",
+          "status": "shipped"
+        },
+        {
+          "glyph": "NPC",
+          "title": "Mobs & Players",
+          "description": "Show live player markers, player navigation, and detailed mob cards.",
+          "status": "shipped"
+        },
+        {
+          "glyph": "CAM",
+          "title": "Player Views",
+          "description": "Focus, follow, and first-person camera modes for online players.",
+          "status": "shipped"
+        },
+        {
+          "glyph": "SUN",
+          "title": "Day / Night Cycle",
+          "description": "Display world time and synchronize the viewer's lighting when enabled.",
+          "status": "shipped"
+        },
+        {
+          "glyph": "MAP",
+          "title": "Map-Tile Backdrop",
+          "description": "Fill the distance beyond loaded 3D terrain with top-down world tiles.",
+          "status": "shipped"
+        },
+        {
+          "glyph": "TUNE",
+          "title": "Tunable Rendering",
+          "description": "Control mesh distance, water, fog, detail, shading, and load budgets.",
+          "status": "shipped"
+        },
+        {
+          "glyph": "LINK",
+          "title": "Shareable Access",
+          "description": "Support open maps and secure per-player token-gated links.",
+          "status": "shipped"
+        },
+        {
+          "glyph": ">_",
+          "title": "Browser Console Interface",
+          "description": "Provide identity-bound web chat and permission-checked commands with private output history.",
+          "status": "shipped"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.x BETA",
+      "name": "Community-Driven Updates",
+      "phase": "WHAT COMES NEXT",
+      "summary": "Future improvements will follow the needs players and server owners raise during the beta.",
+      "accent": "#9b8cff",
+      "items": [
+        {
+          "glyph": "YOU",
+          "title": "Requested Improvements",
+          "description": "Prioritize meaningful map, camera, console, and usability improvements requested by the community.",
+          "status": "conditional"
+        }
+      ]
+    }
+  ]
+}

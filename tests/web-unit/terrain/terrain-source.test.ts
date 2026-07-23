@@ -114,6 +114,26 @@ test('loadTerrainChunkData reports stale when the load generation moved on', asy
   assert.equal(result.network, false);
 });
 
+test('cache-only terrain loading reports a miss without fetching the network', async () => {
+  runtime.loadGeneration = 8;
+  let fetches = 0;
+  await withFetch((async () => {
+    fetches += 1;
+    throw new Error('cache-only mode must not fetch');
+  }) as unknown as typeof fetch, async () => {
+    const result = await loadTerrainChunkData(
+      'default',
+      { chunkX: 12, chunkZ: -4 },
+      8,
+      'cache-only',
+    );
+    assert.equal(result.ok, false);
+    assert.equal(result.cacheOnlyMiss, true);
+    assert.equal(result.cacheMiss, true);
+  });
+  assert.equal(fetches, 0);
+});
+
 test('parseGltfBytes rejects on invalid bytes', async () => {
   // Not a valid GLB/GLTF buffer; the underlying loader should reject.
   await assert.rejects(() => parseGltfBytes(new ArrayBuffer(8)));

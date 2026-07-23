@@ -10,7 +10,8 @@ const options = {
   rconHost: process.env.TERRASCAPE_RCON_HOST || DEFAULT_RCON_HOST,
   rconPort: process.env.TERRASCAPE_RCON_PORT || DEFAULT_RCON_PORT,
   rconToken: process.env.TERRASCAPE_RCON_PASSWORD || process.env.SYNTH_RCON_PASSWORD || process.env.SYNTH_RCON_TOKEN || "",
-  subject: process.env.TERRASCAPE_SMOKE_SUBJECT || `runtime-smoke-${Date.now()}`,
+  mapToken: process.env.TERRASCAPE_MAP_TOKEN || "",
+  consoleInput: process.env.TERRASCAPE_CONSOLE_SMOKE_INPUT || "/terrascape status",
   timeoutMs: Number.parseInt(process.env.TERRASCAPE_SMOKE_TIMEOUT_MS || "30000", 10),
   mutating: false,
 };
@@ -36,8 +37,11 @@ for (let i = 0; i < args.length; i++) {
     case "--rcon-password":
       options.rconToken = args[++i] || options.rconToken;
       break;
-    case "--subject":
-      options.subject = args[++i] || options.subject;
+    case "--map-token":
+      options.mapToken = args[++i] || options.mapToken;
+      break;
+    case "--console-input":
+      options.consoleInput = args[++i] || options.consoleInput;
       break;
     case "--timeout-ms":
       options.timeoutMs = Number.parseInt(args[++i] || String(options.timeoutMs), 10);
@@ -70,8 +74,6 @@ main().catch((error) => {
 
 async function main() {
   const results = [];
-  let mapToken = null;
-  let adminToken = null;
 
   await step(results, "standalone RCON health", async () => {
     const response = await requestJson(`${options.rconUrl}/health`);
@@ -88,22 +90,11 @@ async function main() {
     return messageCount(response.json);
   });
 
-  await step(results, "mint map-only smoke token", async () => {
-    const response = await rconCommand(`terrascape smoketoken map ${options.subject}-map`);
-    assertOk(response.status === 200, `map token mint returned ${response.status}`);
-    assertOk(response.json && response.json.ok === true, "map token mint did not return ok:true");
-    mapToken = extractToken(response.json.messages);
-    assertOk(mapToken, "map token mint did not print a token");
-    return "token captured";
-  });
-
-  await step(results, "mint admin smoke token", async () => {
-    const response = await rconCommand(`terrascape smoketoken admin ${options.subject}-admin`);
-    assertOk(response.status === 200, `admin token mint returned ${response.status}`);
-    assertOk(response.json && response.json.ok === true, "admin token mint did not return ok:true");
-    adminToken = extractToken(response.json.messages);
-    assertOk(adminToken, "admin token mint did not print a token");
-    return "token captured";
+  await step(results, "standalone RCON lists safe link metadata", async () => {
+    const response = await rconCommand("terrascape tokens");
+    assertOk(response.status === 200, `RCON tokens returned ${response.status}`);
+    assertOk(response.json && response.json.ok === true, "RCON tokens did not return ok:true");
+    return messageCount(response.json);
   });
 
   await step(results, "web API access-mode probe", async () => {
@@ -119,50 +110,55 @@ async function main() {
     return "restricted";
   });
 
-  await step(results, "web API worlds with map token", async () => {
-    const response = await requestJson(`${options.webUrl}/api/worlds`, bearerInit(mapToken));
-    assertOk(response.status === 200, `GET /api/worlds returned ${response.status}`);
-    assertOk(response.json && response.json.ok === true, "GET /api/worlds did not return ok:true");
-    assertOk(Array.isArray(response.json.worlds), "GET /api/worlds did not include a worlds array");
-    assertOk(response.json.worlds.length >= 1, "GET /api/worlds did not return any visible worlds");
-    return `${response.json.worlds.length} world(s)`;
-  });
-
-  await step(results, "map command proxy rejects missing token", async () => {
-    const response = await mapCommand("terrascape status");
-    assertOk(response.status === 401 || response.status === 403, `expected 401/403, got ${response.status}`);
+  await step(results, "web console rejects anonymous identity", async () => {
+    const response = await requestJson(`${options.webUrl}/api/console/session`);
+    assertOk(response.status === 401 || response.status === 403,
+      `expected anonymous console rejection, got ${response.status}`);
     return response.json?.error || `HTTP ${response.status}`;
   });
 
-  await step(results, "map command proxy rejects wrong token", async () => {
-    const response = await mapCommand("terrascape status", "not-a-real-token");
-    assertOk(response.status === 401 || response.status === 403, `expected 401/403, got ${response.status}`);
+  await step(results, "web console rejects invalid bearer", async () => {
+    const response = await requestJson(`${options.webUrl}/api/console/session`, bearerInit("not-a-real-token"));
+    assertOk(response.status === 401 || response.status === 403,
+      `expected invalid-token console rejection, got ${response.status}`);
     return response.json?.error || `HTTP ${response.status}`;
   });
 
-  await step(results, "map command proxy rejects map-only token", async () => {
-    const response = await mapCommand("terrascape status", mapToken);
-    assertOk(response.status === 403, `expected 403, got ${response.status}`);
-    assertOk(response.json?.error === "admin_user_token_required",
-      `expected admin_user_token_required, got ${response.json?.error || "no error"}`);
-    return response.json.error;
-  });
-
-  await step(results, "map command proxy accepts admin token", async () => {
-    const response = await mapCommand("terrascape status", adminToken);
-    assertOk(response.status === 200, `expected 200, got ${response.status}`);
-    assertOk(response.json && response.json.ok === true, "map command did not return ok:true");
-    assertMessage(response.json.messages, "Terrascape status");
-    return messageCount(response.json);
-  });
+  if (options.mapToken) {
+    await step(results, "web API worlds with personal map token", async () => {
+      const response = await requestJson(`${options.webUrl}/api/worlds`, bearerInit(options.mapToken));
+      assertOk(response.status === 200, `GET /api/worlds returned ${response.status}`);
+      assertOk(Array.isArray(response.json?.worlds), "GET /api/worlds did not include worlds");
+      return `${response.json.worlds.length} world(s)`;
+    });
+    await step(results, "identity-bound console session", async () => {
+      const response = await consoleRequest("/api/console/session");
+      assertOk(response.status === 200, `console session returned ${response.status}`);
+      assertOk(response.json?.authenticated === true, "console session was not authenticated");
+      assertOk(response.json?.player?.uuid && response.json?.player?.username,
+        "console session omitted linked player identity");
+      return `${response.json.player.username} (${response.json.online ? "online" : "offline"})`;
+    });
+    await step(results, "identity-bound console history", async () => {
+      const response = await consoleRequest("/api/console/history?after=0");
+      assertOk(response.status === 200, `console history returned ${response.status}`);
+      assertOk(Array.isArray(response.json?.entries), "console history omitted entries");
+      return `${response.json.entries.length} entr${response.json.entries.length === 1 ? "y" : "ies"}`;
+    });
+  } else {
+    console.log("skip - authenticated console checks (pass --map-token or TERRASCAPE_MAP_TOKEN)");
+  }
 
   if (options.mutating) {
-    await step(results, "mutating console smoke: clear tile cache", async () => {
-      const response = await mapCommand("terrascape clearcache tiles", adminToken);
-      assertOk(response.status === 200, `expected 200, got ${response.status}`);
-      assertOk(response.json && response.json.ok === true, "clearcache did not return ok:true");
-      assertMessage(response.json.messages, "Terrascape clearcache");
-      return messageCount(response.json);
+    assertOk(options.mapToken, "--mutating requires an identity-bound --map-token");
+    await step(results, "console submission as linked user", async () => {
+      const response = await consoleRequest("/api/console/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: options.consoleInput }),
+      });
+      assertOk(response.status === 200, `console submit returned ${response.status}: ${response.text}`);
+      return options.consoleInput.startsWith("/") ? "permission-checked command" : "chat";
     });
   }
 
@@ -170,7 +166,7 @@ async function main() {
   console.log(`runtime smoke passed (${results.length} checks)`);
   console.log(`web:  ${options.webUrl}`);
   console.log(`rcon: ${options.rconUrl}`);
-  console.log(`subject: ${options.subject}`);
+  console.log(`authenticated console: ${options.mapToken ? "checked" : "skipped"}`);
 }
 
 async function step(results, name, fn) {
@@ -195,16 +191,9 @@ async function rconCommand(command) {
   });
 }
 
-async function mapCommand(command, bearerToken = null) {
-  const init = {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ command }),
-  };
-  if (bearerToken) {
-    init.headers.Authorization = `Bearer ${bearerToken}`;
-  }
-  return requestJson(`${options.webUrl}/api/rcon/command`, init);
+async function consoleRequest(path, init = {}) {
+  const headers = { ...(init.headers || {}), Authorization: `Bearer ${options.mapToken}` };
+  return requestJson(`${options.webUrl}${path}`, { ...init, headers });
 }
 
 function bearerInit(bearerToken) {
@@ -213,6 +202,11 @@ function bearerInit(bearerToken) {
       Authorization: `Bearer ${bearerToken}`,
     },
   };
+}
+
+function assertMessage(messages, needle) {
+  const found = (messages || []).some((message) => String(message).includes(needle));
+  assertOk(found, `expected command output containing "${needle}"`);
 }
 
 async function requestJson(url, init = {}) {
@@ -240,21 +234,6 @@ async function requestJson(url, init = {}) {
   }
 }
 
-function extractToken(messages) {
-  for (const message of messages || []) {
-    const match = String(message).match(/\btoken\s*:\s*([A-Za-z0-9_-]{16,})\b/);
-    if (match) {
-      return match[1];
-    }
-  }
-  return null;
-}
-
-function assertMessage(messages, needle) {
-  const found = (messages || []).some((message) => String(message).includes(needle));
-  assertOk(found, `expected command output containing "${needle}"`);
-}
-
 function messageCount(json) {
   const count = Array.isArray(json.messages) ? json.messages.length : 0;
   return `${count} message(s)`;
@@ -278,9 +257,9 @@ function fail(message) {
 function printHelp() {
   console.log(`Usage: npm run runtime:smoke -- [options]
 
-Validates a live Terrascape dedicated server through HTTP, standalone RCON, and the
-map command proxy. The server must have rcon.enabled=true and a configured RCON password.
-The server must also set validation.smokeTokensEnabled=true for smoke-token minting.
+Validates a live Terrascape dedicated server through HTTP and standalone RCON. Anonymous
+and invalid console requests are always checked. Pass a real personal map token to check
+the authenticated console; no synthetic tokens are minted.
 
 Options:
   --url, --web-url <url>       Terrascape web/API base URL (default: ${DEFAULT_WEB_URL})
@@ -288,9 +267,10 @@ Options:
   --rcon-host <host>           RCON host when --rcon-url is not set (default: ${DEFAULT_RCON_HOST})
   --rcon-port <port>           RCON port when --rcon-url is not set (default: ${DEFAULT_RCON_PORT})
   --rcon-token <password>      RCON password (or TERRASCAPE_RCON_PASSWORD / SYNTH_RCON_PASSWORD / SYNTH_RCON_TOKEN)
-  --subject <label>            Synthetic smoke subject label
+  --map-token <token>          Real identity-bound map token (or TERRASCAPE_MAP_TOKEN)
+  --console-input <text>       Input used with --mutating (default: /terrascape status)
   --timeout-ms <ms>            Per-request timeout (default: 30000)
-  --mutating                   Also run a cache-clearing command through the map proxy
+  --mutating                   Submit --console-input through the linked user's console
   --help                       Show this help
 `);
 }

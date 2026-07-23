@@ -18,8 +18,6 @@ import {
   syncMobBlocksInputs,
   terrainLoadConcurrency,
   tileLoadConcurrency,
-  terrainPromotionBudgetMs,
-  terrainPromotionsPerFrame,
   visualDetailMode,
   waterModeValue,
   TRI_STATE_VALUES_BY_ID,
@@ -69,10 +67,6 @@ import {
   mapTileRadiusValueInput,
   tileLoadSlotsInput,
   tileLoadSlotsValueInput,
-  terrainSpawnBudgetInput,
-  terrainSpawnBudgetValueInput,
-  terrainSpawnFrameInput,
-  terrainSpawnFrameValueInput,
   treeShadeInput,
   visualDetailModeInput,
   waterModeInput,
@@ -128,10 +122,6 @@ export function applyInitialParams() {
   mapTileRadiusInput.value = mapTileRadiusValueInput.value;
   applyNumberParam('tilesAtOnce', tileLoadSlotsValueInput);
   tileLoadSlotsInput.value = tileLoadSlotsValueInput.value;
-  applyNumberParam('terrainSpawnFrame', terrainSpawnFrameValueInput);
-  terrainSpawnFrameInput.value = terrainSpawnFrameValueInput.value;
-  applyNumberParam('terrainSpawnMs', terrainSpawnBudgetValueInput);
-  terrainSpawnBudgetInput.value = terrainSpawnBudgetValueInput.value;
   applyFloatParam('shadeSize', shadeSizeInput, shadeSizeValueInput);
   applyFloatParam('shadeDarkness', shadeDarknessInput, shadeDarknessValueInput);
   applySelectParam('water', waterModeInput);
@@ -180,8 +170,6 @@ function applyStoredInputs() {
   setPairedControlValue(terrainLoadSlotsInput, terrainLoadSlotsValueInput, runtime.storedViewState.terrainLoadSlots);
   setPairedControlValue(mapTileRadiusInput, mapTileRadiusValueInput, runtime.storedViewState.mapTileRadius);
   setPairedControlValue(tileLoadSlotsInput, tileLoadSlotsValueInput, runtime.storedViewState.tilesAtOnce);
-  setPairedControlValue(terrainSpawnFrameInput, terrainSpawnFrameValueInput, runtime.storedViewState.terrainSpawnFrame);
-  setPairedControlValue(terrainSpawnBudgetInput, terrainSpawnBudgetValueInput, runtime.storedViewState.terrainSpawnMs);
   setPairedControlValue(shadeSizeInput, shadeSizeValueInput, runtime.storedViewState.shadeSize);
   setPairedControlValue(shadeDarknessInput, shadeDarknessValueInput, runtime.storedViewState.shadeDarkness);
   if (typeof runtime.storedViewState.water === 'string') {
@@ -298,8 +286,6 @@ export function saveViewState() {
     terrainLoadSlots: terrainLoadConcurrency(),
     mapTileRadius: Number.parseInt(mapTileRadiusValueInput.value, 10) || 16,
     tilesAtOnce: tileLoadConcurrency(),
-    terrainSpawnFrame: terrainPromotionsPerFrame(),
-    terrainSpawnMs: terrainPromotionBudgetMs(),
     shadeSize: Number.parseFloat(shadeSizeValueInput.value),
     shadeDarkness: Number.parseFloat(shadeDarknessValueInput.value),
     water: waterModeValue(),

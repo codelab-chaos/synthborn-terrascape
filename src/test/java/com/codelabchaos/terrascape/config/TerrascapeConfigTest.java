@@ -30,11 +30,16 @@ class TerrascapeConfigTest {
         assertTrue(text.contains("access.publicBaseUrl="));
         assertTrue(text.contains("streams to expose the numeric server IP"));
         assertTrue(text.contains("validation.smokeTokensEnabled=false"));
+        assertTrue(text.contains("cache.memoryTerrainBytes=128MB"));
+        assertTrue(text.contains("cache.memoryMapRegionBytes=64MB"));
+        assertTrue(text.contains("entities.maxPlayerAvatarBytes=512KB"));
+        assertTrue(text.contains("features.webConsole=true"));
         assertEquals("127.0.0.1", config.http().host());
         assertEquals(5960, config.http().port());
         assertEquals(24, config.access().mapTokenTtl().toHours());
         assertEquals(4, config.access().adminMapTokenTtl().toHours());
         assertFalse(config.features().mobDebugEndpoint());
+        assertTrue(config.features().webConsole());
         assertFalse(config.validation().smokeTokensEnabled());
         assertFalse(config.access().hasDebugToken());
         assertFalse(config.rcon().hasPassword());

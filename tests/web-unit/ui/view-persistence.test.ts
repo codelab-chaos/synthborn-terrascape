@@ -177,6 +177,12 @@ test('saveViewState persists a full snapshot once started', () => {
   assert.equal(parsed.world, 'w1');
   assert.equal(parsed.visualDefaultsVersion, 2);
   assert.ok('camera' in parsed && 'target' in parsed);
+  for (const serverOwned of [
+    'terrainSpawnFrame',
+    'terrainSpawnMs',
+  ]) {
+    assert.equal(serverOwned in parsed, false, `${serverOwned} must not persist in browser state`);
+  }
   assert.equal(runtime.storedViewState.world, 'w1');
   runtime.hasStarted = false;
 });

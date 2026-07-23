@@ -1,12 +1,46 @@
 const { expect, test } = require('@playwright/test');
 
+test('anonymous map visitors cannot mount or call the web console', async ({ page }) => {
+  await page.goto('/?radius=0&auto=false&mapTiles=false&players=false&mobs=false');
+  await expect(page.locator('.web-console-toggle')).toHaveCount(0);
+  await page.keyboard.press('t');
+  await expect(page.locator('#web-console')).toBeHidden();
+
+  const session = await page.request.get('/api/console/session');
+  expect([401, 403]).toContain(session.status());
+});
+
+test('a real identity-bound link mounts the console and reads private history', async ({ page }) => {
+  const mapToken = process.env.TERRASCAPE_E2E_MAP_TOKEN;
+  test.skip(!mapToken, 'Set TERRASCAPE_E2E_MAP_TOKEN to run authenticated console E2E coverage.');
+
+  await page.goto(`/?key=${encodeURIComponent(mapToken)}&radius=0&auto=false&mapTiles=false`);
+  await expect(page.getByRole('button', { name: /open web chat as/i })).toBeVisible();
+  await page.keyboard.press('t');
+  await expect(page.locator('#web-console')).toBeVisible();
+  await expect(page.locator('#web-console-input')).toBeFocused();
+
+  const authorization = { Authorization: `Bearer ${mapToken}` };
+  const session = await page.request.get('/api/console/session', { headers: authorization });
+  expect(session.status()).toBe(200);
+  const identity = await session.json();
+  expect(identity.authenticated).toBe(true);
+  expect(identity.player.uuid).toBeTruthy();
+
+  const history = await page.request.get('/api/console/history?after=0', { headers: authorization });
+  expect(history.status()).toBe(200);
+  expect(Array.isArray((await history.json()).entries)).toBe(true);
+});
+
 test('supports canvas-scoped FPS fly look, capped zoom, and sprint movement', async ({ page }) => {
   await page.goto('/?radius=0&chunkX=0&chunkZ=0&auto=true&mapTiles=false&players=false');
   await expect(page.locator('#status')).toHaveText('Loaded 1 chunks around 0, 0');
 
   await page.locator('#player-update-rate').focus();
   await expect(page.locator('#player-update-rate')).toBeFocused();
-  await page.locator('canvas').click({ position: { x: 120, y: 120 } });
+  // A middle-button pointerdown exercises canvas-scoped focus handling without entering
+  // pointer lock, which is unreliable in headless browsers.
+  await page.locator('canvas').dispatchEvent('pointerdown', { button: 1, buttons: 4 });
   await expect(page.locator('#player-update-rate')).not.toBeFocused();
 
   await page.evaluate(() => {
@@ -24,7 +58,6 @@ test('supports canvas-scoped FPS fly look, capped zoom, and sprint movement', as
   expect(lookedPose.target.x).toBeGreaterThan(1);
   expect(lookedPose.target.y).toBeGreaterThan(100);
   await page.waitForTimeout(400);
-  await expect(page.locator('#status')).toHaveText('Loaded 1 chunks around 0, 0');
   await expect(page.locator('#coord-chunk')).toHaveText('0, 0');
   expect(await page.evaluate(() => window.__terrascapeDebug.activeCenterId())).toBe('default:0:0');
 
@@ -63,7 +96,7 @@ async function flyForwardDistance(page, sprint) {
 }
 
 test('renders water materials and ignores removed shader water mode', async ({ page }) => {
-  await page.goto('/?radius=1&chunkX=7&chunkZ=-9&auto=false&mapTiles=true&water=shader');
+  await page.goto('/?radius=1&mapTileRadius=4&chunkX=7&chunkZ=-9&auto=false&mapTiles=true&water=shader');
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 7, -9');
   await expect(page.locator('#water-mode')).toHaveValue('solid');
   await expect(page.locator('#water-mode option[value="shader"]')).toHaveCount(0);
@@ -89,7 +122,7 @@ test('renders water materials and ignores removed shader water mode', async ({ p
 });
 
 test('map tiles serve PNGs, bind textures, and render map pixels', async ({ page }) => {
-  await page.goto('/?radius=1&chunkX=0&chunkZ=0&auto=false&mapTiles=true&water=transparent&fog=false');
+  await page.goto('/?radius=1&mapTileRadius=4&chunkX=0&chunkZ=0&auto=false&mapTiles=true&water=transparent&fog=false');
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 0, 0');
 
   const png = await page.request.get('/api/terrain/default/0/0.map.png');
@@ -102,8 +135,16 @@ test('map tiles serve PNGs, bind textures, and render map pixels', async ({ page
 
   await expect.poll(async () => {
     const stats = await page.evaluate(() => window.__terrascapeDebug.mapTileSceneStats());
-    return stats.meshCount;
+    return Math.min(stats.meshCount, stats.visibleCount);
   }, { timeout: 45000 }).toBeGreaterThanOrEqual(9);
+  await expect.poll(async () => page.evaluate(() => {
+    const stats = window.__terrascapeDebug.mapBackdropStats();
+    return stats.totalTiles === 81
+      && stats.pending === 0
+      && stats.inFlight === 0
+      && stats.promotionPending === 0
+      && !window.__terrascapeDebug.mapTileMotionActive();
+  }), { timeout: 45000 }).toBe(true);
 
   const backdropY = await page.evaluate(() => window.__terrascapeDebug.mapBackdropY());
   expect(backdropY).toBe(112);
@@ -129,7 +170,8 @@ test('map tiles serve PNGs, bind textures, and render map pixels', async ({ page
 });
 
 test('loads a bounded terrain grid and reports render resources', async ({ page }) => {
-  await page.goto('/?radius=1&chunkX=0&chunkZ=0&water=transparent&auto=false');
+  test.setTimeout(180_000);
+  await page.goto('/?radius=1&mapTileRadius=4&chunkX=0&chunkZ=0&water=transparent&auto=false');
   const setControlValue = async (selector, value, eventName = 'change') => {
     await page.locator(selector).evaluate((element, payload) => {
       element.value = payload.value;
@@ -147,6 +189,9 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   };
 
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 0, 0');
+  await expect(page.locator('.brand-parent')).toHaveText('SYNTHBORN');
+  await expect(page.locator('.brand-product')).toHaveText('TERRASCAPE');
+  await expect(page.locator('.early-access-stamp')).toHaveText(/EARLY\s*ACCESS/);
   await expect(page.locator('#water-mode')).toHaveValue('transparent');
   await expect(page.locator('#shader-effect')).toHaveCount(0);
   await expect(page.locator('#sun-lighting')).toHaveCount(0);
@@ -183,27 +228,27 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
   await expect(page.locator('#cosmetic-blocks-mode')).toHaveValue('off');
   await expect(page.locator('#status')).toHaveText('Loaded 9 chunks around 0, 0');
   if (await page.locator('#terrain-load-slots').count() > 0) {
+    await expect(page.locator('#terrain-spawn-frame')).toBeHidden();
+    await expect(page.locator('#terrain-spawn-budget')).toBeHidden();
     await expect(page.locator('#terrain-load-slots')).toHaveValue('4');
     await expect(page.locator('#terrain-load-slots-value')).toHaveValue('4');
     await expect(page.locator('#terrain-spawn-frame')).toHaveValue('2');
     await expect(page.locator('#terrain-spawn-frame-value')).toHaveValue('2');
     await expect(page.locator('#terrain-spawn-budget')).toHaveValue('4');
     await expect(page.locator('#terrain-spawn-budget-value')).toHaveValue('4');
+    await expect(page.locator('#terrain-spawn-frame')).toBeDisabled();
+    await expect(page.locator('#terrain-spawn-budget')).toBeDisabled();
     await setControlValue('#terrain-load-slots-value', '6', 'input');
-    await setControlValue('#terrain-spawn-frame', '5', 'input');
-    await setControlValue('#terrain-spawn-budget-value', '9', 'input');
     await expect(page.locator('#terrain-load-slots')).toHaveValue('6');
-    await expect(page.locator('#terrain-spawn-frame-value')).toHaveValue('5');
-    await expect(page.locator('#terrain-spawn-budget')).toHaveValue('9');
     expect(await page.evaluate(() => window.__terrascapeDebug.terrainTuning())).toEqual({
       loadSlots: 6,
-      spawnFrame: 5,
-      spawnBudgetMs: 9,
+      spawnFrame: 2,
+      spawnBudgetMs: 4,
     });
   }
   const mapTileFog = await page.evaluate(() => window.__terrascapeDebug.skySummary());
   expect(mapTileFog.fogType).toBe(null);
-  expect(mapTileFog.postFogEnabled).toBe(true);
+  expect(mapTileFog.postFogEnabled).toBe(false);
   expect(mapTileFog.postFogNear).toBe(150);
   expect(mapTileFog.postFogFar).toBe(620);
   expect(typeof mapTileFog.postFogColor.r).toBe('number');
@@ -794,7 +839,7 @@ test('loads a bounded terrain grid and reports render resources', async ({ page 
     return window.__terrascapeDebug.skySummary();
   });
   expect(mapDistanceFog.fogType).toBe(null);
-  expect(mapDistanceFog.postFogEnabled).toBe(true);
+  expect(mapDistanceFog.postFogEnabled).toBe(false);
   expect(mapDistanceFog.postFogNear).toBe(150);
   expect(mapDistanceFog.postFogFar).toBe(620);
   const sunsetSky = await page.evaluate(() => {

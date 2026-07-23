@@ -5,13 +5,14 @@ import { makeMapTileCacheKey, readMapTileCache, writeMapTileCache } from '../pla
 import { mapTileLightingTint } from '../scene/lighting.ts';
 import { MAP_BACKDROP_Y } from '../scene/water.ts';
 import { chunkId } from '../common/utils.ts';
+import { spatialStaggerDelayMs } from '../common/spatial-stagger.ts';
 
 const CHUNK_SIZE = 32;
 const SKY_RGB = { r: 23, g: 52, b: 84 };
 const RISE_START_Y = -48;
 const RISE_MS = 140;
 const RISE_FAILSAFE_MULTIPLIER = 1.5;
-const PROMOTE_PER_FRAME = 96;
+const REVEAL_STAGGER_MS = 360;
 // How many map tiles download in parallel — an independent knob from voxel mesh concurrency.
 let tileLoadConcurrency = 4;
 
@@ -20,6 +21,8 @@ export function setTileLoadConcurrency(value: number) {
 }
 const IMMEDIATE_TILE_LOAD_LIMIT = 96;
 const TILE_QUEUE_SLICE_SIZE = 48;
+const TILE_PROMOTIONS_PER_FRAME = 8;
+const TILE_PROMOTION_BUDGET_MS = 3;
 
 type RisingTile = {
   mesh: THREE.Mesh;
@@ -27,6 +30,7 @@ type RisingTile = {
   chunkZ: number;
   startedAt: number;
   startY: number;
+  revealAt: number;
 };
 
 type MapTileEntry = {
@@ -58,23 +62,43 @@ type TileLoadRequest = {
   formatVersion: string;
   maxAnisotropy: number;
   motionEnabled: boolean;
+  revealBaseAt: number;
 };
-
 type TileLoadResult = {
   installed: boolean;
   network: boolean;
 };
 
+type PreparedTile = {
+  texture: THREE.Texture;
+  image: CanvasImageSource | null;
+};
+
+type TilePromotionJob = {
+  request: TileLoadRequest;
+  generation: number;
+  bytes: ArrayBuffer;
+  prepared: PreparedTile;
+  resolve: (installed: boolean) => void;
+};
+
+type TileLoadMode = 'cache-only' | 'network-only' | 'full';
+
 const loadedTiles = new Map<string, MapTileEntry>();
 const loadedTilesByCoord = new Map<string, MapTileEntry>();
-const pendingRise: RisingTile[] = [];
 const activeRise = new Map<string, RisingTile>();
 const desiredTileLoads = new Map<string, TileLoadRequest>();
-const inFlightTileLoads = new Map<string, { request: TileLoadRequest; promise: Promise<TileLoadResult> }>();
+const inFlightTileLoads = new Map<string, {
+  request: TileLoadRequest;
+  mode: TileLoadMode;
+  promise: Promise<TileLoadResult>;
+}>();
+const tilePromotionQueue: TilePromotionJob[] = [];
 const activeTileTint = new THREE.Color(0xffffff);
 let loadGeneration = 0;
 let tileLoadGeneration = 0;
 let tileLoadWorker: Promise<void> | null = null;
+let tilePromotionWorker: Promise<void> | null = null;
 let context: MapBackdropContext | null = null;
 let activeStats = {
   loaded: 0,
@@ -109,6 +133,11 @@ function tileMotionKey(chunkX: number, chunkZ: number) {
 
 function coordKey(chunkX: number, chunkZ: number) {
   return `${chunkX}:${chunkZ}`;
+}
+
+/** Stable coordinate noise keeps reveals organic without changing from run to run. */
+export function tileRevealDelayMs(chunkX: number, chunkZ: number) {
+  return spatialStaggerDelayMs(chunkX, chunkZ, REVEAL_STAGGER_MS);
 }
 
 async function runWithConcurrency<T>(
@@ -205,11 +234,9 @@ function disposeTileEntry(entry: MapTileEntry) {
   entry.mesh.dispose?.();
 }
 
-function revealTile(entry: MapTileEntry, motionEnabled: boolean) {
+function revealTile(entry: MapTileEntry, motionEnabled: boolean, revealBaseAt: number) {
   const key = tileMotionKey(entry.chunkX, entry.chunkZ);
-  if (activeRise.has(key) || pendingRise.some((rising) => tileMotionKey(rising.chunkX, rising.chunkZ) === key)) {
-    return;
-  }
+  if (activeRise.has(key)) return;
   entry.mesh.visible = true;
   if (!motionEnabled) {
     applyTileHeight(entry.mesh, entry.chunkX, entry.chunkZ);
@@ -217,33 +244,44 @@ function revealTile(entry: MapTileEntry, motionEnabled: boolean) {
   }
   const startY = RISE_START_Y;
   entry.mesh.position.y = startY;
-  pendingRise.push({
+  entry.mesh.visible = false;
+  activeRise.set(key, {
     mesh: entry.mesh,
     chunkX: entry.chunkX,
     chunkZ: entry.chunkZ,
     startedAt: 0,
     startY,
+    revealAt: revealBaseAt + tileRevealDelayMs(entry.chunkX, entry.chunkZ),
   });
 }
 
-async function installTile(
-  scene: THREE.Scene,
-  world: string,
-  chunkX: number,
-  chunkZ: number,
-  bytes: ArrayBuffer,
-  maxAnisotropy: number,
-  motionEnabled: boolean,
-) {
-  const id = chunkId(world, chunkX, chunkZ);
-  if (loadedTiles.has(id)) return loadedTiles.get(id)!;
+function yieldToRenderFrame() {
+  return new Promise<void>((resolve) => {
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => resolve());
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
 
-  const { texture, image } = await textureFromPngBytes(bytes, maxAnisotropy);
-  const mesh = createTileMesh(texture, chunkX, chunkZ);
+function installPreparedTile(
+  request: TileLoadRequest,
+  bytes: ArrayBuffer,
+  prepared: PreparedTile,
+) {
+  const { id, scene, world, chunkX, chunkZ, motionEnabled, revealBaseAt } = request;
+  // Overlapping terrain/tile batches can decode the same coordinate together.
+  // Keep the first result and dispose the redundant texture before scene install.
+  if (loadedTiles.has(id)) {
+    prepared.texture.dispose();
+    return false;
+  }
+  const mesh = createTileMesh(prepared.texture, chunkX, chunkZ);
   const entry: MapTileEntry = {
     mesh,
-    texture,
-    image,
+    texture: prepared.texture,
+    image: prepared.image,
     pixels: null,
     pixelWidth: CHUNK_SIZE,
     pixelHeight: CHUNK_SIZE,
@@ -254,8 +292,68 @@ async function installTile(
   scene.add(mesh);
   loadedTiles.set(id, entry);
   loadedTilesByCoord.set(coordKey(chunkX, chunkZ), entry);
-  revealTile(entry, motionEnabled);
-  return entry;
+  revealTile(entry, motionEnabled, revealBaseAt);
+  return true;
+}
+
+function promotePreparedTile(
+  request: TileLoadRequest,
+  generation: number,
+  bytes: ArrayBuffer,
+  prepared: PreparedTile,
+) {
+  return new Promise<boolean>((resolve) => {
+    tilePromotionQueue.push({ request, generation, bytes, prepared, resolve });
+    startTilePromotionWorker();
+  });
+}
+
+function startTilePromotionWorker() {
+  if (tilePromotionWorker) return;
+  tilePromotionWorker = processTilePromotionQueue().finally(() => {
+    tilePromotionWorker = null;
+    if (tilePromotionQueue.length > 0 && context?.enabled) startTilePromotionWorker();
+  });
+}
+
+async function processTilePromotionQueue() {
+  while (context?.enabled && tilePromotionQueue.length > 0) {
+    // Always enter through a render frame. Without this boundary, individually
+    // completing image decodes can repeatedly restart the worker in one frame and
+    // accidentally bypass the promotion budget.
+    await yieldToRenderFrame();
+    if (!context?.enabled) break;
+    const frameStarted = performance.now();
+    let promoted = 0;
+    while (tilePromotionQueue.length > 0) {
+      if (
+        promoted >= TILE_PROMOTIONS_PER_FRAME
+        || (promoted > 0 && performance.now() - frameStarted >= TILE_PROMOTION_BUDGET_MS)
+      ) break;
+
+      const job = tilePromotionQueue.shift()!;
+      const { request } = job;
+      if (
+        job.generation !== loadGeneration
+        || desiredTileLoads.get(request.id) !== request
+        || loadedTiles.has(request.id)
+      ) {
+        job.prepared.texture.dispose();
+        job.resolve(loadedTiles.has(request.id));
+        continue;
+      }
+      job.resolve(installPreparedTile(request, job.bytes, job.prepared));
+      promoted += 1;
+    }
+    updateStats();
+  }
+}
+
+function clearTilePromotionQueue() {
+  for (const job of tilePromotionQueue.splice(0)) {
+    job.prepared.texture.dispose();
+    job.resolve(false);
+  }
 }
 
 function updateStats() {
@@ -300,10 +398,6 @@ export function pruneMapTiles(world: string, retainIds: Set<string>) {
     desiredTileLoads.delete(key);
     activeRise.delete(tileMotionKey(entry.chunkX, entry.chunkZ));
   }
-  pendingRise.splice(0, pendingRise.length, ...pendingRise.filter((rising) => {
-    const id = chunkId(world, rising.chunkX, rising.chunkZ);
-    return retainIds.has(id);
-  }));
   updateStats();
 }
 
@@ -315,7 +409,8 @@ export async function loadMapTilesForKeys(
 ) {
   if (!context?.enabled || !context.scene || keys.length === 0) return;
   const { scene, renderer, formatVersion, motionEnabled } = context;
-  const revealMotion = options.immediate === true ? false : motionEnabled;
+  const revealMotion = motionEnabled;
+  const revealBaseAt = performance.now();
   const maxAnisotropy = renderer.capabilities.getMaxAnisotropy?.() ?? 1;
 
   if (options.replace) {
@@ -340,6 +435,7 @@ export async function loadMapTilesForKeys(
       formatVersion,
       maxAnisotropy,
       motionEnabled: revealMotion,
+      revealBaseAt,
     };
     desiredTileLoads.set(id, request);
     immediateRequests.push(request);
@@ -355,10 +451,11 @@ export async function loadMapTilesForKeys(
   tileLoadGeneration += 1;
   let loadedImmediateTiles = false;
   if (options.immediate === true && immediateRequests.length > 0 && immediateRequests.length <= IMMEDIATE_TILE_LOAD_LIMIT) {
-    await runWithConcurrency(immediateRequests, tileLoadConcurrency, async (request) => {
+    const networkRequests = await hydrateCachedTiles(immediateRequests, loadGeneration);
+    await runWithConcurrency(networkRequests, tileLoadConcurrency, async (request) => {
       if (desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id)) return;
       try {
-        const result = await loadTileRequest(request, loadGeneration);
+        const result = await loadTileRequest(request, loadGeneration, 'network-only');
         if (result.installed || loadedTiles.has(request.id)) {
           desiredTileLoads.delete(request.id);
         }
@@ -402,11 +499,12 @@ async function processTileLoadQueue() {
       break;
     }
 
-    await runWithConcurrency(requests, tileLoadConcurrency, async (request) => {
+    const networkRequests = await hydrateCachedTiles(requests, generation);
+    await runWithConcurrency(networkRequests, tileLoadConcurrency, async (request) => {
       if (generation !== loadGeneration) return;
       if (desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id)) return;
       try {
-        const result = await loadTileRequest(request, generation);
+        const result = await loadTileRequest(request, generation, 'network-only');
         if (result.network) networkMissing += 1;
         if (result.installed || loadedTiles.has(request.id) || desiredTileLoads.get(request.id) !== request) {
           desiredTileLoads.delete(request.id);
@@ -442,30 +540,70 @@ async function processTileLoadQueue() {
   }
 }
 
-async function loadTileRequest(request: TileLoadRequest, generation: number): Promise<TileLoadResult> {
+async function hydrateCachedTiles(requests: TileLoadRequest[], generation: number) {
+  await Promise.all(requests.map(async (request) => {
+    if (generation !== loadGeneration
+      || desiredTileLoads.get(request.id) !== request
+      || loadedTiles.has(request.id)) return;
+    try {
+      const result = await loadTileRequest(request, generation, 'cache-only');
+      if (result.installed || loadedTiles.has(request.id)) {
+        desiredTileLoads.delete(request.id);
+      }
+    } catch {
+      // A corrupt cached PNG falls through to a fresh network copy below.
+    }
+  }));
+  return requests.filter((request) => {
+    return generation === loadGeneration
+      && desiredTileLoads.get(request.id) === request
+      && !loadedTiles.has(request.id);
+  });
+}
+
+async function loadTileRequest(
+  request: TileLoadRequest,
+  generation: number,
+  mode: TileLoadMode = 'full',
+): Promise<TileLoadResult> {
   if (loadedTiles.has(request.id)) return { installed: false, network: false };
   const existing = inFlightTileLoads.get(request.id);
-  if (existing && desiredTileLoads.get(request.id) === existing.request) return existing.promise;
+  if (existing && desiredTileLoads.get(request.id) === existing.request) {
+    const result = await existing.promise;
+    if (result.installed || mode === 'cache-only' || existing.mode !== 'cache-only') return result;
+  }
 
-  const task = loadTileRequestUncached(request, generation).finally(() => {
+  const task = loadTileRequestUncached(request, generation, mode).finally(() => {
     if (inFlightTileLoads.get(request.id)?.promise === task) {
       inFlightTileLoads.delete(request.id);
     }
   });
-  inFlightTileLoads.set(request.id, { request, promise: task });
+  inFlightTileLoads.set(request.id, { request, mode, promise: task });
   return task;
 }
 
-async function loadTileRequestUncached(request: TileLoadRequest, generation: number): Promise<TileLoadResult> {
+async function loadTileRequestUncached(
+  request: TileLoadRequest,
+  generation: number,
+  mode: TileLoadMode,
+): Promise<TileLoadResult> {
   const cacheKey = tileCacheKey(request.world, request.chunkX, request.chunkZ, request.formatVersion);
-  const cached = await readMapTileCache(cacheKey);
-  if (generation !== loadGeneration || desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id)) {
-    return { installed: false, network: false };
-  }
-  if (cached?.bytes) {
-    await installTile(request.scene, request.world, request.chunkX, request.chunkZ, cached.bytes, request.maxAnisotropy, request.motionEnabled);
-    activeStats.reuses += 1;
-    return { installed: true, network: false };
+  if (mode !== 'network-only') {
+    const cached = await readMapTileCache(cacheKey);
+    if (generation !== loadGeneration || desiredTileLoads.get(request.id) !== request || loadedTiles.has(request.id)) {
+      return { installed: false, network: false };
+    }
+    if (cached?.bytes) {
+      const prepared = await textureFromPngBytes(cached.bytes, request.maxAnisotropy);
+      if (generation !== loadGeneration || desiredTileLoads.get(request.id) !== request) {
+        prepared.texture.dispose();
+        return { installed: false, network: false };
+      }
+      const created = await promotePreparedTile(request, generation, cached.bytes, prepared);
+      if (created) activeStats.reuses += 1;
+      return { installed: created || loadedTiles.has(request.id), network: false };
+    }
+    if (mode === 'cache-only') return { installed: false, network: false };
   }
 
   const result = await loadMapTilePng(request.world, request.chunkX, request.chunkZ);
@@ -473,16 +611,13 @@ async function loadTileRequestUncached(request: TileLoadRequest, generation: num
     return { installed: false, network: true };
   }
   void writeMapTileCache(cacheKey, result.bytes.slice(0), { source: result.source });
-  await installTile(
-    request.scene,
-    request.world,
-    request.chunkX,
-    request.chunkZ,
-    result.bytes,
-    request.maxAnisotropy,
-    request.motionEnabled,
-  );
-  return { installed: true, network: true };
+  const prepared = await textureFromPngBytes(result.bytes, request.maxAnisotropy);
+  if (generation !== loadGeneration || desiredTileLoads.get(request.id) !== request) {
+    prepared.texture.dispose();
+    return { installed: false, network: true };
+  }
+  const created = await promotePreparedTile(request, generation, result.bytes, prepared);
+  return { installed: created || loadedTiles.has(request.id), network: true };
 }
 
 /** @deprecated Use configureMapBackdrop + loadMapTilesForKeys with terrain batches. */
@@ -502,7 +637,7 @@ export function setMapTileChunkCovered(_chunkX: number, _chunkZ: number, _covere
 
 export function clearMapBackdrop(scene) {
   loadGeneration += 1;
-  pendingRise.splice(0, pendingRise.length);
+  clearTilePromotionQueue();
   activeRise.clear();
   for (const entry of loadedTiles.values()) {
     scene.remove(entry.mesh);
@@ -531,7 +666,11 @@ export function clearMapBackdrop(scene) {
 }
 
 export function mapBackdropStats() {
-  return activeStats;
+  return Object.assign(activeStats, {
+    pending: desiredTileLoads.size,
+    inFlight: inFlightTileLoads.size,
+    promotionPending: tilePromotionQueue.length,
+  });
 }
 
 export function mapTileSceneStats() {
@@ -544,33 +683,30 @@ export function mapTileSceneStats() {
   return {
     meshCount,
     visibleCount,
-    ...activeStats,
+    ...mapBackdropStats(),
   };
 }
 
 export function tickMapTileMotion(motionEnabled: boolean) {
   const now = performance.now();
-  let promoted = 0;
-  while (pendingRise.length > 0 && promoted < PROMOTE_PER_FRAME) {
-    const rising = pendingRise.shift();
-    if (!rising) break;
-    const key = tileMotionKey(rising.chunkX, rising.chunkZ);
-    rising.startedAt = now;
-    activeRise.set(key, rising);
-    promoted += 1;
-  }
-
   for (const [key, rising] of [...activeRise.entries()]) {
-    const found = [...loadedTiles.values()].find((tile) => tile.mesh === rising.mesh);
-    if (!found) {
+    const found = loadedTilesByCoord.get(coordKey(rising.chunkX, rising.chunkZ));
+    if (found?.mesh !== rising.mesh) {
       activeRise.delete(key);
       continue;
     }
 
     if (!motionEnabled) {
+      rising.mesh.visible = true;
       applyTileHeight(rising.mesh, rising.chunkX, rising.chunkZ);
       activeRise.delete(key);
       continue;
+    }
+
+    if (now < rising.revealAt) continue;
+    if (rising.startedAt === 0) {
+      rising.startedAt = now;
+      rising.mesh.visible = true;
     }
 
     const elapsed = now - rising.startedAt;
@@ -589,11 +725,11 @@ export function tickMapTileMotion(motionEnabled: boolean) {
   }
 
   updateStats();
-  return activeRise.size + pendingRise.length;
+  return activeRise.size;
 }
 
 export function mapTileMotionActive() {
-  return activeRise.size > 0 || pendingRise.length > 0;
+  return activeRise.size > 0;
 }
 
 function ensureTilePixels(entry: MapTileEntry) {

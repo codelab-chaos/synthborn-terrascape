@@ -36,6 +36,19 @@ class AccessTokensTest {
         assertNotNull(info);
         assertEquals(Set.of(AccessTokens.SCOPE_MAP, AccessTokens.SCOPE_ADMIN), info.scopes());
         assertTrue(info.expiresAt() > System.currentTimeMillis());
+        assertNull(info.subjectUuid());
+    }
+
+    @Test
+    void identityBoundTokenRetainsPlayerAcrossReload() {
+        UUID player = UUID.randomUUID();
+        AccessTokens tokens = AccessTokens.load(tempDir);
+        String token = tokens.mint(player, "Aster", TTL, Set.of(AccessTokens.SCOPE_MAP)).token();
+
+        AccessTokens.TokenInfo info = AccessTokens.load(tempDir).resolve(token);
+        assertNotNull(info);
+        assertEquals(player, info.subjectUuid());
+        assertEquals("Aster", info.subjectName());
     }
 
     @Test
@@ -107,6 +120,44 @@ class AccessTokensTest {
 
         String onDisk = Files.readString(tempDir.resolve(AccessTokens.FILE_NAME));
         assertTrue(!onDisk.contains(token), "raw token must never be written to disk");
+    }
+
+    @Test
+    void activeTokensExposeSafeIdsAndIdentityWithoutRawBearerValues() throws IOException {
+        AccessTokens tokens = AccessTokens.load(tempDir);
+        UUID player = UUID.randomUUID();
+        AccessTokens.MintResult minted = tokens.mint(
+                player, "Aster", TTL, Set.of(AccessTokens.SCOPE_MAP));
+
+        AccessTokens.TokenSummary summary = tokens.activeTokens().getFirst();
+        assertEquals(minted.tokenId(), summary.id());
+        assertEquals(16, summary.id().length());
+        assertEquals(player, summary.subjectUuid());
+        assertEquals("Aster", summary.subjectName());
+        assertTrue(!Files.readString(tempDir.resolve(AccessTokens.FILE_NAME)).contains(minted.token()));
+    }
+
+    @Test
+    void revokesOneTokenByIdAndPersistsTheRemoval() {
+        AccessTokens tokens = AccessTokens.load(tempDir);
+        AccessTokens.MintResult first = tokens.mint(
+                UUID.randomUUID(), "Aster", TTL, Set.of(AccessTokens.SCOPE_MAP));
+        AccessTokens.MintResult second = tokens.mint(
+                UUID.randomUUID(), "Bryn", TTL, Set.of(AccessTokens.SCOPE_MAP));
+
+        assertEquals(AccessTokens.RevokeStatus.REVOKED, tokens.revokeById(first.tokenId()));
+        assertNull(tokens.resolve(first.token()));
+        assertNotNull(tokens.resolve(second.token()));
+        assertNull(AccessTokens.load(tempDir).resolve(first.token()));
+        assertNotNull(AccessTokens.load(tempDir).resolve(second.token()));
+    }
+
+    @Test
+    void revokeRejectsMalformedAndUnknownIds() {
+        AccessTokens tokens = AccessTokens.load(tempDir);
+        assertEquals(AccessTokens.RevokeStatus.INVALID_ID, tokens.revokeById("short"));
+        assertEquals(AccessTokens.RevokeStatus.INVALID_ID, tokens.revokeById("not-hexadecimal"));
+        assertEquals(AccessTokens.RevokeStatus.NOT_FOUND, tokens.revokeById("deadbeef"));
     }
 
     @Test

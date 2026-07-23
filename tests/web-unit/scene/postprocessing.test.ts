@@ -45,7 +45,7 @@ test('setFogOptions enables fog and clamps far above near', () => {
 
 test('setFogOptions falls back to defaults for junk numbers and missing color', () => {
   const post = createPostProcessing(renderer, scene, camera);
-  setFogOptions(post, { enabled: false, near: 'x', far: 'y', strength: NaN });
+  setFogOptions(post, { enabled: false, near: 'x' as unknown as number, far: 'y' as unknown as number, strength: NaN });
   assert.equal(post.enabled, false);
   assert.equal(post.fogPass.enabled, false);
   assert.equal(post.fogPass.uniforms.fogNear.value, 150);

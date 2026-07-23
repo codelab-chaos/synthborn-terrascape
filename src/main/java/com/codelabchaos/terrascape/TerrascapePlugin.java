@@ -5,6 +5,7 @@ import com.codelabchaos.terrascape.commands.TerrascapeCommand;
 import com.codelabchaos.terrascape.config.TerrascapeConfig;
 import com.codelabchaos.terrascape.web.NpcRoleIndex;
 import com.codelabchaos.terrascape.web.TerrascapeWebServer;
+import com.codelabchaos.terrascape.web.WebConsoleService;
 import com.codelabchaos.rcon.RconConfig;
 import com.codelabchaos.rcon.RconLog;
 import com.codelabchaos.rcon.RconServer;
@@ -28,6 +29,7 @@ public class TerrascapePlugin extends JavaPlugin {
     private NpcRoleIndex npcRoleIndex;
     private PlayerLookTracker playerLookTracker;
     private RconServer rconServer;
+    private WebConsoleService webConsoleService;
 
     public TerrascapePlugin(@Nonnull JavaPluginInit init) {
         super(init);
@@ -73,6 +75,10 @@ public class TerrascapePlugin extends JavaPlugin {
         return playerLookTracker;
     }
 
+    public WebConsoleService webConsoleService() {
+        return webConsoleService;
+    }
+
     public boolean experimentalDetailsEnabled() {
         return config == null || config.features().experimentalDetails();
     }
@@ -84,6 +90,8 @@ public class TerrascapePlugin extends JavaPlugin {
         npcRoleIndex.subscribe(getEventRegistry());
         playerLookTracker = new PlayerLookTracker(this);
         playerLookTracker.register();
+        webConsoleService = new WebConsoleService(this);
+        webConsoleService.register(getEventRegistry());
         // Make our nodes discoverable in /perm listings and tab-completion. Admins (the
         // hytale:Admin group holds '*') already satisfy them; granting terrascape.map.use to a
         // user or group is how an admin lets specific players open the web map.
@@ -154,6 +162,7 @@ public class TerrascapePlugin extends JavaPlugin {
             playerLookTracker = null;
         }
         npcRoleIndex = null;
+        webConsoleService = null;
         config = null;
         startedAt = null;
         instance = null;

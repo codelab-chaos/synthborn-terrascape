@@ -17,7 +17,14 @@
 <body>
   <canvas id="scene"></canvas>
   <header class="titlebar">
-    <div class="brand">Synthborn: Terrascape</div>
+    <div class="brand brand-lockup" aria-label="Synthborn Terrascape">
+      <span class="brand-parent">SYNTHBORN</span>
+      <span class="brand-product">TERRASCAPE</span>
+    </div>
+    <div class="early-access-stamp" aria-label="Early Access">
+      <span class="early-access-early">EARLY</span>
+      <span class="early-access-access">ACCESS</span>
+    </div>
     <div class="sky-scene titlebar-cycle" id="sky-scene" aria-label="World day and night cycle">
       <div class="sky-stars" id="sky-stars"></div>
       <div class="sky-body sky-sun" id="sky-sun"></div>
@@ -97,10 +104,10 @@
         </label>
       </div>
       <div class="cache-clear-row">
-        <button id="clear-mesh-cache" type="button" title="Delete cached terrain GLBs and map tile textures stored in this browser">
-          Clear mesh cache
+        <button id="clear-mesh-cache" type="button" title="Delete terrain meshes and map tiles cached only in this browser">
+          Clear Browser Cache
         </button>
-        <span class="cache-clear-hint">IndexedDB · terrain + map tiles</span>
+        <span class="cache-clear-hint">This browser only · terrain + map tiles</span>
       </div>
       </div>
     </div>
@@ -185,14 +192,14 @@
         <span class="hud-section-chevron" aria-hidden="true"></span>
       </button>
       <div class="hud-section-body">
-      <label class="paired-control" title="Maximum ready terrain meshes added to the scene each frame">
+      <label class="paired-control" hidden title="Maximum ready terrain meshes added per frame; managed in server-config.json">
         <span>Meshes Per Frame</span>
         <div class="range-number">
           <input id="terrain-spawn-frame" type="range" min="1" max="12" step="1" value="2">
           <input id="terrain-spawn-frame-value" type="number" min="1" max="12" step="1" value="2">
         </div>
       </label>
-      <label class="paired-control" title="Frame-time budget for adding ready terrain meshes to the scene">
+      <label class="paired-control" hidden title="Mesh promotion time budget; managed in server-config.json">
         <span>Mesh Time Budget (ms)</span>
         <div class="range-number">
           <input id="terrain-spawn-budget" type="range" min="1" max="24" step="1" value="4">
@@ -312,6 +319,25 @@
       </dl>
     </div>
   </div>
+  <section id="web-console" class="web-console" hidden aria-hidden="true" aria-label="Server chat console">
+    <header class="web-console-head">
+      <div>
+        <strong>Server chat</strong>
+        <span>as <b id="web-console-identity">player</b></span>
+      </div>
+      <div class="web-console-head-actions">
+        <span id="web-console-status" class="web-console-status">Connecting…</span>
+        <button id="web-console-close" type="button" aria-label="Close chat console">×</button>
+      </div>
+    </header>
+    <div id="web-console-history" class="web-console-history" role="log" aria-live="polite"></div>
+    <form id="web-console-form" class="web-console-form">
+      <input id="web-console-input" type="text" maxlength="512" autocomplete="off"
+        placeholder="Message or /command" aria-label="Chat message or command">
+      <button type="submit">Send</button>
+      <kbd>T</kbd><span>open</span><kbd>Esc</kbd><span>close</span>
+    </form>
+  </section>
   <div id="access-overlay" class="access-overlay" hidden>
     <div class="access-overlay-card">
       <h2>Map access expired</h2>

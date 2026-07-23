@@ -66,6 +66,18 @@ test('perf telemetry events are dropped when telemetry is disabled', () => {
   assert.equal(beacon, null);
 });
 
+test('terrain progress is suppressed by default while its final summary remains', async () => {
+  flushClientLogs();
+  logClientEvent('terrain_stream_progress', { promoted: 3, queued: 526 });
+  logClientEvent('terrain_stream_summary', { promoted: 529, queued: 0, final: true });
+  const beacon = withBeacon(() => {
+    flushClientLogs();
+  });
+  assert.ok(beacon);
+  const body = await blobToJson(beacon);
+  assert.deepEqual(body.events.map((event: any) => event.type), ['terrain_stream_summary']);
+});
+
 test('sanitizeEvent rounds numbers, clamps strings, and preserves booleans/null', async () => {
   flushClientLogs();
   const longString = 'x'.repeat(300);

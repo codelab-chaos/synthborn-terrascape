@@ -1,7 +1,4 @@
-import {
-  bindPairedControl,
-  bindRadiusControl,
-} from '../library/control-values.ts';
+import { bindPairedControl, bindRadiusControl } from '../library/control-values.ts';
 import { bindHudSectionCollapsibles } from '../library/collapsible-section.ts';
 import { bindTriStateControl } from '../library/tri-state-control.ts';
 import { setTileLoadConcurrency } from '../tile-map/map-backdrop.ts';
@@ -46,10 +43,6 @@ import {
   mapTileRadiusValueInput,
   tileLoadSlotsInput,
   tileLoadSlotsValueInput,
-  terrainSpawnBudgetInput,
-  terrainSpawnBudgetValueInput,
-  terrainSpawnFrameInput,
-  terrainSpawnFrameValueInput,
   treeShadeInput,
   visualDetailModeInput,
   waterModeInput,
@@ -224,8 +217,6 @@ function bindHudInputs(bindings: AppEventBindings) {
     onUpdate: () => setTileLoadConcurrency(tileLoadConcurrency()),
     onSave: bindings.saveViewState,
   });
-  bindPairedControl(terrainSpawnFrameInput, terrainSpawnFrameValueInput, { onSave: bindings.saveViewState });
-  bindPairedControl(terrainSpawnBudgetInput, terrainSpawnBudgetValueInput, { onSave: bindings.saveViewState });
   bindPairedControl(shadeSizeInput, shadeSizeValueInput, { onUpdate: bindings.applyLighting, onSave: bindings.saveViewState });
   bindPairedControl(shadeDarknessInput, shadeDarknessValueInput, { onUpdate: bindings.applyLighting, onSave: bindings.saveViewState });
   fogEnabledInput.addEventListener('change', () => {

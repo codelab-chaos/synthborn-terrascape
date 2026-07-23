@@ -77,7 +77,7 @@ export const FOLLOW_MOUSE_BUTTONS = {
 // Higher-level scene services.
 export const lightingRig = createLightingRig(scene, SKY_COLOR);
 export const postProcessing = createPostProcessing(renderer, scene, camera);
-export const fpsCounter = createFpsCounter(scene, camera, renderer);
+export const fpsCounter = createFpsCounter();
 export const npcCatalog = createNpcCatalog({ logClientEvent });
 export const timeRibbon = createTimeRibbon({
   labelEl: timeCycleLabelEl,
@@ -121,7 +121,7 @@ export const disposalStats = {
   materials: 0,
   textures: 0,
 };
-export const pressedKeys = new Set();
+export const pressedKeys = new Set<string>();
 export const cameraModeStack = [];
 export const playerEyeState = {
   uuid: null,

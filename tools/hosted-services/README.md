@@ -56,6 +56,14 @@ Do not use `build-test-deploy` or newest-jar selection for a release candidate.
 The helper does not start the hosted server. Stop and start the server from the provider
 panel unless that provider exposes a supported control API. After the panel restart, run
 `validate` to check Terrascape RCON health, execute the runtime smoke test, and capture a
-log tail when FTP permits it.
+log tail when FTP permits it. Set `HOSTING_TERRASCAPE_MAP_TOKEN` to a current personal
+`/terrascape maplink` token to include authenticated console session/history checks; the
+smoke test never mints a synthetic credential.
 
 Logs downloaded by this helper are written to `tools/hosted-services/logs/`.
+
+For Hytale server authentication, use `/auth login device` from the provider console by
+default. Open the verification URL elsewhere, enter its short code, and confirm with
+`/auth status`. Avoid `/auth login browser` on hosted/headless servers because its
+temporary callback listener may not be reachable. Device authentication requires working
+outbound HTTPS and DNS on the host.

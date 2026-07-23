@@ -14,9 +14,9 @@ Include an option **only if it changes how hard the server works** — requests 
 meshes/tiles it generates/paces. Render-only options stay fully user-controlled.
 
 > **Panels are not hidden — individual controls are governed.** The Experimental panel stays
-> available to users because it holds render-only options (fog, water). The two server-pacing
-> controls inside it (voxel spawn/frame, spawn/ms) are still individually governable; the rest
-> of the panel is untouched.
+> available to users because it holds render-only options (fog, water). Its two server-pacing
+> controls (voxel spawn/frame, spawn/ms) are removed from the client and fixed by the admin;
+> the rest of the panel is untouched.
 
 ## The file: `server-config.json`
 
@@ -59,9 +59,11 @@ Both sides honor it: the server clamps/gates (source of truth), the client refle
   "chunksLoadedAtOnceOptions": [1, 2, 4, 6],
   "chunksLoadedAtOnceDefault": 4,
 
-  "spawnPerFrameOptions": [1, 2, 4],
+  "spawnPerFrameMin": 1,
+  "spawnPerFrameMax": 12,
   "spawnPerFrameDefault": 2,
-  "spawnBudgetMsOptions": [2, 4, 8],
+  "spawnBudgetMsMin": 1,
+  "spawnBudgetMsMax": 24,
   "spawnBudgetMsDefault": 4,
 
   "streamRadiusOptions": [2, 4, 6, 8],
@@ -82,7 +84,7 @@ Both sides honor it: the server clamps/gates (source of truth), the client refle
 | `showPlayersEnabled`, `playerUpdateRate*` | `show-players`, `player-update-rate` | player feed polling |
 | `mapTilesEnabled` | `map-tiles` | map tile generation/serving |
 | `chunksLoadedAtOnce*` | `terrain-load-slots` | parallel mesh fetch/parse |
-| `spawnPerFrame*`, `spawnBudgetMs*` | `terrain-spawn-frame`, `terrain-spawn-budget` | paces mesh delivery → drives fetch pressure |
+| `spawnPerFrame*`, `spawnBudgetMs*` | server config only | paces mesh delivery → drives fetch pressure |
 | `streamRadius*`, `autoStreamEnabled` | `radius`, `auto-stream` | number of chunks requested (**heaviest lever**) |
 | `cosmeticBlocksOptions` | `cosmetic-blocks-mode` | mesh size / generation cost |
 | `visualDetailOptions` | `visual-detail-mode` | mesh detail generation cost |
@@ -103,17 +105,35 @@ Experimental panel and keep it user-relevant.
 
 ## Client/server contract
 
-- Server publishes the effective config (e.g. `GET /api/config`, or folded into bootstrap).
+- Server publishes the effective config folded into `/api/worlds`.
 - Client applies it before restoring saved view-state: `*Enabled:false` greys the control and
   ignores any saved "on" preference; `*Options` populates the select and snaps a saved value
   into the allowed set; `*Default` seeds when there's no saved value.
+- `spawnPerFrame` and `spawnBudgetMs` are always published locked, hidden in the browser,
+  and excluded from saved state and URL overrides.
 - Server independently validates/clamps every request param and gates disabled feeds.
+
+## Mesh promotion guidance
+
+Start with `spawnPerFrameDefault: 2` and `spawnBudgetMsDefault: 4`. For slower clients,
+use `1` and `2`; for faster clients, raise one setting at a time and watch frame hitches.
+Avoid increasing both together without measurements. Bundled hard limits are `1–12`
+meshes/frame and `1–24 ms`; inverted or out-of-range configured bounds are normalized and
+the fixed default is clamped inside them.
+
+## Map tile guidance
+
+Start with `mapTileRadiusDefault: 8` and `tilesLoadedAtOnceDefault: 4` for conservative
+mixed-client deployments. Radius 16 provides a broader horizon on hardware-accelerated
+desktop browsers, but represents up to 1,089 separately textured tiles; validate it on
+the browsers your players actually use. Do not raise the radius toward the hard maximum
+or increase tile concurrency simply to make a cold load finish sooner—acquisition is
+already independent from frame-budgeted scene promotion, and very broad per-tile scenes
+remain a known alpha rendering limit. Chromium/Playwright's SwiftShader software renderer
+is suitable for bounded component checks, not the full radius-16 smoothness gate.
 
 ## Open questions
 
-- **Spawn pacing** (`spawnPerFrame`/`spawnBudgetMs`): include as governed (current draft) or
-  leave fully to the user? They're client-side render pacing that *indirectly* increases fetch
-  pressure — borderline.
 - **Stream radius**: keep user-selectable within the admin's allowlist (current draft), or make
   it a single fixed admin value with no client control?
 - One endpoint (`/api/config`) or fold into the existing bootstrap payload?

@@ -15,5 +15,5 @@ export function resizeViewport() {
   resizePostProcessing(postProcessing, width, height, rendererPixelRatio);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  positionFpsCounter(fpsCounter);
+  positionFpsCounter();
 }

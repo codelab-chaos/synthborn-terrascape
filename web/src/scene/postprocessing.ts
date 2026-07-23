@@ -75,7 +75,16 @@ export function createPostProcessing(renderer, scene, camera) {
   return { composer, fogPass, renderPass, enabled: false };
 }
 
-export function setFogOptions(post, options = {}) {
+type FogOptions = {
+  enabled?: boolean;
+  near?: number;
+  far?: number;
+  strength?: number;
+  horizonStrength?: number;
+  color?: THREE.Color;
+};
+
+export function setFogOptions(post, options: FogOptions = {}) {
   post.enabled = options.enabled !== false;
   post.fogPass.enabled = post.enabled;
   post.fogPass.uniforms.fogNear.value = finiteNumber(options.near, 150);

@@ -89,7 +89,8 @@ public record TerrascapeConfig(
                 bool(properties, "features.lazyMobIcons", null, true),
                 bool(properties, "features.mobDebugEndpoint", null, false),
                 bool(properties, "features.entityStream", null, true),
-                bool(properties, "features.metricsEndpoint", null, true));
+                bool(properties, "features.metricsEndpoint", null, true),
+                bool(properties, "features.webConsole", "TERRASCAPE_WEB_CONSOLE", true));
         MapView mapView = new MapView(
                 integer(properties, "map.tileSize", null, 32, 1, 512),
                 integer(properties, "map.maxRegionRadius", null, 108, 0, 512),
@@ -157,7 +158,7 @@ public record TerrascapeConfig(
                 # when enabled, rcon.password is REQUIRED or the endpoint refuses to start.
                 # Every command request must send the password as X-SynthRCON-Token or
                 # Authorization: Bearer. Map access tokens do not authorize RCON.
-                # Browser clients use /api/rcon/command with an admin-scoped map user token instead.
+                # The browser console is separate and uses identity-bound /api/console endpoints.
                 # Bound to localhost unless rcon.allowRemote=true.
                 rcon.enabled=false
                 rcon.host=127.0.0.1
@@ -184,9 +185,9 @@ public record TerrascapeConfig(
 
                 # In-memory caches
                 cache.memoryTerrainEntries=128
-                cache.memoryTerrainBytes=128MiB
+                cache.memoryTerrainBytes=128MB
                 cache.memoryMapRegionEntries=16
-                cache.memoryMapRegionBytes=64MiB
+                cache.memoryMapRegionBytes=64MB
                 cache.memoryMapTileEntries=20000
 
                 # Features
@@ -197,6 +198,8 @@ public record TerrascapeConfig(
                 features.mobDebugEndpoint=false
                 features.entityStream=true
                 features.metricsEndpoint=true
+                # Identity-bound chat and commands in the web map. Anonymous viewers never see it.
+                features.webConsole=true
 
                 # Access
                 # access.mode=public lets anyone view the map. restricted requires a generated
@@ -226,7 +229,7 @@ public record TerrascapeConfig(
                 entities.mobRadarRadius=500
                 entities.streamIntervalMillis=1000
                 entities.playerAvatarSize=64
-                entities.maxPlayerAvatarBytes=512KiB
+                entities.maxPlayerAvatarBytes=512KB
                 entities.playerAvatarCacheTtlSeconds=43200
 
                 # Validation
@@ -444,7 +447,8 @@ public record TerrascapeConfig(
             boolean lazyMobIcons,
             boolean mobDebugEndpoint,
             boolean entityStream,
-            boolean metricsEndpoint
+            boolean metricsEndpoint,
+            boolean webConsole
     ) {
     }
 
