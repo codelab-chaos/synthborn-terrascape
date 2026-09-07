@@ -10,6 +10,10 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- Add user-facing changes under Added, Changed, Fixed, Performance, Security, or
 Compatibility. During release preparation, move them into a dated version section. -->
 
+### Compatibility
+
+- Updated the compile and test baseline to Hytale Server 0.5.9.
+
 ## [0.1.1-beta.1] - 2026-07-14
 
 ### Added
