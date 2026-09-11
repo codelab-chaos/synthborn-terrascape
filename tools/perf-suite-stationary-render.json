@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "defaults": {
+    "centerX": 0,
+    "centerZ": 0,
+    "steps": 0,
+    "modes": [
+      "wet",
+      "dry"
+    ],
+    "regressionFactor": 1.25,
+    "stepSettleMs": 200,
+    "flyChunks": 6,
+    "flyLegs": false,
+    "flySprint": false,
+    "flySampleMs": 50,
+    "flyDirections": "east-west",
+    "world": "default"
+  },
+  "thresholds": {},
+  "serverMeshProbe": {
+    "enabled": false
+  },
+  "scenarios": [
+    {
+      "id": "stationary-render",
+      "label": "Stationary radius-4 terrain and map tiles, ten-second frame sample",
+      "radius": 4,
+      "steps": 0,
+      "modes": [
+        "wet",
+        "dry"
+      ],
+      "features": {
+        "mapTiles": true,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "shader": "none",
+        "sun": true,
+        "shade": true,
+        "auto": false,
+        "mapTileRadius": 4
+      },
+      "flyDirections": "east-west",
+      "flyChunks": 6,
+      "regressionFactor": 1.25,
+      "flyLegs": false
+    }
+  ]
+}

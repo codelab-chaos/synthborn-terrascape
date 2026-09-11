@@ -1,10 +1,9 @@
 package com.codelabchaos.terrascape.terrain;
 
-import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.protocol.Color;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.universe.world.World;
-import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
+
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -36,14 +35,7 @@ public final class TerrainSampler {
             boolean includeCosmeticDetails,
             @Nonnull VisualDetailMode visualDetailMode
     ) {
-        long chunkIndex = ChunkUtil.indexChunk(chunkX, chunkZ);
-        WorldChunk chunk = world.getChunkIfLoaded(chunkIndex);
-        if (chunk == null) {
-            chunk = world.getNonTickingChunk(chunkIndex);
-        }
-        if (chunk == null) {
-            throw new IllegalStateException("Chunk " + chunkX + "," + chunkZ + " is not available.");
-        }
+        TerrainChunkReader chunk = TerrainChunkReader.load(world, chunkX, chunkZ);
 
         TerrainColumn[] columns = new TerrainColumn[TerrainSnapshot.CHUNK_SIZE * TerrainSnapshot.CHUNK_SIZE];
         List<TerrainDetail> details = new ArrayList<>();
@@ -75,7 +67,7 @@ public final class TerrainSampler {
     }
 
     private static SampledColumn sampleColumn(
-            @Nonnull WorldChunk chunk,
+            @Nonnull TerrainChunkReader chunk,
             int localX,
             int localZ,
             short height,
@@ -139,7 +131,7 @@ public final class TerrainSampler {
     }
 
     private static SampledColumn sampleOverlandColumn(
-            @Nonnull WorldChunk chunk,
+            @Nonnull TerrainChunkReader chunk,
             int localX,
             int localZ,
             int height,
@@ -181,7 +173,7 @@ public final class TerrainSampler {
     }
 
     private static List<TerrainDetail> collectVegetationDetails(
-            @Nonnull WorldChunk chunk,
+            @Nonnull TerrainChunkReader chunk,
             int localX,
             int localZ,
             int minY,
@@ -216,7 +208,7 @@ public final class TerrainSampler {
     }
 
     private static List<TerrainDetail> collectOccupiedDetailVoxels(
-            @Nonnull WorldChunk chunk,
+            @Nonnull TerrainChunkReader chunk,
             int localX,
             int localZ,
             int minY,
@@ -269,7 +261,7 @@ public final class TerrainSampler {
     }
 
     private static List<TerrainDetail> collectSmallFoliageDetails(
-            @Nonnull WorldChunk chunk,
+            @Nonnull TerrainChunkReader chunk,
             int localX,
             int localZ,
             int minY,
@@ -304,7 +296,7 @@ public final class TerrainSampler {
     }
 
     private static boolean isFloatingDetailBlock(
-            @Nonnull WorldChunk chunk,
+            @Nonnull TerrainChunkReader chunk,
             int localX,
             int localZ,
             int y,
@@ -323,7 +315,7 @@ public final class TerrainSampler {
                 || hasAirGapBelowTop(chunk, localX, localZ, y);
     }
 
-    private static int highestOccupiedY(@Nonnull WorldChunk chunk, int localX, int localZ, int minY, int maxY) {
+    private static int highestOccupiedY(@Nonnull TerrainChunkReader chunk, int localX, int localZ, int minY, int maxY) {
         for (int y = maxY; y >= minY; y--) {
             int blockId = safeBlockId(chunk, localX, y, localZ);
             if (blockId != BlockType.EMPTY_ID) {
@@ -333,7 +325,7 @@ public final class TerrainSampler {
         return minY - 1;
     }
 
-    private static boolean hasAirGapBelowTop(@Nonnull WorldChunk chunk, int localX, int localZ, int y) {
+    private static boolean hasAirGapBelowTop(@Nonnull TerrainChunkReader chunk, int localX, int localZ, int y) {
         for (int dy = 1; dy <= FLOATING_DETAIL_AIR_CHECK_DEPTH && y - dy >= 0; dy++) {
             if (safeBlockId(chunk, localX, y - dy, localZ) == BlockType.EMPTY_ID) {
                 return true;
@@ -342,7 +334,7 @@ public final class TerrainSampler {
         return false;
     }
 
-    private static SurfaceFluid surfaceFluid(@Nonnull WorldChunk chunk, int localX, int localZ, int height) {
+    private static SurfaceFluid surfaceFluid(@Nonnull TerrainChunkReader chunk, int localX, int localZ, int height) {
         int topFluidY = -1;
         int topFluidId = 0;
         for (int dy = 0; dy <= SURFACE_FLUID_SCAN_ABOVE_HEIGHTMAP; dy++) {
@@ -356,8 +348,7 @@ public final class TerrainSampler {
         return new SurfaceFluid(topFluidY, topFluidId);
     }
 
-    @SuppressWarnings("removal")
-    private static int safeFluidId(@Nonnull WorldChunk chunk, int localX, int y, int localZ) {
+    private static int safeFluidId(@Nonnull TerrainChunkReader chunk, int localX, int y, int localZ) {
         try {
             return chunk.getFluidId(localX, y, localZ);
         } catch (RuntimeException e) {
@@ -365,7 +356,7 @@ public final class TerrainSampler {
         }
     }
 
-    private static int safeBlockId(@Nonnull WorldChunk chunk, int localX, int y, int localZ) {
+    private static int safeBlockId(@Nonnull TerrainChunkReader chunk, int localX, int y, int localZ) {
         try {
             return chunk.getBlock(localX, y, localZ);
         } catch (RuntimeException e) {
@@ -373,7 +364,7 @@ public final class TerrainSampler {
         }
     }
 
-    private static int safeRotationIndex(@Nonnull WorldChunk chunk, int localX, int y, int localZ) {
+    private static int safeRotationIndex(@Nonnull TerrainChunkReader chunk, int localX, int y, int localZ) {
         try {
             return chunk.getRotationIndex(localX, y, localZ);
         } catch (RuntimeException e) {

@@ -12,7 +12,17 @@ Compatibility. During release preparation, move them into a dated version sectio
 
 ### Compatibility
 
-- Updated the compile and test baseline to Hytale Server 0.5.9.
+- Updated the compile and test baseline to Hytale Server 0.6.5 (Update 6), with
+  a minimum-only server requirement of `>=0.6.4`.
+- Migrated terrain reads to chunk/section components and mob scanning to component
+  queries; removed deprecated legacy entity and string-based health lookups.
+- Refreshed the bundled NPC catalog to 999 roles from Update 6 assets.
+
+### Fixed
+
+- Restored terrain biome tint sampling after Update 6 removed `WorldChunk.getTint`.
+- NPC catalog generation now uses current Basecamp labels instead of Overseer's
+  separately maintained label copy.
 
 ## [0.1.1-beta.1] - 2026-07-14
 

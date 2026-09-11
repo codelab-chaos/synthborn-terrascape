@@ -1,16 +1,16 @@
 {
-  "generatedAt": "2026-06-02T06:56:40.552Z",
+  "generatedAt": "2026-09-10T19:22:35.021Z",
   "source": {
     "roles": "_Assets/Server/NPC/Roles",
     "icons": "_Assets/Common/Icons/ModelsGenerated",
-    "labels": "mods/SynthOverseer/src/main/resources/synthoverseer/lang/en-US-labels.properties"
+    "labels": "docs/refs/labels/labels.json"
   },
   "counts": {
-    "roles": 974,
+    "roles": 999,
     "icons": 255,
     "withIcon": 475,
-    "withMaxHealth": 781,
-    "withAttackDamage": 256
+    "withMaxHealth": 801,
+    "withAttackDamage": 252
   },
   "entries": {
     "Antelope": {
@@ -741,12 +741,12 @@
     "Component_Instruction_Attack_Sequence_Eye_Void": {
       "id": "Component_Instruction_Attack_Sequence_Eye_Void",
       "label": "Component Instruction Attack Sequence Eye Void",
-      "categoryPath": "Void",
+      "categoryPath": "_Core/Components/Deprecated",
       "aliases": [
         "Component_Instruction_Attack_Sequence_Eye_Void"
       ],
       "attackDistance": 2,
-      "source": "_Assets/Server/NPC/Roles/Void/Component_Instruction_Attack_Sequence_Eye_Void.json"
+      "source": "_Assets/Server/NPC/Roles/_Core/Components/Deprecated/Component_Instruction_Attack_Sequence_Eye_Void.json"
     },
     "Component_Instruction_Attack_Sequence_Feran_Burrower": {
       "id": "Component_Instruction_Attack_Sequence_Feran_Burrower",
@@ -971,12 +971,12 @@
     "Component_Instruction_Attack_Sequence_Spirit": {
       "id": "Component_Instruction_Attack_Sequence_Spirit",
       "label": "Component Instruction Attack Sequence Spirit",
-      "categoryPath": "Elemental/Spirit",
+      "categoryPath": "_Core/Components/Deprecated",
       "aliases": [
         "Component_Instruction_Attack_Sequence_Spirit"
       ],
       "attackDistance": 2,
-      "source": "_Assets/Server/NPC/Roles/Elemental/Spirit/Component_Instruction_Attack_Sequence_Spirit.json"
+      "source": "_Assets/Server/NPC/Roles/_Core/Components/Deprecated/Component_Instruction_Attack_Sequence_Spirit.json"
     },
     "Component_Instruction_Attack_Sequence_Temp": {
       "id": "Component_Instruction_Attack_Sequence_Temp",
@@ -1057,46 +1057,6 @@
       ],
       "attackDistance": 3,
       "source": "_Assets/Server/NPC/Roles/Intelligent/Aggressive/Trork/Components/Component_Instruction_Attack_Sequence_Trork_Warrior.json"
-    },
-    "Component_Instruction_Attack_Sequence_Zombie": {
-      "id": "Component_Instruction_Attack_Sequence_Zombie",
-      "label": "Component Instruction Attack Sequence Zombie",
-      "categoryPath": "Undead/Zombie/Components",
-      "aliases": [
-        "Component_Instruction_Attack_Sequence_Zombie"
-      ],
-      "attackDistance": 3.25,
-      "source": "_Assets/Server/NPC/Roles/Undead/Zombie/Components/Component_Instruction_Attack_Sequence_Zombie.json"
-    },
-    "Component_Instruction_Attack_Sequence_Zombie_Burnt": {
-      "id": "Component_Instruction_Attack_Sequence_Zombie_Burnt",
-      "label": "Component Instruction Attack Sequence Zombie Burnt",
-      "categoryPath": "Undead/Zombie/Components",
-      "aliases": [
-        "Component_Instruction_Attack_Sequence_Zombie_Burnt"
-      ],
-      "attackDistance": 3.25,
-      "source": "_Assets/Server/NPC/Roles/Undead/Zombie/Components/Component_Instruction_Attack_Sequence_Zombie_Burnt.json"
-    },
-    "Component_Instruction_Attack_Sequence_Zombie_Frost": {
-      "id": "Component_Instruction_Attack_Sequence_Zombie_Frost",
-      "label": "Component Instruction Attack Sequence Zombie Frost",
-      "categoryPath": "Undead/Zombie/Components",
-      "aliases": [
-        "Component_Instruction_Attack_Sequence_Zombie_Frost"
-      ],
-      "attackDistance": 3.25,
-      "source": "_Assets/Server/NPC/Roles/Undead/Zombie/Components/Component_Instruction_Attack_Sequence_Zombie_Frost.json"
-    },
-    "Component_Instruction_Attack_Sequence_Zombie_Sand": {
-      "id": "Component_Instruction_Attack_Sequence_Zombie_Sand",
-      "label": "Component Instruction Attack Sequence Zombie Sand",
-      "categoryPath": "Undead/Zombie/Components",
-      "aliases": [
-        "Component_Instruction_Attack_Sequence_Zombie_Sand"
-      ],
-      "attackDistance": 3.25,
-      "source": "_Assets/Server/NPC/Roles/Undead/Zombie/Components/Component_Instruction_Attack_Sequence_Zombie_Sand.json"
     },
     "Component_Instruction_Cactee_Idle_Motion": {
       "id": "Component_Instruction_Cactee_Idle_Motion",
@@ -1200,6 +1160,17 @@
       ],
       "viewRange": 15,
       "source": "_Assets/Server/NPC/Roles/_Core/Components/Selectors/Component_Instruction_Generic_Alerted_With_Friendly.json"
+    },
+    "Component_Instruction_Generic_Detection": {
+      "id": "Component_Instruction_Generic_Detection",
+      "label": "Component Instruction Generic Detection",
+      "categoryPath": "_Core/Components/Selectors",
+      "aliases": [
+        "Component_Instruction_Generic_Detection"
+      ],
+      "viewRange": 12,
+      "hearingRange": 8,
+      "source": "_Assets/Server/NPC/Roles/_Core/Components/Selectors/Component_Instruction_Generic_Detection.json"
     },
     "Component_Instruction_Generic_Greet": {
       "id": "Component_Instruction_Generic_Greet",
@@ -1539,6 +1510,15 @@
       ],
       "attackDistance": 2,
       "source": "_Assets/Server/NPC/Roles/_Core/Components/Steps/Component_Instruction_Target_Adjusted_Attack_Melee.json"
+    },
+    "Component_Instruction_Void_Eye_Summon": {
+      "id": "Component_Instruction_Void_Eye_Summon",
+      "label": "Component Instruction Void Eye Summon",
+      "categoryPath": "Void/Components",
+      "aliases": [
+        "Component_Instruction_Void_Eye_Summon"
+      ],
+      "source": "_Assets/Server/NPC/Roles/Void/Components/Component_Instruction_Void_Eye_Summon.json"
     },
     "Component_Instruction_Waking_Idle": {
       "id": "Component_Instruction_Waking_Idle",
@@ -2518,7 +2498,7 @@
       "id": "Dungeon_Scarak_Seeker",
       "label": "Scarak Seeker",
       "categoryPath": "Intelligent/Aggressive/Scarak/Dungeon",
-      "reference": "Template_Scarak_Seeker",
+      "reference": "Template_Flying_Aggressive",
       "appearance": "Scarak_Seeker",
       "icon": "mob-icons/Scarak_Seeker.png",
       "aliases": [
@@ -2526,14 +2506,10 @@
         "Scarak_Seeker"
       ],
       "maxHealth": 61,
-      "attackDamage": 5,
-      "attack": "Scarak_Seeker_Sting",
-      "attackDistance": 3,
-      "maxSpeed": 15,
       "viewRange": 30,
       "hearingRange": 20,
-      "dropList": "Drop_Scarak_Fighter",
-      "attitudeGroup": "Scarak",
+      "dropList": "Drop_Scarak_Seeker",
+      "attitudeGroup": "Empty",
       "memoriesCategory": "Scarak",
       "nameTranslationKey": "server.npcRoles.Scarak_Seeker.name",
       "source": "_Assets/Server/NPC/Roles/Intelligent/Aggressive/Scarak/Dungeon/Dungeon_Scarak_Seeker.json"
@@ -2542,7 +2518,7 @@
       "id": "Dungeon_Scarak_Seeker_Patrol",
       "label": "Scarak Seeker",
       "categoryPath": "Intelligent/Aggressive/Scarak/Dungeon",
-      "reference": "Template_Scarak_Seeker",
+      "reference": "Template_Flying_Aggressive",
       "appearance": "Scarak_Seeker",
       "icon": "mob-icons/Scarak_Seeker.png",
       "aliases": [
@@ -2550,15 +2526,11 @@
         "Scarak_Seeker",
         "Dungeon_Scarak_Seeker"
       ],
-      "maxHealth": 63,
-      "attackDamage": 5,
-      "attack": "Scarak_Seeker_Sting",
-      "attackDistance": 3,
-      "maxSpeed": 15,
+      "maxHealth": 61,
       "viewRange": 30,
       "hearingRange": 20,
-      "dropList": "Drop_Scarak_Fighter",
-      "attitudeGroup": "Scarak",
+      "dropList": "Drop_Scarak_Seeker",
+      "attitudeGroup": "Empty",
       "memoriesCategory": "Scarak",
       "nameTranslationKey": "server.npcRoles.Scarak_Seeker.name",
       "source": "_Assets/Server/NPC/Roles/Intelligent/Aggressive/Scarak/Dungeon/Dungeon_Scarak_Seeker_Patrol.json"
@@ -2584,7 +2556,7 @@
       "dropList": "Drop_Skeleton",
       "flock": [],
       "attitudeGroup": "Empty",
-      "memoriesCategory": "Other",
+      "memoriesCategory": "Undead",
       "nameTranslationKey": "server.npcRoles.Skeleton_Sand_Archer.name",
       "source": "_Assets/Server/NPC/Roles/Undead/Skeleton/Skeleton_Sand/Dungeon/Dungeon_Skeleton_Sand_Archer.json"
     },
@@ -2609,7 +2581,7 @@
       "dropList": "Drop_Skeleton",
       "flock": [],
       "attitudeGroup": "Empty",
-      "memoriesCategory": "Other",
+      "memoriesCategory": "Undead",
       "nameTranslationKey": "server.npcRoles.Skeleton_Sand_Assassin.name",
       "source": "_Assets/Server/NPC/Roles/Undead/Skeleton/Skeleton_Sand/Dungeon/Dungeon_Skeleton_Sand_Assassin.json"
     },
@@ -2634,7 +2606,7 @@
       "dropList": "Drop_Skeleton",
       "flock": [],
       "attitudeGroup": "Empty",
-      "memoriesCategory": "Other",
+      "memoriesCategory": "Undead",
       "nameTranslationKey": "server.npcRoles.Dungeon_Skeleton_Sand_Mage.name",
       "source": "_Assets/Server/NPC/Roles/Undead/Skeleton/Skeleton_Sand/Dungeon/Dungeon_Skeleton_Sand_Mage.json"
     },
@@ -2659,7 +2631,7 @@
       "dropList": "Drop_Skeleton",
       "flock": [],
       "attitudeGroup": "Empty",
-      "memoriesCategory": "Other",
+      "memoriesCategory": "Undead",
       "nameTranslationKey": "server.npcRoles.Skeleton_Sand_Soldier.name",
       "source": "_Assets/Server/NPC/Roles/Undead/Skeleton/Skeleton_Sand/Dungeon/Dungeon_Skeleton_Sand_Soldier.json"
     },
@@ -2752,16 +2724,15 @@
       "id": "Eye_Void",
       "label": "Void Eye",
       "categoryPath": "Void",
-      "reference": "Template_Eye",
+      "reference": "Template_Flying_Aggressive",
       "appearance": "Eye_Void",
       "icon": "mob-icons/Eye_Void.png",
       "aliases": [
         "Eye_Void"
       ],
-      "maxHealth": 61,
-      "attackDistance": 10,
+      "maxHealth": 60,
       "viewRange": 40,
-      "hearingRange": 8,
+      "hearingRange": 10,
       "dropList": "Drop_Eye_Void",
       "attitudeGroup": "Empty",
       "memoriesCategory": "Voidspawn",
@@ -5729,21 +5700,17 @@
       "id": "Scarak_Seeker",
       "label": "Scarak Seeker",
       "categoryPath": "Intelligent/Aggressive/Scarak",
-      "reference": "Template_Scarak_Seeker",
+      "reference": "Template_Flying_Aggressive",
       "appearance": "Scarak_Seeker",
       "icon": "mob-icons/Scarak_Seeker.png",
       "aliases": [
         "Scarak_Seeker"
       ],
       "maxHealth": 61,
-      "attackDamage": 5,
-      "attack": "Scarak_Seeker_Sting",
-      "attackDistance": 3,
-      "maxSpeed": 15,
       "viewRange": 30,
       "hearingRange": 20,
       "dropList": "Drop_Scarak_Seeker",
-      "attitudeGroup": "Scarak",
+      "attitudeGroup": "Empty",
       "memoriesCategory": "Scarak",
       "nameTranslationKey": "server.npcRoles.Scarak_Seeker.name",
       "source": "_Assets/Server/NPC/Roles/Intelligent/Aggressive/Scarak/Scarak_Seeker.json"
@@ -5752,7 +5719,7 @@
       "id": "Scarak_Seeker_Patrol",
       "label": "Scarak Seeker",
       "categoryPath": "Intelligent/Aggressive/Scarak",
-      "reference": "Template_Scarak_Seeker",
+      "reference": "Template_Flying_Aggressive",
       "appearance": "Scarak_Seeker",
       "icon": "mob-icons/Scarak_Seeker.png",
       "aliases": [
@@ -5760,14 +5727,10 @@
         "Scarak_Seeker"
       ],
       "maxHealth": 61,
-      "attackDamage": 5,
-      "attack": "Scarak_Seeker_Sting",
-      "attackDistance": 3,
-      "maxSpeed": 15,
       "viewRange": 30,
       "hearingRange": 20,
       "dropList": "Drop_Scarak_Seeker",
-      "attitudeGroup": "Scarak",
+      "attitudeGroup": "Empty",
       "memoriesCategory": "Scarak",
       "nameTranslationKey": "server.npcRoles.Scarak_Seeker.name",
       "source": "_Assets/Server/NPC/Roles/Intelligent/Aggressive/Scarak/Scarak_Seeker_Patrol.json"
@@ -7761,16 +7724,15 @@
       "id": "Skeleton_Incandescent_Head",
       "label": "Incandescent Skeleton Head",
       "categoryPath": "Undead/Skeleton/Skeleton_Incandescent",
-      "reference": "Template_Spirit",
+      "reference": "Template_Flying_Aggressive",
       "appearance": "Skeleton_Incandescent_Head",
       "icon": "mob-icons/Skeleton_Incandescent_Head.png",
       "aliases": [
         "Skeleton_Incandescent_Head"
       ],
       "maxHealth": 81,
-      "attackDistance": 8,
-      "maxSpeed": 5,
       "viewRange": 20,
+      "hearingRange": 10,
       "dropList": "Drop_Skeleton_Incandescent_Head",
       "attitudeGroup": "Empty",
       "memoriesCategory": "Undead",
@@ -9614,16 +9576,15 @@
       "id": "Spirit_Ember",
       "label": "Ember Spirit",
       "categoryPath": "Elemental/Spirit",
-      "reference": "Template_Spirit",
+      "reference": "Template_Flying_Aggressive",
       "appearance": "Spirit_Ember",
       "icon": "mob-icons/Spirit_Ember.png",
       "aliases": [
         "Spirit_Ember"
       ],
       "maxHealth": 126,
-      "attackDistance": 8,
-      "maxSpeed": 5,
       "viewRange": 20,
+      "hearingRange": 10,
       "dropList": "Drop_Spirit_Ember",
       "attitudeGroup": "Empty",
       "memoriesCategory": "Elemental",
@@ -9634,16 +9595,15 @@
       "id": "Spirit_Frost",
       "label": "Frost Spirit",
       "categoryPath": "Elemental/Spirit",
-      "reference": "Template_Spirit",
+      "reference": "Template_Flying_Aggressive",
       "appearance": "Spirit_Frost",
       "icon": "mob-icons/Spirit_Frost.png",
       "aliases": [
         "Spirit_Frost"
       ],
       "maxHealth": 81,
-      "attackDistance": 8,
-      "maxSpeed": 5,
       "viewRange": 20,
+      "hearingRange": 10,
       "dropList": "Drop_Spirit_Frost",
       "attitudeGroup": "Empty",
       "memoriesCategory": "Elemental",
@@ -9654,16 +9614,15 @@
       "id": "Spirit_Root",
       "label": "Root Spirit",
       "categoryPath": "Elemental/Spirit",
-      "reference": "Template_Spirit",
+      "reference": "Template_Flying_Aggressive",
       "appearance": "Spirit_Root",
       "icon": "mob-icons/Spirit_Root.png",
       "aliases": [
         "Spirit_Root"
       ],
       "maxHealth": 49,
-      "attackDistance": 8,
-      "maxSpeed": 5,
       "viewRange": 20,
+      "hearingRange": 10,
       "dropList": "Drop_Spirit_Root",
       "attitudeGroup": "Empty",
       "memoriesCategory": "Elemental",
@@ -9674,16 +9633,15 @@
       "id": "Spirit_Thunder",
       "label": "Thunder Spirit",
       "categoryPath": "Elemental/Spirit",
-      "reference": "Template_Spirit",
+      "reference": "Template_Flying_Aggressive",
       "appearance": "Spirit_Thunder",
       "icon": "mob-icons/Spirit_Thunder.png",
       "aliases": [
         "Spirit_Thunder"
       ],
       "maxHealth": 249,
-      "attackDistance": 8,
-      "maxSpeed": 5,
       "viewRange": 20,
+      "hearingRange": 10,
       "dropList": "Drop_Spirit_Thunder",
       "attitudeGroup": "Empty",
       "memoriesCategory": "Elemental",
@@ -10793,23 +10751,6 @@
       ],
       "source": "_Assets/Server/NPC/Roles/_Core/Tests/Components/Template_Age_Sensor_Test.json"
     },
-    "Template_Aggressive_Zombies": {
-      "id": "Template_Aggressive_Zombies",
-      "label": "Zombie",
-      "categoryPath": "Undead/Zombie/Templates",
-      "appearance": "Zombie",
-      "icon": "mob-icons/Zombie.png",
-      "aliases": [
-        "Template_Aggressive_Zombies",
-        "Zombie"
-      ],
-      "maxHealth": 100,
-      "attackDistance": 1.5,
-      "dropList": "Empty",
-      "memoriesCategory": "Other",
-      "nameTranslationKey": "server.npcRoles.Template.name",
-      "source": "_Assets/Server/NPC/Roles/Undead/Zombie/Templates/Template_Aggressive_Zombies.json"
-    },
     "Template_Animal_Neutral": {
       "id": "Template_Animal_Neutral",
       "label": "Stag",
@@ -10923,7 +10864,7 @@
     "Template_Eye": {
       "id": "Template_Eye",
       "label": "Void Eye",
-      "categoryPath": "Void/Templates",
+      "categoryPath": "_Core/Templates/Deprecated",
       "appearance": "Eye_Void",
       "icon": "mob-icons/Eye_Void.png",
       "aliases": [
@@ -10938,7 +10879,7 @@
       "attitudeGroup": "Empty",
       "memoriesCategory": "Other",
       "nameTranslationKey": "server.npcRoles.Template.name",
-      "source": "_Assets/Server/NPC/Roles/Void/Templates/Template_Eye.json"
+      "source": "_Assets/Server/NPC/Roles/_Core/Templates/Deprecated/Template_Eye.json"
     },
     "Template_Feran_Burrower": {
       "id": "Template_Feran_Burrower",
@@ -11038,6 +10979,25 @@
       "memoriesCategory": "Other",
       "nameTranslationKey": "server.npcRoles.Template.name",
       "source": "_Assets/Server/NPC/Roles/Intelligent/Neutral/Feran/Templates/Template_Feran_Windwalker.json"
+    },
+    "Template_Flying_Aggressive": {
+      "id": "Template_Flying_Aggressive",
+      "label": "Void Eye",
+      "categoryPath": "_Core/Templates",
+      "appearance": "Eye_Void",
+      "icon": "mob-icons/Eye_Void.png",
+      "aliases": [
+        "Template_Flying_Aggressive",
+        "Eye_Void"
+      ],
+      "maxHealth": 100,
+      "viewRange": 40,
+      "hearingRange": 10,
+      "dropList": "Drop_Eye_Void",
+      "attitudeGroup": "Empty",
+      "memoriesCategory": "Other",
+      "nameTranslationKey": "server.npcRoles.Template_Flying_Aggressive.name",
+      "source": "_Assets/Server/NPC/Roles/_Core/Templates/Template_Flying_Aggressive.json"
     },
     "Template_Goblin": {
       "id": "Template_Goblin",
@@ -11504,7 +11464,7 @@
     "Template_Scarak_Seeker": {
       "id": "Template_Scarak_Seeker",
       "label": "Scarak Seeker",
-      "categoryPath": "Intelligent/Aggressive/Scarak/Templates",
+      "categoryPath": "_Core/Templates/Deprecated",
       "appearance": "Scarak_Seeker",
       "icon": "mob-icons/Scarak_Seeker.png",
       "aliases": [
@@ -11522,12 +11482,12 @@
       "attitudeGroup": "Scarak",
       "memoriesCategory": "Other",
       "nameTranslationKey": "server.npcRoles.Template.name",
-      "source": "_Assets/Server/NPC/Roles/Intelligent/Aggressive/Scarak/Templates/Template_Scarak_Seeker.json"
+      "source": "_Assets/Server/NPC/Roles/_Core/Templates/Deprecated/Template_Scarak_Seeker.json"
     },
     "Template_Spirit": {
       "id": "Template_Spirit",
       "label": "Root Spirit",
-      "categoryPath": "_Core/Templates",
+      "categoryPath": "_Core/Templates/Deprecated",
       "appearance": "Spirit_Root",
       "icon": "mob-icons/Spirit_Root.png",
       "aliases": [
@@ -11542,7 +11502,7 @@
       "attitudeGroup": "Empty",
       "memoriesCategory": "Other",
       "nameTranslationKey": "server.npcRoles.Template.name",
-      "source": "_Assets/Server/NPC/Roles/_Core/Templates/Template_Spirit.json"
+      "source": "_Assets/Server/NPC/Roles/_Core/Templates/Deprecated/Template_Spirit.json"
     },
     "Template_Summoned_Ally": {
       "id": "Template_Summoned_Ally",
@@ -12764,6 +12724,57 @@
       "maxHealth": 100,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests/Test_Blocking_Animation.json"
     },
+    "Test_Boss_Basic": {
+      "id": "Test_Boss_Basic",
+      "label": "Test Boss Basic",
+      "categoryPath": "_Core/Tests/Integration",
+      "aliases": [
+        "Test_Boss_Basic"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Integration/Test_Boss_Basic.json"
+    },
+    "Test_Boss_Basic_Intro": {
+      "id": "Test_Boss_Basic_Intro",
+      "label": "Test Boss Awakening",
+      "categoryPath": "_Core/Tests/Integration",
+      "aliases": [
+        "Test_Boss_Basic_Intro"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Integration/Test_Boss_Basic_Intro.json"
+    },
+    "Test_Boss_Basic_Wander": {
+      "id": "Test_Boss_Basic_Wander",
+      "label": "Test Boss Basic Wander",
+      "categoryPath": "_Core/Tests/Integration",
+      "aliases": [
+        "Test_Boss_Basic_Wander",
+        "Test_Boss_Basic"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Integration/Test_Boss_Basic_Wander.json"
+    },
+    "Test_Boss_Minion": {
+      "id": "Test_Boss_Minion",
+      "label": "Test Boss Minion",
+      "categoryPath": "_Core/Tests/Integration",
+      "aliases": [
+        "Test_Boss_Minion"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Integration/Test_Boss_Minion.json"
+    },
+    "Test_Boss_Spawning": {
+      "id": "Test_Boss_Spawning",
+      "label": "Test Boss Spawning",
+      "categoryPath": "_Core/Tests/Integration",
+      "aliases": [
+        "Test_Boss_Spawning"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Integration/Test_Boss_Spawning.json"
+    },
     "Test_Bow_Charge": {
       "id": "Test_Bow_Charge",
       "label": "Test Bow Charge",
@@ -13075,7 +13086,7 @@
     },
     "Test_Constraints_Flee_Legacy_Relaxed": {
       "id": "Test_Constraints_Flee_Legacy_Relaxed",
-      "label": "[TMP] Test Constraints Flee Legacy Relaxed",
+      "label": "Test Constraints Flee Legacy Relaxed",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Flee_Legacy_Relaxed"
@@ -13085,7 +13096,7 @@
     },
     "Test_Constraints_Flee_Legacy_Unrelaxed": {
       "id": "Test_Constraints_Flee_Legacy_Unrelaxed",
-      "label": "[TMP] Test Constraints Flee Legacy Unrelaxed",
+      "label": "Test Constraints Flee Legacy Unrelaxed",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Flee_Legacy_Unrelaxed"
@@ -13095,7 +13106,7 @@
     },
     "Test_Constraints_Seek_Breathe": {
       "id": "Test_Constraints_Seek_Breathe",
-      "label": "[TMP] Test Constraints Seek Breathe",
+      "label": "Test Constraints Seek Breathe",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Seek_Breathe"
@@ -13105,7 +13116,7 @@
     },
     "Test_Constraints_Seek_Drop": {
       "id": "Test_Constraints_Seek_Drop",
-      "label": "[TMP] Test Constraints Seek Drop",
+      "label": "Test Constraints Seek Drop",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Seek_Drop"
@@ -13115,7 +13126,7 @@
     },
     "Test_Constraints_Seek_Fence": {
       "id": "Test_Constraints_Seek_Fence",
-      "label": "[TMP] Test Constraints Seek Fence",
+      "label": "Test Constraints Seek Fence",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Seek_Fence"
@@ -13125,7 +13136,7 @@
     },
     "Test_Constraints_Seek_Legacy_Relaxed": {
       "id": "Test_Constraints_Seek_Legacy_Relaxed",
-      "label": "[TMP] Test Constraints Seek Legacy Relaxed",
+      "label": "Test Constraints Seek Legacy Relaxed",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Seek_Legacy_Relaxed"
@@ -13135,7 +13146,7 @@
     },
     "Test_Constraints_Seek_Legacy_Relaxed_Small": {
       "id": "Test_Constraints_Seek_Legacy_Relaxed_Small",
-      "label": "[TMP] Test Constraints Seek Legacy Relaxed Small",
+      "label": "Test Constraints Seek Legacy Relaxed Small",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Seek_Legacy_Relaxed_Small"
@@ -13145,7 +13156,7 @@
     },
     "Test_Constraints_Seek_Legacy_Unrelaxed": {
       "id": "Test_Constraints_Seek_Legacy_Unrelaxed",
-      "label": "[TMP] Test Constraints Seek Legacy Unrelaxed",
+      "label": "Test Constraints Seek Legacy Unrelaxed",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Seek_Legacy_Unrelaxed"
@@ -13155,7 +13166,7 @@
     },
     "Test_Constraints_Seek_Legacy_Unrelaxed_Small": {
       "id": "Test_Constraints_Seek_Legacy_Unrelaxed_Small",
-      "label": "[TMP] Test Constraints Seek Legacy Unrelaxed Small",
+      "label": "Test Constraints Seek Legacy Unrelaxed Small",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Seek_Legacy_Unrelaxed_Small"
@@ -13165,7 +13176,7 @@
     },
     "Test_Constraints_Seek_None": {
       "id": "Test_Constraints_Seek_None",
-      "label": "[TMP] Test Constraints Seek None",
+      "label": "Test Constraints Seek None",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Seek_None"
@@ -13175,7 +13186,7 @@
     },
     "Test_Constraints_Seek_Wade": {
       "id": "Test_Constraints_Seek_Wade",
-      "label": "[TMP] Test Constraints Seek Wade",
+      "label": "Test Constraints Seek Wade",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Seek_Wade"
@@ -13185,7 +13196,7 @@
     },
     "Test_Constraints_Seek_Wade_Breathe": {
       "id": "Test_Constraints_Seek_Wade_Breathe",
-      "label": "[TMP] Test Constraints Seek Wade Breathe",
+      "label": "Test Constraints Seek Wade Breathe",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Seek_Wade_Breathe"
@@ -13195,7 +13206,7 @@
     },
     "Test_Constraints_Wander_Legacy_Relaxed": {
       "id": "Test_Constraints_Wander_Legacy_Relaxed",
-      "label": "[TMP] Test Constraints Wander Legacy Relaxed",
+      "label": "Test Constraints Wander Legacy Relaxed",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Wander_Legacy_Relaxed"
@@ -13205,7 +13216,7 @@
     },
     "Test_Constraints_Wander_Legacy_Unrelaxed": {
       "id": "Test_Constraints_Wander_Legacy_Unrelaxed",
-      "label": "[TMP] Test Constraints Wander Legacy Unrelaxed",
+      "label": "Test Constraints Wander Legacy Unrelaxed",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Constraints_Wander_Legacy_Unrelaxed"
@@ -13390,7 +13401,7 @@
     },
     "Test_Dummy_Damage": {
       "id": "Test_Dummy_Damage",
-      "label": "[TMP] Test Dummy Damage",
+      "label": "Test Dummy Damage",
       "categoryPath": "_Core/Tests/Integration",
       "aliases": [
         "Test_Dummy_Damage"
@@ -13407,6 +13418,24 @@
       ],
       "maxHealth": 1000000,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests/Integration/Test_Dummy_Stationary.json"
+    },
+    "Test_EntityFilter_ExecutingInteraction": {
+      "id": "Test_EntityFilter_ExecutingInteraction",
+      "label": "Test EntityFilter Executing Interaction",
+      "categoryPath": "_Core/Tests",
+      "aliases": [
+        "Test_EntityFilter_ExecutingInteraction"
+      ],
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Test_EntityFilter_ExecutingInteraction.json"
+    },
+    "Test_EntityFilter_ExecutingInteraction_Observer": {
+      "id": "Test_EntityFilter_ExecutingInteraction_Observer",
+      "label": "Test EntityFilter Executing Interaction Observer",
+      "categoryPath": "_Core/Tests",
+      "aliases": [
+        "Test_EntityFilter_ExecutingInteraction_Observer"
+      ],
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Test_EntityFilter_ExecutingInteraction_Observer.json"
     },
     "Test_EntityFilter_Walk": {
       "id": "Test_EntityFilter_Walk",
@@ -13497,6 +13526,66 @@
       ],
       "maxHealth": 100,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests_Development/Test_FX_Trail.json"
+    },
+    "Test_Fail_ForEach_BlockingSequence": {
+      "id": "Test_Fail_ForEach_BlockingSequence",
+      "label": "Test Fail ForEach BlockingSequence",
+      "categoryPath": "_Core/Tests/Failing",
+      "aliases": [
+        "Test_Fail_ForEach_BlockingSequence"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Failing/Test_Fail_ForEach_BlockingSequence.json"
+    },
+    "Test_Fail_ForEach_CombatAbility": {
+      "id": "Test_Fail_ForEach_CombatAbility",
+      "label": "Test Fail ForEach CombatAbility",
+      "categoryPath": "_Core/Tests/Failing",
+      "aliases": [
+        "Test_Fail_ForEach_CombatAbility"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Failing/Test_Fail_ForEach_CombatAbility.json"
+    },
+    "Test_Fail_ForEach_NestedIsolateForEach": {
+      "id": "Test_Fail_ForEach_NestedIsolateForEach",
+      "label": "Test Fail ForEach NestedIsolateForEach",
+      "categoryPath": "_Core/Tests/Failing",
+      "aliases": [
+        "Test_Fail_ForEach_NestedIsolateForEach"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Failing/Test_Fail_ForEach_NestedIsolateForEach.json"
+    },
+    "Test_Fail_ForEach_NestedSpawn": {
+      "id": "Test_Fail_ForEach_NestedSpawn",
+      "label": "Test Fail ForEach NestedSpawn",
+      "categoryPath": "_Core/Tests/Failing",
+      "aliases": [
+        "Test_Fail_ForEach_NestedSpawn"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Failing/Test_Fail_ForEach_NestedSpawn.json"
+    },
+    "Test_Fail_ForEach_Spawn": {
+      "id": "Test_Fail_ForEach_Spawn",
+      "label": "Test Fail ForEach Spawn",
+      "categoryPath": "_Core/Tests/Failing",
+      "aliases": [
+        "Test_Fail_ForEach_Spawn"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Failing/Test_Fail_ForEach_Spawn.json"
+    },
+    "Test_Fail_ForEach_Timeout": {
+      "id": "Test_Fail_ForEach_Timeout",
+      "label": "Test Fail ForEach Timeout",
+      "categoryPath": "_Core/Tests/Failing",
+      "aliases": [
+        "Test_Fail_ForEach_Timeout"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Failing/Test_Fail_ForEach_Timeout.json"
     },
     "Test_Fail_ItemInHand": {
       "id": "Test_Fail_ItemInHand",
@@ -13618,6 +13707,35 @@
       "maxHealth": 100,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests/Motion/Test_Fly_Flee.json"
     },
+    "Test_Forwarded_Slot_Base": {
+      "id": "Test_Forwarded_Slot_Base",
+      "label": "Test Forwarded Slot Base",
+      "categoryPath": "_Core/Tests/ForwardedModifiers",
+      "aliases": [
+        "Test_Forwarded_Slot_Base"
+      ],
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/ForwardedModifiers/Test_Forwarded_Slot_Base.json"
+    },
+    "Test_Forwarded_Slot_Variant": {
+      "id": "Test_Forwarded_Slot_Variant",
+      "label": "Test Forwarded Slot Variant",
+      "categoryPath": "_Core/Tests/ForwardedModifiers",
+      "reference": "Test_Forwarded_Slot_Base",
+      "aliases": [
+        "Test_Forwarded_Slot_Variant"
+      ],
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/ForwardedModifiers/Test_Forwarded_Slot_Variant.json"
+    },
+    "Test_Forwarded_Slot_Variant_Null": {
+      "id": "Test_Forwarded_Slot_Variant_Null",
+      "label": "Test Forwarded Slot Variant Null",
+      "categoryPath": "_Core/Tests/ForwardedModifiers",
+      "reference": "Test_Forwarded_Slot_Base",
+      "aliases": [
+        "Test_Forwarded_Slot_Variant_Null"
+      ],
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/ForwardedModifiers/Test_Forwarded_Slot_Variant_Null.json"
+    },
     "Test_Goblin_Attack": {
       "id": "Test_Goblin_Attack",
       "label": "Test Goblin Attack",
@@ -13667,6 +13785,16 @@
       ],
       "maxHealth": 100,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests/Combat/Test_Guided_Bow.json"
+    },
+    "Test_Head_Motion_Rotate": {
+      "id": "Test_Head_Motion_Rotate",
+      "label": "Test Head Motion Rotate",
+      "categoryPath": "_Core/Tests_Development",
+      "aliases": [
+        "Test_Head_Motion_Rotate"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests_Development/Test_Head_Motion_Rotate.json"
     },
     "Test_Head_Motion_Sequence": {
       "id": "Test_Head_Motion_Sequence",
@@ -14033,7 +14161,7 @@
     },
     "Test_Motion_Charge": {
       "id": "Test_Motion_Charge",
-      "label": "[TMP] Test Motion Charge",
+      "label": "Test Motion Charge",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Motion_Charge"
@@ -14043,7 +14171,7 @@
     },
     "Test_Motion_Charge_Debug": {
       "id": "Test_Motion_Charge_Debug",
-      "label": "[TMP] Test Motion Charge Debug",
+      "label": "Test Motion Charge Debug",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Motion_Charge_Debug"
@@ -14051,9 +14179,29 @@
       "maxHealth": 100,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests_Development/Test_Motion_Charge_Debug.json"
     },
+    "Test_Motion_Charge_Path": {
+      "id": "Test_Motion_Charge_Path",
+      "label": "Test Motion Charge Path",
+      "categoryPath": "_Core/Tests_Development",
+      "aliases": [
+        "Test_Motion_Charge_Path"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests_Development/Test_Motion_Charge_Path.json"
+    },
+    "Test_Motion_Charge_Repath": {
+      "id": "Test_Motion_Charge_Repath",
+      "label": "Test Motion Charge Repath",
+      "categoryPath": "_Core/Tests_Development",
+      "aliases": [
+        "Test_Motion_Charge_Repath"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests_Development/Test_Motion_Charge_Repath.json"
+    },
     "Test_Motion_Charge_Rot": {
       "id": "Test_Motion_Charge_Rot",
-      "label": "[TMP] Test Motion Charge Rot",
+      "label": "Test Motion Charge Rot",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Motion_Charge_Rot"
@@ -14063,7 +14211,7 @@
     },
     "Test_Motion_Charge_Skip": {
       "id": "Test_Motion_Charge_Skip",
-      "label": "[TMP] Test Motion Charge Skip",
+      "label": "Test Motion Charge Skip",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Motion_Charge_Skip"
@@ -14073,7 +14221,7 @@
     },
     "Test_Motion_Charge_Slope": {
       "id": "Test_Motion_Charge_Slope",
-      "label": "[TMP] Test Motion Charge Slope",
+      "label": "Test Motion Charge Slope",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Motion_Charge_Slope"
@@ -14083,7 +14231,7 @@
     },
     "Test_Motion_Charge_Speed": {
       "id": "Test_Motion_Charge_Speed",
-      "label": "[TMP] Test Motion Charge Speed",
+      "label": "Test Motion Charge Speed",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Motion_Charge_Speed"
@@ -14093,7 +14241,7 @@
     },
     "Test_Motion_Charge_States": {
       "id": "Test_Motion_Charge_States",
-      "label": "[TMP] Test Motion Charge States",
+      "label": "Test Motion Charge States",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Motion_Charge_States"
@@ -14103,13 +14251,23 @@
     },
     "Test_Motion_Charge_Stop": {
       "id": "Test_Motion_Charge_Stop",
-      "label": "[TMP] Test Motion Charge Stop",
+      "label": "Test Motion Charge Stop",
       "categoryPath": "_Core/Tests_Development",
       "aliases": [
         "Test_Motion_Charge_Stop"
       ],
       "maxHealth": 100,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests_Development/Test_Motion_Charge_Stop.json"
+    },
+    "Test_Motion_Charge_Stun": {
+      "id": "Test_Motion_Charge_Stun",
+      "label": "Test Motion Charge Stun",
+      "categoryPath": "_Core/Tests_Development",
+      "aliases": [
+        "Test_Motion_Charge_Stun"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests_Development/Test_Motion_Charge_Stun.json"
     },
     "Test_Motion_Nothing": {
       "id": "Test_Motion_Nothing",
@@ -14220,6 +14378,16 @@
       ],
       "maxHealth": 100,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests/Test_Particle_Emotions.json"
+    },
+    "Test_Particle_Scale": {
+      "id": "Test_Particle_Scale",
+      "label": "Test Particle Scale",
+      "categoryPath": "_Core/Tests",
+      "aliases": [
+        "Test_Particle_Scale"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Test_Particle_Scale.json"
     },
     "Test_Path": {
       "id": "Test_Path",
@@ -14348,6 +14516,16 @@
       ],
       "maxHealth": 100,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests/Test_Place_Blocks.json"
+    },
+    "Test_Platform": {
+      "id": "Test_Platform",
+      "label": "Test Platform",
+      "categoryPath": "_Core/Tests/Collision",
+      "aliases": [
+        "Test_Platform"
+      ],
+      "maxHealth": 1000000,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/Collision/Test_Platform.json"
     },
     "Test_Player_Hidden_Template": {
       "id": "Test_Player_Hidden_Template",
@@ -14515,6 +14693,15 @@
       ],
       "maxHealth": 100,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests_Development/Test_Remove.json"
+    },
+    "Test_Role_Macro_Forwardable": {
+      "id": "Test_Role_Macro_Forwardable",
+      "label": "Test Role Macro Forwardable",
+      "categoryPath": "_Core/Tests/ForwardedModifiers",
+      "aliases": [
+        "Test_Role_Macro_Forwardable"
+      ],
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/ForwardedModifiers/Test_Role_Macro_Forwardable.json"
     },
     "Test_Sensor_Age": {
       "id": "Test_Sensor_Age",
@@ -14715,6 +14902,26 @@
       ],
       "maxHealth": 100,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests_Development/Test_Separation_Wander.json"
+    },
+    "Test_Set_Health_Regen": {
+      "id": "Test_Set_Health_Regen",
+      "label": "Test Set Health Regen",
+      "categoryPath": "_Core/Tests_Development",
+      "aliases": [
+        "Test_Set_Health_Regen"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests_Development/Test_Set_Health_Regen.json"
+    },
+    "Test_Set_Invulnerable": {
+      "id": "Test_Set_Invulnerable",
+      "label": "Test Set Invulnerable",
+      "categoryPath": "_Core/Tests_Development",
+      "aliases": [
+        "Test_Set_Invulnerable"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests_Development/Test_Set_Invulnerable.json"
     },
     "Test_Set_Stat": {
       "id": "Test_Set_Stat",
@@ -14977,6 +15184,15 @@
       ],
       "maxHealth": 100,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests/States/Test_State_Evaluator_Sleep.json"
+    },
+    "Test_State_Evaluator_TimeSinceLastUsed": {
+      "id": "Test_State_Evaluator_TimeSinceLastUsed",
+      "label": "Test State Evaluator TimeSinceLastUsed",
+      "categoryPath": "_Core/Tests/States",
+      "aliases": [
+        "Test_State_Evaluator_TimeSinceLastUsed"
+      ],
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/States/Test_State_Evaluator_TimeSinceLastUsed.json"
     },
     "Test_State_Evaluator_Toggle": {
       "id": "Test_State_Evaluator_Toggle",
@@ -15270,6 +15486,16 @@
       ],
       "maxHealth": 100,
       "source": "_Assets/Server/NPC/Roles/_Core/Tests/Test_Trigger_Spawners.json"
+    },
+    "Test_Trigger_Volume": {
+      "id": "Test_Trigger_Volume",
+      "label": "Test Trigger Volume",
+      "categoryPath": "_Core/Tests/TriggerVolumes",
+      "aliases": [
+        "Test_Trigger_Volume"
+      ],
+      "maxHealth": 100,
+      "source": "_Assets/Server/NPC/Roles/_Core/Tests/TriggerVolumes/Test_Trigger_Volume.json"
     },
     "Test_Unified_1": {
       "id": "Test_Unified_1",
@@ -16401,7 +16627,7 @@
       "id": "Zombie",
       "label": "Zombie",
       "categoryPath": "Undead/Zombie",
-      "reference": "Template_Aggressive_Zombies",
+      "reference": "Template_Predator",
       "appearance": "Zombie",
       "icon": "mob-icons/Zombie.png",
       "aliases": [
@@ -16409,8 +16635,14 @@
       ],
       "maxHealth": 49,
       "attackDamage": 18,
-      "attackDistance": 1.5,
+      "attack": "Root_NPC_Zombie_Melee",
+      "attackDistance": 2,
+      "maxSpeed": 9,
+      "viewRange": 12,
+      "hearingRange": 8,
       "dropList": "Drop_Zombie",
+      "flock": [],
+      "attitudeGroup": "Predators",
       "memoriesCategory": "Undead",
       "nameTranslationKey": "server.npcRoles.Zombie.name",
       "source": "_Assets/Server/NPC/Roles/Undead/Zombie/Zombie.json"
@@ -16493,7 +16725,7 @@
       "id": "Zombie_Burnt",
       "label": "Burnt Zombie",
       "categoryPath": "Undead/Zombie",
-      "reference": "Template_Aggressive_Zombies",
+      "reference": "Template_Predator",
       "appearance": "Zombie_Burnt",
       "icon": "mob-icons/Zombie_Burnt.png",
       "aliases": [
@@ -16501,8 +16733,14 @@
       ],
       "maxHealth": 126,
       "attackDamage": 30,
-      "attackDistance": 1.5,
+      "attack": "Root_NPC_Zombie_Burnt_Melee",
+      "attackDistance": 2,
+      "maxSpeed": 9,
+      "viewRange": 12,
+      "hearingRange": 8,
       "dropList": "Drop_Zombie_Burnt",
+      "flock": [],
+      "attitudeGroup": "Predators",
       "memoriesCategory": "Undead",
       "nameTranslationKey": "server.npcRoles.Zombie_Burnt.name",
       "source": "_Assets/Server/NPC/Roles/Undead/Zombie/Zombie_Burnt.json"
@@ -16511,7 +16749,7 @@
       "id": "Zombie_Frost",
       "label": "Frost Zombie",
       "categoryPath": "Undead/Zombie",
-      "reference": "Template_Aggressive_Zombies",
+      "reference": "Template_Predator",
       "appearance": "Zombie_Frost",
       "icon": "mob-icons/Zombie_Frost.png",
       "aliases": [
@@ -16519,8 +16757,14 @@
       ],
       "maxHealth": 81,
       "attackDamage": 21,
-      "attackDistance": 1.5,
+      "attack": "Root_NPC_Zombie_Frost_Melee",
+      "attackDistance": 2,
+      "maxSpeed": 9,
+      "viewRange": 12,
+      "hearingRange": 8,
       "dropList": "Drop_Zombie",
+      "flock": [],
+      "attitudeGroup": "Predators",
       "memoriesCategory": "Undead",
       "nameTranslationKey": "server.npcRoles.Zombie_Frost.name",
       "source": "_Assets/Server/NPC/Roles/Undead/Zombie/Zombie_Frost.json"
@@ -16529,7 +16773,7 @@
       "id": "Zombie_Sand",
       "label": "Sandswept Zombie",
       "categoryPath": "Undead/Zombie",
-      "reference": "Template_Aggressive_Zombies",
+      "reference": "Template_Predator",
       "appearance": "Zombie_Sand",
       "icon": "mob-icons/Zombie_Sand.png",
       "aliases": [
@@ -16537,8 +16781,14 @@
       ],
       "maxHealth": 49,
       "attackDamage": 18,
-      "attackDistance": 1.5,
+      "attack": "Root_NPC_Zombie_Sand_Melee",
+      "attackDistance": 2,
+      "maxSpeed": 9,
+      "viewRange": 12,
+      "hearingRange": 8,
       "dropList": "Drop_Zombie_Sand",
+      "flock": [],
+      "attitudeGroup": "Predators",
       "memoriesCategory": "Undead",
       "nameTranslationKey": "server.npcRoles.Zombie_Sand.name",
       "source": "_Assets/Server/NPC/Roles/Undead/Zombie/Zombie_Sand.json"

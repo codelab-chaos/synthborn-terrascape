@@ -19,6 +19,7 @@ function resolveFeatureSet(scenario, defaults) {
   const features = scenario.features ?? {};
   return {
     mapTiles: featureBool(features.mapTiles, featureBool(featureDefaults.mapTiles, true)),
+    mapTileRadius: features.mapTileRadius ?? featureDefaults.mapTileRadius,
     players: featureBool(features.players, featureBool(featureDefaults.players, true)),
     mobs: featureBool(features.mobs, featureBool(featureDefaults.mobs, false)),
     sun: featureBool(features.sun, featureBool(featureDefaults.sun, true)),
@@ -331,7 +332,13 @@ function printRunSummary(run, config) {
     const flyTag = result.flyLegs
       ? ` fly=${result.flyChunks}ch×${flyLegCount} totalFly=${result.totalFlyMs ?? 0}ms minFpsFly=${result.minFpsDuringFly ?? '-'} p95=${result.p95FrameMsDuringFly ?? '-'}ms hitches=${result.hitchCount50DuringFly ?? '-'} gridLoad=${result.maxGridLoadMs ?? '-'}ms`
       : '';
-    console.log(`  [${result.scenarioId}/${result.mode}] total=${result.totalMs}ms avgStep=${result.averageStepMs}ms minFps=${result.minFps}${flyTag} (${flags})`);
+    console.log(`  [${result.scenarioId}/${result.mode}] total=${result.totalMs}ms avgStep=${result.averageStepMs}ms hudMinFps=${result.minFps}${flyTag} (${flags})`);
+    for (const step of result.stepResults ?? []) {
+      const frames = step.stationaryFrames;
+      if (frames) {
+        console.log(`    stationary: ${frames.averageFps.toFixed(1)} FPS, p95=${frames.p95FrameMs.toFixed(1)}ms, longest=${frames.longestFrameMs.toFixed(1)}ms, hitches>50ms=${frames.hitchesOver50Ms}, frames=${frames.frames}`);
+      }
+    }
     if (result.finalMapBackdrop?.loadMs) {
       console.log(`    map backdrop: ${result.finalMapBackdrop.loadMs}ms ${result.finalMapBackdrop.bytes}b ${result.finalMapBackdrop.textureSize}`);
     }

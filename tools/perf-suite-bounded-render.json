@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "defaults": {
+    "centerX": 0,
+    "centerZ": 0,
+    "steps": 0,
+    "modes": [
+      "wet",
+      "dry"
+    ],
+    "regressionFactor": 1.25,
+    "stepSettleMs": 200,
+    "flyChunks": 6,
+    "flyLegs": true,
+    "flySprint": false,
+    "flySampleMs": 50,
+    "flyDirections": "east-west",
+    "world": "default"
+  },
+  "thresholds": {
+    "totalMs": {
+      "bounded-render": 180000
+    },
+    "gridLoadMs": {
+      "default": 25000
+    },
+    "minFpsDuringFly": {
+      "default": 18
+    },
+    "p95FrameMsDuringFly": {
+      "default": 42
+    },
+    "hitchCount50DuringFly": {
+      "default": 12
+    },
+    "longestHitchMsDuringFly": {
+      "default": 140
+    }
+  },
+  "serverMeshProbe": {
+    "enabled": false
+  },
+  "scenarios": [
+    {
+      "id": "bounded-render",
+      "label": "Radius-4 terrain and map tiles, east-west streaming flight",
+      "radius": 4,
+      "steps": 0,
+      "modes": [
+        "wet",
+        "dry"
+      ],
+      "features": {
+        "mapTiles": true,
+        "players": false,
+        "mobs": false,
+        "water": "solid",
+        "shader": "none",
+        "sun": true,
+        "shade": true,
+        "auto": true,
+        "mapTileRadius": 4
+      },
+      "flyDirections": "east-west",
+      "flyChunks": 6,
+      "regressionFactor": 1.25
+    }
+  ]
+}

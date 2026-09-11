@@ -9,16 +9,7 @@ const repoRoot = basecampRoot;
 const serverRoot = path.join(basecampRoot, '_Assets', 'Server');
 const rolesRoot = path.join(basecampRoot, '_Assets', 'Server', 'NPC', 'Roles');
 const iconsRoot = path.join(basecampRoot, '_Assets', 'Common', 'Icons', 'ModelsGenerated');
-const labelsPath = path.join(
-  workspaceRoot,
-  'synthborn-overseer',
-  'src',
-  'main',
-  'resources',
-  'synthoverseer',
-  'lang',
-  'en-US-labels.properties',
-);
+const labelsPath = path.join(basecampRoot, 'docs', 'refs', 'labels', 'labels.json');
 const outputPath = path.join(
   terrascapeRoot,
   'src',
@@ -108,16 +99,8 @@ function readIconFiles() {
 }
 
 function readLabels() {
-  const labels = new Map();
-  if (!fs.existsSync(labelsPath)) return labels;
-  for (const line of fs.readFileSync(labelsPath, 'utf8').split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const equals = line.indexOf('=');
-    if (equals < 1) continue;
-    labels.set(line.slice(0, equals).trim(), line.slice(equals + 1).trim());
-  }
-  return labels;
+  const labels = JSON.parse(fs.readFileSync(labelsPath, 'utf8'));
+  return new Map(Object.entries({ ...labels.items, ...labels.npcRoles }));
 }
 
 function readRoles() {

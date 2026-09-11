@@ -11,10 +11,6 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.spatial.SpatialResource;
 import com.hypixel.hytale.math.vector.Transform;
-import com.hypixel.hytale.server.core.entity.Entity;
-import com.hypixel.hytale.server.core.entity.EntityUtils;
-import com.hypixel.hytale.server.core.modules.entity.AllLegacyEntityTypesQuery;
-import com.hypixel.hytale.server.core.modules.entity.AllLegacyLivingEntityTypesQuery;
 import com.hypixel.hytale.server.core.modules.entity.EntityModule;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.tracker.EntityTrackerSystems;
@@ -83,12 +79,6 @@ final class MobScanner {
     MobFeedSnapshot snapshotMobs(@Nonnull World world) {
         Store<EntityStore> store = world.getEntityStore().getStore();
         Query<EntityStore> npcQuery = Archetype.of(NPCEntity.getComponentType());
-        Query<EntityStore> legacyLivingQuery = Query.and(
-                AllLegacyLivingEntityTypesQuery.INSTANCE,
-                Archetype.of(TransformComponent.getComponentType()));
-        Query<EntityStore> legacyEntityQuery = Query.and(
-                AllLegacyEntityTypesQuery.INSTANCE,
-                Archetype.of(TransformComponent.getComponentType()));
         Query<EntityStore> transformQuery = Archetype.of(TransformComponent.getComponentType());
         List<Vector3d> playerPositions = playerPositionsForMobRadar(world);
         List<MobCandidate> candidates = new ArrayList<>();
@@ -104,8 +94,6 @@ final class MobScanner {
             collectMobSnapshotSpatial(store, EntityModule.get().getEntitySpatialResourceType(),
                     candidates, stats, seenRefs, playerPositions, "EntitySpatial", npcRoleIndex);
             collectMobSnapshotPass(store, npcQuery, candidates, stats, seenRefs, playerPositions, "NPCEntity", npcRoleIndex);
-            collectMobSnapshotPass(store, legacyLivingQuery, candidates, stats, seenRefs, playerPositions, "LegacyLivingEntity", npcRoleIndex);
-            collectMobSnapshotPass(store, legacyEntityQuery, candidates, stats, seenRefs, playerPositions, "LegacyEntity", npcRoleIndex);
             collectMobSnapshotPass(store, transformQuery, candidates, stats, seenRefs, playerPositions, "TransformFallback", npcRoleIndex);
         }
         List<MobSnapshot> mobs = MobSelector.topSnapshots(candidates, config.entities().maxMobSnapshots());
@@ -245,7 +233,7 @@ final class MobScanner {
         }
         String category = liveRole == null ? categoryForMob(type) : categoryForMob(type, liveRole.category());
         return new MobSnapshot(
-                safeMobId(store, ref), type, safeMobRole(npc, null, type), category,
+                safeMobId(store, ref), type, safeMobRole(npc, type), category,
                 position.x, position.y, position.z, safeYaw(transform), colorForMob(type), source,
                 roleName, safeNpcNameTranslationKey(npc), safeNpcTypeIndex(npc), safeNpcRoleIndex(npc),
                 modelAsset, persistentModelAsset,
@@ -292,13 +280,12 @@ final class MobScanner {
                 TransformComponent transform = valid ? store.getComponent(ref, TransformComponent.getComponentType()) : null;
                 Vector3d position = transform == null ? null : transform.getPosition();
                 NPCEntity npc = (valid && transform != null) ? chunk.getComponent(i, NPCEntity.getComponentType()) : null;
-                Entity entity = (valid && transform != null) ? EntityUtils.getEntity(i, chunk) : null;
                 MobCandidate candidate = MobSelector.select(
                         refIndex, valid, isPlayer, notMob, null, transform != null, position,
                         playerPositions, MOB_RADAR_RADIUS_SQ,
-                        () -> safeMobType(chunk, i, npc, entity),
+                        () -> safeMobType(chunk, i, npc),
                         stats, seenRefs,
-                        type -> buildChunkSnapshot(store, chunk, i, ref, npc, entity, transform, position, type, source, npcRoleIndex, stats));
+                        type -> buildChunkSnapshot(store, chunk, i, ref, npc, transform, position, type, source, npcRoleIndex, stats));
                 if (candidate != null) {
                     candidates.add(candidate);
                 }
@@ -311,7 +298,7 @@ final class MobScanner {
 
     private static MobSnapshot buildChunkSnapshot(@Nonnull Store<EntityStore> store,
                                                   @Nonnull ArchetypeChunk<EntityStore> chunk, int index,
-                                                  @Nonnull Ref<EntityStore> ref, NPCEntity npc, Entity entity,
+                                                  @Nonnull Ref<EntityStore> ref, NPCEntity npc,
                                                   @Nonnull TransformComponent transform, @Nonnull Vector3d position,
                                                   @Nonnull String type, @Nonnull String source,
                                                   @Nonnull NpcRoleIndex npcRoleIndex, @Nonnull MobScanStats stats) {
@@ -325,7 +312,7 @@ final class MobScanner {
         }
         String category = liveRole == null ? categoryForMob(type) : categoryForMob(type, liveRole.category());
         return new MobSnapshot(
-                safeMobId(chunk, index, ref), type, safeMobRole(npc, entity, type), category,
+                safeMobId(chunk, index, ref), type, safeMobRole(npc, type), category,
                 position.x, position.y, position.z, safeYaw(transform), colorForMob(type), source,
                 roleName, safeNpcNameTranslationKey(npc), safeNpcTypeIndex(npc), safeNpcRoleIndex(npc),
                 modelAsset, persistentModelAsset,
@@ -448,8 +435,7 @@ final class MobScanner {
                 }
                 Ref<EntityStore> ref = chunk.getReferenceTo(index);
                 NPCEntity npc = chunk.getComponent(index, NPCEntity.getComponentType());
-                Entity entity = EntityUtils.getEntity(index, chunk);
-                String type = safeMobType(chunk, index, npc, entity);
+                String type = safeMobType(chunk, index, npc);
                 String flags = "";
                 if (chunk.getComponent(index, PlayerRef.getComponentType()) != null) {
                     flags += " player";
@@ -506,8 +492,7 @@ final class MobScanner {
                             : MobSelector.nearestDistanceSq(position, playerPositions);
                     Ref<EntityStore> ref = chunk.getReferenceTo(index);
                     NPCEntity npc = chunk.getComponent(index, NPCEntity.getComponentType());
-                    Entity entity = EntityUtils.getEntity(index, chunk);
-                    String type = safeMobType(chunk, index, npc, entity);
+                    String type = safeMobType(chunk, index, npc);
                     String roleName = safeNpcRoleName(npc);
                     String modelAsset = safeModelAssetId(chunk, index);
                     String persistentModelAsset = safePersistentModelAssetId(chunk, index);
