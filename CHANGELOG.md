@@ -10,6 +10,8 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- Add user-facing changes under Added, Changed, Fixed, Performance, Security, or
 Compatibility. During release preparation, move them into a dated version section. -->
 
+## [0.1.1-beta.2] - 2026-09-10
+
 ### Compatibility
 
 - Updated the compile and test baseline to Hytale Server 0.6.5 (Update 6), with
@@ -97,6 +99,7 @@ Compatibility. During release preparation, move them into a dated version sectio
 - **Hytale compatibility** — supports Hytale Server 0.5.x and requires Java 25 on the
   server.
 
-[Unreleased]: https://github.com/codelab-chaos/synthborn-terrascape/compare/v0.1.1-beta.1...HEAD
+[Unreleased]: https://github.com/codelab-chaos/synthborn-terrascape/compare/v0.1.1-beta.2...HEAD
+[0.1.1-beta.2]: https://github.com/codelab-chaos/synthborn-terrascape/compare/v0.1.0...v0.1.1-beta.2
 [0.1.1-beta.1]: https://github.com/codelab-chaos/synthborn-terrascape/compare/v0.1.0...v0.1.1-beta.1
 [0.1.0]: https://github.com/codelab-chaos/synthborn-terrascape/releases/tag/v0.1.0
