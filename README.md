@@ -173,6 +173,8 @@ For token-gated links, set `access.mode=restricted`, restart, and have players w
 
 ### Manual install
 
+Requires Hytale Server **0.6.4 or newer**; the current build targets 0.6.5.
+
 1. Get the jar — download a release, or build it yourself with `./gradlew build`
    (output: `build/libs/Terrascape-<version>.jar`).
 2. Copy the jar into your Hytale save's `mods/` folder.

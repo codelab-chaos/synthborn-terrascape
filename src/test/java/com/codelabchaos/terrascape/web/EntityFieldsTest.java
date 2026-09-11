@@ -13,13 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class EntityFieldsTest {
 
     @Test
-    void safeEntityTypeFallsBackForNullEntity() {
-        assertEquals("LivingEntity", EntityFields.safeEntityType(null));
-    }
-
-    @Test
     void safeMobRoleReturnsFallbackWhenNpcAbsent() {
-        assertEquals("Guard", EntityFields.safeMobRole(null, null, "Guard"));
+        assertEquals("Guard", EntityFields.safeMobRole(null, "Guard"));
     }
 
     @Test

@@ -80,6 +80,13 @@ test('terrascape performance suite', async ({ page }, testInfo) => {
 
   const report = {
     kind: 'terrascape-perf-run',
+    browserVersion: page.context().browser().version(),
+    renderer: await page.evaluate(() => {
+      const canvas = document.querySelector('canvas');
+      const gl = canvas?.getContext('webgl2') ?? canvas?.getContext('webgl');
+      const info = gl?.getExtension('WEBGL_debug_renderer_info');
+      return info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : 'unknown';
+    }),
     runId: RUN_ID,
     startedAt: runResults[0]?.timestamp ?? new Date().toISOString(),
     baseURL: process.env.TERRASCAPE_URL ?? 'http://127.0.0.1:5960',
@@ -211,6 +218,26 @@ async function runPerfRoute(page, scenario, mode) {
     if (stepSettleMs > 0) {
       await page.waitForTimeout(stepSettleMs);
     }
+    const stationaryFrames = !flyLegsEnabled ? await page.evaluate(() => new Promise((resolve) => {
+      const frames = [];
+      const started = performance.now();
+      let previous = started;
+      function sample(now) {
+        frames.push(now - previous);
+        previous = now;
+        if (now - started < 10000) return requestAnimationFrame(sample);
+        const sorted = [...frames].sort((a, b) => a - b);
+        resolve({
+          durationMs: now - started,
+          frames: frames.length,
+          averageFps: frames.length * 1000 / (now - started),
+          p95FrameMs: sorted[Math.ceil(sorted.length * 0.95) - 1],
+          longestFrameMs: sorted.at(-1),
+          hitchesOver50Ms: frames.filter((ms) => ms > 50).length,
+        });
+      }
+      requestAnimationFrame(sample);
+    })) : null;
     const stats = await collectStats(page, step.x, step.z, radius, features, scenario.esp);
     const flyMs = flyLegResults.reduce((sum, leg) => sum + leg.flyMs, 0);
     stepResults.push({
@@ -220,6 +247,7 @@ async function runPerfRoute(page, scenario, mode) {
       ms: Date.now() - stepStarted,
       flyMs,
       flyLegs: flyLegResults,
+      stationaryFrames,
       minFpsDuringFly: flyLegResults.length > 0
         ? Math.min(...flyLegResults.map((leg) => leg.fpsMin).filter(Number.isFinite))
         : null,
@@ -300,6 +328,9 @@ function buildPerfUrl({ world, centerX, centerZ, radius, features }) {
     perfTelemetry: 'true',
     water: features.water ?? 'solid',
   });
+  if (Number.isFinite(features.mapTileRadius)) {
+    params.set('mapTileRadius', String(features.mapTileRadius));
+  }
   return `/?${params.toString()}`;
 }
 

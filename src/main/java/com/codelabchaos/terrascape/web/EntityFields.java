@@ -4,11 +4,9 @@ import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.math.vector.Rotation3f;
-import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.BlockEntity;
 import com.hypixel.hytale.server.core.entity.entities.ProjectileComponent;
-import com.hypixel.hytale.server.core.modules.entity.EntityModule;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.PersistentModel;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
@@ -74,8 +72,7 @@ final class EntityFields {
 
     static String safeMobType(@Nonnull ArchetypeChunk<EntityStore> chunk,
                               int index,
-                              NPCEntity npc,
-                              Entity entity) {
+                              NPCEntity npc) {
         if (npc != null) {
             try {
                 String roleName = npc.getRoleName();
@@ -96,7 +93,7 @@ final class EntityFields {
         if (modelType != null) {
             return modelType;
         }
-        return safeEntityType(entity);
+        return "LivingEntity";
     }
 
     static String safeMobType(@Nonnull Store<EntityStore> store,
@@ -153,7 +150,7 @@ final class EntityFields {
     }
 
     @Nullable
-    static String safeMobRole(NPCEntity npc, Entity entity, @Nonnull String fallback) {
+    static String safeMobRole(NPCEntity npc, @Nonnull String fallback) {
         if (npc != null) {
             try {
                 String roleName = npc.getRoleName();
@@ -380,9 +377,6 @@ final class EntityFields {
             }
             EntityStatValue health = statMap.get(DefaultEntityStatTypes.getHealth());
             if (health == null) {
-                health = statMap.get("health");
-            }
-            if (health == null) {
                 return HealthSnapshot.empty();
             }
             return new HealthSnapshot((double) health.get(), (double) health.getMax());
@@ -391,18 +385,4 @@ final class EntityFields {
         }
     }
 
-    static String safeEntityType(Entity entity) {
-        if (entity == null) {
-            return "LivingEntity";
-        }
-        try {
-            String identifier = EntityModule.get().getIdentifier(entity.getClass());
-            if (identifier != null && !identifier.isBlank()) {
-                return identifier;
-            }
-        } catch (Exception ignored) {
-        }
-        String simpleName = entity.getClass().getSimpleName();
-        return simpleName == null || simpleName.isBlank() ? "LivingEntity" : simpleName;
-    }
 }

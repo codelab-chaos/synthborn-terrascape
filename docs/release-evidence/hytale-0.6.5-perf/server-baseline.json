@@ -1,0 +1,71 @@
+{
+  "runId": "2026-09-10T20-00-19-750Z",
+  "settings": {
+    "radius": 4,
+    "concurrency": 8,
+    "allOptions": true
+  },
+  "url": "http://macbook-server.org:5960",
+  "rows": [
+    {
+      "target": "mesh",
+      "phase": "cold",
+      "elapsedMs": 2068,
+      "requested": 81,
+      "failures": 0,
+      "bytes": 30218164,
+      "server": {
+        "samples": 9,
+        "cpuAvg": 0.135,
+        "cpuPeak": 0.324,
+        "heapAvgMb": 2926,
+        "heapPeakMb": 3563
+      }
+    },
+    {
+      "target": "mesh",
+      "phase": "warm",
+      "elapsedMs": 443,
+      "requested": 81,
+      "failures": 0,
+      "bytes": 12536160,
+      "server": {
+        "samples": 3,
+        "cpuAvg": 0.118,
+        "cpuPeak": 0.143,
+        "heapAvgMb": 2444,
+        "heapPeakMb": 2488
+      }
+    },
+    {
+      "target": "tile",
+      "phase": "cold",
+      "elapsedMs": 534,
+      "requested": 1,
+      "failures": 0,
+      "bytes": 332297,
+      "server": {
+        "samples": 3,
+        "cpuAvg": 0.056,
+        "cpuPeak": 0.105,
+        "heapAvgMb": 2697,
+        "heapPeakMb": 2748
+      }
+    },
+    {
+      "target": "tile",
+      "phase": "warm",
+      "elapsedMs": 24,
+      "requested": 1,
+      "failures": 0,
+      "bytes": 332297,
+      "server": {
+        "samples": 1,
+        "cpuAvg": 0.159,
+        "cpuPeak": 0.159,
+        "heapAvgMb": 2812,
+        "heapPeakMb": 2812
+      }
+    }
+  ]
+}
