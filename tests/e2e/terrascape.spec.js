@@ -169,6 +169,57 @@ test('map tiles serve PNGs, bind textures, and render map pixels', async ({ page
   }, { timeout: 45000 }).toBe(true);
 });
 
+function trackTerrainRequests(page) {
+  const started = Date.now();
+  const log = { tiles: [], tileResponses: [], meshes: [] };
+  const isTile = (url) => /\.map\.png(\?|$)/.test(url);
+  page.on('request', (request) => {
+    const url = request.url();
+    if (isTile(url)) log.tiles.push(Date.now() - started);
+    else if (/\.glb(\?|$)|\/api\/terrain\/batch/.test(url)) log.meshes.push(Date.now() - started);
+  });
+  page.on('response', (response) => {
+    if (isTile(response.url())) log.tileResponses.push(Date.now() - started);
+  });
+  return log;
+}
+
+test('map tiles load first under the voxel radius and render as stitched regions', async ({ page }) => {
+  const requests = trackTerrainRequests(page);
+  await page.goto('/?radius=4&mapTileRadius=12&chunkX=0&chunkZ=0&auto=false&mapTiles=true&voxels=true');
+
+  // Every tile in the 25x25 map area installs, including the ones under the 9x9 voxel area.
+  await expect.poll(async () => page.evaluate(() => {
+    const stats = window.__terrascapeDebug.mapBackdropStats();
+    return stats.totalTiles === 625 && stats.pending === 0 && stats.inFlight === 0;
+  }), { timeout: 60000 }).toBe(true);
+
+  // Voxels wait for the map beneath them: all 81 tiles under the 9x9 voxel area arrive
+  // before the first mesh is requested.
+  expect(requests.meshes.length).toBeGreaterThan(0);
+  const firstMesh = Math.min(...requests.meshes);
+  expect(requests.tileResponses.filter((at) => at <= firstMesh).length).toBeGreaterThanOrEqual(81);
+
+  // 625 tiles draw as at most a 5x5 block of 8x8-chunk regions, not 625 meshes.
+  const scene = await page.evaluate(() => window.__terrascapeDebug.mapTileSceneStats());
+  expect(scene.regionMeshes).toBeGreaterThan(0);
+  expect(scene.regionMeshes).toBeLessThanOrEqual(25);
+  const probe = await page.evaluate(() => window.__terrascapeDebug.probeMapTilePixel(1, 1));
+  expect(probe.ok, JSON.stringify(probe)).toBe(true);
+});
+
+test('voxels off shows only the flat map and requests no meshes', async ({ page }) => {
+  const requests = trackTerrainRequests(page);
+  await page.goto('/?radius=4&mapTileRadius=8&chunkX=0&chunkZ=0&auto=false&mapTiles=true&voxels=false');
+  await expect(page.locator('#status')).toHaveText('Flat map around 0, 0 (voxels off)');
+  await expect.poll(async () => page.evaluate(() => {
+    const stats = window.__terrascapeDebug.mapBackdropStats();
+    return stats.totalTiles === 289 && stats.pending === 0;
+  }), { timeout: 30000 }).toBe(true);
+  expect(requests.meshes).toEqual([]);
+  await expect(page.locator('#voxels')).not.toBeChecked();
+});
+
 test('loads a bounded terrain grid and reports render resources', async ({ page }) => {
   test.setTimeout(180_000);
   await page.goto('/?radius=1&mapTileRadius=4&chunkX=0&chunkZ=0&water=transparent&auto=false');

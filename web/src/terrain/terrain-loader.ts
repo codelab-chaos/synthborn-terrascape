@@ -4,10 +4,10 @@ import type { ChunkLandEntry } from '../library/chunk-land-motion.ts';
 import { applyLightingToObject, createTreeShadeObject } from '../scene/lighting.ts';
 import { logClientEvent, logClientTiming } from '../platform/client-log.ts';
 import {
-  horizonMapKeys,
 } from '../common/map-layer-policy.ts';
 import {
   loadMapTilesForKeys,
+  waitForMapTiles,
   sampleMapBackdropColor,
 } from '../tile-map/map-backdrop.ts';
 import { chunkDistanceSq, chunkKeysForWorld, sortChunkKeysByPlayerDistance } from '../common/chunk-planning.ts';
@@ -74,6 +74,8 @@ import {
 } from '../ui/dom.ts';
 
 const AUTO_STREAM_DEBOUNCE_MS = 250;
+// Cap on how long voxels wait for the map beneath them; tiles keep loading afterwards.
+const MAP_BEFORE_VOXELS_TIMEOUT_MS = 4000;
 const TERRAIN_STREAM_PROGRESS_LOG_MS = 1000;
 const TERRAIN_REVEAL_STAGGER_MS = 420;
 
@@ -220,14 +222,13 @@ export async function loadGrid(options: LoadGridOptions = {}) {
   retainOnly(world, retainKeys);
   syncMapTileLayer(mapRetainKeys);
   if (mapTilesInput.checked) {
-    const horizonKeys = horizonMapKeys(needed, mapRetainKeys);
-    if (horizonKeys.length > 0) {
-      void loadMapTilesForKeys(
-        world,
-        sortChunkKeysByPlayerDistance(horizonKeys, streamAnchor.chunkX, streamAnchor.chunkZ),
-        { immediate: true, replace: true },
-      );
-    }
+    // Tiles first: the whole flat map is requested nearest-first before any mesh, so voxels
+    // rise over a map that is already there instead of each tile waiting on its mesh.
+    void loadMapTilesForKeys(
+      world,
+      sortChunkKeysByPlayerDistance(mapRetainKeys, streamAnchor.chunkX, streamAnchor.chunkZ),
+      { immediate: true, replace: true },
+    );
   }
   updateMetrics();
 
@@ -250,6 +251,13 @@ export async function loadGrid(options: LoadGridOptions = {}) {
     }
   }
   chunkPlaceholderManager.sync(world, needed, new Set(loadedChunks.keys()));
+  if (mapTilesInput.checked && missing.length > 0) {
+    // Tiles first: hold voxel requests until the flat map under them is down, so meshes never
+    // hold the browser's few HTTP/1.1 connections while tiles queue behind them.
+    setStatus(`Loading map under ${needed.length} chunks around ${centerX}, ${centerZ}`);
+    await waitForMapTiles(world, needed, MAP_BEFORE_VOXELS_TIMEOUT_MS, () => generation !== runtime.loadGeneration);
+    if (generation !== runtime.loadGeneration) return;
+  }
   frameJank.setActiveLoadKind('grid');
   if (missing.length > 1) {
     missing.splice(0, missing.length, ...sortChunkKeysByPlayerDistance(missing, streamAnchor.chunkX, streamAnchor.chunkZ));
@@ -401,9 +409,6 @@ export async function loadGrid(options: LoadGridOptions = {}) {
     runtime.activeCenterId = centerKey;
     runtime.requestedCenterId = null;
     syncMapTileLayer(mapRetainKeys);
-    if (mapTilesInput.checked) {
-      await loadMapTilesForKeys(world, needed, { immediate: true });
-    }
     updateMetrics();
     setStatus(!voxels
       ? `Flat map around ${centerX}, ${centerZ} (voxels off)`
@@ -451,12 +456,8 @@ export async function loadChunk(world, chunkX, chunkZ, generation) {
   if (loadedChunks.has(id)) return true;
   const url = terrainUrl(world, chunkX, chunkZ);
   const started = performance.now();
-  const mapTilePromise = mapTilesInput.checked
-    ? loadMapTilesForKeys(world, [{ chunkX, chunkZ }], { immediate: true })
-    : Promise.resolve();
   const bytes = await fetchArrayBufferWithRetry(url);
   const gltf = await parseGltfBytes(bytes);
-  await mapTilePromise;
   if (generation !== runtime.loadGeneration) return false;
   if (loadedChunks.has(id)) return true;
   writeTerrainChunkCache(world, chunkX, chunkZ, bytes, { source: 'single' });
@@ -527,9 +528,6 @@ function promoteTerrainResults(queue, generation, streamStats = null) {
             error: error?.message ?? error,
           });
         });
-      }
-      if (mapTilesInput.checked) {
-        void loadMapTilesForKeys(resultWorld, [result.key], { immediate: true });
       }
       promoted++;
       if (streamStats) {

@@ -68,7 +68,7 @@ test('terrain tuning readers default when their inputs are blank', () => {
   terrainLoadSlotsValueInput.min = '';
   terrainLoadSlotsValueInput.max = '';
   assert.equal(terrainLoadConcurrency(), 4);
-  assert.equal(tileLoadConcurrency(), 4);
+  assert.equal(tileLoadConcurrency(), 12);
   assert.equal(terrainPromotionBudgetMs(), 4);
   assert.equal(terrainPromotionsPerFrame(), 2);
 });

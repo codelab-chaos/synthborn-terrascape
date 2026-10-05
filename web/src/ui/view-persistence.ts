@@ -75,6 +75,8 @@ import {
 } from './dom.ts';
 
 const VISUAL_DEFAULTS_VERSION = 2;
+// Bump when tile loading defaults change so stored values from older builds are not restored.
+const TILE_DEFAULTS_VERSION = 1;
 
 export function setRenderDetailsOpen(open) {
   const isOpen = open === true;
@@ -172,7 +174,9 @@ function applyStoredInputs() {
   applyCollapsedSectionState(runtime.storedViewState.sections);
   setPairedControlValue(terrainLoadSlotsInput, terrainLoadSlotsValueInput, runtime.storedViewState.terrainLoadSlots);
   setPairedControlValue(mapTileRadiusInput, mapTileRadiusValueInput, runtime.storedViewState.mapTileRadius);
-  setPairedControlValue(tileLoadSlotsInput, tileLoadSlotsValueInput, runtime.storedViewState.tilesAtOnce);
+  if (runtime.storedViewState.tileDefaultsVersion === TILE_DEFAULTS_VERSION) {
+    setPairedControlValue(tileLoadSlotsInput, tileLoadSlotsValueInput, runtime.storedViewState.tilesAtOnce);
+  }
   setPairedControlValue(shadeSizeInput, shadeSizeValueInput, runtime.storedViewState.shadeSize);
   setPairedControlValue(shadeDarknessInput, shadeDarknessValueInput, runtime.storedViewState.shadeDarkness);
   if (typeof runtime.storedViewState.water === 'string') {
@@ -290,6 +294,7 @@ export function saveViewState() {
     terrainLoadSlots: terrainLoadConcurrency(),
     mapTileRadius: Number.parseInt(mapTileRadiusValueInput.value, 10) || 16,
     tilesAtOnce: tileLoadConcurrency(),
+    tileDefaultsVersion: TILE_DEFAULTS_VERSION,
     shadeSize: Number.parseFloat(shadeSizeValueInput.value),
     shadeDarkness: Number.parseFloat(shadeDarknessValueInput.value),
     water: waterModeValue(),
