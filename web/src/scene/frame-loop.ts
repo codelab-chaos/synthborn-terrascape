@@ -1,6 +1,6 @@
 import {
   updateMobMarkers,
-  updatePlayerCameraMode,
+  syncEyeModeAvatars, updatePlayerCameraMode,
   updatePlayerMarkers,
 } from '../camera/camera-director.ts';
 import { handleKeyboardNavigation, updateFlyTarget } from '../camera/fly-camera.ts';
@@ -47,6 +47,7 @@ function animate() {
   updateMobMarkers(deltaSeconds);
   handleKeyboardNavigation(deltaSeconds);
   updatePlayerCameraMode(deltaSeconds);
+  syncEyeModeAvatars();
   if (!runtime.viewPlayerUuid && !runtime.followPlayerUuid) {
     updateFlyTarget();
   }

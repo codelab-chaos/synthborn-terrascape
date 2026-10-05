@@ -51,6 +51,18 @@ export function createPlayerMarker(player) {
   return group;
 }
 
+// Avatar meshes that fill the lens when the camera sits at the player's eye. The look light
+// and its target are deliberately absent so the player's light keeps shining in eye mode.
+const PLAYER_BODY_PARTS = new Set(['player-legs', 'player-body', 'player-head', 'player-face-glow']);
+
+export function setPlayerBodyVisible(marker, visible: boolean) {
+  const avatar = marker?.userData?.avatar;
+  if (!avatar) return;
+  for (const child of avatar.children) {
+    if (PLAYER_BODY_PARTS.has(child.name)) child.visible = visible;
+  }
+}
+
 export function updatePlayerMarkerCard(marker, player) {
   if (!marker?.userData?.badge) return;
   updateMobBadge(marker.userData.badge, playerCardData(player));
