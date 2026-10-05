@@ -6,7 +6,7 @@ import {
   loadedChunks,
   runtime,
 } from '../scene/scene-context.ts';
-import { radiusValue } from '../ui/control-readers.ts';
+import { radiusValue, voxelsEnabled } from '../ui/control-readers.ts';
 import { autoStreamInput, worldSelect } from '../ui/dom.ts';
 
 export function updateChunkPlaceholders() {
@@ -20,7 +20,7 @@ export function updateChunkPlaceholders() {
   const shouldShow = autoStreamInput.checked
     || runtime.requestedCenterId != null
     || (runtime.activeCenterId != null && playerId !== runtime.activeCenterId);
-  if (!shouldShow) {
+  if (!shouldShow || !voxelsEnabled()) {
     chunkPlaceholderManager.sync(world, [], new Set(loadedChunks.keys()));
     return;
   }

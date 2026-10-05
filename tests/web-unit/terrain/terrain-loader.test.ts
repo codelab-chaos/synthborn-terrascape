@@ -29,6 +29,8 @@ import {
   chunkZInput,
   debugBoundsInput,
   mapTilesInput,
+  landMotionInput,
+  voxelsInput,
   waterModeInput,
   worldSelect,
 } from '../../../web/src/ui/dom.ts';
@@ -219,6 +221,34 @@ test('loadGrid bails out on non-integer coordinates', async () => {
   chunkXInput.value = 'not-a-number';
   await loadGrid();
   assert.equal(loadedChunks.size, 0);
+});
+
+test('loadGrid with voxels off requests no meshes, unloads existing ones, and shows no placeholders', async () => {
+  resetState();
+  await withFetch(glbResponse as unknown as typeof fetch, async () => {
+    await loadGrid({ centerX: 0, centerZ: 0 });
+  });
+  assert.equal(loadedChunks.size, 1);
+
+  voxelsInput.checked = false;
+  const landMotion = landMotionInput.checked;
+  landMotionInput.checked = false;
+  try {
+    const meshRequests: string[] = [];
+    const noMeshFetch = (async (url: string) => {
+      if (String(url).endsWith('.glb') || String(url).includes('/terrain/batch')) meshRequests.push(String(url));
+      return glbResponse();
+    }) as unknown as typeof fetch;
+    await withFetch(noMeshFetch, async () => {
+      await loadGrid({ centerX: 0, centerZ: 0 });
+    });
+    assert.deepEqual(meshRequests, []);
+    assert.equal(chunkPlaceholderManager.waitingCount(), 0);
+    assert.equal(loadedChunks.size, 0);
+  } finally {
+    voxelsInput.checked = true;
+    landMotionInput.checked = landMotion;
+  }
 });
 
 // --- loadGrid happy path: streams real (empty) chunks into the scene --------

@@ -9,6 +9,7 @@ import { applySelectValue as applyControlSelectValue, normalizePairedValue } fro
 import { runtime } from '../scene/scene-context.ts';
 import {
   cosmeticBlocksModeInput,
+  voxelsInput,
   landMotionInput,
   mobBlocksInput,
   mobBlocksPanelInput,
@@ -42,6 +43,11 @@ const DEFAULT_TILE_LOAD_CONCURRENCY = 4;
 // must at least cover the loaded meshes (below that, tiles add nothing the voxels don't already).
 export function mapTileRadius() {
   return Math.max(terrainTuningValue(mapTileRadiusValueInput, DEFAULT_MAP_TILE_RADIUS), radiusValue());
+}
+
+/** Voxel meshes are on unless the toggle exists and is unchecked (flat map tiles only). */
+export function voxelsEnabled() {
+  return voxelsInput?.checked !== false;
 }
 
 export function tileLoadConcurrency() {

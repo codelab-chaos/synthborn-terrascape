@@ -54,6 +54,7 @@ import {
   terrainLoadConcurrency,
   terrainPromotionBudgetMs,
   terrainPromotionsPerFrame,
+  voxelsEnabled,
   waterModeValue,
 } from '../ui/control-readers.ts';
 import { maybeUpdateMetrics, updateMetrics } from '../ui/metrics.ts';
@@ -200,13 +201,22 @@ export async function loadGrid(options: LoadGridOptions = {}) {
     runtime.hasFocusedInitialGrid = true;
   }
 
-  const needed = chunkKeysForWorld(world, centerX, centerZ, radius);
-  const retainKeys = options.streamLoad === true
+  // Voxels off: request and retain no meshes, so every map tile counts as horizon and
+  // loads up front instead of waiting behind a mesh.
+  const voxels = voxelsEnabled();
+  const needed = voxels ? chunkKeysForWorld(world, centerX, centerZ, radius) : [];
+  const retainKeys = voxels && options.streamLoad === true
     ? chunkKeysForWorld(world, centerX, centerZ, radius + AUTO_STREAM_RETAIN_MARGIN)
     : needed;
   const mapRetainRadius = mapTileRadius();
   const mapRetainKeys = chunkKeysForWorld(world, centerX, centerZ, mapRetainRadius);
   const streamAnchor = playerChunk();
+  if (!voxels) {
+    // retainOnly skips chunks mid-rise; voxels off must not strand them.
+    for (const [id, entry] of Array.from(loadedChunks)) {
+      if (chunkLandMotion.isAnimating(entry)) finishDisposeChunk(id, entry);
+    }
+  }
   retainOnly(world, retainKeys);
   syncMapTileLayer(mapRetainKeys);
   if (mapTilesInput.checked) {
@@ -221,7 +231,9 @@ export async function loadGrid(options: LoadGridOptions = {}) {
   }
   updateMetrics();
 
-  setStatus(`Loading ${needed.length} chunks around ${centerX}, ${centerZ}`);
+  setStatus(voxels
+    ? `Loading ${needed.length} chunks around ${centerX}, ${centerZ}`
+    : `Flat map around ${centerX}, ${centerZ} (voxels off)`);
   let completed = 0;
   let failed = 0;
   let cacheHits = 0;
@@ -393,7 +405,9 @@ export async function loadGrid(options: LoadGridOptions = {}) {
       await loadMapTilesForKeys(world, needed, { immediate: true });
     }
     updateMetrics();
-    setStatus(failed === 0
+    setStatus(!voxels
+      ? `Flat map around ${centerX}, ${centerZ} (voxels off)`
+      : failed === 0
       ? `Loaded ${needed.length} chunks around ${centerX}, ${centerZ}`
       : `Loaded ${needed.length - failed}/${needed.length} chunks around ${centerX}, ${centerZ}`);
     const gridLoadTiming = {

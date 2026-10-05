@@ -48,6 +48,7 @@ import {
   infoCardHeadEl,
   landMotionInput,
   mapTilesInput,
+  voxelsInput,
   syncTimeInput,
   mobBlocksInput,
   playerUpdateRateInput,
@@ -112,6 +113,7 @@ export function applyInitialParams() {
   syncMobBlocksInputs(mobBlocksInput.checked);
   applyBooleanParam('shade', treeShadeInput);
   applyBooleanParam('mapTiles', mapTilesInput);
+  applyBooleanParam('voxels', voxelsInput);
   applyCosmeticModeParam();
   applySelectParam('visualDetail', visualDetailModeInput);
   applyBooleanParam('landMotion', landMotionInput);
@@ -153,6 +155,7 @@ function applyStoredInputs() {
   if (typeof runtime.storedViewState.shade === 'boolean') treeShadeInput.checked = runtime.storedViewState.shade;
   if (typeof runtime.storedViewState.syncTime === 'boolean') syncTimeInput.checked = runtime.storedViewState.syncTime;
   if (typeof runtime.storedViewState.mapTiles === 'boolean') mapTilesInput.checked = runtime.storedViewState.mapTiles;
+  if (typeof runtime.storedViewState.voxels === 'boolean') voxelsInput.checked = runtime.storedViewState.voxels;
   if (runtime.storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof runtime.storedViewState.cosmeticsMode === 'string') {
     applySelectValue(cosmeticBlocksModeInput, runtime.storedViewState.cosmeticsMode);
   }
@@ -280,6 +283,7 @@ export function saveViewState() {
     shade: treeShadeInput.checked,
     syncTime: syncTimeInput.checked,
     mapTiles: mapTilesInput.checked,
+    voxels: voxelsInput.checked,
     cosmeticsMode: cosmeticBlocksModeInput.value,
     visualDetailMode: visualDetailMode(),
     landMotion: landMotionInput.checked,
