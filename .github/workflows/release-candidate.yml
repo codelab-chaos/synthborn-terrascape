@@ -70,7 +70,9 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          jar_path="build/libs/Terrascape-${version}.jar"
+          # The jar carries the plain version; the prerelease label stays on the tag.
+          jar_file="Terrascape-${version%%-*}.jar"
+          jar_path="build/libs/${jar_file}"
           test -f "$jar_path"
 
           jar_entries="$(jar tf "$jar_path")"
@@ -90,14 +92,14 @@ jobs:
           cp "$jar_path" release-candidate/
           (
             cd release-candidate
-            sha256sum "Terrascape-${version}.jar" > SHA256SUMS
+            sha256sum "$jar_file" > SHA256SUMS
           )
           {
             echo "tag=${GITHUB_REF_NAME}"
             echo "commit=${GITHUB_SHA}"
             echo "workflow_run_id=${GITHUB_RUN_ID}"
             echo "workflow_run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-            echo "artifact_file=Terrascape-${version}.jar"
+            echo "artifact_file=${jar_file}"
           } > release-candidate/release-evidence.env
 
           echo "artifact-name=terrascape-release-candidate-${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"

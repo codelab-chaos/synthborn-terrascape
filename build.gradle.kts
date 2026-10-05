@@ -71,7 +71,9 @@ tasks.named<ProcessResources>("processResources") {
 
 tasks.register<Jar>("fatJar") {
     archiveBaseName.set("Terrascape")
-    archiveVersion.set(version.toString())
+    // File names carry the plain version (Terrascape-0.1.1.jar); prerelease labels such as
+    // beta.2 belong to the release tag and notes, not the artifact name.
+    archiveVersion.set(version.toString().substringBefore('-'))
     archiveClassifier.set("")
 
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
