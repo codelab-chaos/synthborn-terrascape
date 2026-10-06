@@ -1,93 +1,76 @@
 name: Publish GitHub Release to CurseForge
 
+# Pushing a version tag is the release approval: release-candidate builds the GitHub
+# Release and then calls this workflow, which uploads that exact jar to CurseForge.
+# CurseForge moderation can take a while; the upload does not wait for it. Each upload is
+# recorded on the GitHub Release (curseforge-upload.env) so a rerun never queues a duplicate
+# file for review. Dispatch manually only to retry a failed upload or to force a re-upload.
+
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       release_tag:
-        description: Published GitHub Release tag, for example v0.1.0
         required: true
         type: string
       release_type:
-        description: CurseForge release channel
+        required: false
+        default: auto
+        type: string
+      game_version_names:
+        required: false
+        default: ""
+        type: string
+      manual_release:
+        required: false
+        default: false
+        type: boolean
+      force:
+        required: false
+        default: false
+        type: boolean
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published GitHub Release tag, for example v0.1.2
         required: true
-        default: alpha
+        type: string
+      release_type:
+        description: CurseForge channel; auto = alpha/beta from a tag suffix, otherwise release
+        required: true
+        default: auto
         type: choice
         options:
+          - auto
           - alpha
           - beta
           - release
       game_version_names:
-        description: Comma-separated CurseForge game version names (optional)
+        description: Comma-separated CurseForge game version names; default derives the Update (e.g. 0.6) from the jar's ServerVersion
         required: false
         type: string
       manual_release:
-        description: Hold the approved file for manual release on CurseForge (gated lane only; auto always releases after moderation)
+        description: Hold the file after moderation until it is released by hand on CurseForge
         required: true
-        default: true
+        default: false
         type: boolean
-      approval:
-        description: gated = owner approves the run (feature releases); auto = no approver, only for releases whose changelog has Compatibility/Fixed sections only
+      force:
+        description: Upload even if this release was already uploaded (queues another review)
         required: true
-        default: gated
-        type: choice
-        options:
-          - gated
-          - auto
+        default: false
+        type: boolean
 
 permissions:
-  contents: read
-
-concurrency:
-  group: curseforge-publish
-  cancel-in-progress: false
+  contents: write
 
 jobs:
-  lane:
-    name: Choose approval lane
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      environment: ${{ steps.lane.outputs.environment }}
-      manual_release: ${{ steps.lane.outputs.manual_release }}
-    steps:
-      - name: Check the release qualifies for its lane
-        id: lane
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          APPROVAL: ${{ inputs.approval }}
-          MANUAL_RELEASE: ${{ inputs.manual_release }}
-          # Changelog sections a release may contain and still ship without an approver.
-          AUTO_ALLOWED_SECTIONS: Compatibility Fixed
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "$APPROVAL" == "gated" ]]; then
-            echo "environment=curseforge" >> "$GITHUB_OUTPUT"
-            echo "manual_release=$MANUAL_RELEASE" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          sections="$(gh release view "$RELEASE_TAG" --json body --jq .body | sed -nE 's/^### +(.+)$/\1/p' | sed -E 's/[[:space:]]+$//')"
-          test -n "$sections" || { echo "Release notes for $RELEASE_TAG have no ### sections" >&2; exit 1; }
-          disallowed=""
-          while IFS= read -r section; do
-            [[ " $AUTO_ALLOWED_SECTIONS " == *" $section "* ]] || disallowed+="${section}, "
-          done <<<"$sections"
-          if [[ -n "$disallowed" ]]; then
-            echo "Auto lane is only for releases with ${AUTO_ALLOWED_SECTIONS// /\/} sections; $RELEASE_TAG also has: ${disallowed%, }. Re-run with approval=gated." >&2
-            exit 1
-          fi
-          echo "environment=curseforge-auto" >> "$GITHUB_OUTPUT"
-          echo "manual_release=false" >> "$GITHUB_OUTPUT"
-
   publish:
     name: Upload published release
-    needs: lane
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: ${{ needs.lane.outputs.environment }}
+    environment: curseforge
+    concurrency:
+      group: curseforge-publish
+      cancel-in-progress: false
 
     steps:
       - name: Set up Node.js 24
@@ -108,7 +91,29 @@ jobs:
           test -n "$PROJECT_ID"
           test -n "$API_TOKEN"
 
+      - name: Skip releases already uploaded
+        id: dedupe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          FORCE: ${{ inputs.force }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fxq curseforge-upload.env; then
+            if [[ "$FORCE" == "true" ]]; then
+              echo "$RELEASE_TAG was already uploaded; force=true, uploading again"
+            else
+              gh release download "$RELEASE_TAG" --pattern curseforge-upload.env --output - | sed 's/^/  /'
+              echo "$RELEASE_TAG is already on CurseForge (above); skipping so no duplicate is queued for review."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              { echo "## CurseForge upload"; echo; echo "- Skipped: \`${RELEASE_TAG}\` was already uploaded (dispatch with force to re-upload)."; } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
       - name: Download the published GitHub Release
+        if: steps.dedupe.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -131,6 +136,7 @@ jobs:
             > "$RUNNER_TEMP/github-release-notes.md"
 
       - name: Verify candidate identity and checksum
+        if: steps.dedupe.outputs.skip != 'true'
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
         shell: bash
@@ -146,21 +152,81 @@ jobs:
           test -n "$jar_file"
           test -f "candidate/${jar_file}"
 
+      - name: Resolve CurseForge release channel
+        id: channel
+        if: steps.dedupe.outputs.skip != 'true'
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          type="$RELEASE_TYPE"
+          if [[ -z "$type" || "$type" == "auto" ]]; then
+            case "$RELEASE_TAG" in
+              *-alpha*) type=alpha ;;
+              *-*) type=beta ;;
+              *) type=release ;;
+            esac
+          fi
+          [[ "$type" =~ ^(alpha|beta|release)$ ]]
+          echo "Release channel: $type"
+          echo "release_type=$type" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve CurseForge game version
+        id: game
+        if: steps.dedupe.outputs.skip != 'true'
+        env:
+          API_BASE_URL: ${{ vars.CURSEFORGE_API_BASE_URL || 'https://www.curseforge.com' }}
+          API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          GAME_VERSION_NAMES: ${{ inputs.game_version_names }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The mods use Hytale internals, so a file must target the Update it was built for,
+          # never the Early Access wildcard. Derive it from the released jar's manifest
+          # (ServerVersion ">=0.6.4" -> "0.6") unless names are given explicitly.
+          names="$GAME_VERSION_NAMES"
+          if [[ -z "$names" ]]; then
+            jar_file="$(sed -n 's/^artifact_file=//p' candidate/release-evidence.env)"
+            server_version="$(unzip -p "candidate/${jar_file}" manifest.json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).ServerVersion||""))')"
+            names="$(grep -oE '[0-9]+\.[0-9]+' <<<"$server_version" | head -1)"
+            test -n "$names" || { echo "Cannot derive a game version from ServerVersion '$server_version'" >&2; exit 1; }
+            echo "Derived game version '$names' from ServerVersion '$server_version'"
+          fi
+          versions_file="$RUNNER_TEMP/curseforge-game-versions.json"
+          curl --fail-with-body --silent --show-error --header "X-Api-Token: ${API_TOKEN}" \
+            --output "$versions_file" "${API_BASE_URL%/}/api/game/versions"
+          ids="$(NAMES="$names" node -e '
+            const versions = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+            const wanted = process.env.NAMES.split(",").map((n) => n.trim()).filter(Boolean);
+            const ids = [];
+            for (const name of wanted) {
+              const match = versions.filter((v) => v.name === name);
+              if (!match.length) {
+                console.error(`CurseForge has no game version named "${name}". Available: ${versions.map((v) => v.name).join(", ")}`);
+                process.exit(1);
+              }
+              ids.push(...match.map((v) => v.id));
+            }
+            process.stdout.write(JSON.stringify([...new Set(ids)]));
+          ' "$versions_file")"
+          echo "Game versions: $names -> $ids"
+          echo "names=$names" >> "$GITHUB_OUTPUT"
+          echo "ids=$ids" >> "$GITHUB_OUTPUT"
+
       - name: Build CurseForge upload metadata
+        if: steps.dedupe.outputs.skip != 'true'
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
           RELEASE_NOTES_FILE: ${{ runner.temp }}/github-release-notes.md
-          GAME_VERSION_NAMES: ${{ inputs.game_version_names }}
-          RELEASE_TYPE: ${{ inputs.release_type }}
-          MANUAL_RELEASE: ${{ needs.lane.outputs.manual_release }}
+          GAME_VERSION_IDS: ${{ steps.game.outputs.ids }}
+          RELEASE_TYPE: ${{ steps.channel.outputs.release_type }}
+          MANUAL_RELEASE: ${{ inputs.manual_release }}
         shell: bash
         run: |
           set -euo pipefail
           node <<'NODE' > "$RUNNER_TEMP/curseforge-metadata.json"
-          const gameVersionNames = process.env.GAME_VERSION_NAMES
-            .split(',')
-            .map((name) => name.trim())
-            .filter(Boolean);
           const metadata = {
             changelog: require('node:fs').readFileSync(process.env.RELEASE_NOTES_FILE, 'utf8'),
             changelogType: 'markdown',
@@ -168,12 +234,13 @@ jobs:
             releaseType: process.env.RELEASE_TYPE,
             isMarkedForManualRelease: process.env.MANUAL_RELEASE === 'true',
           };
-          if (gameVersionNames.length) metadata.gameVersionNames = gameVersionNames;
+          metadata.gameVersions = JSON.parse(process.env.GAME_VERSION_IDS);
           process.stdout.write(JSON.stringify(metadata));
           NODE
 
       - name: Upload candidate to CurseForge
         id: upload
+        if: steps.dedupe.outputs.skip != 'true'
         env:
           API_BASE_URL: ${{ vars.CURSEFORGE_API_BASE_URL || 'https://www.curseforge.com' }}
           API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
@@ -210,18 +277,36 @@ jobs:
           ' "$response_file")"
           echo "file-id=$file_id" >> "$GITHUB_OUTPUT"
 
-      - name: Record CurseForge submission
+      - name: Record the upload on the GitHub Release
+        if: steps.dedupe.outputs.skip != 'true'
         env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           FILE_ID: ${{ steps.upload.outputs.file-id }}
+          RELEASE_TYPE: ${{ steps.channel.outputs.release_type }}
+          GAME_VERSIONS: ${{ steps.game.outputs.names }}
+          MANUAL_RELEASE: ${{ inputs.manual_release }}
         shell: bash
         run: |
+          set -euo pipefail
+          {
+            echo "tag=${RELEASE_TAG}"
+            echo "file_id=${FILE_ID}"
+            echo "release_type=${RELEASE_TYPE}"
+            echo "game_versions=${GAME_VERSIONS}"
+            echo "manual_release=${MANUAL_RELEASE}"
+            echo "uploaded_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "workflow_run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > "$RUNNER_TEMP/curseforge-upload.env"
+          gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/curseforge-upload.env" --clobber
           {
             echo "## CurseForge upload"
             echo
             echo "- GitHub Release tag: \`${RELEASE_TAG}\`"
             echo "- CurseForge file ID: \`${FILE_ID}\`"
-            echo "- Release type: \`${{ inputs.release_type }}\`"
-            echo "- Approval lane: \`${{ inputs.approval }}\` (environment \`${{ needs.lane.outputs.environment }}\`)"
-            echo "- Held for manual release: \`${{ needs.lane.outputs.manual_release }}\`"
+            echo "- Release type: \`${RELEASE_TYPE}\`"
+            echo "- Game versions: \`${GAME_VERSIONS}\`"
+            echo "- Held for manual release: \`${MANUAL_RELEASE}\`"
+            echo "- Now in CurseForge moderation; it goes public when approved."
           } >> "$GITHUB_STEP_SUMMARY"

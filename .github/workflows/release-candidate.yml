@@ -155,3 +155,13 @@ jobs:
             echo
             echo "- Release: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  curseforge:
+    name: Publish to CurseForge
+    needs: build-candidate
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-curseforge.yml
+    with:
+      release_tag: ${{ github.ref_name }}
+    secrets: inherit

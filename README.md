@@ -250,21 +250,23 @@ a suffix become GitHub prereleases. The workflow also retains an Actions artifac
 short-term convenience, but the GitHub Release assets are the canonical files used for
 hosted validation and CurseForge publishing.
 
-CurseForge publishing is a separate, manually dispatched workflow. It downloads a named
-GitHub Release, verifies its recorded tag and jar checksum, reuses its curated notes from
-`CHANGELOG.md`, and uploads that same jar without rebuilding it. It has two approval lanes,
-chosen with the `approval` input:
+Pushing the tag is the release approval: after the GitHub Release is created,
+`release-candidate` calls `publish-curseforge`, which verifies the release's recorded tag
+and jar checksum, reuses its curated notes from `CHANGELOG.md`, and uploads that same jar
+without rebuilding it. The CurseForge channel follows the tag (`-alpha` suffix: alpha, any
+other suffix: beta, none: release), and the game version is the Hytale Update named by the
+jar's `ServerVersion` (`>=0.6.4` targets `0.6`), never the Early Access wildcard; the run
+fails, listing the accepted names, if CurseForge does not offer that Update.
 
-- `gated` (default, feature releases): runs in the `curseforge` environment, which requires
-  the owner's approval; `manual_release` can hold the moderated file for a manual release.
-- `auto` (compatibility-only releases): runs in the `curseforge-auto` environment, which
-  has no reviewer and only deploys from `main`; the file goes live once CurseForge
-  moderation approves it. The run fails unless that release's changelog contains only
-  `Compatibility` and `Fixed` sections.
+The upload does not wait for CurseForge moderation, which can take a while; the file goes
+public once approved. Each upload is recorded on the GitHub Release as
+`curseforge-upload.env` (file ID, channel, game versions), and a rerun for a recorded tag is
+skipped so no duplicate is queued for review. Dispatch `publish-curseforge` by hand only to
+retry a failed upload or, with `force`, to upload again.
 
-Both environments need the `CURSEFORGE_API_TOKEN` secret (a CurseForge author API token,
-not the read-only Core API key) and the numeric `CURSEFORGE_PROJECT_ID` variable
-(`1581480`).
+The `curseforge` GitHub environment holds the `CURSEFORGE_API_TOKEN` secret (a CurseForge
+author API token, not the read-only Core API key) and the numeric `CURSEFORGE_PROJECT_ID`
+variable (`1581480`).
 
 ### Test
 
