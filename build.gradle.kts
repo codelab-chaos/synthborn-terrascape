@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.codelabchaos"
-version = "0.1.1-beta.2"
+version = "0.1.2"
 
 repositories {
     mavenCentral()
