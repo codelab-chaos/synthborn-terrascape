@@ -184,13 +184,23 @@ jobs:
           set -euo pipefail
           jar_file="$(sed -n 's/^artifact_file=//p' candidate/release-evidence.env)"
           response_file="$RUNNER_TEMP/curseforge-response.json"
-          curl \
+          if ! curl \
             --fail-with-body \
             --header "X-Api-Token: ${API_TOKEN}" \
             --form "metadata=<$RUNNER_TEMP/curseforge-metadata.json;type=application/json" \
             --form "file=@candidate/${jar_file};type=application/java-archive" \
             --output "$response_file" \
-            "${API_BASE_URL%/}/api/projects/${PROJECT_ID}/upload-file"
+            "${API_BASE_URL%/}/api/projects/${PROJECT_ID}/upload-file"; then
+            # The error body and the accepted game version names are safe to print; the
+            # token is masked. Without them a 400 is undiagnosable.
+            echo "CurseForge rejected the upload:" >&2
+            cat "$response_file" >&2 || true
+            echo >&2
+            echo "Game versions this project's site accepts (name, slug, id):" >&2
+            curl --silent --header "X-Api-Token: ${API_TOKEN}" "${API_BASE_URL%/}/api/game/versions" \
+              | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{for(const v of JSON.parse(s).slice(-40))console.error(`  ${v.name}\t${v.slug}\t${v.id}`)}catch{console.error(s.slice(0,500))}})' || true
+            exit 1
+          fi
 
           file_id="$(node -e '
             const fs = require("node:fs");
