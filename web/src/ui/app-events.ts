@@ -101,6 +101,13 @@ type AppEventBindings = {
   resize: () => void;
 };
 
+// Firefox returns a promise that rejects when the document is not focused (for example the
+// first click after switching tabs); the next click retries, so the rejection is expected.
+function requestFlyLook(element: HTMLElement) {
+  const request = element.requestPointerLock?.() as Promise<void> | void;
+  if (request && typeof request.catch === 'function') request.catch(() => {});
+}
+
 export function bindAppEvents(bindings: AppEventBindings) {
   window.addEventListener('resize', bindings.resize);
   // Capture phase so movement keys are intercepted before focusable controls (inputs, and
@@ -113,7 +120,7 @@ export function bindAppEvents(bindings: AppEventBindings) {
     blurFocusedHudControl();
     if (!bindings.getViewPlayerUuid() && bindings.shouldStartFlyLook(event)) {
       event.preventDefault();
-      bindings.renderer.domElement.requestPointerLock?.();
+      requestFlyLook(bindings.renderer.domElement);
     }
   }, { capture: true });
   bindings.renderer.domElement.addEventListener('wheel', (event) => {

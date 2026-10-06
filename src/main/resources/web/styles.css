@@ -1348,7 +1348,8 @@ button {
   grid-template-columns: 82px minmax(0, 1fr);
   gap: 5px 14px;
   margin: 0;
-  align-items: baseline;
+  /* Not baseline: Firefox sizes baseline-aligned cells with overflow: hidden to zero width. */
+  align-items: center;
 }
 
 .info-grid dt {

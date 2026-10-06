@@ -226,6 +226,36 @@ test('pointerdown can start fly look while following a player', () => {
   }
 });
 
+test('a rejected pointer lock request (Firefox, unfocused document) is handled', async () => {
+  const previousView = bindings.getViewPlayerUuid;
+  const previousShouldStart = bindings.shouldStartFlyLook;
+  const previousRequestPointerLock = bindings.renderer.domElement.requestPointerLock;
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => unhandled.push(reason);
+  process.on('unhandledRejection', onUnhandled);
+  let handled = false;
+  bindings.getViewPlayerUuid = () => null;
+  bindings.shouldStartFlyLook = () => true;
+  bindings.renderer.domElement.requestPointerLock = () => {
+    const rejection = Promise.reject(new Error('The document is not focused.'));
+    const originalCatch = rejection.catch.bind(rejection);
+    rejection.catch = ((onRejected) => { handled = true; return originalCatch(onRejected); }) as typeof rejection.catch;
+    return rejection;
+  };
+
+  try {
+    bindings.renderer.domElement.dispatchEvent(new window.MouseEvent('pointerdown', { button: 0, bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(handled, true);
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+    bindings.getViewPlayerUuid = previousView;
+    bindings.shouldStartFlyLook = previousShouldStart;
+    bindings.renderer.domElement.requestPointerLock = previousRequestPointerLock;
+  }
+});
+
 test('wheel zoom is allowed in follow mode and blocked in eye mode', () => {
   const previousView = bindings.getViewPlayerUuid;
   const previousFollow = bindings.getFollowPlayerUuid;
