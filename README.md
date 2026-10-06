@@ -252,10 +252,19 @@ hosted validation and CurseForge publishing.
 
 CurseForge publishing is a separate, manually dispatched workflow. It downloads a named
 GitHub Release, verifies its recorded tag and jar checksum, reuses its curated notes from
-`CHANGELOG.md`, and uploads that same jar without rebuilding it. Repository maintainers
-should configure the `curseforge` GitHub environment with required reviewers, the
-`CURSEFORGE_API_TOKEN` environment secret, and the numeric `CURSEFORGE_PROJECT_ID`
-environment variable.
+`CHANGELOG.md`, and uploads that same jar without rebuilding it. It has two approval lanes,
+chosen with the `approval` input:
+
+- `gated` (default, feature releases): runs in the `curseforge` environment, which requires
+  the owner's approval; `manual_release` can hold the moderated file for a manual release.
+- `auto` (compatibility-only releases): runs in the `curseforge-auto` environment, which
+  has no reviewer and only deploys from `main`; the file goes live once CurseForge
+  moderation approves it. The run fails unless that release's changelog contains only
+  `Compatibility` and `Fixed` sections.
+
+Both environments need the `CURSEFORGE_API_TOKEN` secret (a CurseForge author API token,
+not the read-only Core API key) and the numeric `CURSEFORGE_PROJECT_ID` variable
+(`1581480`).
 
 ### Test
 

@@ -21,10 +21,18 @@ on:
         required: false
         type: string
       manual_release:
-        description: Hold the approved file for manual release on CurseForge
+        description: Hold the approved file for manual release on CurseForge (gated lane only; auto always releases after moderation)
         required: true
         default: true
         type: boolean
+      approval:
+        description: gated = owner approves the run (feature releases); auto = no approver, only for releases whose changelog has Compatibility/Fixed sections only
+        required: true
+        default: gated
+        type: choice
+        options:
+          - gated
+          - auto
 
 permissions:
   contents: read
@@ -34,11 +42,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  lane:
+    name: Choose approval lane
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      environment: ${{ steps.lane.outputs.environment }}
+      manual_release: ${{ steps.lane.outputs.manual_release }}
+    steps:
+      - name: Check the release qualifies for its lane
+        id: lane
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          APPROVAL: ${{ inputs.approval }}
+          MANUAL_RELEASE: ${{ inputs.manual_release }}
+          # Changelog sections a release may contain and still ship without an approver.
+          AUTO_ALLOWED_SECTIONS: Compatibility Fixed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$APPROVAL" == "gated" ]]; then
+            echo "environment=curseforge" >> "$GITHUB_OUTPUT"
+            echo "manual_release=$MANUAL_RELEASE" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          sections="$(gh release view "$RELEASE_TAG" --json body --jq .body | sed -nE 's/^### +(.+)$/\1/p' | sed -E 's/[[:space:]]+$//')"
+          test -n "$sections" || { echo "Release notes for $RELEASE_TAG have no ### sections" >&2; exit 1; }
+          disallowed=""
+          while IFS= read -r section; do
+            [[ " $AUTO_ALLOWED_SECTIONS " == *" $section "* ]] || disallowed+="${section}, "
+          done <<<"$sections"
+          if [[ -n "$disallowed" ]]; then
+            echo "Auto lane is only for releases with ${AUTO_ALLOWED_SECTIONS// /\/} sections; $RELEASE_TAG also has: ${disallowed%, }. Re-run with approval=gated." >&2
+            exit 1
+          fi
+          echo "environment=curseforge-auto" >> "$GITHUB_OUTPUT"
+          echo "manual_release=false" >> "$GITHUB_OUTPUT"
+
   publish:
     name: Upload published release
+    needs: lane
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: curseforge
+    environment: ${{ needs.lane.outputs.environment }}
 
     steps:
       - name: Set up Node.js 24
@@ -103,7 +152,7 @@ jobs:
           RELEASE_NOTES_FILE: ${{ runner.temp }}/github-release-notes.md
           GAME_VERSION_NAMES: ${{ inputs.game_version_names }}
           RELEASE_TYPE: ${{ inputs.release_type }}
-          MANUAL_RELEASE: ${{ inputs.manual_release }}
+          MANUAL_RELEASE: ${{ needs.lane.outputs.manual_release }}
         shell: bash
         run: |
           set -euo pipefail
@@ -163,5 +212,6 @@ jobs:
             echo "- GitHub Release tag: \`${RELEASE_TAG}\`"
             echo "- CurseForge file ID: \`${FILE_ID}\`"
             echo "- Release type: \`${{ inputs.release_type }}\`"
-            echo "- Held for manual release: \`${{ inputs.manual_release }}\`"
+            echo "- Approval lane: \`${{ inputs.approval }}\` (environment \`${{ needs.lane.outputs.environment }}\`)"
+            echo "- Held for manual release: \`${{ needs.lane.outputs.manual_release }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
