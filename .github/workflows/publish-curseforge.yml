@@ -10,7 +10,7 @@ on:
       release_type:
         description: CurseForge release channel
         required: true
-        default: alpha
+        default: release
         type: choice
         options:
           - alpha
