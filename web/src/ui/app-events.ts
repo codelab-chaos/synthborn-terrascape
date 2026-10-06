@@ -22,6 +22,7 @@ import {
   infoCardHeadEl,
   landMotionInput,
   mapTilesInput,
+  voxelsInput,
   syncTimeInput,
   mobBlocksInput,
   mobBlocksPanelInput,
@@ -189,6 +190,10 @@ function bindHudInputs(bindings: AppEventBindings) {
   });
   mapTilesInput.addEventListener('change', () => {
     bindings.updateMapTileLayer();
+    bindings.saveViewState();
+  });
+  voxelsInput.addEventListener('change', () => {
+    bindings.scheduleControlGridLoad();
     bindings.saveViewState();
   });
   cosmeticBlocksModeInput.addEventListener('change', () => {

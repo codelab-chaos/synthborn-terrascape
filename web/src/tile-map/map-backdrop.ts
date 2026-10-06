@@ -5,37 +5,24 @@ import { makeMapTileCacheKey, readMapTileCache, writeMapTileCache } from '../pla
 import { mapTileLightingTint } from '../scene/lighting.ts';
 import { MAP_BACKDROP_Y } from '../scene/water.ts';
 import { chunkId } from '../common/utils.ts';
-import { spatialStaggerDelayMs } from '../common/spatial-stagger.ts';
+import { createMapRegionAtlas, type MapRegionAtlas } from './map-region-atlas.ts';
 
 const CHUNK_SIZE = 32;
 const SKY_RGB = { r: 23, g: 52, b: 84 };
-const RISE_START_Y = -48;
-const RISE_MS = 140;
-const RISE_FAILSAFE_MULTIPLIER = 1.5;
-const REVEAL_STAGGER_MS = 360;
-// How many map tiles download in parallel — an independent knob from voxel mesh concurrency.
-let tileLoadConcurrency = 4;
+// How many map tiles download in parallel; an independent knob from voxel mesh concurrency.
+// Tiles are ~3 KB and served in ~10 ms, so they can afford far more slots than meshes.
+let tileLoadConcurrency = 12;
 
 export function setTileLoadConcurrency(value: number) {
   tileLoadConcurrency = Math.max(1, Math.floor(value) || 1);
 }
 const IMMEDIATE_TILE_LOAD_LIMIT = 96;
-const TILE_QUEUE_SLICE_SIZE = 48;
-const TILE_PROMOTIONS_PER_FRAME = 8;
-const TILE_PROMOTION_BUDGET_MS = 3;
-
-type RisingTile = {
-  mesh: THREE.Mesh;
-  chunkX: number;
-  chunkZ: number;
-  startedAt: number;
-  startY: number;
-  revealAt: number;
-};
+const TILE_QUEUE_SLICE_SIZE = 96;
+// Promotion is a 32x32 drawImage into a region surface; uploads batch in the frame flush.
+const TILE_PROMOTIONS_PER_FRAME = 64;
+const TILE_PROMOTION_BUDGET_MS = 4;
 
 type MapTileEntry = {
-  mesh: THREE.Mesh;
-  texture: THREE.Texture;
   image: CanvasImageSource | null;
   pixels: Uint8ClampedArray | null;
   pixelWidth: number;
@@ -58,11 +45,7 @@ type TileLoadRequest = {
   world: string;
   chunkX: number;
   chunkZ: number;
-  scene: THREE.Scene;
   formatVersion: string;
-  maxAnisotropy: number;
-  motionEnabled: boolean;
-  revealBaseAt: number;
 };
 type TileLoadResult = {
   installed: boolean;
@@ -70,8 +53,7 @@ type TileLoadResult = {
 };
 
 type PreparedTile = {
-  texture: THREE.Texture;
-  image: CanvasImageSource | null;
+  image: CanvasImageSource;
 };
 
 type TilePromotionJob = {
@@ -86,7 +68,6 @@ type TileLoadMode = 'cache-only' | 'network-only' | 'full';
 
 const loadedTiles = new Map<string, MapTileEntry>();
 const loadedTilesByCoord = new Map<string, MapTileEntry>();
-const activeRise = new Map<string, RisingTile>();
 const desiredTileLoads = new Map<string, TileLoadRequest>();
 const inFlightTileLoads = new Map<string, {
   request: TileLoadRequest;
@@ -100,6 +81,8 @@ let tileLoadGeneration = 0;
 let tileLoadWorker: Promise<void> | null = null;
 let tilePromotionWorker: Promise<void> | null = null;
 let context: MapBackdropContext | null = null;
+let atlas: MapRegionAtlas | null = null;
+let atlasScene: THREE.Scene | null = null;
 let activeStats = {
   loaded: 0,
   centerX: 0,
@@ -118,26 +101,12 @@ let activeStats = {
   totalTiles: 0,
 };
 
-function easeOutCubic(t: number) {
-  const clamped = Math.max(0, Math.min(1, t));
-  return 1 - (1 - clamped) ** 3;
-}
-
 function tileCacheKey(world: string, chunkX: number, chunkZ: number, formatVersion: string) {
   return makeMapTileCacheKey({ world, chunkX, chunkZ, formatVersion });
 }
 
-function tileMotionKey(chunkX: number, chunkZ: number) {
-  return `${chunkX}:${chunkZ}`;
-}
-
 function coordKey(chunkX: number, chunkZ: number) {
   return `${chunkX}:${chunkZ}`;
-}
-
-/** Stable coordinate noise keeps reveals organic without changing from run to run. */
-export function tileRevealDelayMs(chunkX: number, chunkZ: number) {
-  return spatialStaggerDelayMs(chunkX, chunkZ, REVEAL_STAGGER_MS);
 }
 
 async function runWithConcurrency<T>(
@@ -155,104 +124,35 @@ async function runWithConcurrency<T>(
   await Promise.all(workers);
 }
 
-async function textureFromPngBytes(bytes: ArrayBuffer, maxAnisotropy: number) {
+/** Decode PNG bytes to a drawable image; createImageBitmap decodes off the main thread. */
+async function decodeTileImage(bytes: ArrayBuffer): Promise<PreparedTile> {
   const blob = new Blob([bytes], { type: 'image/png' });
+  if (typeof createImageBitmap === 'function') {
+    return { image: await createImageBitmap(blob) };
+  }
   const objectUrl = URL.createObjectURL(blob);
-  return new Promise<{ texture: THREE.Texture; image: CanvasImageSource | null }>((resolve, reject) => {
-    const loader = new THREE.TextureLoader();
-    loader.load(objectUrl, (texture) => {
-      URL.revokeObjectURL(objectUrl);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = Math.min(4, maxAnisotropy);
-      texture.needsUpdate = true;
-      resolve({ texture, image: texture.image ?? null });
-    }, undefined, (error) => {
-      URL.revokeObjectURL(objectUrl);
-      reject(error);
-    });
-  });
+  try {
+    const image = new Image();
+    image.src = objectUrl;
+    await image.decode();
+    return { image };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
-function applyTileHeight(mesh: THREE.Mesh, chunkX: number, chunkZ: number, y = MAP_BACKDROP_Y) {
-  mesh.position.set(
-    chunkX * CHUNK_SIZE + CHUNK_SIZE / 2,
-    y,
-    chunkZ * CHUNK_SIZE + CHUNK_SIZE / 2,
-  );
-}
-
-function createTileMesh(texture: THREE.Texture, chunkX: number, chunkZ: number) {
-  const geometry = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE);
-  geometry.rotateX(-Math.PI / 2);
-  const material = new THREE.MeshBasicMaterial({
-    map: texture,
-    color: activeTileTint,
-    transparent: true,
-    opacity: 0.98,
-    depthTest: true,
-    depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: 1,
-    polygonOffsetUnits: 1,
-    side: THREE.DoubleSide,
-    fog: true,
-    toneMapped: false,
-  });
-  material.userData.terrascapeMapTile = true;
-  const mesh = new THREE.Mesh(geometry, material);
-  applyTileHeight(mesh, chunkX, chunkZ);
-  mesh.name = `map-tile:${chunkX}:${chunkZ}`;
-  mesh.renderOrder = 0;
-  return mesh;
+function releaseImage(image: CanvasImageSource | null) {
+  (image as ImageBitmap | null)?.close?.();
 }
 
 export function updateMapBackdropLighting(options) {
   activeTileTint.copy(mapTileLightingTint(options));
-  for (const entry of loadedTiles.values()) {
-    applyTileMaterialTint(entry.mesh.material, activeTileTint);
-  }
-}
-
-function applyTileMaterialTint(material: THREE.Material | THREE.Material[], tint: THREE.Color) {
-  const materials = Array.isArray(material) ? material : [material];
-  for (const mat of materials) {
-    const maybeColored = mat as THREE.Material & { color?: THREE.Color };
-    if (!maybeColored?.color) continue;
-    maybeColored.color.copy(tint);
-    maybeColored.needsUpdate = true;
-  }
+  atlas?.setTint(activeTileTint);
 }
 
 function disposeTileEntry(entry: MapTileEntry) {
-  entry.mesh.parent?.remove(entry.mesh);
-  entry.texture.dispose();
-  entry.mesh.geometry?.dispose();
-  const material = entry.mesh.material;
-  if (material && !Array.isArray(material)) {
-    material.dispose();
-  }
-  entry.mesh.dispose?.();
-}
-
-function revealTile(entry: MapTileEntry, motionEnabled: boolean, revealBaseAt: number) {
-  const key = tileMotionKey(entry.chunkX, entry.chunkZ);
-  if (activeRise.has(key)) return;
-  entry.mesh.visible = true;
-  if (!motionEnabled) {
-    applyTileHeight(entry.mesh, entry.chunkX, entry.chunkZ);
-    return;
-  }
-  const startY = RISE_START_Y;
-  entry.mesh.position.y = startY;
-  entry.mesh.visible = false;
-  activeRise.set(key, {
-    mesh: entry.mesh,
-    chunkX: entry.chunkX,
-    chunkZ: entry.chunkZ,
-    startedAt: 0,
-    startY,
-    revealAt: revealBaseAt + tileRevealDelayMs(entry.chunkX, entry.chunkZ),
-  });
+  atlas?.remove(entry.chunkX, entry.chunkZ);
+  releaseImage(entry.image);
 }
 
 function yieldToRenderFrame() {
@@ -270,17 +170,15 @@ function installPreparedTile(
   bytes: ArrayBuffer,
   prepared: PreparedTile,
 ) {
-  const { id, scene, world, chunkX, chunkZ, motionEnabled, revealBaseAt } = request;
+  const { id, chunkX, chunkZ } = request;
   // Overlapping terrain/tile batches can decode the same coordinate together.
-  // Keep the first result and dispose the redundant texture before scene install.
-  if (loadedTiles.has(id)) {
-    prepared.texture.dispose();
+  // Keep the first result and release the redundant image.
+  if (loadedTiles.has(id) || !atlas) {
+    releaseImage(prepared.image);
     return false;
   }
-  const mesh = createTileMesh(prepared.texture, chunkX, chunkZ);
+  atlas.put(chunkX, chunkZ, prepared.image);
   const entry: MapTileEntry = {
-    mesh,
-    texture: prepared.texture,
     image: prepared.image,
     pixels: null,
     pixelWidth: CHUNK_SIZE,
@@ -289,10 +187,8 @@ function installPreparedTile(
     chunkZ,
     bytes: bytes.byteLength,
   };
-  scene.add(mesh);
   loadedTiles.set(id, entry);
   loadedTilesByCoord.set(coordKey(chunkX, chunkZ), entry);
-  revealTile(entry, motionEnabled, revealBaseAt);
   return true;
 }
 
@@ -338,7 +234,7 @@ async function processTilePromotionQueue() {
         || desiredTileLoads.get(request.id) !== request
         || loadedTiles.has(request.id)
       ) {
-        job.prepared.texture.dispose();
+        releaseImage(job.prepared.image);
         job.resolve(loadedTiles.has(request.id));
         continue;
       }
@@ -351,16 +247,16 @@ async function processTilePromotionQueue() {
 
 function clearTilePromotionQueue() {
   for (const job of tilePromotionQueue.splice(0)) {
-    job.prepared.texture.dispose();
+    releaseImage(job.prepared.image);
     job.resolve(false);
   }
 }
 
 function updateStats() {
-  let visibleTiles = 0;
+  // Every installed tile is drawn into a region plane, so installed means visible.
+  const visibleTiles = loadedTiles.size;
   let totalBytes = 0;
   for (const entry of loadedTiles.values()) {
-    if (entry.mesh.visible) visibleTiles += 1;
     totalBytes += entry.bytes;
   }
   activeStats = {
@@ -381,6 +277,15 @@ export function configureMapBackdrop(scene: THREE.Scene, renderer: THREE.WebGLRe
     formatVersion: options.formatVersion ?? 'v13',
     motionEnabled: options.motionEnabled !== false,
   };
+  if (atlasScene !== scene) {
+    atlas?.clear();
+    atlas = createMapRegionAtlas(scene, {
+      y: MAP_BACKDROP_Y,
+      maxAnisotropy: renderer.capabilities?.getMaxAnisotropy?.() ?? 1,
+    });
+    atlas.setTint(activeTileTint);
+    atlasScene = scene;
+  }
   if (!context.enabled) {
     clearMapBackdrop(scene);
   }
@@ -391,14 +296,39 @@ export function pruneMapTiles(world: string, retainIds: Set<string>) {
   const scene = context.scene;
   for (const [key, entry] of loadedTiles.entries()) {
     if (retainIds.has(key)) continue;
-    scene.remove(entry.mesh);
     disposeTileEntry(entry);
     loadedTiles.delete(key);
     loadedTilesByCoord.delete(coordKey(entry.chunkX, entry.chunkZ));
     desiredTileLoads.delete(key);
-    activeRise.delete(tileMotionKey(entry.chunkX, entry.chunkZ));
   }
   updateStats();
+}
+
+/**
+ * Resolve once every key is installed or no longer pending (failed, pruned, map disabled), or
+ * after timeoutMs. Lets terrain hold voxel requests until the flat map beneath them is down,
+ * without letting a slow or dead tile server block voxels indefinitely.
+ */
+export function waitForMapTiles(
+  world: string,
+  keys: { chunkX: number; chunkZ: number }[],
+  timeoutMs: number,
+  isCancelled: () => boolean = () => false,
+) {
+  const ids = keys.map((key) => chunkId(world, key.chunkX, key.chunkZ));
+  const settled = () => !context?.enabled || ids.every((id) => {
+    return loadedTiles.has(id) || (!desiredTileLoads.has(id) && !inFlightTileLoads.has(id));
+  });
+  const deadline = performance.now() + timeoutMs;
+  return new Promise<boolean>((resolve) => {
+    const check = () => {
+      if (isCancelled()) return resolve(false);
+      if (settled()) return resolve(true);
+      if (performance.now() >= deadline) return resolve(false);
+      setTimeout(check, 50);
+    };
+    check();
+  });
 }
 
 /** Load map tiles in caller-provided order, cache first, then direct chunk PNG fetches. */
@@ -408,10 +338,7 @@ export async function loadMapTilesForKeys(
   options: { immediate?: boolean; replace?: boolean } = {},
 ) {
   if (!context?.enabled || !context.scene || keys.length === 0) return;
-  const { scene, renderer, formatVersion, motionEnabled } = context;
-  const revealMotion = motionEnabled;
-  const revealBaseAt = performance.now();
-  const maxAnisotropy = renderer.capabilities.getMaxAnisotropy?.() ?? 1;
+  const { formatVersion } = context;
 
   if (options.replace) {
     for (const [id] of desiredTileLoads) {
@@ -431,11 +358,7 @@ export async function loadMapTilesForKeys(
       world,
       chunkX: key.chunkX,
       chunkZ: key.chunkZ,
-      scene,
       formatVersion,
-      maxAnisotropy,
-      motionEnabled: revealMotion,
-      revealBaseAt,
     };
     desiredTileLoads.set(id, request);
     immediateRequests.push(request);
@@ -594,9 +517,9 @@ async function loadTileRequestUncached(
       return { installed: false, network: false };
     }
     if (cached?.bytes) {
-      const prepared = await textureFromPngBytes(cached.bytes, request.maxAnisotropy);
+      const prepared = await decodeTileImage(cached.bytes);
       if (generation !== loadGeneration || desiredTileLoads.get(request.id) !== request) {
-        prepared.texture.dispose();
+        releaseImage(prepared.image);
         return { installed: false, network: false };
       }
       const created = await promotePreparedTile(request, generation, cached.bytes, prepared);
@@ -611,9 +534,9 @@ async function loadTileRequestUncached(
     return { installed: false, network: true };
   }
   void writeMapTileCache(cacheKey, result.bytes.slice(0), { source: result.source });
-  const prepared = await textureFromPngBytes(result.bytes, request.maxAnisotropy);
+  const prepared = await decodeTileImage(result.bytes);
   if (generation !== loadGeneration || desiredTileLoads.get(request.id) !== request) {
-    prepared.texture.dispose();
+    releaseImage(prepared.image);
     return { installed: false, network: true };
   }
   const created = await promotePreparedTile(request, generation, result.bytes, prepared);
@@ -638,11 +561,10 @@ export function setMapTileChunkCovered(_chunkX: number, _chunkZ: number, _covere
 export function clearMapBackdrop(scene) {
   loadGeneration += 1;
   clearTilePromotionQueue();
-  activeRise.clear();
   for (const entry of loadedTiles.values()) {
-    scene.remove(entry.mesh);
-    disposeTileEntry(entry);
+    releaseImage(entry.image);
   }
+  atlas?.clear();
   loadedTiles.clear();
   loadedTilesByCoord.clear();
   desiredTileLoads.clear();
@@ -674,62 +596,24 @@ export function mapBackdropStats() {
 }
 
 export function mapTileSceneStats() {
-  let meshCount = 0;
-  let visibleCount = 0;
-  for (const entry of loadedTiles.values()) {
-    meshCount += 1;
-    if (entry.mesh.visible) visibleCount += 1;
-  }
+  const regions = atlas?.stats();
   return {
-    meshCount,
-    visibleCount,
+    meshCount: loadedTiles.size,
+    visibleCount: loadedTiles.size,
+    regionMeshes: regions?.regions ?? 0,
     ...mapBackdropStats(),
   };
 }
 
-export function tickMapTileMotion(motionEnabled: boolean) {
-  const now = performance.now();
-  for (const [key, rising] of [...activeRise.entries()]) {
-    const found = loadedTilesByCoord.get(coordKey(rising.chunkX, rising.chunkZ));
-    if (found?.mesh !== rising.mesh) {
-      activeRise.delete(key);
-      continue;
-    }
-
-    if (!motionEnabled) {
-      rising.mesh.visible = true;
-      applyTileHeight(rising.mesh, rising.chunkX, rising.chunkZ);
-      activeRise.delete(key);
-      continue;
-    }
-
-    if (now < rising.revealAt) continue;
-    if (rising.startedAt === 0) {
-      rising.startedAt = now;
-      rising.mesh.visible = true;
-    }
-
-    const elapsed = now - rising.startedAt;
-    const duration = Math.max(1, RISE_MS);
-    const rawT = elapsed / duration;
-    rising.mesh.position.y = THREE.MathUtils.lerp(
-      rising.startY,
-      MAP_BACKDROP_Y,
-      easeOutCubic(Math.min(1, rawT)),
-    );
-
-    if (rawT >= 1 || elapsed >= duration * RISE_FAILSAFE_MULTIPLIER) {
-      applyTileHeight(rising.mesh, rising.chunkX, rising.chunkZ);
-      activeRise.delete(key);
-    }
-  }
-
-  updateStats();
-  return activeRise.size;
+/** Per-frame hook: upload region textures changed since the last frame. */
+export function tickMapTileMotion(_motionEnabled: boolean) {
+  atlas?.flush();
+  return 0;
 }
 
+/** Tiles no longer animate individually; kept for the debug bridge contract. */
 export function mapTileMotionActive() {
-  return activeRise.size > 0;
+  return false;
 }
 
 function ensureTilePixels(entry: MapTileEntry) {
@@ -753,7 +637,8 @@ export function auditMapTiles(scene: THREE.Scene) {
   const issues: string[] = [];
   const tiles = [];
   for (const entry of loadedTiles.values()) {
-    const material = entry.mesh.material as THREE.MeshBasicMaterial;
+    const mesh = atlas?.meshFor(entry.chunkX, entry.chunkZ) ?? null;
+    const material = mesh?.material as THREE.MeshBasicMaterial | undefined;
     const texture = material?.map;
     const image = texture?.image as { width?: number; height?: number } | undefined;
     const worldX = entry.chunkX * CHUNK_SIZE + CHUNK_SIZE / 2;
@@ -762,9 +647,9 @@ export function auditMapTiles(scene: THREE.Scene) {
     const row = {
       chunkX: entry.chunkX,
       chunkZ: entry.chunkZ,
-      visible: entry.mesh.visible,
-      inScene: entry.mesh.parent === scene,
-      y: entry.mesh.position.y,
+      visible: mesh?.visible ?? false,
+      inScene: mesh?.parent === scene,
+      y: mesh?.position.y ?? Number.NaN,
       hasTexture: Boolean(texture),
       textureWidth: image?.width ?? 0,
       textureHeight: image?.height ?? 0,
@@ -795,9 +680,11 @@ export function probeMapTilePixel(
   chunkZ: number,
 ) {
   const entry = loadedTilesByCoord.get(coordKey(chunkX, chunkZ));
-  if (!entry) {
+  const regionMesh = entry ? atlas?.meshFor(chunkX, chunkZ) : null;
+  if (!entry || !regionMesh) {
     return { ok: false, error: 'tile_missing' };
   }
+  atlas?.flush();
 
   const savedVisibility = new Map<THREE.Object3D, boolean>();
   scene.traverse((object) => {
@@ -805,7 +692,7 @@ export function probeMapTilePixel(
   });
 
   scene.traverse((object) => {
-    if (object === entry.mesh) {
+    if (object === regionMesh) {
       object.visible = true;
       return;
     }

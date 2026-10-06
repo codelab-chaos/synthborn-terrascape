@@ -122,6 +122,10 @@
           <input id="tree-shade" type="checkbox" checked>
           <span>Shade</span>
         </label>
+        <label class="toggle" title="Render 3D voxel meshes; off shows only the flat map tiles">
+          <input id="voxels" type="checkbox" checked>
+          <span>Voxels</span>
+        </label>
         <label class="toggle">
           <input id="map-tiles" type="checkbox" checked>
           <span>Map Tiles</span>
@@ -162,8 +166,8 @@
       <label class="paired-control" title="How many map tiles download in parallel — independent of voxel meshes.">
         <span>Tiles Loaded at Once</span>
         <div class="range-number">
-          <input id="tile-load-slots" type="range" min="1" max="16" step="1" value="4">
-          <input id="tile-load-slots-value" type="number" min="1" max="16" step="1" value="4">
+          <input id="tile-load-slots" type="range" min="1" max="16" step="1" value="12">
+          <input id="tile-load-slots-value" type="number" min="1" max="16" step="1" value="12">
         </div>
       </label>
       <div class="tri-state-field" title="How decorative floating blocks such as roofs, planks, torches, fire, doors, and furniture are loaded">

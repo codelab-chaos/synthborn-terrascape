@@ -46,8 +46,3 @@ export function mapBackdropRetainStats(center: { chunkX: number; chunkZ: number 
     anchorZ: center.chunkZ,
   };
 }
-
-export function horizonMapKeys<T extends { chunkX: number; chunkZ: number }>(terrainKeys: T[], retainKeys: T[]) {
-  const terrainIds = new Set(terrainKeys.map((key) => `${key.chunkX}:${key.chunkZ}`));
-  return retainKeys.filter((key) => !terrainIds.has(`${key.chunkX}:${key.chunkZ}`));
-}

@@ -15,6 +15,7 @@ export const playerUpdateRateInput = document.querySelector<HTMLSelectElement>('
 export const mobUpdateRateInput = document.querySelector<HTMLSelectElement>('#mob-update-rate');
 export const treeShadeInput = document.querySelector<HTMLInputElement>('#tree-shade');
 export const mapTilesInput = document.querySelector<HTMLInputElement>('#map-tiles');
+export const voxelsInput = document.querySelector<HTMLInputElement>('#voxels');
 export const clearMeshCacheButton = document.querySelector<HTMLButtonElement>('#clear-mesh-cache');
 export const cosmeticBlocksModeInput = document.querySelector<HTMLInputElement>('#cosmetic-blocks-mode');
 export const visualDetailModeInput = document.querySelector<HTMLInputElement>('#visual-detail-mode');

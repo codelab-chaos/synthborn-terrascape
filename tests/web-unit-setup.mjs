@@ -131,7 +131,7 @@ const SCAFFOLD = [
   ['#auto-stream', 'input'], ['#debug-bounds', 'input'], ['#show-players', 'input'],
   ['#show-mobs', 'input'], ['#mob-blocks', 'input'], ['#mob-blocks-panel', 'input'],
   ['#player-update-rate', 'input'], ['#mob-update-rate', 'input'], ['#tree-shade', 'input'],
-  ['#map-tiles', 'input'], ['#clear-mesh-cache', 'button'], ['#cosmetic-blocks-mode', 'input'],
+  ['#map-tiles', 'input'], ['#voxels', 'input'], ['#clear-mesh-cache', 'button'], ['#cosmetic-blocks-mode', 'input'],
   ['#visual-detail-mode', 'input'], ['#land-motion', 'input'], ['#terrain-load-slots', 'input'],
   ['#terrain-load-slots-value', 'input'], ['#map-tile-radius', 'input'],
   ['#map-tile-radius-value', 'input'], ['#tile-load-slots', 'input'],
@@ -163,3 +163,8 @@ for (const [selector, tag] of SCAFFOLD) {
   if (tag === 'input') el.value = '';
   window.document.body.appendChild(el);
 }
+
+// Mirrors index.html: voxel meshes render by default.
+const voxelsToggle = window.document.querySelector('#voxels');
+voxelsToggle.type = 'checkbox';
+voxelsToggle.checked = true;

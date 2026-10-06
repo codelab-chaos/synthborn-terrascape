@@ -93,8 +93,9 @@ jobs:
             sha256sum --check SHA256SUMS
           )
 
-          version="${RELEASE_TAG#v}"
-          test -f "candidate/Terrascape-${version}.jar"
+          jar_file="$(sed -n 's/^artifact_file=//p' candidate/release-evidence.env)"
+          test -n "$jar_file"
+          test -f "candidate/${jar_file}"
 
       - name: Build CurseForge upload metadata
         env:
@@ -132,13 +133,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="${RELEASE_TAG#v}"
+          jar_file="$(sed -n 's/^artifact_file=//p' candidate/release-evidence.env)"
           response_file="$RUNNER_TEMP/curseforge-response.json"
           curl \
             --fail-with-body \
             --header "X-Api-Token: ${API_TOKEN}" \
             --form "metadata=<$RUNNER_TEMP/curseforge-metadata.json;type=application/json" \
-            --form "file=@candidate/Terrascape-${version}.jar;type=application/java-archive" \
+            --form "file=@candidate/${jar_file};type=application/java-archive" \
             --output "$response_file" \
             "${API_BASE_URL%/}/api/projects/${PROJECT_ID}/upload-file"
 

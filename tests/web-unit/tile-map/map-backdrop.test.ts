@@ -15,7 +15,6 @@ import {
   sampleMapBackdropColor,
   setMapTileChunkCovered,
   setTileLoadConcurrency,
-  tileRevealDelayMs,
   tickMapTileMotion,
   updateMapBackdrop,
 } from '../../../web/src/tile-map/map-backdrop.ts';
@@ -76,18 +75,6 @@ test('setTileLoadConcurrency clamps to at least 1', () => {
   assert.doesNotThrow(() => setTileLoadConcurrency(-5));
   assert.doesNotThrow(() => setTileLoadConcurrency(Number.NaN));
   setTileLoadConcurrency(4);
-});
-
-test('tile reveal staggering is deterministic, bounded, and spatially varied', () => {
-  assert.equal(tileRevealDelayMs(3, -7), tileRevealDelayMs(3, -7));
-  const delays = [
-    tileRevealDelayMs(0, 0),
-    tileRevealDelayMs(1, 0),
-    tileRevealDelayMs(0, 1),
-    tileRevealDelayMs(-4, 9),
-  ];
-  assert.ok(delays.every((delay) => delay >= 0 && delay <= 360));
-  assert.ok(new Set(delays).size > 1);
 });
 
 test('mapBackdropStats and mapTileSceneStats report empty state', () => {

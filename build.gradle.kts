@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.codelabchaos"
-version = "0.1.1-beta.2"
+version = "0.1.2"
 
 repositories {
     mavenCentral()
@@ -12,13 +12,13 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.hypixel.hytale:Server:0.6.5")
+    compileOnly("com.hypixel.hytale:Server:0.6.8")
     // Gson is provided by the Hytale server runtime; compile against it without bundling.
     compileOnly("com.google.code.gson:gson:2.13.1")
 
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("com.hypixel.hytale:Server:0.6.5")
+    testImplementation("com.hypixel.hytale:Server:0.6.8")
     testImplementation("com.google.code.gson:gson:2.13.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -71,7 +71,9 @@ tasks.named<ProcessResources>("processResources") {
 
 tasks.register<Jar>("fatJar") {
     archiveBaseName.set("Terrascape")
-    archiveVersion.set(version.toString())
+    // File names carry the plain version (Terrascape-0.1.1.jar); prerelease labels such as
+    // beta.2 belong to the release tag and notes, not the artifact name.
+    archiveVersion.set(version.toString().substringBefore('-'))
     archiveClassifier.set("")
 
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE

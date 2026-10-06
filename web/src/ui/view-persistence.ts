@@ -48,6 +48,7 @@ import {
   infoCardHeadEl,
   landMotionInput,
   mapTilesInput,
+  voxelsInput,
   syncTimeInput,
   mobBlocksInput,
   playerUpdateRateInput,
@@ -74,6 +75,8 @@ import {
 } from './dom.ts';
 
 const VISUAL_DEFAULTS_VERSION = 2;
+// Bump when tile loading defaults change so stored values from older builds are not restored.
+const TILE_DEFAULTS_VERSION = 1;
 
 export function setRenderDetailsOpen(open) {
   const isOpen = open === true;
@@ -112,6 +115,7 @@ export function applyInitialParams() {
   syncMobBlocksInputs(mobBlocksInput.checked);
   applyBooleanParam('shade', treeShadeInput);
   applyBooleanParam('mapTiles', mapTilesInput);
+  applyBooleanParam('voxels', voxelsInput);
   applyCosmeticModeParam();
   applySelectParam('visualDetail', visualDetailModeInput);
   applyBooleanParam('landMotion', landMotionInput);
@@ -153,6 +157,7 @@ function applyStoredInputs() {
   if (typeof runtime.storedViewState.shade === 'boolean') treeShadeInput.checked = runtime.storedViewState.shade;
   if (typeof runtime.storedViewState.syncTime === 'boolean') syncTimeInput.checked = runtime.storedViewState.syncTime;
   if (typeof runtime.storedViewState.mapTiles === 'boolean') mapTilesInput.checked = runtime.storedViewState.mapTiles;
+  if (typeof runtime.storedViewState.voxels === 'boolean') voxelsInput.checked = runtime.storedViewState.voxels;
   if (runtime.storedViewState.visualDefaultsVersion === VISUAL_DEFAULTS_VERSION && typeof runtime.storedViewState.cosmeticsMode === 'string') {
     applySelectValue(cosmeticBlocksModeInput, runtime.storedViewState.cosmeticsMode);
   }
@@ -169,7 +174,9 @@ function applyStoredInputs() {
   applyCollapsedSectionState(runtime.storedViewState.sections);
   setPairedControlValue(terrainLoadSlotsInput, terrainLoadSlotsValueInput, runtime.storedViewState.terrainLoadSlots);
   setPairedControlValue(mapTileRadiusInput, mapTileRadiusValueInput, runtime.storedViewState.mapTileRadius);
-  setPairedControlValue(tileLoadSlotsInput, tileLoadSlotsValueInput, runtime.storedViewState.tilesAtOnce);
+  if (runtime.storedViewState.tileDefaultsVersion === TILE_DEFAULTS_VERSION) {
+    setPairedControlValue(tileLoadSlotsInput, tileLoadSlotsValueInput, runtime.storedViewState.tilesAtOnce);
+  }
   setPairedControlValue(shadeSizeInput, shadeSizeValueInput, runtime.storedViewState.shadeSize);
   setPairedControlValue(shadeDarknessInput, shadeDarknessValueInput, runtime.storedViewState.shadeDarkness);
   if (typeof runtime.storedViewState.water === 'string') {
@@ -280,12 +287,14 @@ export function saveViewState() {
     shade: treeShadeInput.checked,
     syncTime: syncTimeInput.checked,
     mapTiles: mapTilesInput.checked,
+    voxels: voxelsInput.checked,
     cosmeticsMode: cosmeticBlocksModeInput.value,
     visualDetailMode: visualDetailMode(),
     landMotion: landMotionInput.checked,
     terrainLoadSlots: terrainLoadConcurrency(),
     mapTileRadius: Number.parseInt(mapTileRadiusValueInput.value, 10) || 16,
     tilesAtOnce: tileLoadConcurrency(),
+    tileDefaultsVersion: TILE_DEFAULTS_VERSION,
     shadeSize: Number.parseFloat(shadeSizeValueInput.value),
     shadeDarkness: Number.parseFloat(shadeDarknessValueInput.value),
     water: waterModeValue(),

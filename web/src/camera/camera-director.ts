@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { disposeObject, updateMobMarkerHeight } from '../entities/players.ts';
+import { disposeObject, setPlayerBodyVisible, updateMobMarkerHeight } from '../entities/players.ts';
 import { clamp } from '../common/utils.ts';
 import { syncFlyLookFromCamera, updateFlyTarget } from './fly-camera.ts';
 import {
@@ -322,6 +322,13 @@ function applyMaterialOpacity(object, opacityScale) {
     material.opacity = nextOpacity;
     material.transparent = true;
     material.needsUpdate = true;
+  }
+}
+
+/** Hide only the body of the player whose eyes the camera is using; everyone else stays visible. */
+export function syncEyeModeAvatars() {
+  for (const [uuid, marker] of playerMarkers) {
+    setPlayerBodyVisible(marker, uuid !== runtime.viewPlayerUuid);
   }
 }
 

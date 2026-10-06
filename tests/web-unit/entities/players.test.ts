@@ -3,6 +3,7 @@ import test from 'node:test';
 import * as THREE from 'three';
 
 import {
+  setPlayerBodyVisible,
   createMobMarker,
   createPlayerMarker,
   disposeObject,
@@ -113,4 +114,19 @@ test('player marker pointer length respects minimum for small heights', () => {
   updatePlayerMarkerCardHeight(marker, 0.1);
   // height clamped to >= 2.8 internally; pointer remains positive.
   assert.ok(marker.userData.pointer.scale.y > 0);
+});
+
+test('setPlayerBodyVisible hides only body meshes and keeps the look light', () => {
+  const marker = createPlayerMarker({ uuid: 'eye', name: 'Eye', x: 0, y: 0, z: 0 });
+  const avatar = marker.userData.avatar;
+  setPlayerBodyVisible(marker, false);
+  for (const name of ['player-legs', 'player-body', 'player-head', 'player-face-glow']) {
+    assert.equal(avatar.getObjectByName(name).visible, false, name);
+  }
+  assert.equal(avatar.visible, true);
+  assert.equal(avatar.getObjectByName('player-look-light').visible, true);
+  assert.equal(marker.userData.card.visible, true);
+  setPlayerBodyVisible(marker, true);
+  assert.equal(avatar.getObjectByName('player-body').visible, true);
+  setPlayerBodyVisible({ userData: {} }, false);
 });

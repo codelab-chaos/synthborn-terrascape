@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  horizonMapKeys,
   mapBackdropCenterFrom,
   mapBackdropRetainStats,
   mapTileLayerKey,
@@ -25,8 +24,4 @@ test('computes map layer policy', () => {
     anchorX: 7,
     anchorZ: 8,
   });
-  assert.deepEqual(horizonMapKeys(
-    [{ chunkX: 0, chunkZ: 0 }, { chunkX: 1, chunkZ: 0 }],
-    [{ chunkX: 0, chunkZ: 0 }, { chunkX: 1, chunkZ: 0 }, { chunkX: 2, chunkZ: 0 }],
-  ), [{ chunkX: 2, chunkZ: 0 }]);
 });

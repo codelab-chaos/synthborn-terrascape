@@ -579,6 +579,8 @@ function startServerRemote(ctx, opts = {}) {
     'mkdir -p "$SAVE/logs"',
     'cd "$SAVE"',
     `nohup "$JAVA" -Xms${minRam}G -Xmx${maxRam}G ${rconFlags} -Dterrascape.http.host=0.0.0.0${terrascapePort} -jar "$JAR" --assets "$ASSETS" --auth-mode authenticated --bind "$BIND" >>"$SAVE/logs/dev-server.out" 2>&1 & echo $! > "$SAVE/.dev-server.pid"`,
+    // Hold a macOS idle-sleep assertion for exactly the server's lifetime; caffeinate exits with it.
+    'if command -v caffeinate >/dev/null 2>&1; then nohup caffeinate -i -w "$(cat "$SAVE/.dev-server.pid")" >/dev/null 2>&1 & fi',
     'echo "started detached pid=$(cat "$SAVE/.dev-server.pid")"',
   ].filter(Boolean).join(" && ");
   sshRun(cmd);
