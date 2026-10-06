@@ -11,10 +11,10 @@ viewer over HTTP; players just open a link.
 
 - **Map viewers** — someone gave you a link to their Terrascape map. Go to
   [Using the map viewer](#using-the-map-viewer).
-- **Server owners / admins** — you want to run Terrascape on your server. Start at
-  [Installation](#installation), then the
-  [Operations Manual](docs/operations-manual.md) for the full server + configuration
-  guide.
+- **Server owners / admins** — you want to run Terrascape on your server. Start with
+  [Installation](#installation) and the [Operations Manual](docs/operations-manual.md).
+  The [Quick Start website](https://codelab-chaos.github.io/synthborn-terrascape/)
+  walks through installation, access mode, ports, domain, and link lifetime.
 
 ---
 
