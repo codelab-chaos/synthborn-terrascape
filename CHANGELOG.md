@@ -10,6 +10,33 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- Add user-facing changes under Added, Changed, Fixed, Performance, Security, or
 Compatibility. During release preparation, move them into a dated version section. -->
 
+### Added
+
+- A **Voxels** toggle beside Map Tiles (also `?voxels=false`) shows Hytale's flat
+  map alone, with no 3D meshes requested.
+
+### Performance
+
+- Map tiles load before voxels: the whole flat map is requested nearest-first and
+  meshes wait (up to 4 s) for the tiles beneath them, so the map no longer shows
+  empty placeholder grids until each mesh arrives.
+- Map tiles are stitched into 8x8-chunk region planes, one mesh and texture per
+  region: a radius-32 map draws as 81 planes instead of 4,225 meshes, a large
+  frame rate gain on high refresh displays.
+- Map tiles download 12 at a time by default (was 4).
+
+### Fixed
+
+- In eye camera mode, the viewed player's own body no longer fills the view when
+  looking down; the player's look light stays on.
+
+### Compatibility
+
+- Compile and test against Hytale Server 0.6.8; the server requirement stays
+  `>=0.6.4`.
+- Release jars are named with the plain version (`Terrascape-0.1.1.jar`); the
+  prerelease label stays on the tag, GitHub release and CurseForge metadata.
+
 ## [0.1.1-beta.2] - 2026-09-10
 
 ### Compatibility
