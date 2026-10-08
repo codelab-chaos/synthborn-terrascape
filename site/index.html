@@ -11,254 +11,209 @@
 <body>
   <a class="skip-link" href="#main">Skip to guide</a>
   <header class="site-header">
-    <a class="brand" href="#top">Synthborn<span>Terrascape</span></a>
-    <a href="map.html">Using the map</a>
+    <a class="brand" href="index.html">Synthborn<span>Terrascape</span></a>
+    <nav class="site-nav" aria-label="Guides">
+      <a href="index.html" aria-current="page">Quick Start</a>
+      <a href="map.html">Using the map</a>
+      <a class="button button-primary" href="https://www.curseforge.com/hytale/mods/synthborn-terrascape">Download</a>
+    </nav>
   </header>
 
-  <div class="page-layout" id="top">
-    <nav class="toc" aria-label="On this page">
-      <p class="nav-label">Quick Start</p>
-      <a href="#setup">Install &amp; check</a>
-      <ol>
-        <li><a href="#access">Choose map access</a></li>
-        <li><a href="#ports">Connect your network</a></li>
-        <li><a href="#domain">Set your public address</a></li>
-        <li><a href="#lifetime">Set link lifetime</a></li>
-      </ol>
-      <a href="#verify">Restart &amp; verify</a>
-      <a href="#more">Reference &amp; help</a>
-    </nav>
-
-    <main id="main" tabindex="-1">
-      <header class="hero">
-        <p class="eyebrow">Server owner guide</p>
+  <main id="main" tabindex="-1">
+    <header class="intro">
+      <div>
         <h1>Terrascape Quick Start</h1>
-        <p class="lede">Install the server mod, check your map, and configure player access.</p>
-        <div class="hero-actions">
-          <a class="button button-primary" href="#setup">Start setup</a>
-          <a class="button button-secondary" href="map.html">Using the map</a>
-        </div>
-        <p class="hero-note">Defaults: local access only · web port 5960 · no map token required</p>
-      </header>
+        <p class="lede">Install the server mod, check the map locally, then set four keys in one file to share it with your players.</p>
+        <dl class="facts" aria-label="Defaults">
+          <dt>Web port</dt><dd>5960</dd>
+          <dt>Reachable from</dt><dd>this computer only</dd>
+          <dt>Map link needed</dt><dd>no</dd>
+        </dl>
+      </div>
+      <figure class="shot">
+        <img src="media/viewer-lake.jpg" width="1600" height="869" alt="The Terrascape viewer showing a Hytale lake and autumn forest as a 3D voxel map in the browser">
+        <figcaption>Your world, live in the browser.</figcaption>
+      </figure>
+    </header>
 
-      <section id="setup" aria-labelledby="setup-title">
-        <p class="eyebrow">Before you configure</p>
-        <h2 id="setup-title">Install and check the local map</h2>
-        <ol class="checks">
-          <li>Download the latest jar from <a href="https://www.curseforge.com/hytale/mods/synthborn-terrascape">CurseForge</a>.</li>
-          <li>Stop your Hytale dedicated server. Place <code>Terrascape-&lt;version&gt;.jar</code> in <code>&lt;save&gt;/mods/</code>.</li>
-          <li>Start the server and check the log for <code>Terrascape started</code>.</li>
-          <li>On the server computer, open <a href="http://127.0.0.1:5960">http://127.0.0.1:5960</a>. Your map should load.</li>
-        </ol>
-        <p>For a map used only on that computer, the defaults are enough. To share it, work through the four settings below.</p>
-        <h3>One configuration file</h3>
-        <pre><code>&lt;save&gt;/mods/com.codelabchaos_Terrascape/terrascape.properties</code></pre>
-        <p>Terrascape creates this file on first start. <strong>Stop the server before editing and restart afterward.</strong></p>
-        <p class="muted">Find the active path with <code>/terrascape status</code> or the startup log entry
-          <code>Terrascape config loaded from</code>.</p>
-      </section>
+    <section class="band" id="setup" aria-labelledby="setup-title">
+      <div class="band-head">
+        <h2 id="setup-title">Install and check</h2>
+        <p>For a map used only on the server computer, this is all you need.</p>
+      </div>
+      <ol class="sequence">
+        <li>Download the latest jar from <a href="https://www.curseforge.com/hytale/mods/synthborn-terrascape">CurseForge</a>.</li>
+        <li>Stop the server and place <code>Terrascape-&lt;version&gt;.jar</code> in <code>&lt;save&gt;/mods/</code>.</li>
+        <li>Start the server. The log shows <code>Terrascape started</code>.</li>
+        <li>On the server computer, open <a href="http://127.0.0.1:5960">127.0.0.1:5960</a>. Your map loads.</li>
+      </ol>
+    </section>
 
-    <section id="access" class="step">
-      <span class="step-num" aria-hidden="true">1</span>
-      <h2>Choose who can view the map</h2>
-      <p>Decide who can view the map once they can reach it.</p>
-      <div class="table-scroll" role="region" aria-label="Map access modes; scroll horizontally for more columns" tabindex="0"><table>
-        <thead><tr><th scope="col">Mode</th><th scope="col">Who can view</th><th scope="col">Use when</th></tr></thead>
-        <tbody>
-          <tr><td><code>public</code> <span class="tag">default</span></td><td>Anyone who can reach the web port</td><td>Local or LAN only, or you want an open map</td></tr>
-          <tr><td><code>restricted</code></td><td>Only visitors with a valid generated link</td><td>You want to require a personal link, including for a private internet-facing map</td></tr>
-        </tbody>
-      </table></div>
-      <pre><code>access.mode=restricted</code></pre>
-      <p>With <code>restricted</code>, grant permission to a group or an individual player using one of these commands. Players then run
-        <code>/terrascape maplink</code> in-game:</p>
-      <pre><code>/perm group &lt;group&gt; add terrascape.map.use
+    <section class="band" id="share" aria-labelledby="share-title">
+      <div class="band-head">
+        <h2 id="share-title">Share it with players</h2>
+        <p>Stop the server, edit one file, restart.</p>
+      </div>
+
+      <div class="configure">
+        <div class="steps">
+          <article class="step" id="access" data-file-step="access">
+            <span class="step-num" aria-hidden="true">1</span>
+            <h3>Choose who can view</h3>
+            <dl class="choices">
+              <dt>public <small>default</small></dt>
+              <dd>Anyone who can reach the web port. Fine for local or LAN maps, or an open map.</dd>
+              <dt>restricted</dt>
+              <dd>Only visitors with a personal link. Use it for any private, internet-facing map.</dd>
+            </dl>
+            <p>With <code>restricted</code>, give the permission to a group or a player. They then run <code>/terrascape maplink</code> in-game:</p>
+            <pre><code>/perm group &lt;group&gt; add terrascape.map.use
 /perm user &lt;player&gt; add terrascape.map.use</code></pre>
-      <p class="muted">Network reachability and access mode are separate choices. A firewall controls who can
-        connect; <code>access.mode</code> controls whether those visitors need a link.</p>
-    </section>
+            <p class="muted">The firewall decides who can connect. <code>access.mode</code> decides whether those visitors need a link.</p>
+          </article>
 
-    <section id="ports" class="step">
-      <span class="step-num" aria-hidden="true">2</span>
-      <h2>Connect your network</h2>
-      <p>By default the map only listens on the server machine at
-        <a href="http://127.0.0.1:5960"><code>http://127.0.0.1:5960</code></a>. To open it to other computers:</p>
-      <pre><code>http.host=0.0.0.0
-http.port=5960</code></pre>
-      <div class="table-scroll" role="region" aria-label="Network settings; scroll horizontally for more columns" tabindex="0"><table>
-        <thead><tr><th scope="col">Key</th><th scope="col">Default</th><th scope="col">What it does</th></tr></thead>
-        <tbody>
-          <tr><td><code>http.host</code></td><td><code>127.0.0.1</code></td><td>Address the map listens on. <code>0.0.0.0</code> means every network interface (it is not an address visitors type).</td></tr>
-          <tr><td><code>http.port</code></td><td><code>5960</code></td><td>TCP port for the web map. Change it to whatever your host assigns.</td></tr>
-        </tbody>
-      </table></div>
-      <h3>Then open the port</h3>
-      <ul class="checks">
-        <li>Allow the TCP port through the server firewall and any hosting control panel.</li>
-        <li>Behind a home router, forward that TCP port to the server machine.</li>
-        <li>On a hosted server, ask the provider for an <strong>extra TCP port</strong>. The Hytale game port does
-          not carry web-map traffic.</li>
-      </ul>
-      <p>Visitors then open <code>http://&lt;server-address&gt;:5960</code>.</p>
-      <p class="muted">Behind a reverse proxy on the same machine? Leave <code>http.host=127.0.0.1</code> and let
-        the proxy forward to it. Remote command service (RCON, port <code>25578</code>) is off by default and not
-        needed for the map; never expose it publicly.</p>
-    </section>
+          <article class="step" id="ports" data-file-step="ports">
+            <span class="step-num" aria-hidden="true">2</span>
+            <h3>Open it to your network</h3>
+            <p>The map listens on <code>127.0.0.1</code>, the server computer only. Set <code>http.host=0.0.0.0</code> to listen on every
+              network interface, and set <code>http.port</code> to the port your host assigns. Then:</p>
+            <ul>
+              <li>Allow that TCP port through the firewall and any hosting panel.</li>
+              <li>Behind a home router, forward the port to the server computer.</li>
+              <li>On a hosted server, ask for an <strong>extra TCP port</strong>. The game port can't carry map traffic.</li>
+            </ul>
+            <p class="muted">Using a reverse proxy on the same machine? Keep <code>http.host=127.0.0.1</code> and point the proxy at it.
+              RCON (port <code>25578</code>) is off by default, isn't needed for the map, and should never be public.</p>
+          </article>
 
-    <section id="domain" class="step">
-      <span class="step-num" aria-hidden="true">3</span>
-      <h2>Set the address players will use</h2>
-      <p>Without this, <code>/terrascape maplink</code> builds links from the listening address, which can come
-        out as <code>0.0.0.0</code>, <code>localhost</code>, or a raw IP. Set the address visitors should actually use:</p>
-      <pre><code>access.publicBaseUrl=https://map.example.com</code></pre>
-      <p>Include the port if visitors have to type it:</p>
-      <pre><code>access.publicBaseUrl=http://map.example.com:5960</code></pre>
-      <p class="muted">This only changes the generated links. It doesn't set up DNS, TLS, the listening address, or
-        the firewall. For HTTPS, point your domain at the server and put a reverse proxy (or your host's HTTPS
-        feature) in front of Terrascape.</p>
-    </section>
+          <article class="step" id="domain" data-file-step="domain">
+            <span class="step-num" aria-hidden="true">3</span>
+            <h3>Set the address players use</h3>
+            <p>Without it, generated links can come out as <code>0.0.0.0</code>, <code>localhost</code>, or a raw IP. Include the port
+              when visitors have to type it, or use <code>https://map.example.com</code> behind an HTTPS proxy.</p>
+            <p class="muted">This only changes generated links. DNS, HTTPS, and the firewall are set up separately.</p>
+          </article>
 
-    <section id="lifetime" class="step">
-      <span class="step-num" aria-hidden="true">4</span>
-      <h2>Choose how long links last</h2>
-      <p>Generated personal links expire after a set number of hours. In restricted mode, opening a link
-        creates a browser session valid until that expiry. When the viewer shows <em>map access expired</em>,
-        the player needs a fresh link. Personal console access also expires on public maps.</p>
-      <pre><code>access.mapTokenTtlHours=24
-access.adminMapTokenTtlHours=4</code></pre>
-      <div class="table-scroll" role="region" aria-label="Link lifetime settings; scroll horizontally for more columns" tabindex="0"><table>
-        <thead><tr><th scope="col">Key</th><th scope="col">Default</th><th scope="col">Applies to</th></tr></thead>
-        <tbody>
-          <tr><td><code>access.mapTokenTtlHours</code></td><td><code>24</code></td><td>Ordinary player links</td></tr>
-          <tr><td><code>access.adminMapTokenTtlHours</code></td><td><code>4</code></td><td>Links made by admins (they carry admin web capabilities, so keep them short)</td></tr>
-        </tbody>
-      </table></div>
-      <p class="muted">Both accept whole hours from <code>1</code> to <code>8760</code> (one year). Treat links like
-        passwords while they are valid.</p>
-    </section>
+          <article class="step" id="lifetime" data-file-step="lifetime">
+            <span class="step-num" aria-hidden="true">4</span>
+            <h3>Choose how long links last</h3>
+            <p>Personal links expire after the set number of hours, from <code>1</code> to <code>8760</code> (a year). Admin links carry admin
+              web access, so keep them short. When the viewer shows <em>map access expired</em>, the player needs a new link.</p>
+            <dl class="facts hours" aria-label="Link lifetimes in hours">
+              <dt>3 days</dt><dd>72</dd>
+              <dt>5 days</dt><dd>120</dd>
+              <dt>1 week</dt><dd>168</dd>
+              <dt>2 weeks</dt><dd>336</dd>
+              <dt>1 month</dt><dd>720</dd>
+            </dl>
+            <p class="muted">Treat links like passwords while they're valid. Personal console access also expires on public maps.</p>
+          </article>
 
-      <section id="verify" class="recipe" aria-labelledby="verify-title">
-        <p class="eyebrow">Finish setup</p>
-        <h2 id="verify-title">Restart, then test as a player</h2>
-        <p>This example uses a restricted map and an HTTPS reverse proxy on the server computer.
-          Configure your domain and proxy before sharing the link.</p>
-        <pre><code>access.mode=restricted
-http.host=127.0.0.1
+          <article class="step" id="verify" data-file-step="all">
+            <span class="step-num" aria-hidden="true">✓</span>
+            <h3>Restart and test as a player</h3>
+            <ol>
+              <li>Restart the server to apply the file.</li>
+              <li>Grant <code>terrascape.map.use</code> to whoever needs access.</li>
+              <li>Run <code>/terrascape maplink</code> in-game and open the link from a player's computer.</li>
+              <li>The map loads and the link uses your public address. If not, see <a href="#troubleshooting">Troubleshooting</a>.</li>
+            </ol>
+          </article>
+        </div>
+
+        <aside class="file" aria-label="Example terrascape.properties">
+          <pre data-label="&lt;save&gt;/mods/com.codelabchaos_Terrascape/terrascape.properties"><code><span class="file-group" data-step="access"><span class="file-comment"># 1 Who can view (default: public)</span>
+access.mode=restricted
+</span><span class="file-group" data-step="ports"><span class="file-comment"># 2 Network (default host: 127.0.0.1)</span>
+http.host=0.0.0.0
 http.port=5960
-access.publicBaseUrl=https://map.example.com
+</span><span class="file-group" data-step="domain"><span class="file-comment"># 3 Address used in generated links</span>
+access.publicBaseUrl=http://map.example.com:5960
+</span><span class="file-group" data-step="lifetime"><span class="file-comment"># 4 Link lifetime in hours</span>
 access.mapTokenTtlHours=24
-access.adminMapTokenTtlHours=4</code></pre>
-        <p>If visitors connect directly to the web port instead, use <code>http.host=0.0.0.0</code>,
-          allow the assigned TCP port, and set <code>access.publicBaseUrl</code> to the reachable address, including its port.</p>
-        <ol class="checks">
-          <li>Restart the server to apply your changes.</li>
-          <li>Grant <code>terrascape.map.use</code> to the player or group that needs access.</li>
-          <li>Run <code>/terrascape maplink</code> in-game and open the generated link from a player's computer.</li>
-          <li>Check that the map loads and the link uses the public address you configured.</li>
-        </ol>
-        <p class="note">A working map from a player's computer confirms the access and network setup.
-          If it fails, use the troubleshooting checks below.</p>
-      </section>
-
-    <section id="more">
-      <h2>Reference and troubleshooting</h2>
-      <p>Open the topic you need.</p>
-
-      <details>
-        <summary>Commands</summary>
-        <div class="detail-content">
-      <div class="table-scroll" role="region" aria-label="Command reference; scroll horizontally for more columns" tabindex="0"><table>
-        <thead><tr><th scope="col">Command</th><th scope="col">Who</th><th scope="col">Purpose</th></tr></thead>
-        <tbody>
-          <tr><td><code>/terrascape maplink</code></td><td><code>terrascape.map.use</code></td><td>Create a clickable personal map link</td></tr>
-          <tr><td><code>/terrascape status</code></td><td><code>terrascape.admin</code></td><td>Web address, worlds, cache stats, config path</td></tr>
-          <tr><td><code>/terrascape tokens</code></td><td><code>terrascape.admin</code></td><td>List up to 50 active Link IDs, owners, and expiry</td></tr>
-          <tr><td><code>/terrascape revoketoken &lt;linkId&gt;</code></td><td><code>terrascape.admin</code></td><td>Revoke one link</td></tr>
-          <tr><td><code>/terrascape maptoken</code></td><td><code>terrascape.admin</code></td><td>Raw credential for an integration</td></tr>
-          <tr><td><code>/terrascape clearcache [mesh|tiles|all]</code></td><td><code>terrascape.admin</code></td><td>Clear terrain and tile caches</td></tr>
-        </tbody>
-      </table></div>
-
-        </div>
-      </details>
-      <details>
-        <summary>Permissions</summary>
-        <div class="detail-content">
-      <div class="table-scroll" role="region" aria-label="Permission reference; scroll horizontally for more columns" tabindex="0"><table>
-        <thead><tr><th scope="col">Node</th><th scope="col">Grants</th></tr></thead>
-        <tbody>
-          <tr><td><code>terrascape.map.use</code></td><td><code>/terrascape</code> and personal map links</td></tr>
-          <tr><td><code>terrascape.admin</code></td><td>Admin subcommands and admin-scoped links. Trusted staff only. A custom admin group needs both nodes.</td></tr>
-        </tbody>
-      </table></div>
-      <p class="muted">Removing a permission doesn't kill links already made. Find the player's Link ID with
-        <code>/terrascape tokens</code> and revoke it. To invalidate every link, stop the server, delete
-        <code>access-tokens.json</code>, and start it again.</p>
-
-        </div>
-      </details>
-      <details>
-        <summary>Limit visible worlds</summary>
-        <div class="detail-content">
-      <pre><code>worlds.allowlist=world1,world2</code></pre>
-      <p class="muted">Blank (the default) shows every loaded world.</p>
-
-        </div>
-      </details>
-      <details>
-        <summary>Web chat console</summary>
-        <div class="detail-content">
-      <p>Personal links can open a chat and command panel with <kbd>T</kbd>. Commands run with the linked player's
-        own Hytale permissions; anonymous visitors never get it. Turn it off with
-        <code>features.webConsole=false</code>.</p>
-
-        </div>
-      </details>
-      <details>
-        <summary>Server load</summary>
-        <div class="detail-content">
-      <p><code>server-config.json</code> (same folder) caps what the browser viewer may request: stream radius,
-        map-tile radius, load concurrency, mob and player update rates. Lower these first if the server is
-        working too hard.</p>
-
-        </div>
-      </details>
-      <details>
-        <summary>Remote or headless server auth</summary>
-        <div class="detail-content">
-      <p>Use <code>/auth login device</code> and complete the URL and code printed in the console. Check with
-        <code>/auth status</code>. This is Hytale's auth and is separate from map links.</p>
-
-        </div>
-      </details>
-      <details>
-        <summary>Troubleshooting</summary>
-        <div class="detail-content">
-      <div class="table-scroll" role="region" aria-label="Troubleshooting checks; scroll horizontally for more columns" tabindex="0"><table>
-        <thead><tr><th scope="col">Symptom</th><th scope="col">Check</th></tr></thead>
-        <tbody>
-          <tr><td>Map won't open from another computer</td><td>For direct access, check <code>http.host=0.0.0.0</code> and the web port, then restart. Check the firewall, router, and hosting panel. With a reverse proxy, check its public address and upstream connection.</td></tr>
-          <tr><td>Link shows <code>0.0.0.0</code>, localhost, or the wrong IP</td><td>Set <code>access.publicBaseUrl</code> and restart</td></tr>
-          <tr><td>"Access required" or HTTP 401</td><td>Map is restricted; open a current <code>/terrascape maplink</code> URL</td></tr>
-          <tr><td>Link expired</td><td>Make a new one in-game, or raise the TTL</td></tr>
-          <tr><td><code>/terrascape</code> denied</td><td>Grant <code>terrascape.map.use</code> (admin commands also need <code>terrascape.admin</code>)</td></tr>
-          <tr><td>Changes don't apply</td><td>Edited the active save's file? Restarted the server?</td></tr>
-          <tr><td>Stale terrain or tiles</td><td><code>/terrascape clearcache all</code>, then reload</td></tr>
-        </tbody>
-      </table></div>
-
-        </div>
-      </details>
-      <p class="more-link">For players: <a href="map.html">Using the map</a>.</p>
+access.adminMapTokenTtlHours=4</span></code></pre>
+          <p class="file-note">Terrascape creates this file on first start. Find the active path with <code>/terrascape status</code>
+            or the log line <code>Terrascape config loaded from</code>.</p>
+        </aside>
+      </div>
     </section>
-    </main>
-  </div>
+
+    <section class="band" id="reference" aria-labelledby="reference-title">
+      <div class="band-head">
+        <h2 id="reference-title">Reference</h2>
+      </div>
+      <div class="ref-grid">
+        <div class="wide">
+          <h3>Commands</h3>
+          <div class="table-scroll" role="region" aria-label="Commands; scroll horizontally for more" tabindex="0"><table>
+            <thead><tr><th scope="col">Command</th><th scope="col">Needs</th><th scope="col">Does</th></tr></thead>
+            <tbody>
+              <tr><td><code>/terrascape maplink</code></td><td><code>terrascape.map.use</code></td><td>Creates a clickable personal map link</td></tr>
+              <tr><td><code>/terrascape status</code></td><td><code>terrascape.admin</code></td><td>Web address, worlds, cache stats, config path</td></tr>
+              <tr><td><code>/terrascape tokens</code></td><td><code>terrascape.admin</code></td><td>Lists up to 50 active Link IDs, owners, and expiry</td></tr>
+              <tr><td><code>/terrascape revoketoken &lt;linkId&gt;</code></td><td><code>terrascape.admin</code></td><td>Revokes one link</td></tr>
+              <tr><td><code>/terrascape maptoken</code></td><td><code>terrascape.admin</code></td><td>Raw credential for an integration</td></tr>
+              <tr><td><code>/terrascape clearcache [mesh|tiles|all]</code></td><td><code>terrascape.admin</code></td><td>Clears terrain and tile caches</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+
+        <div>
+          <h3>Permissions</h3>
+          <dl class="defs">
+            <dt><code>terrascape.map.use</code></dt>
+            <dd><code>/terrascape</code> and personal map links.</dd>
+            <dt><code>terrascape.admin</code></dt>
+            <dd>Admin subcommands and admin links. Trusted staff only. A custom admin group needs both nodes.</dd>
+          </dl>
+          <p class="muted">Removing a permission doesn't cancel links already made. Revoke the player's Link ID from
+            <code>/terrascape tokens</code>. To cancel every link, stop the server, delete <code>access-tokens.json</code>, and start it again.</p>
+        </div>
+
+        <div>
+          <h3>Other settings</h3>
+          <dl class="defs">
+            <dt>Limit visible worlds</dt>
+            <dd><code>worlds.allowlist=world1,world2</code>. Blank (the default) shows every loaded world.</dd>
+            <dt>Web chat console</dt>
+            <dd>Personal links open a chat and command panel with <kbd>T</kbd>, using the player's own permissions. Anonymous visitors
+              never get it. Turn it off with <code>features.webConsole=false</code>.</dd>
+            <dt>Server load</dt>
+            <dd><code>server-config.json</code> in the same folder caps what viewers may request: stream radius, map-tile radius,
+              load concurrency, and update rates. Lower these first if the server works too hard.</dd>
+            <dt>Remote or headless server sign-in</dt>
+            <dd>Run <code>/auth login device</code>, complete the printed URL and code, and check with <code>/auth status</code>. This is
+              Hytale's sign-in and is separate from map links.</dd>
+          </dl>
+        </div>
+
+        <div class="wide" id="troubleshooting">
+          <h3>Troubleshooting</h3>
+          <div class="table-scroll" role="region" aria-label="Troubleshooting; scroll horizontally for more" tabindex="0"><table>
+            <thead><tr><th scope="col">Symptom</th><th scope="col">Check</th></tr></thead>
+            <tbody>
+              <tr><td>Map won't open from another computer</td><td>For direct access, check <code>http.host=0.0.0.0</code> and the web port, then restart. Check the firewall, router, and hosting panel. With a reverse proxy, check its public address and upstream.</td></tr>
+              <tr><td>Link shows <code>0.0.0.0</code>, localhost, or the wrong IP</td><td>Set <code>access.publicBaseUrl</code> and restart.</td></tr>
+              <tr><td>"Access required" or HTTP 401</td><td>The map is restricted. Open a current <code>/terrascape maplink</code> link.</td></tr>
+              <tr><td>Link expired</td><td>Make a new one in-game, or raise the link lifetime.</td></tr>
+              <tr><td><code>/terrascape</code> denied</td><td>Grant <code>terrascape.map.use</code>. Admin commands also need <code>terrascape.admin</code>.</td></tr>
+              <tr><td>Changes don't apply</td><td>Check you edited the active save's file and restarted the server.</td></tr>
+              <tr><td>Stale terrain or tiles</td><td>Run <code>/terrascape clearcache all</code>, then reload the page.</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <footer>
-    <a href="https://www.curseforge.com/hytale/mods/synthborn-terrascape">Synthborn: Terrascape on CurseForge</a>
+    <span>Synthborn: Terrascape</span>
+    <a href="map.html">Using the map</a>
+    <a href="https://www.curseforge.com/hytale/mods/synthborn-terrascape">CurseForge</a>
   </footer>
 
   <p id="copy-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
   <script src="copy.js" defer></script>
+  <script src="file-focus.js" defer></script>
 </body>
 </html>

@@ -12,136 +12,143 @@
   <a class="skip-link" href="#main">Skip to guide</a>
   <header class="site-header">
     <a class="brand" href="index.html">Synthborn<span>Terrascape</span></a>
-    <a href="index.html">Quick Start</a>
+    <nav class="site-nav" aria-label="Guides">
+      <a href="index.html">Quick Start</a>
+      <a href="map.html" aria-current="page">Using the map</a>
+      <a class="button button-primary" href="https://www.curseforge.com/hytale/mods/synthborn-terrascape">Download</a>
+    </nav>
   </header>
 
-  <div class="page-layout" id="top">
-    <nav class="toc" aria-label="On this page">
-      <p class="nav-label">Using the map</p>
-      <a href="#open">Open the map</a>
-      <a href="#move">Get around</a>
-      <a href="#players">Follow players</a>
-      <a href="#settings">Settings panel</a>
-      <a href="#read">Read the map</a>
-      <a href="#chat">Web chat console</a>
-    </nav>
+  <main id="main" tabindex="-1">
+    <header class="intro">
+      <div>
+        <h1>Using the map</h1>
+        <p class="lede">Fly around your server's world in 3D, follow other players, and see what's moving, live.</p>
+        <dl class="facts" aria-label="At a glance">
+          <dt>Open</dt><dd>the link from your admin</dd>
+          <dt>Move</dt><dd>W A S D + mouse</dd>
+          <dt>Settings</dt><dd>gear, top right</dd>
+          <dt>Chat</dt><dd>T</dd>
+        </dl>
+      </div>
+      <figure class="shot">
+        <img src="media/viewer-vs-ingame.jpg" width="1600" height="830" alt="The Terrascape viewer on the left beside Hytale's in-game map on the right, showing the same forests, rivers, and lake">
+        <figcaption>Terrascape (left) beside Hytale's in-game map.</figcaption>
+      </figure>
+    </header>
 
-    <main id="main" tabindex="-1">
-      <header class="hero">
-        <p class="eyebrow">Player guide</p>
-        <h1>Using the Terrascape Map</h1>
-        <p class="lede">Open your server's live 3D map, fly around the world, and follow other players.</p>
-        <div class="hero-actions">
-          <a class="button button-primary" href="#open">Open the map</a>
-          <a class="button button-secondary" href="index.html">Server setup</a>
-        </div>
-      </header>
-
-      <section id="open" aria-labelledby="open-title">
+    <section class="band" id="open" aria-labelledby="open-title">
+      <div class="band-head">
         <h2 id="open-title">Open the map</h2>
-        <ul class="checks">
-          <li>Open the map address your server admin gives you, for example <code>http://your-server:5960</code>.</li>
-          <li>If the map needs a personal link, it ends in a secret key (<code>…?key=abc123</code>). Opening it signs
-            you in for this browser and removes the key from the address bar.</li>
-          <li>When a <em>map access expired</em> notice appears, ask an admin for a new link, or run
-            <code>/terrascape maplink</code> in-game if you have access.</li>
-        </ul>
-        <p class="muted">Treat a personal link like a password until it expires.</p>
-      </section>
+        <p>Use the address your server admin gives you, for example <code>http://your-server:5960</code>.</p>
+      </div>
+      <ol class="sequence">
+        <li>If the map needs a personal link, it ends in a secret key: <code>…?key=abc123</code>.</li>
+        <li>Opening it signs you in for this browser and removes the key from the address bar.</li>
+        <li>When <em>map access expired</em> appears, ask an admin for a new link, or run <code>/terrascape maplink</code> in-game.</li>
+      </ol>
+      <p class="muted band-after">Treat a personal link like a password until it expires.</p>
+    </section>
 
-      <section id="move" aria-labelledby="move-title">
-        <h2 id="move-title">Get around</h2>
-        <p>By default you fly freely around the world.</p>
-        <div class="table-scroll" role="region" aria-label="Flight controls; scroll horizontally for more columns" tabindex="0"><table>
-          <thead><tr><th scope="col">Input</th><th scope="col">Action</th></tr></thead>
-          <tbody>
-            <tr><td><kbd>W</kbd> / <kbd>S</kbd></td><td>Move forward / back</td></tr>
-            <tr><td><kbd>A</kbd> or <kbd>Q</kbd> / <kbd>D</kbd> or <kbd>E</kbd></td><td>Strafe left / right</td></tr>
-            <tr><td><kbd>Space</kbd> / <kbd>R</kbd> / <kbd>PageUp</kbd></td><td>Move up</td></tr>
-            <tr><td><kbd>C</kbd> / <kbd>PageDown</kbd></td><td>Move down</td></tr>
-            <tr><td><kbd>Shift</kbd> (hold)</td><td>Sprint</td></tr>
-            <tr><td>Drag with the mouse</td><td>Look around</td></tr>
-            <tr><td>Mouse wheel</td><td>Zoom the view in / out</td></tr>
-            <tr><td><kbd>Esc</kbd></td><td>Close the settings panel</td></tr>
-          </tbody>
-        </table></div>
-      </section>
+    <section class="band" id="move" aria-labelledby="move-title">
+      <div class="split">
+        <div>
+          <h2 id="move-title" class="band-head">Get around</h2>
+          <dl class="keys">
+            <dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>Forward, back</dd>
+            <dt><kbd>A</kbd> <kbd>D</kbd> <span class="muted">or</span> <kbd>Q</kbd> <kbd>E</kbd></dt><dd>Strafe left, right</dd>
+            <dt><kbd>Space</kbd> <kbd>R</kbd> <kbd>PgUp</kbd></dt><dd>Up</dd>
+            <dt><kbd>C</kbd> <kbd>PgDn</kbd></dt><dd>Down</dd>
+            <dt><kbd>Shift</kbd></dt><dd>Hold to sprint</dd>
+            <dt>Drag</dt><dd>Look around</dd>
+            <dt>Wheel</dt><dd>Zoom in, out</dd>
+            <dt><kbd>Esc</kbd></dt><dd>Close the settings panel</dd>
+          </dl>
+        </div>
+        <div id="players">
+          <h2 class="band-head">Follow players</h2>
+          <p>Each player in the <strong>Players</strong> list on the right has quick actions:</p>
+          <dl class="defs">
+            <dt>Click the tile</dt><dd>Flies the camera to that player.</dd>
+            <dt>Eye view</dt><dd>Shows the world through that player's eyes.</dd>
+            <dt>Follow</dt><dd>Trails the player from an angled overhead camera.</dd>
+          </dl>
+        </div>
+      </div>
+    </section>
 
-      <section id="players" aria-labelledby="players-title">
-        <h2 id="players-title">Follow players</h2>
-        <p>Each player in the <strong>Players</strong> list on the right has quick actions:</p>
-        <ul class="checks">
-          <li><strong>Click the tile</strong> to fly the camera to that player.</li>
-          <li><strong>Eye view</strong> shows the world through that player's eyes.</li>
-          <li><strong>Follow</strong> trails the player from an overhead angled camera.</li>
-        </ul>
-      </section>
-
-      <section id="settings" aria-labelledby="settings-title">
+    <section class="band" id="settings" aria-labelledby="settings-title">
+      <div class="band-head">
         <h2 id="settings-title">Settings panel</h2>
-        <p>Click the gear icon (top right) to open the panel. Controls are grouped into collapsible
-          <strong>World</strong>, <strong>Render</strong>, and <strong>Experimental</strong> sections. A few live in
-          the title bar: the <strong>Mobs</strong> and <strong>Mob Blocks</strong> toggles, the
-          <strong>mob update rate</strong>, and <strong>Sync Time</strong> (use the world's time for lighting).</p>
+        <p>Open it with the gear, top right. A few controls stay in the title bar.</p>
+      </div>
+      <div class="panel-cols">
+        <div>
+          <h3>Title bar</h3>
+          <dl class="defs">
+            <dt>Sync Time</dt><dd>Lights the map with the world's time instead of noon.</dd>
+            <dt>Mobs, Mob Blocks</dt><dd>Show creature markers and their headshot blocks.</dd>
+            <dt>Update rate</dt><dd>How often mob positions refresh.</dd>
+          </dl>
+        </div>
+        <div>
+          <h3>World</h3>
+          <dl class="defs">
+            <dt>World</dt><dd>Which world to view. Switching reloads terrain and markers.</dd>
+            <dt>Voxel Mesh Distance</dt><dd>How far 3D terrain loads around you, 0 to 12.</dd>
+            <dt>Players, Auto, Bounds, Mob Blocks</dt><dd>Player markers, automatic loading around the camera, chunk boundaries, and mob headshot blocks.</dd>
+            <dt>Clear Browser Cache</dt><dd>Removes terrain and tiles stored in this browser only.</dd>
+          </dl>
+        </div>
+        <div>
+          <h3>Render</h3>
+          <dl class="defs">
+            <dt>Map Tiles</dt><dd>The flat map under the terrain, with distance and loading sliders.</dd>
+            <dt>Shade</dt><dd>Soft shadow shading, with size and darkness, plus tree shade.</dd>
+            <dt>Land motion</dt><dd>Chunks rise into place as they load.</dd>
+            <dt>Water</dt><dd>Solid, Transparent, or Hidden.</dd>
+            <dt>Cosmetic Blocks, Visual Detail</dt><dd>How much decorative detail to load.</dd>
+          </dl>
+        </div>
+        <div>
+          <h3>Experimental</h3>
+          <dl class="defs">
+            <dt>Fog</dt><dd>Distance fog with near, far, strength, and haze sliders.</dd>
+          </dl>
+        </div>
+      </div>
+    </section>
 
-        <details open>
-          <summary>World</summary>
-          <div class="detail-content">
-            <ul>
-              <li><strong>World</strong>: pick which world to view. Switching reloads terrain and markers.</li>
-              <li><strong>Voxel Mesh Distance</strong>: how far 3D terrain loads around you (0 to 12).</li>
-              <li><strong>Players / Auto / Bounds / Mob Blocks</strong>: show player markers, load terrain around the
-                camera automatically, show chunk boundaries, and show mob headshot blocks on the ground.</li>
-              <li><strong>Clear Browser Cache</strong>: removes terrain and map tiles stored in this browser only. The
-                server and other players are not affected.</li>
-            </ul>
-          </div>
-        </details>
-        <details>
-          <summary>Render</summary>
-          <div class="detail-content">
-            <ul>
-              <li><strong>Map Tiles</strong>: the flat 2D map under the terrain, with distance and loading sliders.</li>
-              <li><strong>Shade</strong>: soft shadow shading, with size and darkness, plus tree shade.</li>
-              <li><strong>Land motion</strong>: chunks rise into place as they load.</li>
-              <li><strong>Water</strong>: Solid, Transparent, or Hidden.</li>
-              <li><strong>Cosmetic Blocks</strong> (Off / Baked / Split) and <strong>Visual Detail</strong>
-                (Basic / Struct / Foliage): how much decorative detail to load.</li>
-            </ul>
-          </div>
-        </details>
-        <details>
-          <summary>Experimental</summary>
-          <div class="detail-content">
-            <ul>
-              <li><strong>Fog</strong>: distance fog with near, far, strength, and haze sliders.</li>
-            </ul>
-          </div>
-        </details>
-      </section>
-
-      <section id="read" aria-labelledby="read-title">
-        <h2 id="read-title">Read the map</h2>
-        <ul class="checks">
-          <li>The <strong>sky ribbon</strong> (top center) shows the world's current time and phase.</li>
-          <li>The <strong>Render Details</strong> card (bottom right) shows status, loaded chunks, mob count, and your
-            camera position. Click its header to collapse it.</li>
-        </ul>
-      </section>
-
-      <section id="chat" aria-labelledby="chat-title">
-        <h2 id="chat-title">Web chat console</h2>
-        <p>A personal link from <code>/terrascape maplink</code> also lets you use the web console. Press
-          <kbd>T</kbd> while the map has focus, type to chat, or start with <code>/</code> to run a command. Press
-          <kbd>Esc</kbd> to close it.</p>
-        <p class="muted">The link does not make you an operator. Commands use your own Hytale permissions. Visitors
-          without a personal link don't get the console, even on a public map.</p>
-      </section>
-    </main>
-  </div>
+    <section class="band" id="read" aria-labelledby="read-title">
+      <div class="split">
+        <div>
+          <h2 id="read-title" class="band-head">Read the map</h2>
+          <dl class="defs">
+            <dt>Sky ribbon, top center</dt><dd>The world's current time and phase.</dd>
+            <dt>Mob markers</dt><dd>Cards above each creature show what it is and where it stands.</dd>
+            <dt>Render Details, bottom right</dt><dd>Status, loaded chunks, mob count, and your camera position. Click its header to collapse it.</dd>
+          </dl>
+          <h2 id="chat" class="band-head subhead">Web chat console</h2>
+          <p>A personal link also lets you use the console. Press <kbd>T</kbd> while the map has focus, type to chat, or start with
+            <code>/</code> to run a command. <kbd>Esc</kbd> closes it.</p>
+          <p class="muted">The link doesn't make you an operator: commands use your own Hytale permissions. Visitors without a personal
+            link don't get the console.</p>
+        </div>
+        <figure class="shot shot-crop">
+          <img src="media/viewer-mobs.jpg" width="900" height="845" loading="lazy" alt="Mob marker cards floating above creatures in a blue-leaved forest in the Terrascape viewer">
+          <figcaption>Mob markers in a forest at dusk.</figcaption>
+        </figure>
+      </div>
+    </section>
+  </main>
 
   <footer>
-    <a href="https://www.curseforge.com/hytale/mods/synthborn-terrascape">Synthborn: Terrascape on CurseForge</a>
+    <span>Synthborn: Terrascape</span>
+    <a href="index.html">Quick Start</a>
+    <a href="https://www.curseforge.com/hytale/mods/synthborn-terrascape">CurseForge</a>
   </footer>
+
+  <p id="copy-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+  <script src="copy.js" defer></script>
 </body>
 </html>

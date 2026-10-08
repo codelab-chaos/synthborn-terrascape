@@ -45,6 +45,12 @@ document.querySelectorAll('pre').forEach((pre, index) => {
     }
   });
   pre.before(wrapper);
+  if (pre.dataset.label) {
+    const label = document.createElement('span');
+    label.className = 'code-label';
+    label.textContent = pre.dataset.label;
+    toolbar.appendChild(label);
+  }
   toolbar.appendChild(button);
   wrapper.append(toolbar, pre, error);
 });
