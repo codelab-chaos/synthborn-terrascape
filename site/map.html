@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Using the Terrascape Map</title>
+  <meta name="description" content="How to open, move around, and read the Synthborn: Terrascape live 3D web map for Hytale servers.">
+  <link rel="icon" href="../images/curseforge-avatar.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to guide</a>
+  <header class="site-header">
+    <a class="brand" href="index.html">Synthborn<span>Terrascape</span></a>
+    <a href="index.html">Quick Start</a>
+  </header>
+
+  <div class="page-layout" id="top">
+    <nav class="toc" aria-label="On this page">
+      <p class="nav-label">Using the map</p>
+      <a href="#open">Open the map</a>
+      <a href="#move">Get around</a>
+      <a href="#players">Follow players</a>
+      <a href="#settings">Settings panel</a>
+      <a href="#read">Read the map</a>
+      <a href="#chat">Web chat console</a>
+    </nav>
+
+    <main id="main" tabindex="-1">
+      <header class="hero">
+        <p class="eyebrow">Player guide</p>
+        <h1>Using the Terrascape Map</h1>
+        <p class="lede">Open your server's live 3D map, fly around the world, and follow other players.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#open">Open the map</a>
+          <a class="button button-secondary" href="index.html">Server setup</a>
+        </div>
+      </header>
+
+      <section id="open" aria-labelledby="open-title">
+        <h2 id="open-title">Open the map</h2>
+        <ul class="checks">
+          <li>Open the map address your server admin gives you, for example <code>http://your-server:5960</code>.</li>
+          <li>If the map needs a personal link, it ends in a secret key (<code>…?key=abc123</code>). Opening it signs
+            you in for this browser and removes the key from the address bar.</li>
+          <li>When a <em>map access expired</em> notice appears, ask an admin for a new link, or run
+            <code>/terrascape maplink</code> in-game if you have access.</li>
+        </ul>
+        <p class="muted">Treat a personal link like a password until it expires.</p>
+      </section>
+
+      <section id="move" aria-labelledby="move-title">
+        <h2 id="move-title">Get around</h2>
+        <p>By default you fly freely around the world.</p>
+        <div class="table-scroll" role="region" aria-label="Flight controls; scroll horizontally for more columns" tabindex="0"><table>
+          <thead><tr><th scope="col">Input</th><th scope="col">Action</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>W</kbd> / <kbd>S</kbd></td><td>Move forward / back</td></tr>
+            <tr><td><kbd>A</kbd> or <kbd>Q</kbd> / <kbd>D</kbd> or <kbd>E</kbd></td><td>Strafe left / right</td></tr>
+            <tr><td><kbd>Space</kbd> / <kbd>R</kbd> / <kbd>PageUp</kbd></td><td>Move up</td></tr>
+            <tr><td><kbd>C</kbd> / <kbd>PageDown</kbd></td><td>Move down</td></tr>
+            <tr><td><kbd>Shift</kbd> (hold)</td><td>Sprint</td></tr>
+            <tr><td>Drag with the mouse</td><td>Look around</td></tr>
+            <tr><td>Mouse wheel</td><td>Zoom the view in / out</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Close the settings panel</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section id="players" aria-labelledby="players-title">
+        <h2 id="players-title">Follow players</h2>
+        <p>Each player in the <strong>Players</strong> list on the right has quick actions:</p>
+        <ul class="checks">
+          <li><strong>Click the tile</strong> to fly the camera to that player.</li>
+          <li><strong>Eye view</strong> shows the world through that player's eyes.</li>
+          <li><strong>Follow</strong> trails the player from an overhead angled camera.</li>
+        </ul>
+      </section>
+
+      <section id="settings" aria-labelledby="settings-title">
+        <h2 id="settings-title">Settings panel</h2>
+        <p>Click the gear icon (top right) to open the panel. Controls are grouped into collapsible
+          <strong>World</strong>, <strong>Render</strong>, and <strong>Experimental</strong> sections. A few live in
+          the title bar: the <strong>Mobs</strong> and <strong>Mob Blocks</strong> toggles, the
+          <strong>mob update rate</strong>, and <strong>Sync Time</strong> (use the world's time for lighting).</p>
+
+        <details open>
+          <summary>World</summary>
+          <div class="detail-content">
+            <ul>
+              <li><strong>World</strong>: pick which world to view. Switching reloads terrain and markers.</li>
+              <li><strong>Voxel Mesh Distance</strong>: how far 3D terrain loads around you (0 to 12).</li>
+              <li><strong>Players / Auto / Bounds / Mob Blocks</strong>: show player markers, load terrain around the
+                camera automatically, show chunk boundaries, and show mob headshot blocks on the ground.</li>
+              <li><strong>Clear Browser Cache</strong>: removes terrain and map tiles stored in this browser only. The
+                server and other players are not affected.</li>
+            </ul>
+          </div>
+        </details>
+        <details>
+          <summary>Render</summary>
+          <div class="detail-content">
+            <ul>
+              <li><strong>Map Tiles</strong>: the flat 2D map under the terrain, with distance and loading sliders.</li>
+              <li><strong>Shade</strong>: soft shadow shading, with size and darkness, plus tree shade.</li>
+              <li><strong>Land motion</strong>: chunks rise into place as they load.</li>
+              <li><strong>Water</strong>: Solid, Transparent, or Hidden.</li>
+              <li><strong>Cosmetic Blocks</strong> (Off / Baked / Split) and <strong>Visual Detail</strong>
+                (Basic / Struct / Foliage): how much decorative detail to load.</li>
+            </ul>
+          </div>
+        </details>
+        <details>
+          <summary>Experimental</summary>
+          <div class="detail-content">
+            <ul>
+              <li><strong>Fog</strong>: distance fog with near, far, strength, and haze sliders.</li>
+            </ul>
+          </div>
+        </details>
+      </section>
+
+      <section id="read" aria-labelledby="read-title">
+        <h2 id="read-title">Read the map</h2>
+        <ul class="checks">
+          <li>The <strong>sky ribbon</strong> (top center) shows the world's current time and phase.</li>
+          <li>The <strong>Render Details</strong> card (bottom right) shows status, loaded chunks, mob count, and your
+            camera position. Click its header to collapse it.</li>
+        </ul>
+      </section>
+
+      <section id="chat" aria-labelledby="chat-title">
+        <h2 id="chat-title">Web chat console</h2>
+        <p>A personal link from <code>/terrascape maplink</code> also lets you use the web console. Press
+          <kbd>T</kbd> while the map has focus, type to chat, or start with <code>/</code> to run a command. Press
+          <kbd>Esc</kbd> to close it.</p>
+        <p class="muted">The link does not make you an operator. Commands use your own Hytale permissions. Visitors
+          without a personal link don't get the console, even on a public map.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <a href="https://www.curseforge.com/hytale/mods/synthborn-terrascape">Synthborn: Terrascape on CurseForge</a>
+  </footer>
+</body>
+</html>
