@@ -326,7 +326,9 @@ function createStarField() {
     transparent: true,
     opacity: 0,
     depthWrite: false,
-    depthTest: false,
+    // Transparent objects draw after every opaque mesh regardless of renderOrder, so the
+    // depth test is what keeps stars behind models and terrain.
+    depthTest: true,
     fog: false,
   });
   return new THREE.Points(geometry, material);
@@ -344,7 +346,8 @@ function createSkyDisc(color, size, opacity) {
     transparent: true,
     opacity: 0,
     depthWrite: false,
-    depthTest: false,
+    // Same as the stars: depth-test so the sun and moon stay behind models and terrain.
+    depthTest: true,
     fog: false,
   });
   const sprite = new THREE.Sprite(material);

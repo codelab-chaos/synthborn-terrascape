@@ -26,7 +26,7 @@ class TerrainChunkReaderTest {
                 0, new TerrainChunkReader.Section(lower, null),
                 1, new TerrainChunkReader.Section(upper, fluid));
         Map<Integer, Integer> resolutions = new HashMap<>();
-        TerrainChunkReader reader = new TerrainChunkReader(new BlockChunk(-2, -3), y -> {
+        TerrainChunkReader reader = new TerrainChunkReader(new BlockChunk(-2, -3), (x, z) -> TerrainChunkReader.NO_HEIGHT, y -> {
             resolutions.merge(y, 1, Integer::sum);
             return sections.getOrDefault(y, TerrainChunkReader.Section.EMPTY);
         });
@@ -45,9 +45,8 @@ class TerrainChunkReaderTest {
     @Test
     void missingSectionsAreEmptyAndHeightAndTintComeFromColumn() {
         BlockChunk column = new BlockChunk(0, 0);
-        column.setHeight(3, 5, (short) 63);
-        column.setTint(3, 5, 0x7f9f3f);
-        TerrainChunkReader reader = new TerrainChunkReader(column, y -> TerrainChunkReader.Section.EMPTY);
+                column.setTint(3, 5, 0x7f9f3f);
+        TerrainChunkReader reader = new TerrainChunkReader(column, (x, z) -> x == 3 && z == 5 ? 63 : TerrainChunkReader.NO_HEIGHT, y -> TerrainChunkReader.Section.EMPTY);
         assertEquals(63, reader.getHeight(3, 5));
         assertEquals(0x7f9f3f, reader.getTint(3, 5));
         assertEquals(0, reader.getBlock(3, 64, 5));

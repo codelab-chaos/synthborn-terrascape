@@ -1,6 +1,6 @@
 {
   "name": "synthborn-terrascape",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "main": "index.js",
   "scripts": {
     "build:web": "webpack --config webpack.config.cjs",

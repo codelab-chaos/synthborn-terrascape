@@ -183,7 +183,19 @@ token in a browser cookie until it expires. Administrators can use `/terrascape 
 when an integration needs the raw credential instead of a clickable link.
 
 Ordinary links use `access.mapTokenTtlHours`. Links created by an administrator use
-`access.adminMapTokenTtlHours` and include the administrator's web capabilities. Tokens
+`access.adminMapTokenTtlHours` and include the administrator's web capabilities. Both take
+whole hours from 1 to 8760:
+
+| Lifetime | Hours |
+| --- | --- |
+| 1 day (default for ordinary links) | `24` |
+| 3 days | `72` |
+| 5 days | `120` |
+| 1 week | `168` |
+| 2 weeks | `336` |
+| 1 month (30 days) | `720` |
+
+Tokens
 cannot be recovered from `access-tokens.json`; only hashes and expiration times are
 stored.
 

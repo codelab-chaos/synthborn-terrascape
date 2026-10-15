@@ -45,7 +45,7 @@ public final class TerrainSampler {
 
         for (int z = 0; z < TerrainSnapshot.CHUNK_SIZE; z++) {
             for (int x = 0; x < TerrainSnapshot.CHUNK_SIZE; x++) {
-                short height = chunk.getHeight(x, z);
+                int height = chunk.getHeight(x, z);
                 SampledColumn sampled = sampleColumn(chunk, x, z, height, includeCosmeticDetails, visualDetailMode);
                 TerrainColumn column = sampled.column();
                 columns[z * TerrainSnapshot.CHUNK_SIZE + x] = column;
@@ -70,7 +70,7 @@ public final class TerrainSampler {
             @Nonnull TerrainChunkReader chunk,
             int localX,
             int localZ,
-            short height,
+            int height,
             boolean includeCosmeticDetails,
             @Nonnull VisualDetailMode visualDetailMode
     ) {

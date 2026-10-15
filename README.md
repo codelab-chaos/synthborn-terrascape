@@ -3,15 +3,15 @@
 <img src="images/terrascape-title-2.png" width="80%" style="background: transparent" />
 
 Synthborn: Terrascape turns a live Hytale server world into an interactive 3D map you
-explore in a web browser — terrain, mobs, players, and the day/night cycle, streamed
+explore in a web browser: terrain, mobs, players, and the day/night cycle, streamed
 straight from the running server. It installs as a server-side mod and serves the
 viewer over HTTP; players just open a link.
 
 **Who this is for:**
 
-- **Map viewers** — someone gave you a link to their Terrascape map. Go to
+- **Map viewers**: someone gave you a link to their Terrascape map. Go to
   [Using the map viewer](#using-the-map-viewer).
-- **Server owners / admins** — you want to run Terrascape on your server. Start with
+- **Server owners / admins**: you want to run Terrascape on your server. Start with
   [Installation](#installation) and the [Operations Manual](docs/operations-manual.md).
   The [Quick Start website](https://codelab-chaos.github.io/synthborn-terrascape/)
   walks through installation, access mode, ports, domain, and link lifetime.
@@ -20,17 +20,17 @@ viewer over HTTP; players just open a link.
 
 ## Features
 
-- **Live 3D world** — the server meshes terrain chunks into 3D and streams them to the
+- **Live 3D world**: the server meshes terrain chunks into 3D and streams them to the
   browser as you move, so the map reflects the real world state.
-- **Mobs & players** — live mob cards (name, HP, ATK, stack count) and player markers,
+- **Mobs & players**: live mob cards (name, HP, ATK, stack count) and player markers,
   with an online-players sidebar.
-- **Follow & first-person views** — focus, follow, or see through a player's eyes.
-- **Day/night cycle** — a sky ribbon shows world time; optional time-based lighting.
-- **Map-tile backdrop** — top-down 2D tiles fill in the distance beyond the 3D meshes.
-- **Tunable rendering** — mesh distance, shading, water mode, fog, cosmetic detail, and
-  loading budgets — all adjustable live from the settings panel.
-- **Shareable links** — open access, or token-gated links you hand out per player.
-- **Identity-aware web console** — personal links can open a browser chat/command panel;
+- **Follow & first-person views**: focus, follow, or see through a player's eyes.
+- **Day/night cycle**: a sky ribbon shows world time; optional time-based lighting.
+- **Map-tile backdrop**: top-down 2D tiles fill in the distance beyond the 3D meshes.
+- **Tunable rendering**: mesh distance, shading, water mode, fog, cosmetic detail, and
+  loading budgets, all adjustable live from the settings panel.
+- **Shareable links**: open access, or token-gated links you hand out per player.
+- **Identity-aware web console**: personal links can open a browser chat/command panel;
   commands run with the linked player's current Hytale permissions.
 
 ---
@@ -43,7 +43,7 @@ viewer over HTTP; players just open a link.
 - If the map is **token-gated**, your link includes a secret bearer key
   (`…?key=abc123`). Opening it sets a session cookie and tidies the key out of the
   address bar. If your session later expires, a **"map access expired"** overlay
-  appears — ask an admin (or run `/terrascape maplink` in-game if you have access) for
+  appears; ask an admin (or run `/terrascape maplink` in-game if you have access) for
   a fresh link.
 
 ### Web chat console
@@ -77,9 +77,9 @@ By default you fly freely around the world.
 
 In the **Players** list (right side), each player has quick actions:
 
-- **Click the tile** — fly the camera to that player.
-- **Eye view** — see the world through that player's eyes (first-person).
-- **Follow** — trail the player from an isometric camera.
+- **Click the tile**: fly the camera to that player.
+- **Eye view**: see the world through that player's eyes (first-person).
+- **Follow**: trail the player from an isometric camera.
 
 ### Settings panel
 
@@ -89,23 +89,23 @@ titlebar: **Mobs** and **Mob Blocks** toggles, the **mob update rate**, and **Sy
 (use world time for lighting).
 
 **World**
-- **World** — pick which world to view (switching reloads terrain and markers).
-- **Voxel Mesh Distance** — radius of 3D terrain loaded around you (0–12).
-- **Players / Auto / Bounds / Mob Blocks** — show player markers, auto-stream terrain
+- **World**: pick which world to view (switching reloads terrain and markers).
+- **Voxel Mesh Distance**: radius of 3D terrain loaded around you (0–12).
+- **Players / Auto / Bounds / Mob Blocks**: show player markers, auto-stream terrain
   around the camera, show chunk-load boundaries, show mob headshot blocks on the ground.
-- **Clear Browser Cache** — drop terrain meshes and map tiles from this browser's IndexedDB only; server data and other clients are unaffected.
+- **Clear Browser Cache**: drop terrain meshes and map tiles from this browser's IndexedDB only; server data and other clients are unaffected.
 
 **Render**
-- **Map Tiles** — show the flat 2D map backdrop, with distance and concurrent-load
+- **Map Tiles**: show the flat 2D map backdrop, with distance and concurrent-load
   sliders.
-- **Shade** — ambient-occlusion shading, with size and darkness, plus tree shade.
-- **Land motion** — animate chunks rising in as they load.
-- **Water** — Solid / Transparent / Hidden.
+- **Shade**: ambient-occlusion shading, with size and darkness, plus tree shade.
+- **Land motion**: animate chunks rising in as they load.
+- **Water**: Solid / Transparent / Hidden.
 - **Cosmetic Blocks** (Off / Baked / Split) and **Visual Detail** (Basic / Struct /
-  Foliage) — how much decorative geometry and shape detail to load.
+  Foliage): how much decorative geometry and shape detail to load.
 
 **Experimental**
-- **Fog** — enable distance fog with near/far/strength/haze sliders.
+- **Fog**: enable distance fog with near/far/strength/haze sliders.
 - **Mesh promotion pacing** is intentionally not exposed here. Administrators set meshes
   per frame and the per-frame time budget in `server-config.json`.
 
@@ -124,12 +124,12 @@ titlebar: **Mobs** and **Mob Blocks** toggles, the **mob update rate**, and **Sy
 
 ### Quickstart: local server from CurseForge
 
-<!-- TODO: replace with the real CurseForge project URL/slug once published. -->
-
 Use this path when you downloaded Terrascape from CurseForge and want the minimum local
-server setup.
+server setup. For a guided walkthrough (access mode, ports, domain, link lifetime), see
+the [Quick Start website](https://codelab-chaos.github.io/synthborn-terrascape/).
 
-1. Download the latest `Terrascape-<version>.jar` from the CurseForge page.
+1. Download the latest `Terrascape-<version>.jar` from the
+   [CurseForge page](https://www.curseforge.com/hytale/mods/synthborn-terrascape).
 2. Stop your Hytale dedicated server.
 3. Copy the jar into your server save's `mods/` folder:
 
@@ -175,11 +175,11 @@ For token-gated links, set `access.mode=restricted`, restart, and have players w
 
 Requires Hytale Server **0.6.4 or newer**; the current build targets 0.6.5.
 
-1. Get the jar — download a release, or build it yourself with `./gradlew build`
+1. Get the jar: download a release, or build it yourself with `./gradlew build`
    (output: `build/libs/Terrascape-<version>.jar`).
 2. Copy the jar into your Hytale save's `mods/` folder.
 3. Start the server once to generate `terrascape.properties` in the plugin data folder.
-4. (Optional) edit `terrascape.properties` — most commonly `http.host` and `http.port`.
+4. (Optional) edit `terrascape.properties`, most commonly `http.host` and `http.port`.
 5. Open `http://<server-host>:5960` in a browser.
 
 For CORS, TLS/reverse proxies, permissions, access tokens, RCON, cache clearing, and the
@@ -189,7 +189,8 @@ full configuration reference, see the [Operations Manual](docs/operations-manual
 
 ## For server admins
 
-The [Operations Manual](docs/operations-manual.md) is the complete server runbook:
+New to Terrascape? The [Quick Start website](https://codelab-chaos.github.io/synthborn-terrascape/) gets a server online step by
+step. The [Operations Manual](docs/operations-manual.md) is the complete server runbook:
 
 - Installing, updating, or removing the CurseForge mod
 - Local, LAN, hosted-server, domain, and HTTPS access
@@ -296,9 +297,10 @@ starts with `npm run perf`.
 
 ## Reference docs
 
-- [Operations Manual](docs/operations-manual.md) — the complete server, configuration,
+- [Quick Start website](https://codelab-chaos.github.io/synthborn-terrascape/): guided setup for server owners.
+- [Operations Manual](docs/operations-manual.md): the complete server, configuration,
   permissions, and access guide.
-- [Sprint Board](docs/terrascape-sprint-board.md#mvp-release-review) — release checklist,
+- [Sprint Board](docs/terrascape-sprint-board.md#mvp-release-review): release checklist,
   validation environment rule, and release evidence template.
 
 Shared Synthborn/Hytale reference material lives in

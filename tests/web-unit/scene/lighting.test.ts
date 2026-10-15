@@ -43,6 +43,18 @@ test('createLightingRig builds the full sky rig and adds it to the scene', () =>
   }
 });
 
+test('night sky objects depth-test so they never draw over models or terrain', () => {
+  const { rig } = makeRig();
+  for (const obj of [rig.stars, rig.sunDisc, rig.moonDisc]) {
+    const material = obj.material as THREE.Material;
+    // Transparent materials render after all opaque meshes; without a depth test they
+    // would paint over mob and player models at night.
+    assert.equal(material.transparent, true);
+    assert.equal(material.depthTest, true);
+    assert.equal(material.depthWrite, false);
+  }
+});
+
 test('lightingOptionsFromInputs reads inputs with fallbacks', () => {
   const opts = lightingOptionsFromInputs({
     treeShadeInput: { checked: true },

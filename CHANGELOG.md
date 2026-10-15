@@ -10,6 +10,16 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- Add user-facing changes under Added, Changed, Fixed, Performance, Security, or
 Compatibility. During release preparation, move them into a dated version section. -->
 
+## [0.2.0] - 2026-10-14
+
+### Compatibility
+
+- Updated for Hytale Update 7 (Chapter I, server 0.7.2). The server requirement is
+  now `>=0.7.2`; this release will not load on 0.6.x servers.
+- Terrain heights are read from the new heightmap column component, since the old
+  per-chunk height accessors were removed.
+- Compile and test against Hytale Server 0.7.2.
+
 ## [0.1.2] - 2026-10-05
 
 ### Added

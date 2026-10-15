@@ -211,6 +211,9 @@ public record TerrascapeConfig(
                 # This is independent from rcon.password below.
                 access.mode=public
                 access.debugToken=
+                # Map link lifetimes in whole hours, 1 to 8760. Admin links carry admin web access,
+                # so keep them short. Examples: 3 days=72, 5 days=120, 1 week=168, 2 weeks=336,
+                # 1 month (30 days)=720.
                 access.mapTokenTtlHours=24
                 access.adminMapTokenTtlHours=4
                 # Optional public URL used in generated /terrascape maplink output.
